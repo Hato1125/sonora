@@ -1,11 +1,8 @@
-use gpui::prelude::FluentBuilder as _;
-use gpui::{
-    App, AppContext as _, Context, Entity, IntoElement, ParentElement, Render, Styled, Window, div,
-};
+use gpui::{AppContext as _, Context, Entity, Render};
 use state::{Library, Session, SessionState};
+use ui::prelude::*;
 
-use crate::theme::Theme;
-use crate::views::{LibraryView, LoginView};
+use crate::{LibraryView, LoginView};
 
 pub struct Root {
     session: Entity<Session>,
@@ -45,25 +42,4 @@ impl Render for Root {
                 |this| this.child(self.login.clone()),
             )
     }
-}
-
-pub fn open_window(session: Entity<Session>, library: Entity<Library>, cx: &mut App) {
-    use gpui::{Bounds, TitlebarOptions, WindowBounds, WindowOptions, point, px, size};
-
-    let bounds = Bounds::centered(None, size(px(920.), px(640.)), cx);
-    cx.open_window(
-        WindowOptions {
-            window_bounds: Some(WindowBounds::Windowed(bounds)),
-            titlebar: Some(TitlebarOptions {
-                title: Some("spotty".into()),
-                appears_transparent: false,
-                traffic_light_position: Some(point(px(9.), px(9.))),
-            }),
-            app_id: Some("spotty".into()),
-            window_min_size: Some(size(px(520.), px(400.))),
-            ..Default::default()
-        },
-        |_, cx| cx.new(|cx| Root::new(session, library, cx)),
-    )
-    .expect("failed to open window");
 }

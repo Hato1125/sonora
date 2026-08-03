@@ -1,11 +1,15 @@
-use gpui::{App, Application, KeyBinding, Menu, MenuItem, actions};
-use state::Spotty;
+use gpui::{
+    App, AppContext as _, Application, Bounds, Entity, KeyBinding, Menu, MenuItem, TitlebarOptions,
+    WindowBounds, WindowOptions, actions, point, px, size,
+};
+use state::{Library, Session, Spotty};
+use views::Root;
 
 actions!(spotty, [Quit, SignOut, RefreshLibrary]);
 
 fn main() {
     Application::new().run(|cx: &mut App| {
-        ui::theme::init(cx);
+        theme::init(cx);
 
         if let Err(error) = state::init(cx) {
             eprintln!("spotty: cannot start runtime: {error:#}");
@@ -18,11 +22,30 @@ fn main() {
         let Spotty { session, library } = Spotty::global(cx);
         let (session, library) = (session.clone(), library.clone());
 
-        ui::open_window(session.clone(), library, cx);
+        open_window(session.clone(), library, cx);
         session.update(cx, |session, cx| session.restore(cx));
 
         cx.activate(true);
     });
+}
+
+fn open_window(session: Entity<Session>, library: Entity<Library>, cx: &mut App) {
+    let bounds = Bounds::centered(None, size(px(920.), px(640.)), cx);
+    cx.open_window(
+        WindowOptions {
+            window_bounds: Some(WindowBounds::Windowed(bounds)),
+            titlebar: Some(TitlebarOptions {
+                title: Some("spotty".into()),
+                appears_transparent: false,
+                traffic_light_position: Some(point(px(9.), px(9.))),
+            }),
+            app_id: Some("spotty".into()),
+            window_min_size: Some(size(px(520.), px(400.))),
+            ..Default::default()
+        },
+        |_, cx| cx.new(|cx| Root::new(session, library, cx)),
+    )
+    .expect("failed to open window");
 }
 
 fn register_actions(cx: &mut App) {

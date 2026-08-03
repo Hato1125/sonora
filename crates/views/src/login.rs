@@ -1,8 +1,6 @@
-use gpui::{Context, Entity, IntoElement, ParentElement, Render, Styled, Window, div, px};
+use gpui::{Context, Entity, FontWeight, Render};
 use state::{Session, SessionState};
-
-use crate::components::Button;
-use crate::theme::Theme;
+use ui::prelude::*;
 
 pub struct LoginView {
     session: Entity<Session>,
@@ -17,7 +15,6 @@ impl LoginView {
 
 impl Render for LoginView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = Theme::global(cx).clone();
         let state = self.session.read(cx).state().clone();
         let pending = self.session.read(cx).is_pending();
 
@@ -29,6 +26,12 @@ impl Render for LoginView {
             SessionState::Failed(error) => error.clone(),
         };
 
+        let tone = if matches!(state, SessionState::Failed(_)) {
+            Tone::Danger
+        } else {
+            Tone::Muted
+        };
+
         let session = self.session.clone();
 
         div()
@@ -38,24 +41,8 @@ impl Render for LoginView {
             .justify_center()
             .gap_4()
             .size_full()
-            .child(
-                div()
-                    .text_size(px(28.))
-                    .font_weight(gpui::FontWeight::BOLD)
-                    .child("spotty"),
-            )
-            .child(
-                div()
-                    .max_w(px(420.))
-                    .text_center()
-                    .text_size(px(13.))
-                    .text_color(if matches!(state, SessionState::Failed(_)) {
-                        theme.danger
-                    } else {
-                        theme.text_muted
-                    })
-                    .child(status),
-            )
+            .child(Label::new("spotty").size(px(28.)).weight(FontWeight::BOLD))
+            .child(Message::new(status).tone(tone))
             .child(
                 Button::new("sign-in", "Sign in with Spotify")
                     .disabled(pending)

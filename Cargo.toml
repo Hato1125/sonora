@@ -9,7 +9,9 @@ edition = "2024"
 [workspace.dependencies]
 spotify = { path = "crates/spotify" }
 state = { path = "crates/state" }
+theme = { path = "crates/theme" }
 ui = { path = "crates/ui" }
+views = { path = "crates/views" }
 
 anyhow = "1.0"
 async-trait = "0.1"

@@ -1,13 +1,10 @@
-use std::time::Duration;
+use gpui::{App, ClickEvent, ElementId, IntoElement, RenderOnce, SharedString, Window, div, px};
 
-use gpui::{
-    App, ClickEvent, ElementId, IntoElement, RenderOnce, SharedString, Window, div, prelude::*, px,
-};
+use crate::prelude::*;
 
-use crate::theme::Theme;
-
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
 pub enum ButtonVariant {
+    #[default]
     Primary,
     Ghost,
     Destructive,
@@ -29,7 +26,7 @@ impl Button {
         Self {
             id: id.into(),
             label: label.into(),
-            variant: ButtonVariant::Primary,
+            variant: ButtonVariant::default(),
             disabled: false,
             on_click: None,
         }
@@ -39,16 +36,17 @@ impl Button {
         self.variant = variant;
         self
     }
+}
 
-    pub fn disabled(mut self, disabled: bool) -> Self {
+impl Disableable for Button {
+    fn disabled(mut self, disabled: bool) -> Self {
         self.disabled = disabled;
         self
     }
+}
 
-    pub fn on_click(
-        mut self,
-        handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
-    ) -> Self {
+impl Clickable for Button {
+    fn on_click(mut self, handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static) -> Self {
         self.on_click = Some(Box::new(handler));
         self
     }
@@ -99,9 +97,4 @@ impl RenderOnce for Button {
 
         button.child(self.label)
     }
-}
-
-pub fn format_duration(duration: Duration) -> String {
-    let total = duration.as_secs();
-    format!("{}:{:02}", total / 60, total % 60)
 }
