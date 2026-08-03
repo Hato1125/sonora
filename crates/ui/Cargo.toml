@@ -1,0 +1,9 @@
+[package]
+name = "ui"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+gpui.workspace = true
+spotify.workspace = true
+state.workspace = true
