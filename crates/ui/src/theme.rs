@@ -12,6 +12,9 @@ pub struct Theme {
     pub accent_hover: Hsla,
     pub on_accent: Hsla,
     pub danger: Hsla,
+    pub destructive: Hsla,
+    pub destructive_hover: Hsla,
+    pub on_destructive: Hsla,
 }
 
 impl Global for Theme {}
@@ -29,6 +32,9 @@ impl Default for Theme {
             accent_hover: rgb(0x23d765).into(),
             on_accent: rgb(0x07130c).into(),
             danger: rgb(0xf2545b).into(),
+            destructive: rgb(0xf2545b).into(),
+            destructive_hover: rgb(0xf2545b).into(),
+            on_destructive: rgb(0x07130c).into(),
         }
     }
 }

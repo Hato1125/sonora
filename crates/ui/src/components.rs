@@ -10,6 +10,7 @@ use crate::theme::Theme;
 pub enum ButtonVariant {
     Primary,
     Ghost,
+    Destructive,
 }
 
 type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
@@ -59,6 +60,11 @@ impl RenderOnce for Button {
         let (background, hovered, foreground) = match self.variant {
             ButtonVariant::Primary => (theme.accent, theme.accent_hover, theme.on_accent),
             ButtonVariant::Ghost => (theme.elevated, theme.border, theme.text),
+            ButtonVariant::Destructive => (
+                theme.destructive,
+                theme.destructive_hover,
+                theme.on_destructive,
+            ),
         };
 
         let mut button = div()
