@@ -31,10 +31,10 @@ impl Root {
 impl Render for Root {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::global(cx);
-        let show_sign_in = matches!(
-            self.session.read(cx).state(),
-            SessionState::SignedOut | SessionState::Failed(_) | SessionState::Authorizing
-        );
+        let show_sign_in = match self.session.read(cx).state() {
+            SessionState::SignedOut | SessionState::Failed(_) | SessionState::Authorizing => true,
+            SessionState::Restoring | SessionState::SignedIn(_) => false,
+        };
 
         div()
             .flex()
