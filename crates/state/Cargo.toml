@@ -1,0 +1,10 @@
+[package]
+name = "state"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+gpui.workspace = true
+spotify.workspace = true
+tokio.workspace = true
