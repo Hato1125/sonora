@@ -15,13 +15,10 @@ impl Sidebar {
         Self { library }
     }
 
-    fn playlists(&self, cx: &Context<Self>) -> Vec<SharedString> {
+    fn playlist_count(&self, cx: &Context<Self>) -> usize {
         match self.library.read(cx).state() {
-            LibraryState::Ready { playlists, .. } => playlists
-                .iter()
-                .map(|playlist| SharedString::from(playlist.name.clone()))
-                .collect(),
-            _ => Vec::new(),
+            LibraryState::Ready { playlists, .. } => playlists.len(),
+            _ => 0,
         }
     }
 }
@@ -29,7 +26,7 @@ impl Sidebar {
 impl Render for Sidebar {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::global(cx).clone();
-        let playlists = self.playlists(cx);
+        let count = self.playlist_count(cx);
         let loading = self.library.read(cx).is_loading();
 
         div()
@@ -82,22 +79,29 @@ impl Render for Sidebar {
             } else {
                 uniform_list(
                     "sidebar-playlists",
-                    playlists.len(),
+                    count,
                     cx.processor(move |this, range: std::ops::Range<usize>, _window, cx| {
-                        let theme = Theme::global(cx).clone();
-                        let playlists = this.playlists(cx);
+                        let elevated = Theme::global(cx).elevated;
+                        let LibraryState::Ready { playlists, .. } = this.library.read(cx).state()
+                        else {
+                            return Vec::new();
+                        };
 
                         range
                             .filter_map(|index| {
-                                let name = playlists.get(index)?.clone();
+                                let playlist = playlists.get(index)?;
                                 Some(
                                     div()
                                         .id(index)
                                         .px_5()
                                         .py_1p5()
                                         .cursor_pointer()
-                                        .hover(move |style| style.bg(theme.elevated))
-                                        .child(Label::new(name).tone(Tone::Muted).truncate()),
+                                        .hover(move |style| style.bg(elevated))
+                                        .child(
+                                            Label::new(playlist.name.clone())
+                                                .tone(Tone::Muted)
+                                                .truncate(),
+                                        ),
                                 )
                             })
                             .collect()
