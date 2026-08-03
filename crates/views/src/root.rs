@@ -30,8 +30,11 @@ impl Root {
 
 impl Render for Root {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = Theme::global(cx).clone();
-        let signed_in = matches!(self.session.read(cx).state(), SessionState::SignedIn(_));
+        let theme = Theme::global(cx);
+        let show_sign_in = matches!(
+            self.session.read(cx).state(),
+            SessionState::SignedOut | SessionState::Failed(_) | SessionState::Authorizing
+        );
 
         div()
             .flex()
@@ -40,9 +43,9 @@ impl Render for Root {
             .bg(theme.background)
             .text_color(theme.text)
             .when_else(
-                signed_in,
-                |this| this.child(self.workspace.clone()),
+                show_sign_in,
                 |this| this.child(self.login.clone()),
+                |this| this.child(self.workspace.clone()),
             )
     }
 }
