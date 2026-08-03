@@ -81,6 +81,7 @@ impl Session {
                 Ok(None) => {
                     this.state = SessionState::SignedOut;
                     cx.notify();
+                    cx.emit(SessionEvent::SignedOut);
                 }
                 Err(error) => this.failed(&error, cx),
             })
