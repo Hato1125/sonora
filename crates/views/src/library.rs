@@ -87,7 +87,9 @@ impl LibraryView {
 
     fn tab(&self, section: Section, count: usize, cx: &mut Context<Self>) -> Tab {
         if count == 0 {
-            return Tab::new(section.id(), section.label()).disabled(true);
+            return Tab::new(section.id(), section.label())
+                .selected(self.section == section)
+                .disabled(true);
         }
         Tab::new(section.id(), format!("{} ({count})", section.label()))
             .selected(self.section == section)
