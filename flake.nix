@@ -31,6 +31,7 @@
         {
           default = pkgs.mkShell {
             nativeBuildInputs = with pkgs; [
+              mold
               pkg-config
               rustc
               rust-analyzer

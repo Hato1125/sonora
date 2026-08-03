@@ -37,3 +37,9 @@ tokio = { version = "1.53", features = [
   "io-util",
   "macros",
 ] }
+
+[profile.dev]
+split-debuginfo = "unpacked"
+
+[profile.dev.package."*"]
+debug = false
