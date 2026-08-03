@@ -1,12 +1,15 @@
+mod library;
 mod session;
 
+pub use library::{Library, LibraryState};
 pub use session::{Session, SessionEvent, SessionState};
 
 use std::future::Future;
 use std::sync::Arc;
 
 use anyhow::Result;
-use gpui::{App, Global};
+use gpui::{App, AppContext as _, Entity, Global};
+use spotify::AuthConfig;
 use tokio::runtime::Runtime;
 use tokio::task::JoinHandle;
 
@@ -31,4 +34,28 @@ impl Io {
 
 pub(crate) async fn join<T>(handle: JoinHandle<Result<T>>) -> Result<T> {
     handle.await?
+}
+
+pub struct Spotty {
+    pub session: Entity<Session>,
+    pub library: Entity<Library>,
+}
+
+impl Global for Spotty {}
+
+impl Spotty {
+    pub fn global(cx: &App) -> &Self {
+        cx.global()
+    }
+}
+
+pub fn init(cx: &mut App) -> Result<()> {
+    let io = Io(Arc::new(Runtime::new()?));
+    cx.set_global(io.clone());
+
+    let session = cx.new(|_| Session::new(AuthConfig::from_env(), io.clone()));
+    let library = cx.new(|cx| Library::new(session.clone(), io, cx));
+
+    cx.set_global(Spotty { session, library });
+    Ok(())
 }
