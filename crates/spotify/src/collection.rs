@@ -87,7 +87,9 @@ fn track_from(uri: &str, track: &TrackMessage) -> Track {
 
     Track {
         id: uri.strip_prefix(TRACK_PREFIX).map(str::to_owned),
-        name: non_empty(track.name.as_deref()).unwrap_or(UNKNOWN).to_owned(),
+        name: non_empty(track.name.as_deref())
+            .unwrap_or(UNKNOWN)
+            .to_owned(),
         artists: if artists.is_empty() {
             UNKNOWN.to_owned()
         } else {
