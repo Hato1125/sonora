@@ -1,8 +1,10 @@
 use std::time::Duration;
 
-use gpui::{AnyElement, Context, Entity, FontWeight, Render, uniform_list};
-use state::{Library, LibraryState, Session, SessionState};
+use gpui::{AnyElement, Context, Entity, Render, uniform_list};
+use state::{Library, LibraryState};
 use ui::prelude::*;
+
+const SKELETON_ROWS: usize = 12;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Section {
@@ -34,74 +36,17 @@ impl Section {
 }
 
 pub struct LibraryView {
-    session: Entity<Session>,
     library: Entity<Library>,
     section: Section,
 }
 
 impl LibraryView {
-    pub fn new(session: Entity<Session>, library: Entity<Library>, cx: &mut Context<Self>) -> Self {
-        cx.observe(&session, |_, _, cx| cx.notify()).detach();
+    pub fn new(library: Entity<Library>, cx: &mut Context<Self>) -> Self {
         cx.observe(&library, |_, _, cx| cx.notify()).detach();
         Self {
-            session,
             library,
             section: Section::Tracks,
         }
-    }
-
-    fn header(&self, cx: &mut Context<Self>) -> AnyElement {
-        let theme = Theme::global(cx).clone();
-        let name = match self.session.read(cx).state() {
-            SessionState::SignedIn(profile) => profile.display_name.clone(),
-            _ => "Library".to_owned(),
-        };
-
-        let session = self.session.clone();
-        let library = self.library.clone();
-        let loading = self.library.read(cx).is_loading();
-
-        div()
-            .flex()
-            .items_center()
-            .justify_between()
-            .gap_3()
-            .px_5()
-            .py_4()
-            .border_b_1()
-            .border_color(theme.border)
-            .child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .child(Label::new(name).size(px(15.)).weight(FontWeight::SEMIBOLD))
-                    .child(
-                        Label::new("Your saved tracks and playlists")
-                            .tone(Tone::Muted)
-                            .size(px(12.)),
-                    ),
-            )
-            .child(
-                div()
-                    .flex()
-                    .gap_2()
-                    .child(
-                        Button::new("refresh", if loading { "Loading..." } else { "Refresh" })
-                            .variant(ButtonVariant::Ghost)
-                            .disabled(loading)
-                            .on_click(move |_, _, cx| {
-                                library.update(cx, |library, cx| library.refresh(cx));
-                            }),
-                    )
-                    .child(
-                        Button::new("sign-out", "Sign out")
-                            .variant(ButtonVariant::Ghost)
-                            .on_click(move |_, _, cx| {
-                                session.update(cx, |session, cx| session.sign_out(cx));
-                            }),
-                    ),
-            )
-            .into_any_element()
     }
 
     fn tabs(&self, cx: &mut Context<Self>) -> AnyElement {
@@ -112,13 +57,31 @@ impl LibraryView {
             _ => (0, 0),
         };
 
+        let library = self.library.clone();
+        let loading = self.library.read(cx).is_loading();
+
         div()
             .flex()
-            .gap_1()
+            .items_center()
+            .justify_between()
+            .gap_3()
             .px_5()
             .py_3()
-            .child(self.tab(Section::Tracks, tracks, cx))
-            .child(self.tab(Section::Playlists, playlists, cx))
+            .child(
+                div()
+                    .flex()
+                    .gap_1()
+                    .child(self.tab(Section::Tracks, tracks, cx))
+                    .child(self.tab(Section::Playlists, playlists, cx)),
+            )
+            .child(
+                Button::new("refresh", "Refresh")
+                    .variant(ButtonVariant::Ghost)
+                    .disabled(loading)
+                    .on_click(move |_, _, cx| {
+                        library.update(cx, |library, cx| library.refresh(cx));
+                    }),
+            )
             .into_any_element()
     }
 
@@ -134,7 +97,12 @@ impl LibraryView {
     fn body(&self, cx: &mut Context<Self>) -> AnyElement {
         match self.library.read(cx).state() {
             LibraryState::Empty => Message::new("Nothing loaded yet").into_any_element(),
-            LibraryState::Loading => Message::new("Loading your library...").into_any_element(),
+            LibraryState::Loading => div()
+                .flex()
+                .flex_col()
+                .flex_1()
+                .children((0..SKELETON_ROWS).map(ListRow::loading))
+                .into_any_element(),
             LibraryState::Failed(error) => Message::new(error.clone())
                 .tone(Tone::Danger)
                 .into_any_element(),
@@ -208,7 +176,6 @@ impl Render for LibraryView {
             .flex()
             .flex_col()
             .size_full()
-            .child(self.header(cx))
             .child(self.tabs(cx))
             .child(self.body(cx))
     }
