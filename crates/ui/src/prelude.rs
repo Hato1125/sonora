@@ -1,5 +1,5 @@
 pub use gpui::prelude::*;
-pub use gpui::{App, ElementId, SharedString, Window, div, px};
+pub use gpui::{App, ElementId, SharedString, Window, div, px, relative};
 pub use theme::Theme;
 
 pub use crate::components::*;

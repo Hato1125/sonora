@@ -1,0 +1,77 @@
+mod player_bar;
+mod sidebar;
+mod title_bar;
+
+pub use player_bar::{NowPlaying, PlayerBar};
+pub use sidebar::Sidebar;
+pub use title_bar::TitleBar;
+
+use gpui::{AnyView, AppContext as _, Context, Entity, Render};
+use state::{Library, Session};
+use ui::prelude::*;
+
+pub struct Workspace {
+    title_bar: Entity<TitleBar>,
+    sidebar: Entity<Sidebar>,
+    player_bar: Entity<PlayerBar>,
+    content: AnyView,
+}
+
+impl Workspace {
+    pub fn new(
+        session: Entity<Session>,
+        library: Entity<Library>,
+        content: AnyView,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        let title_bar = cx.new(|cx| TitleBar::new(session, cx));
+        let sidebar = cx.new(|cx| Sidebar::new(library, cx));
+        let player_bar = cx.new(|_| PlayerBar::new());
+
+        Self {
+            title_bar,
+            sidebar,
+            player_bar,
+            content,
+        }
+    }
+
+    pub fn content(&self) -> &AnyView {
+        &self.content
+    }
+
+    pub fn set_content(&mut self, content: AnyView, cx: &mut Context<Self>) {
+        self.content = content;
+        cx.notify();
+    }
+
+    pub fn player_bar(&self) -> &Entity<PlayerBar> {
+        &self.player_bar
+    }
+}
+
+impl Render for Workspace {
+    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+        div()
+            .flex()
+            .flex_col()
+            .size_full()
+            .child(self.title_bar.clone())
+            .child(
+                div()
+                    .flex()
+                    .flex_1()
+                    .min_h_0()
+                    .child(self.sidebar.clone())
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .flex_1()
+                            .min_w_0()
+                            .child(self.content.clone()),
+                    ),
+            )
+            .child(self.player_bar.clone())
+    }
+}
