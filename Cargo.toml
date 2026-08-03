@@ -1,0 +1,36 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+
+[workspace.dependencies]
+spotify = { path = "crates/spotify" }
+state = { path = "crates/state" }
+ui = { path = "crates/ui" }
+
+anyhow = "1.0"
+async-trait = "0.1"
+bytes = "1"
+dirs = "6.0"
+gpui = "0.2.2"
+http = "1.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+librespot-core = { version = "0.8.0", default-features = false, features = [
+  "rustls-tls-native-roots",
+] }
+librespot-oauth = { version = "0.8.0", default-features = false, features = [
+  "rustls-tls-native-roots",
+] }
+librespot-protocol = "0.8.0"
+protobuf = "3"
+tokio = { version = "1.53", features = [
+  "rt-multi-thread",
+  "net",
+  "io-util",
+  "macros",
+] }
