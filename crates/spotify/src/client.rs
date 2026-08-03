@@ -1,16 +1,11 @@
 use anyhow::{Context as _, Result};
 use async_trait::async_trait;
-use bytes::Bytes;
-use http::{Method, Request, header};
 use librespot_core::Session;
 use librespot_protocol::playlist4_external::SelectedListContent as RootList;
 use protobuf::Message as _;
-use serde::de::DeserializeOwned;
 
 use crate::models::{Playlist, Track, UserProfile};
-use crate::wire;
-
-const WEB_API: &str = "https://api.spotify.com/v1";
+use crate::{collection, wire};
 
 #[async_trait]
 pub trait SpotifyApi: Send + Sync + 'static {
@@ -30,36 +25,6 @@ impl LibrespotClient {
 
     pub fn session(&self) -> &Session {
         &self.session
-    }
-
-    async fn web_api<T: DeserializeOwned>(&self, path: &str) -> Result<T> {
-        let token = self
-            .session
-            .login5()
-            .auth_token()
-            .await
-            .context("cannot obtain a web api token")?;
-
-        let request = Request::builder()
-            .method(Method::GET)
-            .uri(format!("{WEB_API}/{path}"))
-            .header(
-                header::AUTHORIZATION,
-                format!("Bearer {}", token.access_token),
-            )
-            .header(header::ACCEPT, "application/json")
-            .body(Bytes::new())?;
-
-        let body = self
-            .session
-            .http_client()
-            .request_body(request)
-            .await
-            .context(
-                "web api unavailable — librespot signs in as Spotify's own client, whose web api \
-                 quota is shared globally",
-            )?;
-        Ok(serde_json::from_slice(&body)?)
     }
 }
 
@@ -81,14 +46,7 @@ impl SpotifyApi for LibrespotClient {
     }
 
     async fn saved_tracks(&self, limit: u32) -> Result<Vec<Track>> {
-        let page: wire::Page<wire::SavedTrack> =
-            self.web_api(&format!("me/tracks?limit={limit}")).await?;
-
-        Ok(page
-            .present()
-            .filter_map(|saved| saved.track)
-            .map(Track::from)
-            .collect())
+        collection::saved_tracks(&self.session, limit).await
     }
 
     async fn playlists(&self, limit: u32) -> Result<Vec<Playlist>> {

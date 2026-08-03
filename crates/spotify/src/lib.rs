@@ -1,5 +1,6 @@
 pub mod auth;
 mod client;
+mod collection;
 mod models;
 mod wire;
 
