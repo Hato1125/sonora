@@ -43,3 +43,12 @@ split-debuginfo = "unpacked"
 
 [profile.dev.package."*"]
 debug = false
+opt-level = 2
+
+[profile.dev.package]
+taffy = { opt-level = 3 }
+cosmic-text = { opt-level = 3 }
+rustybuzz = { opt-level = 3 }
+swash = { opt-level = 3 }
+zed-font-kit = { opt-level = 3 }
+ttf-parser = { opt-level = 3 }
