@@ -66,7 +66,7 @@ impl Library {
         .detach();
 
         Self {
-            state: LibraryState::Empty,
+            state: LibraryState::Loading,
             session,
             io,
             task: None,
