@@ -9,6 +9,7 @@ pub struct Tab {
     id: ElementId,
     label: SharedString,
     selected: bool,
+    disabled: bool,
     on_click: Option<ClickHandler>,
 }
 
@@ -18,6 +19,7 @@ impl Tab {
             id: id.into(),
             label: label.into(),
             selected: false,
+            disabled: false,
             on_click: None,
         }
     }
@@ -26,6 +28,14 @@ impl Tab {
 impl Selectable for Tab {
     fn selected(mut self, selected: bool) -> Self {
         self.selected = selected;
+        self
+    }
+}
+
+impl Disableable for Tab {
+    fn disabled(mut self, disabled: bool) -> Self {
+        self.disabled = disabled;
+        self.on_click = None;
         self
     }
 }
@@ -46,7 +56,11 @@ impl RenderOnce for Tab {
             .px_3()
             .py_1p5()
             .rounded_full()
-            .cursor_pointer()
+            .when_else(
+                self.disabled,
+                |style| style.cursor_not_allowed(),
+                |style| style.cursor_pointer(),
+            )
             .text_size(px(12.))
             .bg(if self.selected {
                 theme.elevated
@@ -58,7 +72,6 @@ impl RenderOnce for Tab {
             } else {
                 theme.text_muted
             })
-            .hover(move |style| style.text_color(theme.text))
             .child(self.label);
 
         if let Some(handler) = self.on_click {
