@@ -1,0 +1,10 @@
+[package]
+name = "spotty"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+gpui.workspace = true
+state.workspace = true
+ui.workspace = true
