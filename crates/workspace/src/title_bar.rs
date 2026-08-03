@@ -18,10 +18,6 @@ impl TitleBar {
 impl Render for TitleBar {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::global(cx).clone();
-        let name = match self.session.read(cx).state() {
-            SessionState::SignedIn(profile) => profile.display_name.clone(),
-            _ => "spotty".to_owned(),
-        };
 
         let session = self.session.clone();
 
@@ -37,7 +33,16 @@ impl Render for TitleBar {
             .bg(theme.surface)
             .border_b_1()
             .border_color(theme.border)
-            .child(Label::new(name).size(px(14.)).weight(FontWeight::SEMIBOLD))
+            .child(match self.session.read(cx).state() {
+                SessionState::SignedIn(profile) => Label::new(profile.display_name.clone())
+                    .size(px(14.))
+                    .weight(FontWeight::SEMIBOLD)
+                    .into_any_element(),
+                _ => Skeleton::new("name")
+                    .w(px(80.))
+                    .h(px(11.))
+                    .into_any_element(),
+            })
             .child(
                 Button::new("sign-out", "Sign out")
                     .variant(ButtonVariant::Ghost)
