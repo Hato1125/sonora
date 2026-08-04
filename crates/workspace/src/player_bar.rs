@@ -1,6 +1,6 @@
-use gpui::prelude::*;
-use gpui::{Context, Entity, MouseUpEvent, Render};
+use gpui::{Context, Entity, MouseUpEvent, Render, SharedUri};
 use gpui::{SharedString, Window, div, px};
+use gpui::{img, prelude::*};
 use gpui_component::ActiveTheme as _;
 use gpui_component::Icon;
 use gpui_component::button::{Button, ButtonVariants as _};
@@ -81,34 +81,52 @@ impl PlayerBar {
             }))
     }
 
-    fn now_playing(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn now_playing(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let muted = cx.theme().muted_foreground;
         let track = self.playback.read(cx).track().cloned();
+        let cover = track.as_ref().and_then(|track| track.cover.as_deref());
+
+        let width = window.viewport_size().width / 3. - px(100.);
 
         div()
             .flex()
-            .flex_col()
-            .justify_center()
-            .w(px(240.))
-            .flex_none()
-            .min_w_0()
-            .child(match &track {
-                Some(track) => Label::new(SharedString::from(track.name.clone())).truncate(),
-                None => Label::new("Nothing playing").text_color(muted),
-            })
-            .when_some(track, |this, track| {
+            .gap_4()
+            .when_some(cover, |this, cover| {
                 this.child(
-                    Label::new(SharedString::from(track.artists))
-                        .text_color(muted)
-                        .text_size(px(11.))
-                        .truncate(),
+                    img(SharedUri::from(cover.to_owned()))
+                        .size(px(48.))
+                        .rounded_md(),
                 )
             })
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .justify_center()
+                    .w(width)
+                    .flex_none()
+                    .min_w_0()
+                    .child(match &track {
+                        Some(track) => Label::new(SharedString::from(track.name.clone()))
+                            .w(width)
+                            .truncate(),
+                        None => Label::new("Nothing playing").text_color(muted),
+                    })
+                    .when_some(track, |this, track| {
+                        this.child(
+                            Label::new(SharedString::from(track.artists))
+                                .w(width)
+                                .text_color(muted)
+                                .text_size(px(11.))
+                                .truncate(),
+                        )
+                    }),
+            )
     }
 }
 
 impl Render for PlayerBar {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme().clone();
         let playback = self.playback.read(cx);
         let seekable = playback.track().is_some();
@@ -126,7 +144,7 @@ impl Render for PlayerBar {
             .bg(theme.secondary)
             .border_t_1()
             .border_color(theme.border)
-            .child(self.now_playing(cx))
+            .child(self.now_playing(window, cx))
             .child(
                 div()
                     .flex()
