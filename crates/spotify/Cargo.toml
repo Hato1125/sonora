@@ -17,3 +17,6 @@ protobuf.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
+
+[build-dependencies]
+protobuf-codegen.workspace = true

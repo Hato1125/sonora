@@ -44,7 +44,7 @@ async fn liked_uris(session: &Session, limit: usize) -> Result<Vec<String>> {
         .collect())
 }
 
-async fn metadata(session: &Session, uris: &[String]) -> Result<HashMap<String, Track>> {
+pub(crate) async fn metadata(session: &Session, uris: &[String]) -> Result<HashMap<String, Track>> {
     let request = BatchedEntityRequest {
         entity_request: uris
             .iter()

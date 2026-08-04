@@ -24,3 +24,13 @@ pub struct Playlist {
     pub cover: Option<String>,
     pub track_count: u32,
 }
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Album {
+    pub id: String,
+    pub name: String,
+    pub artists: String,
+    pub cover: Option<String>,
+    pub year: i32,
+    pub track_count: u32,
+}
