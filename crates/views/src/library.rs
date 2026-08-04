@@ -257,7 +257,12 @@ pub struct LibraryView {
 }
 
 impl LibraryView {
-    pub fn new(library: Entity<Library>, window: &mut Window, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        library: Entity<Library>,
+        playback: Entity<Playback>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         cx.observe(&library, |this, _, cx| {
             this.table.update(cx, |table, cx| table.refresh(cx));
             cx.notify();
@@ -265,7 +270,6 @@ impl LibraryView {
         .detach();
 
         let section = Section::Tracks;
-        let playback = state::Spotty::global(cx).playback.clone();
         let width = content_width(window);
         let delegate = LibraryTable::new(library.clone(), section, width);
         let table = cx.new(|cx| TableState::new(delegate, window, cx).col_selectable(false));

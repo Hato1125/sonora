@@ -10,7 +10,7 @@ pub use title_bar::TitleBar;
 use gpui::prelude::*;
 use gpui::{AnyView, Context, Entity, Render};
 use gpui::{Window, div};
-use state::{Library, Session};
+use state::{Library, Playback, Session};
 
 pub struct Workspace {
     title_bar: Entity<TitleBar>,
@@ -23,12 +23,13 @@ impl Workspace {
     pub fn new(
         session: Entity<Session>,
         library: Entity<Library>,
+        playback: Entity<Playback>,
         content: AnyView,
         cx: &mut Context<Self>,
     ) -> Self {
         let title_bar = cx.new(|cx| TitleBar::new(session, cx));
         let sidebar = cx.new(|cx| Sidebar::new(library, cx));
-        let player_bar = cx.new(PlayerBar::new);
+        let player_bar = cx.new(|cx| PlayerBar::new(playback, cx));
 
         Self {
             title_bar,

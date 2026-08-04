@@ -2,7 +2,7 @@ use gpui::prelude::*;
 use gpui::{Context, Entity, Render};
 use gpui::{Window, div};
 use gpui_component::ActiveTheme as _;
-use state::{Library, Session, SessionState};
+use state::{Library, Playback, Session, SessionState};
 use workspace::Workspace;
 
 use crate::{LibraryView, LoginView};
@@ -17,15 +17,17 @@ impl Root {
     pub fn new(
         session: Entity<Session>,
         library: Entity<Library>,
+        playback: Entity<Playback>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
         cx.observe(&session, |_, _, cx| cx.notify()).detach();
 
         let login = cx.new(|cx| LoginView::new(session.clone(), cx));
-        let library_view = cx.new(|cx| LibraryView::new(library.clone(), window, cx));
-        let workspace =
-            cx.new(|cx| Workspace::new(session.clone(), library, library_view.into(), cx));
+        let library_view =
+            cx.new(|cx| LibraryView::new(library.clone(), playback.clone(), window, cx));
+        let workspace = cx
+            .new(|cx| Workspace::new(session.clone(), library, playback, library_view.into(), cx));
 
         Self {
             session,

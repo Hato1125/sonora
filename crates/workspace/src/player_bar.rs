@@ -6,7 +6,7 @@ use gpui_component::Icon;
 use gpui_component::button::{Button, ButtonVariants as _};
 use gpui_component::label::Label;
 use gpui_component::{Disableable as _, Sizable as _};
-use state::{Playback, PlaybackState, Spotty};
+use state::{Playback, PlaybackState};
 
 use crate::scrubber::{Scrubber, ScrubberState};
 
@@ -22,8 +22,7 @@ pub struct PlayerBar {
 }
 
 impl PlayerBar {
-    pub fn new(cx: &mut Context<Self>) -> Self {
-        let playback = Spotty::global(cx).playback.clone();
+    pub fn new(playback: Entity<Playback>, cx: &mut Context<Self>) -> Self {
         cx.observe(&playback, |_, _, cx| cx.notify()).detach();
 
         Self {
