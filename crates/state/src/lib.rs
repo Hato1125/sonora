@@ -19,8 +19,16 @@ pub struct Io(Arc<Runtime>);
 impl Global for Io {}
 
 impl Io {
+    pub fn new() -> Result<Self> {
+        Ok(Self(Arc::new(Runtime::new()?)))
+    }
+
     pub fn global(cx: &App) -> Self {
         cx.global::<Self>().clone()
+    }
+
+    pub fn handle(&self) -> tokio::runtime::Handle {
+        self.0.handle().clone()
     }
 
     pub fn spawn<F>(&self, future: F) -> JoinHandle<F::Output>
@@ -49,13 +57,11 @@ impl Spotty {
     }
 }
 
-pub fn init(cx: &mut App) -> Result<()> {
-    let io = Io(Arc::new(Runtime::new()?));
+pub fn init(cx: &mut App, io: Io) {
     cx.set_global(io.clone());
 
     let session = cx.new(|_| Session::new(AuthConfig::from_env(), io.clone()));
     let library = cx.new(|cx| Library::new(session.clone(), io, cx));
 
     cx.set_global(Spotty { session, library });
-    Ok(())
 }

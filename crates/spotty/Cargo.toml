@@ -11,3 +11,5 @@ gpui-component-assets.workspace = true
 gpui.workspace = true
 state.workspace = true
 views.workspace = true
+reqwest.workspace = true
+tokio = { workspace = true, features = ["rt"] }

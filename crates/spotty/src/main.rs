@@ -1,4 +1,7 @@
 mod assets;
+mod http;
+
+use std::sync::Arc;
 
 use gpui::{
     App, AppContext as _, Application, Bounds, Entity, KeyBinding, Menu, MenuItem, TitlebarOptions,
@@ -15,17 +18,22 @@ fn main() {
         .format_module_path(false)
         .init();
 
+    let io = match state::Io::new() {
+        Ok(io) => io,
+        Err(error) => {
+            eprintln!("spotty: cannot start runtime: {error:#}");
+            return;
+        }
+    };
+
     Application::new()
         .with_assets(assets::Assets)
-        .run(|cx: &mut App| {
+        .with_http_client(Arc::new(http::Client::new(io.handle())))
+        .run(move |cx: &mut App| {
             gpui_component::init(cx);
             gpui_component::Theme::global_mut(cx).font_size = px(13.);
 
-            if let Err(error) = state::init(cx) {
-                eprintln!("spotty: cannot start runtime: {error:#}");
-                cx.quit();
-                return;
-            }
+            state::init(cx, io);
 
             register_actions(cx);
 
