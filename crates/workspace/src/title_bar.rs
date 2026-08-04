@@ -1,11 +1,12 @@
 use gpui::prelude::*;
-use gpui::{Context, Entity, FontWeight, Render};
+use gpui::{Context, Entity, Render};
 use gpui::{Window, div, px};
 use gpui_component::ActiveTheme as _;
 use gpui_component::Icon;
 use gpui_component::Sizable as _;
+use gpui_component::avatar::Avatar;
 use gpui_component::button::Button;
-use gpui_component::label::Label;
+use gpui_component::input::{Input, InputState};
 use gpui_component::skeleton::Skeleton;
 use state::{Session, SessionState};
 
@@ -23,10 +24,11 @@ impl TitleBar {
 }
 
 impl Render for TitleBar {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme().clone();
 
         let session = self.session.clone();
+        let input = cx.new(|cx| InputState::new(window, cx).placeholder("Search..."));
 
         div()
             .flex()
@@ -41,12 +43,39 @@ impl Render for TitleBar {
             .border_b_1()
             .border_color(theme.title_bar_border)
             .child(match self.session.read(cx).state() {
-                SessionState::SignedIn(profile) => Label::new(profile.display_name.clone())
-                    .text_size(px(14.))
-                    .font_weight(FontWeight::SEMIBOLD)
+                SessionState::SignedIn(profile) => Avatar::new()
+                    .name(profile.display_name.clone())
+                    .size_12()
                     .into_any_element(),
-                _ => Skeleton::new().w(px(80.)).h(px(11.)).into_any_element(),
+                _ => Skeleton::new().size_12().rounded_full().into_any_element(),
             })
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .w_full()
+                    .child(
+                        Input::new(&input)
+                            .w_1_2()
+                            .h_12()
+                            .rounded_full()
+                            .text_lg()
+                            .rounded_none()
+                            .rounded_l_full(),
+                    )
+                    .child(
+                        Button::new("search")
+                            .h_12()
+                            .w_16()
+                            .rounded_none()
+                            .shadow_xs()
+                            .rounded_r_full()
+                            .outline()
+                            .border_l_0()
+                            .icon(Icon::default().path("icons/search.svg")),
+                    ),
+            )
             .child(
                 Button::new("sign-out")
                     .label("Sign out")
