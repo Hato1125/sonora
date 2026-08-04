@@ -1,6 +1,6 @@
 use librespot_core::SpotifyUri;
 use librespot_playback::config::{AudioFormat, PlayerConfig};
-use librespot_playback::mixer::{Mixer, MixerConfig, softmixer::SoftMixer};
+use librespot_playback::mixer::NoOpVolume;
 use librespot_playback::player::{Player, PlayerEvent};
 
 use std::sync::Arc;
@@ -9,10 +9,21 @@ use std::time::Duration;
 use gpui::{Context, Entity, EventEmitter, Task};
 use spotify::Track;
 
-use crate::sink::{BlazingSink, Flush};
+use crate::sink::{BlazingSink, Flush, Volume};
 use crate::{Session, SessionEvent};
 
 const POSITION_INTERVAL: Duration = Duration::from_millis(500);
+const TAPER_DB: f32 = 60.;
+const CEILING_DB: f32 = 9.;
+const INITIAL_LEVEL: f32 = 0.7;
+
+fn gain(level: f32) -> f32 {
+    let level = level.clamp(0., 1.);
+    if level <= 0. {
+        return 0.;
+    }
+    10f32.powf((CEILING_DB - TAPER_DB * (1. - level)) / 20.)
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PlaybackState {
@@ -33,8 +44,11 @@ pub struct Playback {
     position: Duration,
     track: Option<Track>,
     player: Option<Arc<Player>>,
-    mixer: Option<SoftMixer>,
+    session: Entity<Session>,
+    level: f32,
+    volume: Volume,
     flush: Flush,
+    normalisation: bool,
     task: Option<Task<()>>,
 }
 
@@ -57,8 +71,11 @@ impl Playback {
             position: Duration::ZERO,
             track: None,
             player: None,
-            mixer: None,
+            session,
+            level: INITIAL_LEVEL,
+            volume: Volume::new(gain(INITIAL_LEVEL)),
             flush: Flush::default(),
+            normalisation: true,
             task: None,
         }
     }
@@ -139,34 +156,49 @@ impl Playback {
         matches!(self.state, PlaybackState::Loading)
     }
 
-    pub fn volume(&self) -> u16 {
-        self.mixer.as_ref().map(|mixer| mixer.volume()).unwrap_or(0)
+    pub fn volume(&self) -> f32 {
+        self.level
     }
 
-    pub fn set_volume(&mut self, volume: u16, cx: &mut Context<Self>) {
-        if let Some(mixer) = self.mixer.as_ref() {
-            mixer.set_volume(volume);
-            cx.notify();
+    pub fn set_volume(&mut self, level: f32, cx: &mut Context<Self>) {
+        self.level = level.clamp(0., 1.);
+        self.volume.set(gain(self.level));
+        cx.notify();
+    }
+
+    pub fn normalisation(&self) -> bool {
+        self.normalisation
+    }
+
+    pub fn set_normalisation(&mut self, on: bool, cx: &mut Context<Self>) {
+        if self.normalisation == on {
+            return;
         }
+        self.normalisation = on;
+
+        if self.player.is_some() {
+            let session = self.session.read(cx).librespot();
+            if let Some(session) = session {
+                self.spawn_player(session, cx);
+                return;
+            }
+        }
+        cx.notify();
     }
 
     fn spawn_player(&mut self, session: librespot_core::Session, cx: &mut Context<Self>) {
-        let mixer = match SoftMixer::open(MixerConfig::default()) {
-            Ok(mixer) => mixer,
-            Err(error) => return self.failed(format!("cannot open the mixer: {error}"), cx),
-        };
-
         let config = PlayerConfig {
             position_update_interval: Some(POSITION_INTERVAL),
+            normalisation: self.normalisation,
             ..Default::default()
         };
         let flush = self.flush.clone();
-        let player = Player::new(config, session, mixer.get_soft_volume(), move || {
-            BlazingSink::boxed(AudioFormat::default(), flush)
+        let volume = self.volume.clone();
+        let player = Player::new(config, session, Box::new(NoOpVolume), move || {
+            BlazingSink::boxed(AudioFormat::default(), flush, volume)
         });
 
         self.listen(&player, cx);
-        self.mixer = Some(mixer);
         self.player = Some(player);
         self.state = PlaybackState::Idle;
         self.position = Duration::ZERO;
@@ -223,7 +255,6 @@ impl Playback {
     fn teardown(&mut self, cx: &mut Context<Self>) {
         self.task = None;
         self.player = None;
-        self.mixer = None;
         self.track = None;
         self.state = PlaybackState::Idle;
         self.position = Duration::ZERO;

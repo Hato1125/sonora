@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
 use cpal::traits::{DeviceTrait, HostTrait};
 use librespot_playback::audio_backend::{Sink, SinkError, SinkResult};
@@ -11,6 +11,7 @@ use rodio::{OutputStream, OutputStreamBuilder};
 
 const QUEUED_CHUNKS: usize = 26;
 const DRAIN_POLL: std::time::Duration = std::time::Duration::from_millis(10);
+const GAIN_STEP: f32 = 0.04;
 
 #[derive(Clone, Default)]
 pub struct Flush(Arc<AtomicBool>);
@@ -25,14 +26,33 @@ impl Flush {
     }
 }
 
+#[derive(Clone)]
+pub struct Volume(Arc<AtomicU32>);
+
+impl Volume {
+    pub fn new(gain: f32) -> Self {
+        Self(Arc::new(AtomicU32::new(gain.to_bits())))
+    }
+
+    pub fn set(&self, gain: f32) {
+        self.0.store(gain.to_bits(), Ordering::Relaxed);
+    }
+
+    fn get(&self) -> f32 {
+        f32::from_bits(self.0.load(Ordering::Relaxed))
+    }
+}
+
 pub struct BlazingSink {
     sink: rodio::Sink,
     _stream: OutputStream,
     flush: Flush,
+    volume: Volume,
+    applied: f32,
 }
 
 impl BlazingSink {
-    pub fn open(format: AudioFormat, flush: Flush) -> Result<Self, SinkError> {
+    pub fn open(format: AudioFormat, flush: Flush, volume: Volume) -> Result<Self, SinkError> {
         let host = cpal::default_host();
         let device = host
             .default_output_device()
@@ -68,15 +88,35 @@ impl BlazingSink {
         let sink = rodio::Sink::connect_new(stream.mixer());
         sink.pause();
 
+        let applied = volume.get();
+        sink.set_volume(applied);
+
         Ok(Self {
             sink,
             _stream: stream,
             flush,
+            volume,
+            applied,
         })
     }
 
-    pub fn boxed(format: AudioFormat, flush: Flush) -> Box<dyn Sink> {
-        match Self::open(format, flush) {
+    fn approach_gain(&mut self) {
+        let target = self.volume.get();
+        if target == self.applied {
+            return;
+        }
+
+        let delta = target - self.applied;
+        self.applied = if delta.abs() <= GAIN_STEP {
+            target
+        } else {
+            self.applied + delta.signum() * GAIN_STEP
+        };
+        self.sink.set_volume(self.applied);
+    }
+
+    pub fn boxed(format: AudioFormat, flush: Flush, volume: Volume) -> Box<dyn Sink> {
+        match Self::open(format, flush, volume) {
             Ok(sink) => Box::new(sink),
             Err(error) => {
                 log::error!("sink: cannot open an output device: {error}");
@@ -102,6 +142,8 @@ impl Sink for BlazingSink {
             self.sink.clear();
             self.sink.play();
         }
+
+        self.approach_gain();
 
         let samples = packet
             .samples()
