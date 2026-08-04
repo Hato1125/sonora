@@ -45,7 +45,7 @@ impl LibraryToolbar {
 
 impl Render for LibraryToolbar {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let (tracks, playlists) = self.view.read(cx).counts(cx);
+        let counts = self.view.read(cx).counts(cx);
 
         div()
             .flex()
@@ -60,8 +60,9 @@ impl Render for LibraryToolbar {
                     .gap_1()
                     .occlude()
                     .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                    .child(self.tab(Section::Tracks, tracks, cx))
-                    .child(self.tab(Section::Playlists, playlists, cx)),
+                    .child(self.tab(Section::Tracks, counts.tracks, cx))
+                    .child(self.tab(Section::Albums, counts.albums, cx))
+                    .child(self.tab(Section::Playlists, counts.playlists, cx)),
             )
     }
 }

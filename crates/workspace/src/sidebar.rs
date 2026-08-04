@@ -2,7 +2,8 @@ use std::cell::Cell;
 
 use gpui::prelude::*;
 use gpui::{
-    Context, DragMoveEvent, Empty, Entity, EventEmitter, FontWeight, Pixels, Render, uniform_list,
+    Context, DragMoveEvent, Empty, Entity, EventEmitter, FontWeight, Pixels, Render, SharedString,
+    uniform_list,
 };
 use gpui::{Window, div, px};
 use gpui_component::ActiveTheme as _;
@@ -37,12 +38,14 @@ struct SidebarResize {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LibraryTab {
     Songs,
+    Albums,
     Playlists,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Destination {
     Library(LibraryTab),
+    Album(SharedString),
     Settings,
 }
 
@@ -132,7 +135,7 @@ impl Render for Sidebar {
                                 .child(Label::new(label).text_color(muted))
                                 .when_some(destination, |this, destination| {
                                     this.on_click(cx.listener(move |_, _, _, cx| {
-                                        cx.emit(SidebarEvent::Navigate(destination));
+                                        cx.emit(SidebarEvent::Navigate(destination.clone()));
                                     }))
                                 })
                         },

@@ -2,16 +2,18 @@ use gpui::prelude::*;
 use gpui::{AnyView, Context, Entity, Render};
 use gpui::{Window, div};
 use gpui_component::ActiveTheme as _;
-use state::{Library, Playback, Session, SessionState};
+use state::{AlbumDetail, Io, Library, Playback, Session, SessionState};
 use workspace::{
     Destination, LibraryTab, Navigation, NavigationEvent, Sidebar, SidebarEvent, Workspace,
 };
 
-use crate::{LibraryToolbar, LibraryView, LoginView, SettingsView};
+use crate::{AlbumView, LibraryToolbar, LibraryView, LoginView, SettingsView};
 
 struct Screens {
     library: Entity<LibraryView>,
     library_toolbar: Entity<LibraryToolbar>,
+    album: Entity<AlbumView>,
+    album_detail: Entity<AlbumDetail>,
     settings: Entity<SettingsView>,
 }
 
@@ -41,7 +43,7 @@ impl Root {
             let navigation = navigation.clone();
             move |_, _, event, cx| {
                 let SidebarEvent::Navigate(destination) = event;
-                let destination = *destination;
+                let destination = destination.clone();
                 navigation.update(cx, |navigation, cx| navigation.go(destination, cx));
             }
         })
@@ -49,13 +51,26 @@ impl Root {
 
         cx.subscribe(&navigation, |this, _, event, cx| {
             let NavigationEvent::Moved(destination) = event;
-            this.show(*destination, cx);
+            this.show(destination.clone(), cx);
         })
         .detach();
 
-        let library_view = cx.new(|cx| LibraryView::new(library, playback.clone(), window, cx));
+        let library_view = cx.new(|cx| {
+            LibraryView::new(
+                library.clone(),
+                playback.clone(),
+                navigation.clone(),
+                window,
+                cx,
+            )
+        });
         let library_toolbar =
             cx.new(|cx| LibraryToolbar::new(library_view.clone(), navigation.clone(), cx));
+
+        let io = Io::global(cx);
+        let album_detail = cx.new(|cx| AlbumDetail::new(session.clone(), library, io, cx));
+        let album = cx.new(|cx| AlbumView::new(album_detail.clone(), playback.clone(), window, cx));
+
         let settings = cx.new(|cx| SettingsView::new(session.clone(), playback.clone(), cx));
 
         let workspace = cx.new(|cx| {
@@ -78,6 +93,8 @@ impl Root {
             screens: Screens {
                 library: library_view,
                 library_toolbar,
+                album,
+                album_detail,
                 settings,
             },
         }
@@ -93,6 +110,12 @@ impl Root {
                     self.screens.library.clone().into(),
                     Some(self.screens.library_toolbar.clone().into()),
                 )
+            }
+            Destination::Album(id) => {
+                self.screens
+                    .album_detail
+                    .update(cx, |detail, cx| detail.open(&id, cx));
+                (self.screens.album.clone().into(), None)
             }
             Destination::Settings => (self.screens.settings.clone().into(), None),
         };

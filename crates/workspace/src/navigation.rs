@@ -22,7 +22,7 @@ impl Navigation {
     }
 
     pub fn current(&self) -> Destination {
-        self.trail[self.at]
+        self.trail[self.at].clone()
     }
 
     pub fn can_go_back(&self) -> bool {
