@@ -1,6 +1,8 @@
+use std::time::Duration;
+
 use gpui::prelude::*;
-use gpui::{Context, Entity, Render};
-use gpui::{SharedString, Window, div, px, relative};
+use gpui::{Context, Entity, MouseUpEvent, Render};
+use gpui::{SharedString, Window, div, px};
 use gpui_component::ActiveTheme as _;
 use gpui_component::Icon;
 use gpui_component::button::{Button, ButtonVariants as _};
@@ -8,17 +10,17 @@ use gpui_component::label::Label;
 use gpui_component::{Disableable as _, Sizable as _};
 use state::{Playback, PlaybackState, Spotty};
 
+use crate::scrubber::{Scrubber, ScrubberState};
+
 const HEIGHT: f32 = 68.;
+const TRACK_WIDTH: f32 = 420.;
+const VOLUME_WIDTH: f32 = 120.;
 
 pub struct PlayerBar {
     playback: Entity<Playback>,
-    now_playing: Option<NowPlaying>,
-}
-
-pub struct NowPlaying {
-    pub title: SharedString,
-    pub artists: SharedString,
-    pub position: f32,
+    seek: ScrubberState,
+    volume: ScrubberState,
+    pending: Option<f32>,
 }
 
 impl PlayerBar {
@@ -28,13 +30,30 @@ impl PlayerBar {
 
         Self {
             playback,
-            now_playing: None,
+            seek: ScrubberState::new("seek"),
+            volume: ScrubberState::new("volume"),
+            pending: None,
         }
     }
 
-    pub fn set_now_playing(&mut self, now_playing: Option<NowPlaying>, cx: &mut Context<Self>) {
-        self.now_playing = now_playing;
-        cx.notify();
+    fn commit_seek(&mut self, cx: &mut Context<Self>) {
+        let Some(fraction) = self.pending.take() else {
+            return;
+        };
+        let Some(total) = self
+            .playback
+            .read(cx)
+            .track()
+            .map(|track| track.duration)
+            .filter(|total| !total.is_zero())
+        else {
+            cx.notify();
+            return;
+        };
+
+        let position = Duration::from_secs_f32(total.as_secs_f32() * fraction);
+        self.playback
+            .update(cx, |playback, cx| playback.seek(position, cx));
     }
 
     fn transport(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -76,17 +95,40 @@ impl PlayerBar {
                     .update(cx, |playback, cx| playback.toggle_play(cx));
             }))
     }
+
+    fn now_playing(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let muted = cx.theme().muted_foreground;
+        let track = self.playback.read(cx).track().cloned();
+
+        div()
+            .flex()
+            .flex_col()
+            .justify_center()
+            .w(px(240.))
+            .flex_none()
+            .min_w_0()
+            .child(match &track {
+                Some(track) => Label::new(SharedString::from(track.name.clone())).truncate(),
+                None => Label::new("Nothing playing").text_color(muted),
+            })
+            .when_some(track, |this, track| {
+                this.child(
+                    Label::new(SharedString::from(track.artists))
+                        .text_color(muted)
+                        .text_size(px(11.))
+                        .truncate(),
+                )
+            })
+    }
 }
 
 impl Render for PlayerBar {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme().clone();
-        let muted = theme.muted_foreground;
-        let position = self
-            .now_playing
-            .as_ref()
-            .map(|playing| playing.position.clamp(0., 1.))
-            .unwrap_or_default();
+        let playback = self.playback.read(cx);
+        let seekable = playback.track().is_some();
+        let progress = self.pending.unwrap_or_else(|| playback.progress());
+        let level = playback.volume();
 
         div()
             .flex()
@@ -99,50 +141,48 @@ impl Render for PlayerBar {
             .bg(theme.secondary)
             .border_t_1()
             .border_color(theme.border)
-            .child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .w(px(240.))
-                    .flex_none()
-                    .min_w_0()
-                    .child(match &self.now_playing {
-                        Some(playing) => Label::new(playing.title.clone()).truncate(),
-                        None => Label::new("Nothing playing").text_color(muted),
-                    })
-                    .when_some(self.now_playing.as_ref(), |this, playing| {
-                        this.child(
-                            Label::new(playing.artists.clone())
-                                .text_color(muted)
-                                .text_size(px(11.))
-                                .truncate(),
-                        )
-                    }),
-            )
+            .child(self.now_playing(cx))
             .child(
                 div()
                     .flex()
                     .flex_1()
                     .flex_col()
                     .items_center()
-                    .gap_2()
+                    .gap_1()
                     .child(self.transport(cx))
                     .child(
-                        div()
-                            .w_full()
-                            .max_w(px(420.))
-                            .h(px(4.))
-                            .rounded_full()
-                            .bg(theme.muted)
-                            .child(
-                                div()
-                                    .w(relative(position))
-                                    .h_full()
-                                    .rounded_full()
-                                    .bg(theme.progress_bar),
-                            ),
+                        div().w_full().max_w(px(TRACK_WIDTH)).child(
+                            Scrubber::new(&self.seek, progress)
+                                .colors(theme.progress_bar, theme.muted, theme.foreground)
+                                .enabled(seekable)
+                                .on_move(cx.listener(|this, fraction: &f32, _, cx| {
+                                    this.pending = Some(*fraction);
+                                    cx.notify();
+                                }))
+                                .on_release(cx.listener(|this, _: &MouseUpEvent, _, cx| {
+                                    this.commit_seek(cx)
+                                })),
+                        ),
                     ),
             )
-            .child(div().w(px(240.)).flex_none())
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .justify_end()
+                    .w(px(240.))
+                    .flex_none()
+                    .child(
+                        div().w(px(VOLUME_WIDTH)).child(
+                            Scrubber::new(&self.volume, level)
+                                .colors(theme.progress_bar, theme.muted, theme.foreground)
+                                .on_move(cx.listener(|this, fraction: &f32, _, cx| {
+                                    let level = *fraction;
+                                    this.playback
+                                        .update(cx, |playback, cx| playback.set_volume(level, cx));
+                                })),
+                        ),
+                    ),
+            )
     }
 }

@@ -1,8 +1,9 @@
 mod player_bar;
+mod scrubber;
 mod sidebar;
 mod title_bar;
 
-pub use player_bar::{NowPlaying, PlayerBar};
+pub use player_bar::PlayerBar;
 pub use sidebar::Sidebar;
 pub use title_bar::TitleBar;
 
