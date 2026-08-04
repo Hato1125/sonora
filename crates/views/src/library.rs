@@ -1,13 +1,35 @@
 use std::time::Duration;
 
 use gpui::{
-    AnyElement, App, AppContext as _, Context, Entity, IntoElement, ParentElement, Pixels, Render,
-    SharedString, Styled, Window, div, prelude::FluentBuilder as _, px,
+    AnyElement, App, AppContext as _, Context, Div, Entity, IntoElement, ParentElement, Pixels,
+    Render, SharedString, Styled, TextAlign, Window, div, prelude::FluentBuilder as _, px,
 };
 use gpui_component::button::Button;
 use gpui_component::table::{Column, Table, TableDelegate, TableState};
 use gpui_component::{ActiveTheme as _, Disableable as _, Icon, Selectable as _, Sizable as _};
 use state::{Library, LibraryState};
+
+const CELL_PADDING: Pixels = px(8.);
+
+trait Centered {
+    fn text_center(self) -> Self;
+}
+
+impl Centered for Column {
+    fn text_center(mut self) -> Self {
+        self.align = TextAlign::Center;
+        self
+    }
+}
+
+fn cell(width: Pixels, align: TextAlign) -> Div {
+    let cell = div().w(width);
+    match align {
+        TextAlign::Left => cell.truncate(),
+        TextAlign::Center => cell.flex().justify_center(),
+        TextAlign::Right => cell.flex().justify_end(),
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Section {
@@ -30,7 +52,7 @@ impl Section {
 
         match self {
             Section::Tracks => vec![
-                Column::new("index", "#").width(index),
+                Column::new("index", "#").width(index).text_center(),
                 Column::new("title", "Title")
                     .width(flexible * 0.42)
                     .sortable(),
@@ -45,7 +67,7 @@ impl Section {
                     .text_right(),
             ],
             Section::Playlists => vec![
-                Column::new("index", "#").width(index),
+                Column::new("index", "#").width(index).text_center(),
                 Column::new("name", "Name")
                     .width(flexible * 0.55)
                     .sortable(),
@@ -111,6 +133,17 @@ impl TableDelegate for LibraryTable {
         self.library.read(cx).is_loading()
     }
 
+    fn render_th(
+        &mut self,
+        col_ix: usize,
+        _window: &mut Window,
+        _cx: &mut Context<TableState<Self>>,
+    ) -> impl IntoElement {
+        let column = &self.columns[col_ix];
+        let width = (column.width - CELL_PADDING * 2.).max(px(24.));
+        cell(width, column.align).child(column.name.clone())
+    }
+
     fn render_td(
         &mut self,
         row_ix: usize,
@@ -120,7 +153,8 @@ impl TableDelegate for LibraryTable {
     ) -> impl IntoElement {
         let muted = cx.theme().muted_foreground;
         let section = self.section;
-        let cell_width = (self.columns[col_ix].width - px(20.)).max(px(24.));
+        let align = self.columns[col_ix].align;
+        let cell_width = (self.columns[col_ix].width - CELL_PADDING * 2.).max(px(24.));
         let LibraryState::Ready {
             tracks, playlists, ..
         } = self.library.read(cx).state()
@@ -128,7 +162,7 @@ impl TableDelegate for LibraryTable {
             return div();
         };
 
-        let cell = match section {
+        let content = match section {
             Section::Tracks => tracks.get(row_ix).map(|track| match col_ix {
                 0 => (SharedString::from(format!("{}", row_ix + 1)), true),
                 1 => (SharedString::from(track.name.clone()), false),
@@ -147,13 +181,11 @@ impl TableDelegate for LibraryTable {
             }),
         };
 
-        let Some((text, dimmed)) = cell else {
+        let Some((text, dimmed)) = content else {
             return div();
         };
 
-        div()
-            .w(cell_width)
-            .truncate()
+        cell(cell_width, align)
             .when(dimmed, |this| this.text_color(muted))
             .child(text)
     }
