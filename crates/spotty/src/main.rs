@@ -31,7 +31,7 @@ fn main() {
         .with_http_client(Arc::new(http::Client::new(io.handle())))
         .run(move |cx: &mut App| {
             gpui_component::init(cx);
-            // gpui_component::Theme::change(gpui_component::ThemeMode::Dark, None, cx);
+            gpui_component::Theme::change(gpui_component::ThemeMode::Dark, None, cx);
             gpui_component::Theme::global_mut(cx).font_size = px(13.);
 
             state::init(cx, io);
@@ -57,7 +57,7 @@ fn open_window(session: Entity<Session>, library: Entity<Library>, cx: &mut App)
             window_bounds: Some(WindowBounds::Windowed(bounds)),
             titlebar: Some(TitlebarOptions {
                 title: Some("spotty".into()),
-                appears_transparent: false,
+                appears_transparent: true,
                 traffic_light_position: Some(point(px(9.), px(9.))),
             }),
             is_movable: true,
