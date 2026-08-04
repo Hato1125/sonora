@@ -20,6 +20,7 @@ const ICONS: &[(&str, &[u8])] = icons![
     "play",
     "refresh-cw",
     "search",
+    "settings",
     "skip-back",
     "skip-forward",
 ];

@@ -3,13 +3,13 @@ mod sidebar;
 mod title_bar;
 
 pub use player_bar::PlayerBar;
-pub use sidebar::Sidebar;
+pub use sidebar::{Destination, Sidebar, SidebarEvent};
 pub use title_bar::TitleBar;
 
 use gpui::prelude::*;
 use gpui::{AnyView, Context, Entity, Render};
 use gpui::{Window, div};
-use state::{Playback, Session};
+use state::Playback;
 
 pub struct Workspace {
     title_bar: Entity<TitleBar>,
@@ -20,13 +20,12 @@ pub struct Workspace {
 
 impl Workspace {
     pub fn new(
-        session: Entity<Session>,
         sidebar: Entity<Sidebar>,
         playback: Entity<Playback>,
         content: AnyView,
         cx: &mut Context<Self>,
     ) -> Self {
-        let title_bar = cx.new(|cx| TitleBar::new(session, sidebar.clone(), cx));
+        let title_bar = cx.new(|cx| TitleBar::new(sidebar.clone(), cx));
         let player_bar = cx.new(|cx| PlayerBar::new(playback, cx));
 
         Self {
@@ -44,6 +43,11 @@ impl Workspace {
     pub fn set_content(&mut self, content: AnyView, cx: &mut Context<Self>) {
         self.content = content;
         cx.notify();
+    }
+
+    pub fn set_toolbar(&mut self, toolbar: Option<AnyView>, cx: &mut Context<Self>) {
+        self.title_bar
+            .update(cx, |bar, cx| bar.set_content(toolbar, cx));
     }
 
     pub fn player_bar(&self) -> &Entity<PlayerBar> {

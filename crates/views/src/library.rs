@@ -5,10 +5,9 @@ use gpui::{
     ParentElement, Pixels, Render, SharedString, SharedUri, Styled, StyledImage as _, TextAlign,
     Window, div, img, prelude::FluentBuilder as _, px,
 };
-use gpui_component::button::Button;
 use gpui_component::skeleton::Skeleton;
 use gpui_component::table::{Column, Table, TableDelegate, TableEvent, TableState};
-use gpui_component::{ActiveTheme as _, Disableable as _, Icon, Selectable as _, Sizable as _};
+use gpui_component::{ActiveTheme as _, Icon};
 use state::{Library, LibraryState, Playback};
 use workspace::Sidebar;
 
@@ -80,13 +79,13 @@ fn cell(width: Pixels, align: TextAlign) -> Div {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum Section {
+pub enum Section {
     Tracks,
     Playlists,
 }
 
 impl Section {
-    fn label(self) -> &'static str {
+    pub fn label(self) -> &'static str {
         match self {
             Section::Tracks => "Songs",
             Section::Playlists => "Playlists",
@@ -325,66 +324,34 @@ impl LibraryView {
             .update(cx, |playback, cx| playback.play(&track, cx));
     }
 
-    fn select(&mut self, section: Section, cx: &mut Context<Self>) {
+    pub fn section(&self) -> Section {
+        self.section
+    }
+
+    pub fn counts(&self, cx: &App) -> (usize, usize) {
+        match self.library.read(cx).state() {
+            LibraryState::Ready {
+                tracks, playlists, ..
+            } => (tracks.len(), playlists.len()),
+            _ => (0, 0),
+        }
+    }
+
+    pub fn is_loading(&self, cx: &App) -> bool {
+        self.library.read(cx).is_loading()
+    }
+
+    pub fn refresh(&mut self, cx: &mut Context<Self>) {
+        self.library.update(cx, |library, cx| library.refresh(cx));
+    }
+
+    pub fn select(&mut self, section: Section, cx: &mut Context<Self>) {
         self.section = section;
         self.table.update(cx, |table, cx| {
             table.delegate_mut().set_section(section);
             table.refresh(cx);
         });
         cx.notify();
-    }
-
-    fn tabs(&self, cx: &mut Context<Self>) -> AnyElement {
-        let (tracks, playlists) = match self.library.read(cx).state() {
-            LibraryState::Ready {
-                tracks, playlists, ..
-            } => (tracks.len(), playlists.len()),
-            _ => (0, 0),
-        };
-
-        let library = self.library.clone();
-        let loading = self.library.read(cx).is_loading();
-
-        div()
-            .flex()
-            .items_center()
-            .justify_between()
-            .gap_3()
-            .px_5()
-            .py_3()
-            .child(
-                div()
-                    .flex()
-                    .gap_1()
-                    .child(self.tab(Section::Tracks, tracks, cx))
-                    .child(self.tab(Section::Playlists, playlists, cx)),
-            )
-            .child(
-                Button::new("refresh")
-                    .label("Refresh")
-                    .small()
-                    .icon(Icon::default().path("icons/refresh-cw.svg"))
-                    .disabled(loading)
-                    .on_click(move |_, _, cx| {
-                        library.update(cx, |library, cx| library.refresh(cx));
-                    }),
-            )
-            .into_any_element()
-    }
-
-    fn tab(&self, section: Section, count: usize, cx: &mut Context<Self>) -> Button {
-        let label = if count == 0 {
-            section.label().to_owned()
-        } else {
-            format!("{} ({count})", section.label())
-        };
-
-        Button::new(SharedString::from(section.label()))
-            .label(label)
-            .small()
-            .selected(self.section == section)
-            .disabled(count == 0)
-            .on_click(cx.listener(move |this, _, _, cx| this.select(section, cx)))
     }
 }
 
@@ -403,7 +370,6 @@ impl Render for LibraryView {
             .flex()
             .flex_col()
             .size_full()
-            .child(self.tabs(cx))
             .child(div().flex_1().min_h_0().child(Table::new(&self.table)))
     }
 }
