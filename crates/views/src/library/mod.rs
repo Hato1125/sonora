@@ -172,11 +172,12 @@ impl Render for LibraryView {
             });
         }
 
-        div()
-            .flex()
-            .flex_col()
-            .size_full()
-            .child(div().flex_1().min_h_0().child(Table::new(&self.table)))
+        div().flex().flex_col().size_full().child(
+            div()
+                .flex_1()
+                .min_h_0()
+                .child(Table::new(&self.table).bordered(false)),
+        )
     }
 }
 
