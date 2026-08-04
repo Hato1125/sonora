@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use gpui::{
-    AnyElement, App, AppContext as _, Context, Entity, IntoElement, ParentElement, Render,
+    AnyElement, App, AppContext as _, Context, Entity, IntoElement, ParentElement, Pixels, Render,
     SharedString, Styled, Window, div, prelude::FluentBuilder as _, px,
 };
 use gpui_component::button::Button;
@@ -23,22 +23,36 @@ impl Section {
         }
     }
 
-    fn columns(self) -> Vec<Column> {
+    fn columns(self, available: Pixels) -> Vec<Column> {
+        let index = px(44.);
+        let trailing = px(72.);
+        let flexible = (available - index - trailing).max(px(240.));
+
         match self {
             Section::Tracks => vec![
-                Column::new("index", "#").width(px(44.)),
-                Column::new("title", "Title").width(px(260.)).sortable(),
-                Column::new("artists", "Artist").width(px(180.)).sortable(),
-                Column::new("album", "Album").width(px(170.)).sortable(),
+                Column::new("index", "#").width(index),
+                Column::new("title", "Title")
+                    .width(flexible * 0.42)
+                    .sortable(),
+                Column::new("artists", "Artist")
+                    .width(flexible * 0.29)
+                    .sortable(),
+                Column::new("album", "Album")
+                    .width(flexible * 0.29)
+                    .sortable(),
                 Column::new("duration", "Length")
-                    .width(px(64.))
+                    .width(trailing)
                     .text_right(),
             ],
             Section::Playlists => vec![
-                Column::new("index", "#").width(px(44.)),
-                Column::new("name", "Name").width(px(280.)).sortable(),
-                Column::new("owner", "Owner").width(px(220.)).sortable(),
-                Column::new("tracks", "Tracks").width(px(80.)).text_right(),
+                Column::new("index", "#").width(index),
+                Column::new("name", "Name")
+                    .width(flexible * 0.55)
+                    .sortable(),
+                Column::new("owner", "Owner")
+                    .width(flexible * 0.45)
+                    .sortable(),
+                Column::new("tracks", "Tracks").width(trailing).text_right(),
             ],
         }
     }
@@ -47,21 +61,28 @@ impl Section {
 struct LibraryTable {
     library: Entity<Library>,
     section: Section,
+    width: Pixels,
     columns: Vec<Column>,
 }
 
 impl LibraryTable {
-    fn new(library: Entity<Library>, section: Section) -> Self {
+    fn new(library: Entity<Library>, section: Section, width: Pixels) -> Self {
         Self {
             library,
             section,
-            columns: section.columns(),
+            width,
+            columns: section.columns(width),
         }
     }
 
     fn set_section(&mut self, section: Section) {
         self.section = section;
-        self.columns = section.columns();
+        self.columns = section.columns(self.width);
+    }
+
+    fn set_width(&mut self, width: Pixels) {
+        self.width = width;
+        self.columns = self.section.columns(width);
     }
 }
 
@@ -99,6 +120,7 @@ impl TableDelegate for LibraryTable {
     ) -> impl IntoElement {
         let muted = cx.theme().muted_foreground;
         let section = self.section;
+        let cell_width = (self.columns[col_ix].width - px(20.)).max(px(24.));
         let LibraryState::Ready {
             tracks, playlists, ..
         } = self.library.read(cx).state()
@@ -130,6 +152,7 @@ impl TableDelegate for LibraryTable {
         };
 
         div()
+            .w(cell_width)
             .truncate()
             .when(dimmed, |this| this.text_color(muted))
             .child(text)
@@ -139,6 +162,7 @@ impl TableDelegate for LibraryTable {
 pub struct LibraryView {
     library: Entity<Library>,
     section: Section,
+    width: Pixels,
     table: Entity<TableState<LibraryTable>>,
 }
 
@@ -151,12 +175,14 @@ impl LibraryView {
         .detach();
 
         let section = Section::Tracks;
-        let delegate = LibraryTable::new(library.clone(), section);
+        let width = content_width(window);
+        let delegate = LibraryTable::new(library.clone(), section, width);
         let table = cx.new(|cx| TableState::new(delegate, window, cx));
 
         Self {
             library,
             section,
+            width,
             table,
         }
     }
@@ -225,7 +251,16 @@ impl LibraryView {
 }
 
 impl Render for LibraryView {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let width = content_width(window);
+        if (width - self.width).abs() > px(1.) {
+            self.width = width;
+            self.table.update(cx, |table, cx| {
+                table.delegate_mut().set_width(width);
+                table.refresh(cx);
+            });
+        }
+
         div()
             .flex()
             .flex_col()
@@ -238,4 +273,9 @@ impl Render for LibraryView {
 fn format_duration(duration: Duration) -> String {
     let total = duration.as_secs();
     format!("{}:{:02}", total / 60, total % 60)
+}
+
+fn content_width(window: &Window) -> Pixels {
+    const CHROME: f32 = 240.;
+    (window.viewport_size().width - px(CHROME)).max(px(320.))
 }
