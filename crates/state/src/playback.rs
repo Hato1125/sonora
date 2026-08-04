@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use audio::{AudioEvent, AudioEvents, Engine, EngineConfig};
 use gpui::{Context, Entity, EventEmitter, Task};
@@ -7,6 +7,8 @@ use spotify::Track;
 use crate::{Session, SessionEvent};
 
 const POSITION_INTERVAL: Duration = Duration::from_millis(500);
+const LOAD_DEBOUNCE: Duration = Duration::from_millis(250);
+const KEY_COOLDOWN: Duration = Duration::from_secs(6);
 const TAPER_DB: f32 = 60.;
 const CEILING_DB: f32 = 9.;
 const INITIAL_LEVEL: f32 = 0.7;
@@ -42,6 +44,8 @@ pub struct Playback {
     level: f32,
     normalisation: bool,
     task: Option<Task<()>>,
+    load: Option<Task<()>>,
+    blocked_until: Option<Instant>,
 }
 
 impl EventEmitter<PlaybackEvent> for Playback {}
@@ -68,24 +72,42 @@ impl Playback {
             level: INITIAL_LEVEL,
             normalisation: true,
             task: None,
+            load: None,
+            blocked_until: None,
         }
     }
 
     pub fn play(&mut self, track: &Track, cx: &mut Context<Self>) {
-        let Some(engine) = self.engine.as_ref() else {
+        if self.engine.is_none() {
             return;
-        };
-        let Some(id) = track.id.as_deref() else {
+        }
+        let Some(id) = track.id.clone() else {
             return self.failed(format!("{} has no track id", track.name), cx);
         };
-        if let Err(error) = engine.load(id) {
-            return self.failed(format!("{error:#}"), cx);
-        }
 
         self.track = Some(track.clone());
         self.state = PlaybackState::Loading;
         self.position = Duration::ZERO;
         cx.notify();
+
+        let wait = self
+            .blocked_until
+            .and_then(|until| until.checked_duration_since(Instant::now()))
+            .unwrap_or(LOAD_DEBOUNCE)
+            .max(LOAD_DEBOUNCE);
+
+        self.load = Some(cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(wait).await;
+            this.update(cx, |this, cx| {
+                let Some(engine) = this.engine.as_ref() else {
+                    return;
+                };
+                if let Err(error) = engine.load(&id) {
+                    this.failed(format!("{error:#}"), cx);
+                }
+            })
+            .ok();
+        }));
     }
 
     pub fn resume(&mut self, cx: &mut Context<Self>) {
@@ -241,7 +263,16 @@ impl Playback {
                 cx.emit(PlaybackEvent::EndedPlayback);
             }
             AudioEvent::Unavailable => {
-                return self.failed("Spotify could not serve this track".to_owned(), cx);
+                let name = self.track.as_ref().map(|track| track.name.as_str());
+                log::warn!(
+                    "playback: no audio key for {}, backing off",
+                    name.unwrap_or("?")
+                );
+                self.blocked_until = Some(Instant::now() + KEY_COOLDOWN);
+                self.state = PlaybackState::Idle;
+                self.position = Duration::ZERO;
+                self.track = None;
+                cx.emit(PlaybackEvent::EndedPlayback);
             }
         }
         cx.notify();
@@ -249,6 +280,8 @@ impl Playback {
 
     fn teardown(&mut self, cx: &mut Context<Self>) {
         self.task = None;
+        self.load = None;
+        self.blocked_until = None;
         self.engine = None;
         self.track = None;
         self.state = PlaybackState::Idle;
