@@ -2,14 +2,35 @@ use std::time::Duration;
 
 use gpui::{
     AnyElement, App, AppContext as _, Context, Div, Entity, IntoElement, ParentElement, Pixels,
-    Render, SharedString, Styled, TextAlign, Window, div, prelude::FluentBuilder as _, px,
+    Render, SharedString, SharedUri, Styled, StyledImage as _, TextAlign, Window, div, img,
+    prelude::FluentBuilder as _, px,
 };
 use gpui_component::button::Button;
+use gpui_component::skeleton::Skeleton;
 use gpui_component::table::{Column, Table, TableDelegate, TableState};
 use gpui_component::{ActiveTheme as _, Disableable as _, Icon, Selectable as _, Sizable as _};
 use state::{Library, LibraryState};
 
 const CELL_PADDING: Pixels = px(8.);
+const COVER: Pixels = px(28.);
+
+fn cover_art(url: Option<&str>) -> AnyElement {
+    let rounded = px(4.);
+    let Some(url) = url else {
+        return placeholder(rounded).into_any_element();
+    };
+
+    img(SharedUri::from(url.to_owned()))
+        .size(COVER)
+        .rounded(rounded)
+        .with_loading(move || placeholder(rounded).into_any_element())
+        .with_fallback(move || placeholder(rounded).into_any_element())
+        .into_any_element()
+}
+
+fn placeholder(rounded: Pixels) -> Skeleton {
+    Skeleton::new().size(COVER).rounded(rounded)
+}
 
 trait Centered {
     fn text_center(self) -> Self;
@@ -48,11 +69,19 @@ impl Section {
     fn columns(self, available: Pixels) -> Vec<Column> {
         let index = px(44.);
         let trailing = px(72.);
-        let flexible = (available - index - trailing).max(px(240.));
+        let cover = match self {
+            Section::Tracks => COVER + CELL_PADDING * 2.,
+            Section::Playlists => px(0.),
+        };
+        let flexible = (available - index - trailing - cover).max(px(240.));
 
         match self {
             Section::Tracks => vec![
                 Column::new("index", "#").width(index).text_center(),
+                Column::new("cover", "")
+                    .width(cover)
+                    .resizable(false)
+                    .movable(false),
                 Column::new("title", "Title")
                     .width(flexible * 0.42)
                     .sortable(),
@@ -162,12 +191,17 @@ impl TableDelegate for LibraryTable {
             return div();
         };
 
+        if section == Section::Tracks && col_ix == 1 {
+            let url = tracks.get(row_ix).and_then(|track| track.cover.as_deref());
+            return cell(cell_width, align).child(cover_art(url));
+        }
+
         let content = match section {
             Section::Tracks => tracks.get(row_ix).map(|track| match col_ix {
                 0 => (SharedString::from(format!("{}", row_ix + 1)), true),
-                1 => (SharedString::from(track.name.clone()), false),
-                2 => (SharedString::from(track.artists.clone()), true),
-                3 => (SharedString::from(track.album.clone()), true),
+                2 => (SharedString::from(track.name.clone()), false),
+                3 => (SharedString::from(track.artists.clone()), true),
+                4 => (SharedString::from(track.album.clone()), true),
                 _ => (SharedString::from(format_duration(track.duration)), true),
             }),
             Section::Playlists => playlists.get(row_ix).map(|playlist| match col_ix {
