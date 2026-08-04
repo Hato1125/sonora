@@ -209,7 +209,7 @@ impl LibraryView {
         let section = Section::Tracks;
         let width = content_width(window);
         let delegate = LibraryTable::new(library.clone(), section, width);
-        let table = cx.new(|cx| TableState::new(delegate, window, cx));
+        let table = cx.new(|cx| TableState::new(delegate, window, cx).col_selectable(false));
 
         Self {
             library,
