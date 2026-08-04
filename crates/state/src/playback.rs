@@ -130,6 +130,20 @@ impl Playback {
         }
     }
 
+    pub fn seek_fraction(&mut self, fraction: f32, cx: &mut Context<Self>) {
+        let Some(total) = self
+            .track
+            .as_ref()
+            .map(|track| track.duration)
+            .filter(|total| !total.is_zero())
+        else {
+            return;
+        };
+
+        let position = Duration::from_secs_f32(total.as_secs_f32() * fraction.clamp(0., 1.));
+        self.seek(position, cx);
+    }
+
     pub fn state(&self) -> &PlaybackState {
         &self.state
     }

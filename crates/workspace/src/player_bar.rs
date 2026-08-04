@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use gpui::prelude::*;
 use gpui::{Context, Entity, MouseUpEvent, Render};
 use gpui::{SharedString, Window, div, px};
@@ -40,20 +38,8 @@ impl PlayerBar {
         let Some(fraction) = self.pending.take() else {
             return;
         };
-        let Some(total) = self
-            .playback
-            .read(cx)
-            .track()
-            .map(|track| track.duration)
-            .filter(|total| !total.is_zero())
-        else {
-            cx.notify();
-            return;
-        };
-
-        let position = Duration::from_secs_f32(total.as_secs_f32() * fraction);
         self.playback
-            .update(cx, |playback, cx| playback.seek(position, cx));
+            .update(cx, |playback, cx| playback.seek_fraction(fraction, cx));
     }
 
     fn transport(&self, cx: &mut Context<Self>) -> impl IntoElement {
