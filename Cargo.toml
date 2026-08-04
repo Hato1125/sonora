@@ -41,6 +41,9 @@ tokio = { version = "1.53", features = [
 [profile.dev]
 split-debuginfo = "unpacked"
 
+[patch.crates-io]
+gpui = { path = "vendor/gpui" }
+
 [profile.dev.package."*"]
 debug = false
 opt-level = 2
