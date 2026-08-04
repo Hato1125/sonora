@@ -26,17 +26,19 @@ impl Section {
     fn columns(self) -> Vec<Column> {
         match self {
             Section::Tracks => vec![
-                Column::new("index", "#").width(px(56.)),
-                Column::new("title", "Title").width(px(320.)).sortable(),
-                Column::new("artists", "Artist").width(px(240.)).sortable(),
-                Column::new("album", "Album").width(px(240.)).sortable(),
-                Column::new("duration", "Length").width(px(96.)),
+                Column::new("index", "#").width(px(44.)),
+                Column::new("title", "Title").width(px(260.)).sortable(),
+                Column::new("artists", "Artist").width(px(180.)).sortable(),
+                Column::new("album", "Album").width(px(170.)).sortable(),
+                Column::new("duration", "Length")
+                    .width(px(64.))
+                    .text_right(),
             ],
             Section::Playlists => vec![
-                Column::new("index", "#").width(px(56.)),
-                Column::new("name", "Name").width(px(360.)).sortable(),
-                Column::new("owner", "Owner").width(px(240.)).sortable(),
-                Column::new("tracks", "Tracks").width(px(120.)),
+                Column::new("index", "#").width(px(44.)),
+                Column::new("name", "Name").width(px(280.)).sortable(),
+                Column::new("owner", "Owner").width(px(220.)).sortable(),
+                Column::new("tracks", "Tracks").width(px(80.)).text_right(),
             ],
         }
     }
