@@ -26,6 +26,7 @@
             libxi
             fontconfig
             freetype
+            alsa-lib
           ];
 
           gpuiVersion = "0.2.2";

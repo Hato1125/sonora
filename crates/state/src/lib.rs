@@ -1,7 +1,9 @@
 mod library;
+mod playback;
 mod session;
 
 pub use library::{Library, LibraryState};
+pub use playback::{Playback, PlaybackState};
 pub use session::{Session, SessionEvent, SessionState};
 
 use std::future::Future;
@@ -47,6 +49,7 @@ pub(crate) async fn join<T>(handle: JoinHandle<Result<T>>) -> Result<T> {
 pub struct Spotty {
     pub session: Entity<Session>,
     pub library: Entity<Library>,
+    pub playback: Entity<Playback>,
 }
 
 impl Global for Spotty {}
@@ -62,6 +65,11 @@ pub fn init(cx: &mut App, io: Io) {
 
     let session = cx.new(|_| Session::new(AuthConfig::from_env(), io.clone()));
     let library = cx.new(|cx| Library::new(session.clone(), io, cx));
+    let playback = cx.new(|cx| Playback::new(session.clone(), cx));
 
-    cx.set_global(Spotty { session, library });
+    cx.set_global(Spotty {
+        session,
+        library,
+        playback,
+    });
 }

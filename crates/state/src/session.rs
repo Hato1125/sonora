@@ -22,7 +22,7 @@ pub enum SessionEvent {
 
 pub struct Session {
     state: SessionState,
-    client: Option<Arc<dyn SpotifyApi>>,
+    client: Option<Arc<LibrespotClient>>,
     config: AuthConfig,
     io: Io,
     task: Option<Task<()>>,
@@ -46,7 +46,11 @@ impl Session {
     }
 
     pub fn client(&self) -> Option<Arc<dyn SpotifyApi>> {
-        self.client.clone()
+        self.client.clone().map(|c| c as Arc<dyn SpotifyApi>)
+    }
+
+    pub fn librespot(&self) -> Option<librespot_core::Session> {
+        self.client.as_ref().map(|c| c.session().clone())
     }
 
     pub fn is_pending(&self) -> bool {

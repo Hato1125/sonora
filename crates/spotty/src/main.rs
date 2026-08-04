@@ -31,13 +31,16 @@ fn main() {
         .with_http_client(Arc::new(http::Client::new(io.handle())))
         .run(move |cx: &mut App| {
             gpui_component::init(cx);
+            // gpui_component::Theme::change(gpui_component::ThemeMode::Dark, None, cx);
             gpui_component::Theme::global_mut(cx).font_size = px(13.);
 
             state::init(cx, io);
 
             register_actions(cx);
 
-            let Spotty { session, library } = Spotty::global(cx);
+            let Spotty {
+                session, library, ..
+            } = Spotty::global(cx);
             let (session, library) = (session.clone(), library.clone());
 
             open_window(session.clone(), library, cx);
