@@ -1,0 +1,11 @@
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -747,3 +747,8 @@
+ [lints.rust.unexpected_cfgs]
+ level = "allow"
+ priority = 0
++
++[lints.rust]
++future_incompatible = "allow"
++unused = "allow"
++deprecated = "allow"
