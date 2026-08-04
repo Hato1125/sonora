@@ -7554,6 +7554,7 @@ name = "views"
 version = "0.1.0"
 dependencies = [
  "gpui",
+ "gpui-component",
  "state",
  "theme",
  "ui",
@@ -8406,6 +8407,7 @@ name = "workspace"
 version = "0.1.0"
 dependencies = [
  "gpui",
+ "gpui-component",
  "state",
  "theme",
  "ui",
