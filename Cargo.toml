@@ -9,6 +9,7 @@ edition = "2024"
 [workspace.dependencies]
 spotify = { path = "crates/spotify" }
 state = { path = "crates/state" }
+ui = { path = "crates/ui" }
 views = { path = "crates/views" }
 workspace = { path = "crates/workspace" }
 

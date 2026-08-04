@@ -1,5 +1,5 @@
 mod player_bar;
-mod scrubber;
+
 mod sidebar;
 mod title_bar;
 

@@ -1,10 +1,8 @@
 [package]
-name = "workspace"
+name = "ui"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
-gpui-component.workspace = true
 gpui.workspace = true
-state.workspace = true
-ui.workspace = true
+gpui-component.workspace = true

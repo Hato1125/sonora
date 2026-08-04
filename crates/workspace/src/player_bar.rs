@@ -8,7 +8,7 @@ use gpui_component::label::Label;
 use gpui_component::{Disableable as _, Sizable as _};
 use state::{Playback, PlaybackState};
 
-use crate::scrubber::{Scrubber, ScrubberState};
+use ui::{Scrubber, ScrubberState};
 
 const HEIGHT: f32 = 68.;
 const TRACK_WIDTH: f32 = 420.;
