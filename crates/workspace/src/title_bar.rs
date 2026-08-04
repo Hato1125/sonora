@@ -1,25 +1,30 @@
-use gpui::{Context, Entity, Render};
+use gpui::{Context, Corner, Entity, Render};
 use gpui::{MouseButton, prelude::*};
 use gpui::{Window, div, px};
 use gpui_component::ActiveTheme as _;
-use gpui_component::Icon;
-use gpui_component::Sizable as _;
 use gpui_component::avatar::Avatar;
-use gpui_component::button::Button;
+use gpui_component::button::{Button, ButtonVariants as _};
 use gpui_component::input::{Input, InputState};
+use gpui_component::label::Label;
+use gpui_component::popover::Popover;
 use gpui_component::skeleton::Skeleton;
+use gpui_component::{Disableable as _, Icon};
 use state::{Session, SessionState};
+
+use crate::Sidebar;
 
 const HEIGHT: f32 = 52.;
 
 pub struct TitleBar {
     session: Entity<Session>,
+    sidebar: Entity<Sidebar>,
 }
 
 impl TitleBar {
-    pub fn new(session: Entity<Session>, cx: &mut Context<Self>) -> Self {
+    pub fn new(session: Entity<Session>, sidebar: Entity<Sidebar>, cx: &mut Context<Self>) -> Self {
         cx.observe(&session, |_, _, cx| cx.notify()).detach();
-        Self { session }
+        cx.observe(&sidebar, |_, _, cx| cx.notify()).detach();
+        Self { session, sidebar }
     }
 }
 
@@ -28,6 +33,13 @@ impl Render for TitleBar {
         let theme = cx.theme().clone();
 
         let session = self.session.clone();
+        let sidebar = self.sidebar.clone();
+        let sidebar_open = sidebar.read(cx).is_open();
+        let sidebar_icon = if sidebar_open {
+            "icons/panel-right-close.svg"
+        } else {
+            "icons/panel-right-open.svg"
+        };
         let input = cx.new(|cx| InputState::new(window, cx).placeholder("Search..."));
 
         div()
@@ -48,17 +60,23 @@ impl Render for TitleBar {
             })
             .child(
                 div()
+                    .flex()
+                    .w_12()
+                    .flex_none()
+                    .items_center()
                     .occlude()
                     .on_mouse_down(MouseButton::Left, |_, _, cx| {
                         cx.stop_propagation();
                     })
                     .child(
-                        Button::new("sign-out")
-                            .label("Sign out")
-                            .small()
-                            .icon(Icon::default().path("icons/log-out.svg"))
+                        Button::new("sidebar-toggle")
+                            .ghost()
+                            .h_16()
+                            .w_16()
+                            .ml(px(-8.))
+                            .icon(Icon::default().path(sidebar_icon).size_6())
                             .on_click(move |_, _, cx| {
-                                session.update(cx, |session, cx| session.sign_out(cx));
+                                sidebar.update(cx, |sidebar, cx| sidebar.toggle(cx));
                             }),
                     ),
             )
@@ -92,10 +110,86 @@ impl Render for TitleBar {
                 ),
             )
             .child(match self.session.read(cx).state() {
-                SessionState::SignedIn(profile) => Avatar::new()
-                    .name(profile.display_name.clone())
-                    .size_12()
-                    .into_any_element(),
+                SessionState::SignedIn(profile) => {
+                    let display_name = profile.display_name.clone();
+                    let panel_name = display_name.clone();
+                    let panel_session = session.clone();
+
+                    div()
+                        .occlude()
+                        .on_mouse_down(MouseButton::Left, |_, _, cx| {
+                            cx.stop_propagation();
+                        })
+                        .child(
+                            Popover::new("profile-popover")
+                                .anchor(Corner::TopRight)
+                                .trigger(
+                                    Button::new("profile-avatar")
+                                        .ghost()
+                                        .p_0()
+                                        .size_12()
+                                        .rounded_full()
+                                        .child(Avatar::new().name(display_name).size_12()),
+                                )
+                                .content(move |_, _, _| {
+                                    let session = panel_session.clone();
+
+                                    div()
+                                        .flex()
+                                        .w(px(260.))
+                                        .flex_col()
+                                        .gap_2()
+                                        .child(
+                                            div()
+                                                .flex()
+                                                .items_center()
+                                                .gap_3()
+                                                .child(
+                                                    Avatar::new()
+                                                        .name(panel_name.clone())
+                                                        .size_16(),
+                                                )
+                                                .child(
+                                                    Label::new(panel_name.clone())
+                                                        .font_weight(gpui::FontWeight::SEMIBOLD)
+                                                        .truncate(),
+                                                ),
+                                        )
+                                        .child(div().h(px(1.)).w_full().bg(theme.border))
+                                        .child(
+                                            Button::new("profile-settings")
+                                                .label("Settings")
+                                                .ghost()
+                                                .w_full()
+                                                .justify_start()
+                                                .disabled(true),
+                                        )
+                                        .child(
+                                            Button::new("profile-about")
+                                                .label("About Spotty")
+                                                .ghost()
+                                                .w_full()
+                                                .justify_start()
+                                                .disabled(true),
+                                        )
+                                        .child(div().h(px(1.)).w_full().bg(theme.border))
+                                        .child(
+                                            Button::new("profile-sign-out")
+                                                .label("Sign out")
+                                                .ghost()
+                                                .w_full()
+                                                .justify_start()
+                                                .icon(Icon::default().path("icons/log-out.svg"))
+                                                .on_click(move |_, _, cx| {
+                                                    session.update(cx, |session, cx| {
+                                                        session.sign_out(cx)
+                                                    });
+                                                }),
+                                        )
+                                }),
+                        )
+                        .into_any_element()
+                }
                 _ => Skeleton::new().size_12().rounded_full().into_any_element(),
             })
     }

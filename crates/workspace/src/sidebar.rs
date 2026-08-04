@@ -26,6 +26,7 @@ struct SidebarResize {
 pub struct Sidebar {
     library: Entity<Library>,
     width: Pixels,
+    open: bool,
 }
 
 impl Sidebar {
@@ -34,7 +35,17 @@ impl Sidebar {
         Self {
             library,
             width: DEFAULT_WIDTH,
+            open: true,
         }
+    }
+
+    pub fn is_open(&self) -> bool {
+        self.open
+    }
+
+    pub fn toggle(&mut self, cx: &mut Context<Self>) {
+        self.open = !self.open;
+        cx.notify();
     }
 
     fn playlist_count(&self, cx: &Context<Self>) -> usize {
@@ -58,6 +69,7 @@ impl Render for Sidebar {
         div()
             .flex()
             .flex_col()
+            .when(!self.open, |this| this.hidden())
             .relative()
             .w(self.width)
             .flex_none()

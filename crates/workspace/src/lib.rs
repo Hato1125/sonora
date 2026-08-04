@@ -26,8 +26,8 @@ impl Workspace {
         content: AnyView,
         cx: &mut Context<Self>,
     ) -> Self {
-        let title_bar = cx.new(|cx| TitleBar::new(session, cx));
         let sidebar = cx.new(|cx| Sidebar::new(library, cx));
+        let title_bar = cx.new(|cx| TitleBar::new(session, sidebar.clone(), cx));
         let player_bar = cx.new(|cx| PlayerBar::new(playback, cx));
 
         Self {

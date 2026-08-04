@@ -15,6 +15,8 @@ const ICONS: &[(&str, &[u8])] = icons![
     "log-out",
     "music",
     "pause",
+    "panel-right-close",
+    "panel-right-open",
     "play",
     "refresh-cw",
     "search",
