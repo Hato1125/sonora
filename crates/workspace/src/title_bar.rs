@@ -69,12 +69,16 @@ impl Render for TitleBar {
                         cx.stop_propagation();
                     })
                     .child(
-                        Button::new("sidebar-toggle")
-                            .ghost()
+                        div()
+                            .id("sidebar-toggle")
+                            .flex()
                             .h_16()
                             .w_16()
                             .ml(px(-8.))
-                            .icon(Icon::default().path(sidebar_icon).size_6())
+                            .items_center()
+                            .justify_center()
+                            .cursor_pointer()
+                            .child(Icon::default().path(sidebar_icon).size_5())
                             .on_click(move |_, _, cx| {
                                 sidebar.update(cx, |sidebar, cx| sidebar.toggle(cx));
                             }),
