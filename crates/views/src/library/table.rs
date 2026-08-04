@@ -6,7 +6,8 @@ use gpui_component::table::{Column as TableColumn, ColumnSort, TableDelegate, Ta
 use state::{Library, LibraryState};
 
 use super::Section;
-use super::columns::{CELL_PADDING, Field, cell, cover_art};
+use super::columns::{ARTWORK, CELL_PADDING, Field, ROUNDED, cell};
+use ui::Artwork;
 
 pub(super) struct LibraryTable {
     library: Entity<Library>,
@@ -146,17 +147,17 @@ impl TableDelegate for LibraryTable {
 
         if field == Field::Cover {
             let url = match section {
-                Section::Tracks => tracks.get(data_ix).and_then(|track| track.cover.as_deref()),
+                Section::Tracks => tracks.get(data_ix).and_then(|track| track.cover.clone()),
                 Section::Playlists => playlists
                     .get(data_ix)
-                    .and_then(|playlist| playlist.cover.as_deref()),
+                    .and_then(|playlist| playlist.cover.clone()),
             };
             return div()
                 .w(cell_width)
                 .h_full()
                 .flex()
                 .items_center()
-                .child(cover_art(url, muted));
+                .child(Artwork::new(url).size(ARTWORK).rounded(ROUNDED));
         }
 
         let Some((text, dimmed)) = field.text(row_ix, data_ix, tracks, playlists) else {

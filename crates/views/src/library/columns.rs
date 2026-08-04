@@ -1,51 +1,12 @@
 use std::time::Duration;
 
-use gpui::{
-    AnyElement, Div, Edges, Hsla, IntoElement, ParentElement, Pixels, SharedString, SharedUri,
-    Styled, StyledImage as _, TextAlign, div, img, px,
-};
-use gpui_component::Icon;
-use gpui_component::skeleton::Skeleton;
+use gpui::{Div, Edges, Pixels, SharedString, Styled, TextAlign, div, px};
 use gpui_component::table::{Column as TableColumn, ColumnSort};
 use spotify::{Playlist, Track};
 use std::cmp::Ordering;
 
 pub(super) const CELL_PADDING: Pixels = px(8.);
-const ROUNDED: Pixels = px(4.);
-
-pub(super) fn cover_art(url: Option<&str>, muted: Hsla) -> AnyElement {
-    let Some(url) = url else {
-        return blank(muted).into_any_element();
-    };
-
-    img(SharedUri::from(url.to_owned()))
-        .size(ARTWORK)
-        .rounded(ROUNDED)
-        .with_loading(|| {
-            Skeleton::new()
-                .size(ARTWORK)
-                .rounded(ROUNDED)
-                .into_any_element()
-        })
-        .with_fallback(move || blank(muted).into_any_element())
-        .into_any_element()
-}
-
-fn blank(muted: Hsla) -> Div {
-    div()
-        .size(ARTWORK)
-        .rounded(ROUNDED)
-        .bg(muted.opacity(0.12))
-        .flex()
-        .items_center()
-        .justify_center()
-        .child(
-            Icon::default()
-                .path("icons/music.svg")
-                .size(px(13.))
-                .text_color(muted.opacity(0.5)),
-        )
-}
+pub(super) const ROUNDED: Pixels = px(4.);
 
 trait Centered {
     fn text_center(self) -> Self;
@@ -107,7 +68,7 @@ pub(super) struct Column {
 
 const NUMBER: Pixels = px(44.);
 const TRAILING: Pixels = px(72.);
-const ARTWORK: Pixels = px(28.);
+pub(super) const ARTWORK: Pixels = px(28.);
 const ARTWORK_COLUMN: Pixels = px(28. + 8. * 2.);
 
 pub(super) const TRACK_COLUMNS: &[Column] = &[

@@ -1,6 +1,6 @@
-use gpui::{Context, Entity, MouseUpEvent, Render, SharedUri};
+use gpui::prelude::*;
+use gpui::{Context, Entity, MouseUpEvent, Render};
 use gpui::{SharedString, Window, div, px};
-use gpui::{img, prelude::*};
 use gpui_component::ActiveTheme as _;
 use gpui_component::Icon;
 use gpui_component::button::{Button, ButtonVariants as _};
@@ -8,7 +8,7 @@ use gpui_component::label::Label;
 use gpui_component::{Disableable as _, Sizable as _};
 use state::{Playback, PlaybackState};
 
-use ui::{Scrubber, ScrubberState};
+use ui::{Artwork, Scrubber, ScrubberState};
 
 const HEIGHT: f32 = 68.;
 const TRACK_WIDTH: f32 = 420.;
@@ -84,20 +84,14 @@ impl PlayerBar {
     fn now_playing(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let muted = cx.theme().muted_foreground;
         let track = self.playback.read(cx).track().cloned();
-        let cover = track.as_ref().and_then(|track| track.cover.as_deref());
+        let cover = track.as_ref().and_then(|track| track.cover.clone());
 
         let width = window.viewport_size().width / 3. - px(100.);
 
         div()
             .flex()
             .gap_4()
-            .when_some(cover, |this, cover| {
-                this.child(
-                    img(SharedUri::from(cover.to_owned()))
-                        .size(px(48.))
-                        .rounded_md(),
-                )
-            })
+            .child(Artwork::new(cover).size(px(48.)).rounded(px(6.)))
             .child(
                 div()
                     .flex()
