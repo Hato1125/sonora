@@ -13,25 +13,29 @@ fn main() {
         .format_module_path(false)
         .init();
 
-    Application::new().run(|cx: &mut App| {
-        theme::init(cx);
+    Application::new()
+        .with_assets(gpui_component_assets::Assets)
+        .run(|cx: &mut App| {
+            gpui_component::init(cx);
+            gpui_component::Theme::change(gpui_component::ThemeMode::Dark, None, cx);
+            theme::init(cx);
 
-        if let Err(error) = state::init(cx) {
-            eprintln!("spotty: cannot start runtime: {error:#}");
-            cx.quit();
-            return;
-        }
+            if let Err(error) = state::init(cx) {
+                eprintln!("spotty: cannot start runtime: {error:#}");
+                cx.quit();
+                return;
+            }
 
-        register_actions(cx);
+            register_actions(cx);
 
-        let Spotty { session, library } = Spotty::global(cx);
-        let (session, library) = (session.clone(), library.clone());
+            let Spotty { session, library } = Spotty::global(cx);
+            let (session, library) = (session.clone(), library.clone());
 
-        open_window(session.clone(), library, cx);
-        session.update(cx, |session, cx| session.restore(cx));
+            open_window(session.clone(), library, cx);
+            session.update(cx, |session, cx| session.restore(cx));
 
-        cx.activate(true);
-    });
+            cx.activate(true);
+        });
 }
 
 fn open_window(session: Entity<Session>, library: Entity<Library>, cx: &mut App) {
@@ -48,7 +52,11 @@ fn open_window(session: Entity<Session>, library: Entity<Library>, cx: &mut App)
             window_min_size: Some(size(px(520.), px(400.))),
             ..Default::default()
         },
-        |_, cx| cx.new(|cx| Root::new(session, library, cx)),
+        |window, cx| {
+            let root = cx.new(|cx| Root::new(session, library, cx));
+            let view: gpui::AnyView = root.into();
+            cx.new(|cx| gpui_component::Root::new(view, window, cx))
+        },
     )
     .expect("failed to open window");
 }
