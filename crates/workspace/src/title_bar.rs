@@ -13,7 +13,7 @@ use state::{Session, SessionState};
 
 use crate::Sidebar;
 
-const HEIGHT: f32 = 52.;
+const HEIGHT: f32 = 40.;
 
 pub struct TitleBar {
     session: Entity<Session>,

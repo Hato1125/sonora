@@ -72,7 +72,7 @@ fn open_window(
             is_movable: true,
             is_resizable: true,
             app_id: Some("spotty".into()),
-            window_min_size: Some(size(px(520.), px(400.))),
+            window_min_size: Some(size(px(480.), px(400.))),
             ..Default::default()
         },
         |window, cx| {
