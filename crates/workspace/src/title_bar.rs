@@ -1,8 +1,13 @@
+use gpui::prelude::*;
 use gpui::{Context, Entity, FontWeight, Render};
+use gpui::{Window, div, px};
+use gpui_component::ActiveTheme as _;
 use gpui_component::Icon;
+use gpui_component::Sizable as _;
 use gpui_component::button::Button;
+use gpui_component::label::Label;
+use gpui_component::skeleton::Skeleton;
 use state::{Session, SessionState};
-use ui::prelude::*;
 
 const HEIGHT: f32 = 52.;
 
@@ -37,17 +42,15 @@ impl Render for TitleBar {
             .border_color(theme.title_bar_border)
             .child(match self.session.read(cx).state() {
                 SessionState::SignedIn(profile) => Label::new(profile.display_name.clone())
-                    .size(px(14.))
-                    .weight(FontWeight::SEMIBOLD)
+                    .text_size(px(14.))
+                    .font_weight(FontWeight::SEMIBOLD)
                     .into_any_element(),
-                _ => Skeleton::new("name")
-                    .w(px(80.))
-                    .h(px(11.))
-                    .into_any_element(),
+                _ => Skeleton::new().w(px(80.)).h(px(11.)).into_any_element(),
             })
             .child(
                 Button::new("sign-out")
                     .label("Sign out")
+                    .small()
                     .icon(Icon::default().path("icons/log-out.svg"))
                     .on_click(move |_, _, cx| {
                         session.update(cx, |session, cx| session.sign_out(cx));

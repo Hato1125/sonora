@@ -54,7 +54,7 @@ fn open_window(session: Entity<Session>, library: Entity<Library>, cx: &mut App)
             ..Default::default()
         },
         |window, cx| {
-            let root = cx.new(|cx| Root::new(session, library, cx));
+            let root = cx.new(|cx| Root::new(session, library, window, cx));
             let view: gpui::AnyView = root.into();
             cx.new(|cx| gpui_component::Root::new(view, window, cx))
         },

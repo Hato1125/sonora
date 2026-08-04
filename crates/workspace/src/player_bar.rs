@@ -1,7 +1,10 @@
+use gpui::prelude::*;
 use gpui::{Context, Render};
+use gpui::{SharedString, Window, div, px, relative};
+use gpui_component::ActiveTheme as _;
 use gpui_component::Icon;
 use gpui_component::button::{Button, ButtonVariants as _};
-use ui::prelude::*;
+use gpui_component::label::Label;
 
 const HEIGHT: f32 = 68.;
 
@@ -35,6 +38,7 @@ impl Default for PlayerBar {
 impl Render for PlayerBar {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme().clone();
+        let muted = theme.muted_foreground;
         let position = self
             .now_playing
             .as_ref()
@@ -61,13 +65,13 @@ impl Render for PlayerBar {
                     .min_w_0()
                     .child(match &self.now_playing {
                         Some(playing) => Label::new(playing.title.clone()).truncate(),
-                        None => Label::new("Nothing playing").tone(Tone::Muted),
+                        None => Label::new("Nothing playing").text_color(muted),
                     })
                     .when_some(self.now_playing.as_ref(), |this, playing| {
                         this.child(
                             Label::new(playing.artists.clone())
-                                .tone(Tone::Muted)
-                                .size(px(11.))
+                                .text_color(muted)
+                                .text_size(px(11.))
                                 .truncate(),
                         )
                     }),

@@ -1,8 +1,11 @@
-use gpui::{Context, Entity, FontWeight, Render};
-use gpui_component::Disableable as _;
+use gpui::{
+    Context, Entity, FontWeight, IntoElement, ParentElement as _, Render, Styled as _, Window, div,
+    px,
+};
 use gpui_component::button::{Button, ButtonVariants as _};
+use gpui_component::label::Label;
+use gpui_component::{ActiveTheme as _, Disableable as _};
 use state::{Session, SessionState};
-use ui::prelude::*;
 
 pub struct LoginView {
     session: Entity<Session>,
@@ -28,10 +31,10 @@ impl Render for LoginView {
             SessionState::Failed(error) => error.clone(),
         };
 
-        let tone = if matches!(state, SessionState::Failed(_)) {
-            Tone::Danger
+        let status_color = if matches!(state, SessionState::Failed(_)) {
+            cx.theme().danger
         } else {
-            Tone::Muted
+            cx.theme().muted_foreground
         };
 
         let session = self.session.clone();
@@ -43,8 +46,19 @@ impl Render for LoginView {
             .justify_center()
             .gap_4()
             .size_full()
-            .child(Label::new("spotty").size(px(28.)).weight(FontWeight::BOLD))
-            .child(Message::new(status).tone(tone))
+            .child(
+                Label::new("spotty")
+                    .text_size(px(28.))
+                    .font_weight(FontWeight::BOLD),
+            )
+            .child(
+                div()
+                    .max_w(px(560.))
+                    .text_center()
+                    .text_size(px(13.))
+                    .text_color(status_color)
+                    .child(status),
+            )
             .child(
                 Button::new("sign-in")
                     .label("Sign in with Spotify")

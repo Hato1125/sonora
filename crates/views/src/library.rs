@@ -1,13 +1,13 @@
 use std::time::Duration;
 
-use gpui::{AnyElement, Context, Entity, Render, uniform_list};
-use gpui_component::Disableable as _;
-use gpui_component::Icon;
+use gpui::{
+    AnyElement, App, AppContext as _, Context, Entity, IntoElement, ParentElement, Render,
+    SharedString, Styled, Window, div, prelude::FluentBuilder as _, px,
+};
 use gpui_component::button::Button;
+use gpui_component::table::{Column, Table, TableDelegate, TableState};
+use gpui_component::{ActiveTheme as _, Disableable as _, Icon, Selectable as _, Sizable as _};
 use state::{Library, LibraryState};
-use ui::prelude::*;
-
-const SKELETON_ROWS: usize = 12;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Section {
@@ -23,33 +23,149 @@ impl Section {
         }
     }
 
-    fn id(self) -> &'static str {
+    fn columns(self) -> Vec<Column> {
         match self {
-            Section::Tracks => "tab-tracks",
-            Section::Playlists => "tab-playlists",
+            Section::Tracks => vec![
+                Column::new("index", "#").width(px(56.)),
+                Column::new("title", "Title").width(px(320.)).sortable(),
+                Column::new("artists", "Artist").width(px(240.)).sortable(),
+                Column::new("album", "Album").width(px(240.)).sortable(),
+                Column::new("duration", "Length").width(px(96.)),
+            ],
+            Section::Playlists => vec![
+                Column::new("index", "#").width(px(56.)),
+                Column::new("name", "Name").width(px(360.)).sortable(),
+                Column::new("owner", "Owner").width(px(240.)).sortable(),
+                Column::new("tracks", "Tracks").width(px(120.)),
+            ],
+        }
+    }
+}
+
+struct LibraryTable {
+    library: Entity<Library>,
+    section: Section,
+    columns: Vec<Column>,
+}
+
+impl LibraryTable {
+    fn new(library: Entity<Library>, section: Section) -> Self {
+        Self {
+            library,
+            section,
+            columns: section.columns(),
         }
     }
 
-    fn list_id(self) -> &'static str {
-        match self {
-            Section::Tracks => "library-tracks",
-            Section::Playlists => "library-playlists",
+    fn set_section(&mut self, section: Section) {
+        self.section = section;
+        self.columns = section.columns();
+    }
+}
+
+impl TableDelegate for LibraryTable {
+    fn columns_count(&self, _cx: &App) -> usize {
+        self.columns.len()
+    }
+
+    fn rows_count(&self, cx: &App) -> usize {
+        match self.library.read(cx).state() {
+            LibraryState::Ready {
+                tracks, playlists, ..
+            } => match self.section {
+                Section::Tracks => tracks.len(),
+                Section::Playlists => playlists.len(),
+            },
+            _ => 0,
         }
+    }
+
+    fn column(&self, col_ix: usize, _cx: &App) -> &Column {
+        &self.columns[col_ix]
+    }
+
+    fn loading(&self, cx: &App) -> bool {
+        self.library.read(cx).is_loading()
+    }
+
+    fn render_td(
+        &mut self,
+        row_ix: usize,
+        col_ix: usize,
+        _window: &mut Window,
+        cx: &mut Context<TableState<Self>>,
+    ) -> impl IntoElement {
+        let muted = cx.theme().muted_foreground;
+        let section = self.section;
+        let LibraryState::Ready {
+            tracks, playlists, ..
+        } = self.library.read(cx).state()
+        else {
+            return div();
+        };
+
+        let cell = match section {
+            Section::Tracks => tracks.get(row_ix).map(|track| match col_ix {
+                0 => (SharedString::from(format!("{}", row_ix + 1)), true),
+                1 => (SharedString::from(track.name.clone()), false),
+                2 => (SharedString::from(track.artists.clone()), true),
+                3 => (SharedString::from(track.album.clone()), true),
+                _ => (SharedString::from(format_duration(track.duration)), true),
+            }),
+            Section::Playlists => playlists.get(row_ix).map(|playlist| match col_ix {
+                0 => (SharedString::from(format!("{}", row_ix + 1)), true),
+                1 => (SharedString::from(playlist.name.clone()), false),
+                2 => (SharedString::from(playlist.owner.clone()), true),
+                _ => (
+                    SharedString::from(format!("{}", playlist.track_count)),
+                    true,
+                ),
+            }),
+        };
+
+        let Some((text, dimmed)) = cell else {
+            return div();
+        };
+
+        div()
+            .truncate()
+            .when(dimmed, |this| this.text_color(muted))
+            .child(text)
     }
 }
 
 pub struct LibraryView {
     library: Entity<Library>,
     section: Section,
+    table: Entity<TableState<LibraryTable>>,
 }
 
 impl LibraryView {
-    pub fn new(library: Entity<Library>, cx: &mut Context<Self>) -> Self {
-        cx.observe(&library, |_, _, cx| cx.notify()).detach();
+    pub fn new(library: Entity<Library>, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        cx.observe(&library, |this, _, cx| {
+            this.table.update(cx, |table, cx| table.refresh(cx));
+            cx.notify();
+        })
+        .detach();
+
+        let section = Section::Tracks;
+        let delegate = LibraryTable::new(library.clone(), section);
+        let table = cx.new(|cx| TableState::new(delegate, window, cx));
+
         Self {
             library,
-            section: Section::Tracks,
+            section,
+            table,
         }
+    }
+
+    fn select(&mut self, section: Section, cx: &mut Context<Self>) {
+        self.section = section;
+        self.table.update(cx, |table, cx| {
+            table.delegate_mut().set_section(section);
+            table.refresh(cx);
+        });
+        cx.notify();
     }
 
     fn tabs(&self, cx: &mut Context<Self>) -> AnyElement {
@@ -80,6 +196,7 @@ impl LibraryView {
             .child(
                 Button::new("refresh")
                     .label("Refresh")
+                    .small()
                     .icon(Icon::default().path("icons/refresh-cw.svg"))
                     .disabled(loading)
                     .on_click(move |_, _, cx| {
@@ -89,93 +206,19 @@ impl LibraryView {
             .into_any_element()
     }
 
-    fn tab(&self, section: Section, count: usize, cx: &mut Context<Self>) -> Tab {
-        if count == 0 {
-            return Tab::new(section.id(), section.label())
-                .selected(self.section == section)
-                .disabled(true);
-        }
-        Tab::new(section.id(), format!("{} ({count})", section.label()))
+    fn tab(&self, section: Section, count: usize, cx: &mut Context<Self>) -> Button {
+        let label = if count == 0 {
+            section.label().to_owned()
+        } else {
+            format!("{} ({count})", section.label())
+        };
+
+        Button::new(SharedString::from(section.label()))
+            .label(label)
+            .small()
             .selected(self.section == section)
-            .on_click(cx.listener(move |this, _, _, cx| {
-                this.section = section;
-                cx.notify();
-            }))
-    }
-
-    fn body(&self, cx: &mut Context<Self>) -> AnyElement {
-        match self.library.read(cx).state() {
-            LibraryState::Empty => Message::new("Nothing loaded yet").into_any_element(),
-            LibraryState::Loading => div()
-                .flex()
-                .flex_col()
-                .flex_1()
-                .children((0..SKELETON_ROWS).map(ListRow::loading))
-                .into_any_element(),
-            LibraryState::Failed(error) => Message::new(error.clone())
-                .tone(Tone::Danger)
-                .into_any_element(),
-            LibraryState::Ready {
-                tracks,
-                playlists,
-                problems,
-            } => {
-                let count = match self.section {
-                    Section::Tracks => tracks.len(),
-                    Section::Playlists => playlists.len(),
-                };
-
-                if count == 0 {
-                    let label = self.section.label();
-                    let problem = problems
-                        .iter()
-                        .find(|problem| problem.starts_with(label))
-                        .cloned();
-
-                    return match problem {
-                        Some(problem) => {
-                            Message::new(problem).tone(Tone::Danger).into_any_element()
-                        }
-                        None => Message::new("Nothing here").into_any_element(),
-                    };
-                }
-
-                uniform_list(
-                    self.section.list_id(),
-                    count,
-                    cx.processor(move |this, range: std::ops::Range<usize>, _window, cx| {
-                        let section = this.section;
-                        let LibraryState::Ready {
-                            tracks, playlists, ..
-                        } = this.library.read(cx).state()
-                        else {
-                            return Vec::new();
-                        };
-
-                        range
-                            .map(|index| match section {
-                                Section::Tracks => {
-                                    let track = &tracks[index];
-                                    ListRow::new(index, track.name.clone())
-                                        .secondary(track.artists.clone())
-                                        .meta(track.album.clone())
-                                        .trailing(format_duration(track.duration))
-                                }
-                                Section::Playlists => {
-                                    let playlist = &playlists[index];
-                                    ListRow::new(index, playlist.name.clone())
-                                        .secondary(playlist.owner.clone())
-                                        .meta("")
-                                        .trailing(format!("{} tracks", playlist.track_count))
-                                }
-                            })
-                            .collect()
-                    }),
-                )
-                .flex_1()
-                .into_any_element()
-            }
-        }
+            .disabled(count == 0)
+            .on_click(cx.listener(move |this, _, _, cx| this.select(section, cx)))
     }
 }
 
@@ -186,7 +229,7 @@ impl Render for LibraryView {
             .flex_col()
             .size_full()
             .child(self.tabs(cx))
-            .child(self.body(cx))
+            .child(div().flex_1().min_h_0().child(Table::new(&self.table)))
     }
 }
 

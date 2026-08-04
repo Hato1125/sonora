@@ -1,7 +1,11 @@
+use gpui::prelude::*;
 use gpui::{Context, Entity, FontWeight, Render, uniform_list};
+use gpui::{Window, div, px};
+use gpui_component::ActiveTheme as _;
 use gpui_component::Icon;
+use gpui_component::label::Label;
+use gpui_component::skeleton::Skeleton;
 use state::{Library, LibraryState};
-use ui::prelude::*;
 
 const NAV: [(&str, &str); 3] = [
     ("Home", "icons/house.svg"),
@@ -65,15 +69,15 @@ impl Render for Sidebar {
                             .cursor_pointer()
                             .hover(move |style| style.bg(sidebar_accent))
                             .child(Icon::default().path(icon).size_4().text_color(muted))
-                            .child(Label::new(label).tone(Tone::Muted))
+                            .child(Label::new(label).text_color(muted))
                     })),
             )
             .child(
                 div().px_5().py_2().child(
                     Label::new("PLAYLISTS")
-                        .tone(Tone::Muted)
-                        .size(px(10.))
-                        .weight(FontWeight::SEMIBOLD),
+                        .text_color(muted)
+                        .text_size(px(10.))
+                        .font_weight(FontWeight::SEMIBOLD),
                 ),
             )
             .child(if loading {
@@ -84,7 +88,7 @@ impl Render for Sidebar {
                     .px_5()
                     .py_2()
                     .children((0..6).map(|index| {
-                        Skeleton::new(index)
+                        Skeleton::new()
                             .w(px(120. - (index % 3) as f32 * 22.))
                             .h(px(10.))
                     }))
@@ -95,6 +99,7 @@ impl Render for Sidebar {
                     count,
                     cx.processor(move |this, range: std::ops::Range<usize>, _window, cx| {
                         let elevated = cx.theme().sidebar_accent;
+                        let muted = cx.theme().muted_foreground;
                         let LibraryState::Ready { playlists, .. } = this.library.read(cx).state()
                         else {
                             return Vec::new();
@@ -112,7 +117,7 @@ impl Render for Sidebar {
                                         .hover(move |style| style.bg(elevated))
                                         .child(
                                             Label::new(playlist.name.clone())
-                                                .tone(Tone::Muted)
+                                                .text_color(muted)
                                                 .truncate(),
                                         ),
                                 )

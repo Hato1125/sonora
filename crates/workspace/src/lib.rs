@@ -6,9 +6,10 @@ pub use player_bar::{NowPlaying, PlayerBar};
 pub use sidebar::Sidebar;
 pub use title_bar::TitleBar;
 
-use gpui::{AnyView, AppContext as _, Context, Entity, Render};
+use gpui::prelude::*;
+use gpui::{AnyView, Context, Entity, Render};
+use gpui::{Window, div};
 use state::{Library, Session};
-use ui::prelude::*;
 
 pub struct Workspace {
     title_bar: Entity<TitleBar>,

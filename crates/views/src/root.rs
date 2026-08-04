@@ -1,6 +1,8 @@
-use gpui::{AppContext as _, Context, Entity, Render};
+use gpui::prelude::*;
+use gpui::{Context, Entity, Render};
+use gpui::{Window, div};
+use gpui_component::ActiveTheme as _;
 use state::{Library, Session, SessionState};
-use ui::prelude::*;
 use workspace::Workspace;
 
 use crate::{LibraryView, LoginView};
@@ -12,11 +14,16 @@ pub struct Root {
 }
 
 impl Root {
-    pub fn new(session: Entity<Session>, library: Entity<Library>, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        session: Entity<Session>,
+        library: Entity<Library>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         cx.observe(&session, |_, _, cx| cx.notify()).detach();
 
         let login = cx.new(|cx| LoginView::new(session.clone(), cx));
-        let library_view = cx.new(|cx| LibraryView::new(library.clone(), cx));
+        let library_view = cx.new(|cx| LibraryView::new(library.clone(), window, cx));
         let workspace =
             cx.new(|cx| Workspace::new(session.clone(), library, library_view.into(), cx));
 

@@ -7,5 +7,4 @@ edition.workspace = true
 gpui.workspace = true
 state.workspace = true
 gpui-component.workspace = true
-ui.workspace = true
 workspace.workspace = true
