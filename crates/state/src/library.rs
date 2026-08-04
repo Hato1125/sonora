@@ -1,24 +1,29 @@
 use std::sync::Arc;
 
 use gpui::{Context, Entity, Task};
-use spotify::{Playlist, SpotifyApi, Track};
+use spotify::{Album, Playlist, SpotifyApi, Track};
 
 use crate::{Io, Session, SessionEvent, join};
 
-const PAGE_LIMIT: u32 = 50;
+const PAGE_LIMIT: u32 = 10000;
 
-fn partial(
-    tracks: anyhow::Result<Vec<Track>>,
-    playlists: anyhow::Result<Vec<Playlist>>,
-) -> LibraryState {
-    if let (Err(tracks), Err(playlists)) = (&tracks, &playlists) {
-        return LibraryState::Failed(format!("{tracks:#}\n{playlists:#}"));
+type Loaded = (
+    anyhow::Result<Vec<Track>>,
+    anyhow::Result<Vec<Playlist>>,
+    anyhow::Result<Vec<Album>>,
+);
+
+fn partial(loaded: Loaded) -> LibraryState {
+    let (tracks, playlists, albums) = loaded;
+    if let (Err(tracks), Err(playlists), Err(albums)) = (&tracks, &playlists, &albums) {
+        return LibraryState::Failed(format!("{tracks:#}\n{playlists:#}\n{albums:#}"));
     }
 
     let mut problems = Vec::new();
     LibraryState::Ready {
         tracks: take("Songs", tracks, &mut problems),
         playlists: take("Playlists", playlists, &mut problems),
+        albums: take("Albums", albums, &mut problems),
         problems,
     }
 }
@@ -36,6 +41,7 @@ pub enum LibraryState {
     Ready {
         tracks: Vec<Track>,
         playlists: Vec<Playlist>,
+        albums: Vec<Album>,
         problems: Vec<String>,
     },
     Failed(String),
@@ -81,6 +87,13 @@ impl Library {
         matches!(self.state, LibraryState::Loading)
     }
 
+    pub fn album(&self, id: &str) -> Option<&Album> {
+        let LibraryState::Ready { albums, .. } = &self.state else {
+            return None;
+        };
+        albums.iter().find(|album| album.id == id)
+    }
+
     pub fn refresh(&mut self, cx: &mut Context<Self>) {
         let client = self.session.read(cx).client();
         if let Some(client) = client {
@@ -95,17 +108,17 @@ impl Library {
         let io = self.io.clone();
         self.task = Some(cx.spawn(async move |this, cx| {
             let loaded = join(io.spawn(async move {
-                let (tracks, playlists) = tokio::join!(
+                anyhow::Ok(tokio::join!(
                     client.saved_tracks(PAGE_LIMIT),
-                    client.playlists(PAGE_LIMIT)
-                );
-                anyhow::Ok((tracks, playlists))
+                    client.playlists(PAGE_LIMIT),
+                    client.saved_albums(PAGE_LIMIT)
+                ))
             }))
             .await;
 
             this.update(cx, |this, cx| {
                 this.state = match loaded {
-                    Ok((tracks, playlists)) => partial(tracks, playlists),
+                    Ok(loaded) => partial(loaded),
                     Err(error) => LibraryState::Failed(format!("{error:#}")),
                 };
                 cx.notify();

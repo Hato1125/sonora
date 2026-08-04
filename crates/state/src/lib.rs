@@ -1,7 +1,9 @@
+mod album;
 mod library;
 mod playback;
 mod session;
 
+pub use album::AlbumDetail;
 pub use library::{Library, LibraryState};
 pub use playback::{Playback, PlaybackState};
 pub use session::{Session, SessionEvent, SessionState};
