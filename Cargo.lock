@@ -6284,6 +6284,7 @@ dependencies = [
  "librespot-core",
  "librespot-oauth",
  "librespot-protocol",
+ "log",
  "protobuf",
  "serde",
  "serde_json",

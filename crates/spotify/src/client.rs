@@ -5,7 +5,7 @@ use librespot_protocol::playlist4_external::SelectedListContent as RootList;
 use protobuf::Message as _;
 
 use crate::models::{Playlist, Track, UserProfile};
-use crate::{collection, wire};
+use crate::{collection, profiles, wire};
 
 #[async_trait]
 pub trait SpotifyApi: Send + Sync + 'static {
@@ -58,6 +58,21 @@ impl SpotifyApi for LibrespotClient {
 
         let rootlist =
             RootList::parse_from_bytes(&body).context("cannot decode the rootlist protobuf")?;
-        Ok(wire::playlists_from(&rootlist))
+        let mut playlists = wire::playlists_from(&rootlist);
+
+        let owners = playlists
+            .iter()
+            .map(|playlist| playlist.owner.clone())
+            .filter(|owner| owner != wire::UNKNOWN)
+            .collect();
+        let names = profiles::display_names(&self.session, owners).await;
+
+        for playlist in &mut playlists {
+            if let Some(name) = names.get(&playlist.owner) {
+                playlist.owner = name.clone();
+            }
+        }
+
+        Ok(playlists)
     }
 }

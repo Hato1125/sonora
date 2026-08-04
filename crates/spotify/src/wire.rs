@@ -3,7 +3,7 @@ use serde::Deserialize;
 
 use crate::models;
 
-const UNKNOWN: &str = "Unknown";
+pub const UNKNOWN: &str = "Unknown";
 
 #[derive(Debug, Default, Deserialize)]
 pub struct Named {

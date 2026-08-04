@@ -2,6 +2,7 @@ pub mod auth;
 mod client;
 mod collection;
 mod models;
+mod profiles;
 mod wire;
 
 pub use auth::AuthConfig;
