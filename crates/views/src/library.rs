@@ -1,8 +1,8 @@
 use std::time::Duration;
 
 use gpui::{
-    AnyElement, App, AppContext as _, Context, Div, Entity, IntoElement, ParentElement, Pixels,
-    Render, SharedString, SharedUri, Styled, StyledImage as _, TextAlign, Window, div, img,
+    AnyElement, App, AppContext as _, Context, Div, Entity, Hsla, IntoElement, ParentElement,
+    Pixels, Render, SharedString, SharedUri, Styled, StyledImage as _, TextAlign, Window, div, img,
     prelude::FluentBuilder as _, px,
 };
 use gpui_component::button::Button;
@@ -13,23 +13,40 @@ use state::{Library, LibraryState};
 
 const CELL_PADDING: Pixels = px(8.);
 const COVER: Pixels = px(28.);
+const ROUNDED: Pixels = px(4.);
 
-fn cover_art(url: Option<&str>) -> AnyElement {
-    let rounded = px(4.);
+fn cover_art(url: Option<&str>, muted: Hsla) -> AnyElement {
     let Some(url) = url else {
-        return placeholder(rounded).into_any_element();
+        return blank(muted).into_any_element();
     };
 
     img(SharedUri::from(url.to_owned()))
         .size(COVER)
-        .rounded(rounded)
-        .with_loading(move || placeholder(rounded).into_any_element())
-        .with_fallback(move || placeholder(rounded).into_any_element())
+        .rounded(ROUNDED)
+        .with_loading(|| {
+            Skeleton::new()
+                .size(COVER)
+                .rounded(ROUNDED)
+                .into_any_element()
+        })
+        .with_fallback(move || blank(muted).into_any_element())
         .into_any_element()
 }
 
-fn placeholder(rounded: Pixels) -> Skeleton {
-    Skeleton::new().size(COVER).rounded(rounded)
+fn blank(muted: Hsla) -> Div {
+    div()
+        .size(COVER)
+        .rounded(ROUNDED)
+        .bg(muted.opacity(0.12))
+        .flex()
+        .items_center()
+        .justify_center()
+        .child(
+            Icon::default()
+                .path("icons/music.svg")
+                .size(px(13.))
+                .text_color(muted.opacity(0.5)),
+        )
 }
 
 trait Centered {
@@ -69,10 +86,7 @@ impl Section {
     fn columns(self, available: Pixels) -> Vec<Column> {
         let index = px(44.);
         let trailing = px(72.);
-        let cover = match self {
-            Section::Tracks => COVER + CELL_PADDING * 2.,
-            Section::Playlists => px(0.),
-        };
+        let cover = COVER + CELL_PADDING * 2.;
         let flexible = (available - index - trailing - cover).max(px(240.));
 
         match self {
@@ -97,6 +111,10 @@ impl Section {
             ],
             Section::Playlists => vec![
                 Column::new("index", "#").width(index).text_center(),
+                Column::new("cover", "")
+                    .width(cover)
+                    .resizable(false)
+                    .movable(false),
                 Column::new("name", "Name")
                     .width(flexible * 0.55)
                     .sortable(),
@@ -191,9 +209,14 @@ impl TableDelegate for LibraryTable {
             return div();
         };
 
-        if section == Section::Tracks && col_ix == 1 {
-            let url = tracks.get(row_ix).and_then(|track| track.cover.as_deref());
-            return cell(cell_width, align).child(cover_art(url));
+        if col_ix == 1 {
+            let url = match section {
+                Section::Tracks => tracks.get(row_ix).and_then(|track| track.cover.as_deref()),
+                Section::Playlists => playlists
+                    .get(row_ix)
+                    .and_then(|playlist| playlist.cover.as_deref()),
+            };
+            return cell(cell_width, align).child(cover_art(url, muted));
         }
 
         let content = match section {
@@ -206,8 +229,8 @@ impl TableDelegate for LibraryTable {
             }),
             Section::Playlists => playlists.get(row_ix).map(|playlist| match col_ix {
                 0 => (SharedString::from(format!("{}", row_ix + 1)), true),
-                1 => (SharedString::from(playlist.name.clone()), false),
-                2 => (SharedString::from(playlist.owner.clone()), true),
+                2 => (SharedString::from(playlist.name.clone()), false),
+                3 => (SharedString::from(playlist.owner.clone()), true),
                 _ => (
                     SharedString::from(format!("{}", playlist.track_count)),
                     true,
