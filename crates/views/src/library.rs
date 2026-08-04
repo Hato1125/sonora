@@ -1,9 +1,9 @@
 use std::time::Duration;
 
 use gpui::{
-    AnyElement, App, AppContext as _, Context, Div, Entity, Hsla, IntoElement, ParentElement,
-    Pixels, Render, SharedString, SharedUri, Styled, StyledImage as _, TextAlign, Window, div, img,
-    prelude::FluentBuilder as _, px,
+    AnyElement, App, AppContext as _, Context, Div, Edges, Entity, Hsla, IntoElement,
+    ParentElement, Pixels, Render, SharedString, SharedUri, Styled, StyledImage as _, TextAlign,
+    Window, div, img, prelude::FluentBuilder as _, px,
 };
 use gpui_component::button::Button;
 use gpui_component::skeleton::Skeleton;
@@ -61,6 +61,15 @@ impl Centered for Column {
     }
 }
 
+fn cover_paddings() -> Edges<Pixels> {
+    Edges {
+        top: px(0.),
+        bottom: px(0.),
+        left: CELL_PADDING,
+        right: CELL_PADDING,
+    }
+}
+
 fn cell(width: Pixels, align: TextAlign) -> Div {
     let cell = div().w(width);
     match align {
@@ -95,6 +104,7 @@ impl Section {
                 Column::new("index", "#").width(index).text_center(),
                 Column::new("cover", "")
                     .width(cover)
+                    .paddings(cover_paddings())
                     .resizable(false)
                     .movable(false),
                 Column::new("title", "Title")
@@ -114,6 +124,7 @@ impl Section {
                 Column::new("index", "#").width(index).text_center(),
                 Column::new("cover", "")
                     .width(cover)
+                    .paddings(cover_paddings())
                     .resizable(false)
                     .movable(false),
                 Column::new("name", "Name")
@@ -217,7 +228,12 @@ impl TableDelegate for LibraryTable {
                     .get(row_ix)
                     .and_then(|playlist| playlist.cover.as_deref()),
             };
-            return cell(cell_width, align).child(cover_art(url, muted));
+            return div()
+                .w(cell_width)
+                .h_full()
+                .flex()
+                .items_center()
+                .child(cover_art(url, muted));
         }
 
         let content = match section {
