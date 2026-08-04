@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::time::Duration;
 
 use gpui::{
@@ -6,10 +7,10 @@ use gpui::{
     Window, div, img, prelude::FluentBuilder as _, px,
 };
 use gpui_component::skeleton::Skeleton;
-use gpui_component::table::{Column, Table, TableDelegate, TableEvent, TableState};
+use gpui_component::table::{Column, ColumnSort, Table, TableDelegate, TableEvent, TableState};
 use gpui_component::{ActiveTheme as _, Icon};
+use spotify::{Playlist, Track};
 use state::{Library, LibraryState, Playback};
-use workspace::Sidebar;
 
 const CELL_PADDING: Pixels = px(8.);
 const COVER: Pixels = px(28.);
@@ -79,6 +80,251 @@ fn cell(width: Pixels, align: TextAlign) -> Div {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
+enum Field {
+    Index,
+    Cover,
+    Title,
+    Artists,
+    Album,
+    Duration,
+    Name,
+    Owner,
+    TrackCount,
+}
+
+#[derive(Clone, Copy)]
+enum Span {
+    Index,
+    Cover,
+    Trailing,
+    Share(f32),
+}
+
+struct Spec {
+    field: Field,
+    key: &'static str,
+    header: &'static str,
+    align: TextAlign,
+    span: Span,
+    sortable: bool,
+}
+
+const INDEX: Pixels = px(44.);
+const TRAILING: Pixels = px(72.);
+
+const TRACK_COLUMNS: &[Spec] = &[
+    Spec {
+        field: Field::Index,
+        key: "index",
+        header: "#",
+        align: TextAlign::Center,
+        span: Span::Index,
+        sortable: false,
+    },
+    Spec {
+        field: Field::Cover,
+        key: "cover",
+        header: "",
+        align: TextAlign::Left,
+        span: Span::Cover,
+        sortable: false,
+    },
+    Spec {
+        field: Field::Title,
+        key: "title",
+        header: "Title",
+        align: TextAlign::Left,
+        span: Span::Share(0.42),
+        sortable: true,
+    },
+    Spec {
+        field: Field::Artists,
+        key: "artists",
+        header: "Artist",
+        align: TextAlign::Left,
+        span: Span::Share(0.29),
+        sortable: true,
+    },
+    Spec {
+        field: Field::Album,
+        key: "album",
+        header: "Album",
+        align: TextAlign::Left,
+        span: Span::Share(0.29),
+        sortable: true,
+    },
+    Spec {
+        field: Field::Duration,
+        key: "duration",
+        header: "Length",
+        align: TextAlign::Right,
+        span: Span::Trailing,
+        sortable: true,
+    },
+];
+
+const PLAYLIST_COLUMNS: &[Spec] = &[
+    Spec {
+        field: Field::Index,
+        key: "index",
+        header: "#",
+        align: TextAlign::Center,
+        span: Span::Index,
+        sortable: false,
+    },
+    Spec {
+        field: Field::Cover,
+        key: "cover",
+        header: "",
+        align: TextAlign::Left,
+        span: Span::Cover,
+        sortable: false,
+    },
+    Spec {
+        field: Field::Name,
+        key: "name",
+        header: "Name",
+        align: TextAlign::Left,
+        span: Span::Share(0.55),
+        sortable: true,
+    },
+    Spec {
+        field: Field::Owner,
+        key: "owner",
+        header: "Owner",
+        align: TextAlign::Left,
+        span: Span::Share(0.45),
+        sortable: true,
+    },
+    Spec {
+        field: Field::TrackCount,
+        key: "tracks",
+        header: "Tracks",
+        align: TextAlign::Right,
+        span: Span::Trailing,
+        sortable: true,
+    },
+];
+
+impl Spec {
+    fn width(&self, flexible: Pixels) -> Pixels {
+        match self.span {
+            Span::Index => INDEX,
+            Span::Cover => COVER + CELL_PADDING * 2.,
+            Span::Trailing => TRAILING,
+            Span::Share(share) => flexible * share,
+        }
+    }
+
+    fn column(&self, flexible: Pixels, sort: Option<(Field, ColumnSort)>) -> Column {
+        let column = Column::new(self.key, self.header)
+            .width(self.width(flexible))
+            .resizable(false)
+            .movable(false);
+
+        let column = match self.span {
+            Span::Cover => column.paddings(cover_paddings()),
+            _ => column,
+        };
+
+        let column = match self.align {
+            TextAlign::Center => column.text_center(),
+            TextAlign::Right => column.text_right(),
+            TextAlign::Left => column,
+        };
+
+        if !self.sortable {
+            return column;
+        }
+
+        let direction = match sort {
+            Some((field, direction)) if field == self.field => direction,
+            _ => ColumnSort::Default,
+        };
+        column.sort(direction)
+    }
+}
+
+impl Field {
+    fn compare(self, a: usize, b: usize, tracks: &[Track], playlists: &[Playlist]) -> Ordering {
+        let track_text = |index: usize, pick: fn(&Track) -> &String| {
+            tracks
+                .get(index)
+                .map(|track| pick(track).to_lowercase())
+                .unwrap_or_default()
+        };
+        let playlist_text = |index: usize, pick: fn(&Playlist) -> &String| {
+            playlists
+                .get(index)
+                .map(|playlist| pick(playlist).to_lowercase())
+                .unwrap_or_default()
+        };
+
+        match self {
+            Field::Title => {
+                track_text(a, |track| &track.name).cmp(&track_text(b, |track| &track.name))
+            }
+            Field::Artists => {
+                track_text(a, |track| &track.artists).cmp(&track_text(b, |track| &track.artists))
+            }
+            Field::Album => {
+                track_text(a, |track| &track.album).cmp(&track_text(b, |track| &track.album))
+            }
+            Field::Duration => tracks
+                .get(a)
+                .map(|track| track.duration)
+                .cmp(&tracks.get(b).map(|track| track.duration)),
+            Field::Name => playlist_text(a, |playlist| &playlist.name)
+                .cmp(&playlist_text(b, |playlist| &playlist.name)),
+            Field::Owner => playlist_text(a, |playlist| &playlist.owner)
+                .cmp(&playlist_text(b, |playlist| &playlist.owner)),
+            Field::TrackCount => playlists
+                .get(a)
+                .map(|playlist| playlist.track_count)
+                .cmp(&playlists.get(b).map(|playlist| playlist.track_count)),
+            Field::Index | Field::Cover => a.cmp(&b),
+        }
+    }
+
+    fn text(
+        self,
+        display_ix: usize,
+        row_ix: usize,
+        tracks: &[Track],
+        playlists: &[Playlist],
+    ) -> Option<(SharedString, bool)> {
+        match self {
+            Field::Cover => None,
+            Field::Index => Some((SharedString::from(format!("{}", display_ix + 1)), true)),
+            Field::Title => tracks
+                .get(row_ix)
+                .map(|track| (SharedString::from(track.name.clone()), false)),
+            Field::Artists => tracks
+                .get(row_ix)
+                .map(|track| (SharedString::from(track.artists.clone()), true)),
+            Field::Album => tracks
+                .get(row_ix)
+                .map(|track| (SharedString::from(track.album.clone()), true)),
+            Field::Duration => tracks
+                .get(row_ix)
+                .map(|track| (SharedString::from(format_duration(track.duration)), true)),
+            Field::Name => playlists
+                .get(row_ix)
+                .map(|playlist| (SharedString::from(playlist.name.clone()), false)),
+            Field::Owner => playlists
+                .get(row_ix)
+                .map(|playlist| (SharedString::from(playlist.owner.clone()), true)),
+            Field::TrackCount => playlists.get(row_ix).map(|playlist| {
+                (
+                    SharedString::from(format!("{}", playlist.track_count)),
+                    true,
+                )
+            }),
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Section {
     Tracks,
     Playlists,
@@ -92,49 +338,26 @@ impl Section {
         }
     }
 
-    fn columns(self, available: Pixels) -> Vec<Column> {
-        let index = px(44.);
-        let trailing = px(72.);
-        let cover = COVER + CELL_PADDING * 2.;
-        let flexible = (available - index - trailing - cover).max(px(240.));
-
+    fn specs(self) -> &'static [Spec] {
         match self {
-            Section::Tracks => vec![
-                Column::new("index", "#").width(index).text_center(),
-                Column::new("cover", "")
-                    .width(cover)
-                    .paddings(cover_paddings())
-                    .resizable(false)
-                    .movable(false),
-                Column::new("title", "Title")
-                    .width(flexible * 0.42)
-                    .sortable(),
-                Column::new("artists", "Artist")
-                    .width(flexible * 0.29)
-                    .sortable(),
-                Column::new("album", "Album")
-                    .width(flexible * 0.29)
-                    .sortable(),
-                Column::new("duration", "Length")
-                    .width(trailing)
-                    .text_right(),
-            ],
-            Section::Playlists => vec![
-                Column::new("index", "#").width(index).text_center(),
-                Column::new("cover", "")
-                    .width(cover)
-                    .paddings(cover_paddings())
-                    .resizable(false)
-                    .movable(false),
-                Column::new("name", "Name")
-                    .width(flexible * 0.55)
-                    .sortable(),
-                Column::new("owner", "Owner")
-                    .width(flexible * 0.45)
-                    .sortable(),
-                Column::new("tracks", "Tracks").width(trailing).text_right(),
-            ],
+            Section::Tracks => TRACK_COLUMNS,
+            Section::Playlists => PLAYLIST_COLUMNS,
         }
+    }
+
+    fn columns(self, available: Pixels, sort: Option<(Field, ColumnSort)>) -> Vec<Column> {
+        let specs = self.specs();
+        let fixed: Pixels = specs
+            .iter()
+            .filter(|spec| !matches!(spec.span, Span::Share(_)))
+            .map(|spec| spec.width(Pixels::ZERO))
+            .fold(Pixels::ZERO, |total, width| total + width);
+        let flexible = (available - fixed).max(px(240.));
+
+        specs
+            .iter()
+            .map(|spec| spec.column(flexible, sort))
+            .collect()
     }
 }
 
@@ -143,6 +366,8 @@ struct LibraryTable {
     section: Section,
     width: Pixels,
     columns: Vec<Column>,
+    sort: Option<(Field, ColumnSort)>,
+    order: Vec<usize>,
 }
 
 impl LibraryTable {
@@ -151,18 +376,60 @@ impl LibraryTable {
             library,
             section,
             width,
-            columns: section.columns(width),
+            columns: section.columns(width, None),
+            sort: None,
+            order: Vec::new(),
         }
     }
 
-    fn set_section(&mut self, section: Section) {
+    fn set_section(&mut self, section: Section, cx: &App) {
         self.section = section;
-        self.columns = section.columns(self.width);
+        self.sort = None;
+        self.rebuild(cx);
     }
 
-    fn set_width(&mut self, width: Pixels) {
+    fn set_width(&mut self, width: Pixels, cx: &App) {
         self.width = width;
-        self.columns = self.section.columns(width);
+        self.rebuild(cx);
+    }
+
+    fn rebuild(&mut self, cx: &App) {
+        self.columns = self.section.columns(self.width, self.sort);
+        self.reorder(cx);
+    }
+
+    fn reorder(&mut self, cx: &App) {
+        let LibraryState::Ready {
+            tracks, playlists, ..
+        } = self.library.read(cx).state()
+        else {
+            self.order = Vec::new();
+            return;
+        };
+
+        let len = match self.section {
+            Section::Tracks => tracks.len(),
+            Section::Playlists => playlists.len(),
+        };
+        let mut order: Vec<usize> = (0..len).collect();
+
+        if let Some((field, direction)) = self.sort {
+            match direction {
+                ColumnSort::Ascending => {
+                    order.sort_by(|&a, &b| field.compare(a, b, tracks, playlists))
+                }
+                ColumnSort::Descending => {
+                    order.sort_by(|&a, &b| field.compare(b, a, tracks, playlists))
+                }
+                ColumnSort::Default => (),
+            }
+        }
+
+        self.order = order;
+    }
+
+    fn row(&self, display_ix: usize) -> usize {
+        self.order.get(display_ix).copied().unwrap_or(display_ix)
     }
 }
 
@@ -171,16 +438,23 @@ impl TableDelegate for LibraryTable {
         self.columns.len()
     }
 
-    fn rows_count(&self, cx: &App) -> usize {
-        match self.library.read(cx).state() {
-            LibraryState::Ready {
-                tracks, playlists, ..
-            } => match self.section {
-                Section::Tracks => tracks.len(),
-                Section::Playlists => playlists.len(),
-            },
-            _ => 0,
-        }
+    fn rows_count(&self, _cx: &App) -> usize {
+        self.order.len()
+    }
+
+    fn perform_sort(
+        &mut self,
+        col_ix: usize,
+        sort: ColumnSort,
+        _window: &mut Window,
+        cx: &mut Context<TableState<Self>>,
+    ) {
+        let field = self.section.specs()[col_ix].field;
+        self.sort = match sort {
+            ColumnSort::Default => None,
+            direction => Some((field, direction)),
+        };
+        self.reorder(cx);
     }
 
     fn column(&self, col_ix: usize, _cx: &App) -> &Column {
@@ -220,11 +494,14 @@ impl TableDelegate for LibraryTable {
             return div();
         };
 
-        if col_ix == 1 {
+        let field = self.section.specs()[col_ix].field;
+        let data_ix = self.row(row_ix);
+
+        if field == Field::Cover {
             let url = match section {
-                Section::Tracks => tracks.get(row_ix).and_then(|track| track.cover.as_deref()),
+                Section::Tracks => tracks.get(data_ix).and_then(|track| track.cover.as_deref()),
                 Section::Playlists => playlists
-                    .get(row_ix)
+                    .get(data_ix)
                     .and_then(|playlist| playlist.cover.as_deref()),
             };
             return div()
@@ -235,26 +512,7 @@ impl TableDelegate for LibraryTable {
                 .child(cover_art(url, muted));
         }
 
-        let content = match section {
-            Section::Tracks => tracks.get(row_ix).map(|track| match col_ix {
-                0 => (SharedString::from(format!("{}", row_ix + 1)), true),
-                2 => (SharedString::from(track.name.clone()), false),
-                3 => (SharedString::from(track.artists.clone()), true),
-                4 => (SharedString::from(track.album.clone()), true),
-                _ => (SharedString::from(format_duration(track.duration)), true),
-            }),
-            Section::Playlists => playlists.get(row_ix).map(|playlist| match col_ix {
-                0 => (SharedString::from(format!("{}", row_ix + 1)), true),
-                2 => (SharedString::from(playlist.name.clone()), false),
-                3 => (SharedString::from(playlist.owner.clone()), true),
-                _ => (
-                    SharedString::from(format!("{}", playlist.track_count)),
-                    true,
-                ),
-            }),
-        };
-
-        let Some((text, dimmed)) = content else {
+        let Some((text, dimmed)) = field.text(row_ix, data_ix, tracks, playlists) else {
             return div();
         };
 
@@ -267,7 +525,6 @@ impl TableDelegate for LibraryTable {
 pub struct LibraryView {
     library: Entity<Library>,
     playback: Entity<Playback>,
-    sidebar: Entity<Sidebar>,
     section: Section,
     width: Pixels,
     table: Entity<TableState<LibraryTable>>,
@@ -277,19 +534,20 @@ impl LibraryView {
     pub fn new(
         library: Entity<Library>,
         playback: Entity<Playback>,
-        sidebar: Entity<Sidebar>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
         cx.observe(&library, |this, _, cx| {
-            this.table.update(cx, |table, cx| table.refresh(cx));
+            this.table.update(cx, |table, cx| {
+                table.delegate_mut().rebuild(cx);
+                table.refresh(cx);
+            });
             cx.notify();
         })
         .detach();
-        cx.observe(&sidebar, |_, _, cx| cx.notify()).detach();
 
         let section = Section::Tracks;
-        let width = content_width(window, &sidebar, cx);
+        let width = content_width(window);
         let delegate = LibraryTable::new(library.clone(), section, width);
         let table = cx.new(|cx| TableState::new(delegate, window, cx).col_selectable(false));
 
@@ -303,7 +561,6 @@ impl LibraryView {
         Self {
             library,
             playback,
-            sidebar,
             section,
             width,
             table,
@@ -317,7 +574,8 @@ impl LibraryView {
         let LibraryState::Ready { tracks, .. } = self.library.read(cx).state() else {
             return;
         };
-        let Some(track) = tracks.get(row_ix).cloned() else {
+        let data_ix = self.table.read(cx).delegate().row(row_ix);
+        let Some(track) = tracks.get(data_ix).cloned() else {
             return;
         };
         self.playback
@@ -348,7 +606,7 @@ impl LibraryView {
     pub fn select(&mut self, section: Section, cx: &mut Context<Self>) {
         self.section = section;
         self.table.update(cx, |table, cx| {
-            table.delegate_mut().set_section(section);
+            table.delegate_mut().set_section(section, cx);
             table.refresh(cx);
         });
         cx.notify();
@@ -357,11 +615,11 @@ impl LibraryView {
 
 impl Render for LibraryView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let width = content_width(window, &self.sidebar, cx);
+        let width = content_width(window);
         if (width - self.width).abs() > px(1.) {
             self.width = width;
             self.table.update(cx, |table, cx| {
-                table.delegate_mut().set_width(width);
+                table.delegate_mut().set_width(width, cx);
                 table.refresh(cx);
             });
         }
@@ -379,8 +637,7 @@ fn format_duration(duration: Duration) -> String {
     format!("{}:{:02}", total / 60, total % 60)
 }
 
-fn content_width(window: &Window, sidebar: &Entity<Sidebar>, cx: &App) -> Pixels {
-    const CONTENT_CHROME: Pixels = px(20.);
-    (window.viewport_size().width - sidebar.read(cx).occupied_width() - CONTENT_CHROME)
-        .max(px(320.))
+fn content_width(window: &Window) -> Pixels {
+    const CHROME: f32 = 240.;
+    (window.viewport_size().width - px(CHROME)).max(px(320.))
 }

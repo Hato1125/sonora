@@ -40,8 +40,7 @@ impl Root {
         })
         .detach();
 
-        let library_view =
-            cx.new(|cx| LibraryView::new(library, playback.clone(), sidebar.clone(), window, cx));
+        let library_view = cx.new(|cx| LibraryView::new(library, playback.clone(), window, cx));
         let library_toolbar = cx.new(|cx| LibraryToolbar::new(library_view.clone(), cx));
         let settings = cx.new(|cx| SettingsView::new(session.clone(), playback.clone(), cx));
 

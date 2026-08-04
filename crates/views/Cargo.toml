@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 gpui.workspace = true
+spotify.workspace = true
 state.workspace = true
 gpui-component.workspace = true
 workspace.workspace = true
