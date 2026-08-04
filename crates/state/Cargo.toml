@@ -5,9 +5,11 @@ edition.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+cpal.workspace = true
 gpui.workspace = true
 librespot-core.workspace = true
 librespot-playback.workspace = true
 log.workspace = true
+rodio.workspace = true
 spotify.workspace = true
 tokio.workspace = true

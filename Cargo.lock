@@ -6664,10 +6664,12 @@ name = "state"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "cpal",
  "gpui",
  "librespot-core",
  "librespot-playback",
  "log",
+ "rodio",
  "spotify",
  "tokio",
 ]

@@ -1,6 +1,7 @@
 mod library;
 mod playback;
 mod session;
+mod sink;
 
 pub use library::{Library, LibraryState};
 pub use playback::{Playback, PlaybackState};

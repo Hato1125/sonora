@@ -7,9 +7,9 @@ use gpui::{
 };
 use gpui_component::button::Button;
 use gpui_component::skeleton::Skeleton;
-use gpui_component::table::{Column, Table, TableDelegate, TableState};
+use gpui_component::table::{Column, Table, TableDelegate, TableEvent, TableState};
 use gpui_component::{ActiveTheme as _, Disableable as _, Icon, Selectable as _, Sizable as _};
-use state::{Library, LibraryState};
+use state::{Library, LibraryState, Playback};
 
 const CELL_PADDING: Pixels = px(8.);
 const COVER: Pixels = px(28.);
@@ -250,6 +250,7 @@ impl TableDelegate for LibraryTable {
 
 pub struct LibraryView {
     library: Entity<Library>,
+    playback: Entity<Playback>,
     section: Section,
     width: Pixels,
     table: Entity<TableState<LibraryTable>>,
@@ -264,16 +265,39 @@ impl LibraryView {
         .detach();
 
         let section = Section::Tracks;
+        let playback = state::Spotty::global(cx).playback.clone();
         let width = content_width(window);
         let delegate = LibraryTable::new(library.clone(), section, width);
         let table = cx.new(|cx| TableState::new(delegate, window, cx).col_selectable(false));
 
+        cx.subscribe(&table, |this, _, event, cx| {
+            if let TableEvent::DoubleClickedRow(row_ix) = event {
+                this.activate(*row_ix, cx);
+            }
+        })
+        .detach();
+
         Self {
             library,
+            playback,
             section,
             width,
             table,
         }
+    }
+
+    fn activate(&mut self, row_ix: usize, cx: &mut Context<Self>) {
+        if self.section != Section::Tracks {
+            return;
+        }
+        let LibraryState::Ready { tracks, .. } = self.library.read(cx).state() else {
+            return;
+        };
+        let Some(track) = tracks.get(row_ix).cloned() else {
+            return;
+        };
+        self.playback
+            .update(cx, |playback, cx| playback.play(&track, cx));
     }
 
     fn select(&mut self, section: Section, cx: &mut Context<Self>) {

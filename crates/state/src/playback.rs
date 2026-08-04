@@ -1,5 +1,4 @@
 use librespot_core::SpotifyUri;
-use librespot_playback::audio_backend;
 use librespot_playback::config::{AudioFormat, PlayerConfig};
 use librespot_playback::mixer::{Mixer, MixerConfig, softmixer::SoftMixer};
 use librespot_playback::player::{Player, PlayerEvent};
@@ -8,7 +7,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use gpui::{Context, Entity, EventEmitter, Task};
+use spotify::Track;
 
+use crate::sink::{BlazingSink, Flush};
 use crate::{Session, SessionEvent};
 
 const POSITION_INTERVAL: Duration = Duration::from_millis(500);
@@ -30,9 +31,10 @@ pub enum PlaybackEvent {
 pub struct Playback {
     state: PlaybackState,
     position: Duration,
+    track: Option<Track>,
     player: Option<Arc<Player>>,
     mixer: Option<SoftMixer>,
-    session: Entity<Session>,
+    flush: Flush,
     task: Option<Task<()>>,
 }
 
@@ -53,21 +55,28 @@ impl Playback {
         Self {
             state: PlaybackState::Idle,
             position: Duration::ZERO,
+            track: None,
             player: None,
             mixer: None,
-            session,
+            flush: Flush::default(),
             task: None,
         }
     }
 
-    pub fn play(&mut self, track_id: &str, cx: &mut Context<Self>) {
+    pub fn play(&mut self, track: &Track, cx: &mut Context<Self>) {
         let Some(player) = self.player.clone() else {
             return;
         };
-        let Ok(uri) = SpotifyUri::from_uri(&format!("spotify:track:{track_id}")) else {
-            return self.failed(format!("{track_id} is not a track uri"), cx);
+        let Some(id) = track.id.as_deref() else {
+            return self.failed(format!("{} has no track id", track.name), cx);
         };
+        let Ok(uri) = SpotifyUri::from_uri(&format!("spotify:track:{id}")) else {
+            return self.failed(format!("{id} is not a track uri"), cx);
+        };
+
+        self.flush.request();
         player.load(uri, true, 0);
+        self.track = Some(track.clone());
         self.state = PlaybackState::Loading;
         self.position = Duration::ZERO;
         cx.notify();
@@ -87,9 +96,19 @@ impl Playback {
         }
     }
 
+    pub fn toggle_play(&mut self, cx: &mut Context<Self>) {
+        if self.state == PlaybackState::Playing {
+            self.pause(cx);
+        } else {
+            self.resume(cx);
+        }
+    }
+
     pub fn seek(&mut self, position: Duration, cx: &mut Context<Self>) {
         if let Some(player) = self.player.as_ref() {
+            self.flush.request();
             player.seek(position.as_millis() as u32);
+            self.position = position;
             cx.notify();
         }
     }
@@ -100,6 +119,20 @@ impl Playback {
 
     pub fn position(&self) -> Duration {
         self.position
+    }
+
+    pub fn track(&self) -> Option<&Track> {
+        self.track.as_ref()
+    }
+
+    pub fn progress(&self) -> f32 {
+        let Some(total) = self.track.as_ref().map(|track| track.duration) else {
+            return 0.;
+        };
+        if total.is_zero() {
+            return 0.;
+        }
+        (self.position.as_secs_f32() / total.as_secs_f32()).clamp(0., 1.)
     }
 
     pub fn is_loading(&self) -> bool {
@@ -118,9 +151,6 @@ impl Playback {
     }
 
     fn spawn_player(&mut self, session: librespot_core::Session, cx: &mut Context<Self>) {
-        let Some(backend) = audio_backend::find(None) else {
-            return self.failed("no audio backend was compiled in".to_owned(), cx);
-        };
         let mixer = match SoftMixer::open(MixerConfig::default()) {
             Ok(mixer) => mixer,
             Err(error) => return self.failed(format!("cannot open the mixer: {error}"), cx),
@@ -130,8 +160,9 @@ impl Playback {
             position_update_interval: Some(POSITION_INTERVAL),
             ..Default::default()
         };
+        let flush = self.flush.clone();
         let player = Player::new(config, session, mixer.get_soft_volume(), move || {
-            backend(None, AudioFormat::default())
+            BlazingSink::boxed(AudioFormat::default(), flush)
         });
 
         self.listen(&player, cx);
@@ -178,6 +209,7 @@ impl Playback {
             PlayerEvent::Stopped { .. } | PlayerEvent::EndOfTrack { .. } => {
                 self.state = PlaybackState::Idle;
                 self.position = Duration::ZERO;
+                self.track = None;
                 cx.emit(PlaybackEvent::EndedPlayback);
             }
             PlayerEvent::Unavailable { .. } => {
@@ -192,6 +224,7 @@ impl Playback {
         self.task = None;
         self.player = None;
         self.mixer = None;
+        self.track = None;
         self.state = PlaybackState::Idle;
         self.position = Duration::ZERO;
         cx.notify();
