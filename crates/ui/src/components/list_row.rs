@@ -61,7 +61,7 @@ impl ListRow {
 
 impl RenderOnce for ListRow {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let theme = Theme::global(cx).clone();
+        let list_hover = cx.theme().list_hover;
         let stagger = self.stagger();
         let loading = self.loading;
         let index = self.index;
@@ -76,7 +76,7 @@ impl RenderOnce for ListRow {
             .px_5()
             .py_3()
             .when(!loading, |this| {
-                this.hover(move |style| style.bg(theme.surface))
+                this.hover(move |style| style.bg(list_hover))
             })
             .child(
                 div()

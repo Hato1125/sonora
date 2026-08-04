@@ -33,7 +33,7 @@ impl Default for PlayerBar {
 
 impl Render for PlayerBar {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = Theme::global(cx).clone();
+        let theme = cx.theme().clone();
         let position = self
             .now_playing
             .as_ref()
@@ -48,7 +48,7 @@ impl Render for PlayerBar {
             .h(px(HEIGHT))
             .flex_none()
             .px_5()
-            .bg(theme.surface)
+            .bg(theme.secondary)
             .border_t_1()
             .border_color(theme.border)
             .child(
@@ -91,13 +91,13 @@ impl Render for PlayerBar {
                             .max_w(px(420.))
                             .h(px(4.))
                             .rounded_full()
-                            .bg(theme.elevated)
+                            .bg(theme.muted)
                             .child(
                                 div()
                                     .w(relative(position))
                                     .h_full()
                                     .rounded_full()
-                                    .bg(theme.accent),
+                                    .bg(theme.progress_bar),
                             ),
                     ),
             )

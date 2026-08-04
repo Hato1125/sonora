@@ -49,7 +49,7 @@ impl Clickable for Tab {
 
 impl RenderOnce for Tab {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let theme = Theme::global(cx).clone();
+        let theme = cx.theme().clone();
 
         let mut tab = div()
             .id(self.id)
@@ -63,14 +63,14 @@ impl RenderOnce for Tab {
             )
             .text_size(px(12.))
             .bg(if self.selected {
-                theme.elevated
+                theme.secondary
             } else {
-                theme.background
+                gpui::transparent_black()
             })
             .text_color(if self.selected {
-                theme.text
+                theme.foreground
             } else {
-                theme.text_muted
+                theme.muted_foreground
             })
             .child(self.label);
 

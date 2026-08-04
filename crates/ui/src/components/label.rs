@@ -45,7 +45,7 @@ impl Label {
 
 impl RenderOnce for Label {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let color = self.tone.color(Theme::global(cx));
+        let color = self.tone.color(cx.theme());
 
         div()
             .text_size(self.size)

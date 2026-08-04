@@ -25,7 +25,10 @@ impl Sidebar {
 
 impl Render for Sidebar {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = Theme::global(cx).clone();
+        let theme = cx.theme();
+        let sidebar_accent = theme.sidebar_accent;
+        let sidebar_bg = theme.sidebar;
+        let sidebar_border = theme.sidebar_border;
         let count = self.playlist_count(cx);
         let loading = self.library.read(cx).is_loading();
 
@@ -35,9 +38,9 @@ impl Render for Sidebar {
             .w(px(WIDTH))
             .flex_none()
             .h_full()
-            .bg(theme.surface)
+            .bg(sidebar_bg)
             .border_r_1()
-            .border_color(theme.border)
+            .border_color(sidebar_border)
             .child(
                 div()
                     .flex()
@@ -51,7 +54,7 @@ impl Render for Sidebar {
                             .py_1p5()
                             .rounded_md()
                             .cursor_pointer()
-                            .hover(move |style| style.bg(theme.elevated))
+                            .hover(move |style| style.bg(sidebar_accent))
                             .child(Label::new(label).tone(Tone::Muted))
                     })),
             )
@@ -81,7 +84,7 @@ impl Render for Sidebar {
                     "sidebar-playlists",
                     count,
                     cx.processor(move |this, range: std::ops::Range<usize>, _window, cx| {
-                        let elevated = Theme::global(cx).elevated;
+                        let elevated = cx.theme().sidebar_accent;
                         let LibraryState::Ready { playlists, .. } = this.library.read(cx).state()
                         else {
                             return Vec::new();

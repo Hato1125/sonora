@@ -4,5 +4,5 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+gpui-component.workspace = true
 gpui.workspace = true
-theme.workspace = true

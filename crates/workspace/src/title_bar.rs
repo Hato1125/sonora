@@ -18,7 +18,7 @@ impl TitleBar {
 
 impl Render for TitleBar {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = Theme::global(cx).clone();
+        let theme = cx.theme().clone();
 
         let session = self.session.clone();
 
@@ -31,9 +31,9 @@ impl Render for TitleBar {
             .h(px(HEIGHT))
             .flex_none()
             .px_5()
-            .bg(theme.surface)
+            .bg(theme.title_bar)
             .border_b_1()
-            .border_color(theme.border)
+            .border_color(theme.title_bar_border)
             .child(match self.session.read(cx).state() {
                 SessionState::SignedIn(profile) => Label::new(profile.display_name.clone())
                     .size(px(14.))

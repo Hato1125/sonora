@@ -9,6 +9,5 @@ env_logger.workspace = true
 gpui-component.workspace = true
 gpui-component-assets.workspace = true
 gpui.workspace = true
-theme.workspace = true
 state.workspace = true
 views.workspace = true

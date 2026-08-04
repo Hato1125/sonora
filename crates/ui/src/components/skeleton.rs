@@ -42,7 +42,7 @@ impl RenderOnce for Skeleton {
             .w(self.width)
             .h(self.height)
             .rounded_sm()
-            .bg(Theme::global(cx).elevated)
+            .bg(cx.theme().skeleton)
             .with_animation(
                 self.id,
                 Animation::new(PULSE)
