@@ -19,7 +19,6 @@ fn main() {
         .with_assets(assets::Assets)
         .run(|cx: &mut App| {
             gpui_component::init(cx);
-            gpui_component::Theme::change(gpui_component::ThemeMode::Dark, None, cx);
             gpui_component::Theme::global_mut(cx).font_size = px(13.);
 
             if let Err(error) = state::init(cx) {
