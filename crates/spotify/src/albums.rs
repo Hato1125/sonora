@@ -124,6 +124,7 @@ fn album_from(uri: &str, album: &AlbumMessage) -> Album {
             artists
         },
         cover: cover(album),
+        cover_large: cover_large(album),
         year: album.date.as_ref().map(|date| date.year()).unwrap_or(0),
         track_count: track_ids(album).len() as u32,
     }
@@ -139,6 +140,20 @@ fn cover(album: &AlbumMessage) -> Option<String> {
         .min_by_key(|image| image.width())?;
 
     wire::image_url(smallest.file_id())
+}
+
+fn cover_large(album: &AlbumMessage) -> Option<String> {
+    const HEADER: i32 = 300;
+
+    let images = album.cover_group.as_ref()?.image.iter();
+    let usable: Vec<_> = images.filter(|image| image.has_file_id()).collect();
+    let picked = usable
+        .iter()
+        .filter(|image| image.width() >= HEADER)
+        .min_by_key(|image| image.width())
+        .or_else(|| usable.iter().max_by_key(|image| image.width()))?;
+
+    wire::image_url(picked.file_id())
 }
 
 fn non_empty(value: Option<&str>) -> Option<&str> {
