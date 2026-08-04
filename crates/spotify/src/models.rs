@@ -21,5 +21,6 @@ pub struct Playlist {
     pub id: String,
     pub name: String,
     pub owner: String,
+    pub cover: Option<String>,
     pub track_count: u32,
 }

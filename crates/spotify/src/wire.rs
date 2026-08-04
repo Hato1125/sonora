@@ -1,9 +1,46 @@
-use librespot_protocol::playlist4_external::SelectedListContent as RootList;
+use std::fmt::Write as _;
+
+use librespot_protocol::playlist4_external::{ListAttributes, SelectedListContent as RootList};
 use serde::Deserialize;
 
 use crate::models;
 
 pub const UNKNOWN: &str = "Unknown";
+const IMAGE_CDN: &str = "https://i.scdn.co/image/";
+const SMALLEST: [&str; 2] = ["small", "default"];
+
+pub fn image_url(file_id: &[u8]) -> Option<String> {
+    if file_id.is_empty() {
+        return None;
+    }
+
+    let hex = file_id.iter().fold(String::new(), |mut hex, byte| {
+        let _ = write!(hex, "{byte:02x}");
+        hex
+    });
+    Some(format!("{IMAGE_CDN}{hex}"))
+}
+
+fn playlist_cover(attributes: &ListAttributes) -> Option<String> {
+    for target in SMALLEST {
+        if let Some(size) = attributes
+            .picture_size
+            .iter()
+            .find(|size| size.target_name() == target)
+            .filter(|size| !size.url().is_empty())
+        {
+            return Some(size.url().to_owned());
+        }
+    }
+
+    attributes
+        .picture_size
+        .first()
+        .map(|size| size.url())
+        .filter(|url| !url.is_empty())
+        .map(str::to_owned)
+        .or_else(|| image_url(attributes.picture()))
+}
 
 #[derive(Debug, Default, Deserialize)]
 pub struct Named {
@@ -45,6 +82,7 @@ pub fn playlists_from(rootlist: &RootList) -> Vec<models::Playlist> {
                 id: id.to_owned(),
                 name: name.to_owned(),
                 owner: owner.to_owned(),
+                cover: meta.and_then(|meta| playlist_cover(&meta.attributes)),
                 track_count: meta.map(|meta| meta.length()).unwrap_or_default().max(0) as u32,
             })
         })

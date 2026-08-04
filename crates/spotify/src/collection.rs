@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::fmt::Write as _;
 use std::time::Duration;
 
 use anyhow::{Context as _, Result};
@@ -11,11 +10,11 @@ use librespot_protocol::metadata::{Album as AlbumMessage, Track as TrackMessage}
 use protobuf::{EnumOrUnknown, Message as _};
 
 use crate::models::Track;
+use crate::wire;
 
 const LIKED_SONGS: &str = "spotify:collection:tracks";
 const TRACK_PREFIX: &str = "spotify:track:";
 const UNKNOWN: &str = "Unknown";
-const IMAGE_CDN: &str = "https://i.scdn.co/image/";
 
 pub async fn saved_tracks(session: &Session, limit: u32) -> Result<Vec<Track>> {
     let uris = liked_uris(session, limit as usize).await?;
@@ -114,8 +113,10 @@ fn non_empty(value: Option<&str>) -> Option<&str> {
 }
 
 fn cover_url(album: &AlbumMessage) -> Option<String> {
-    let images = &album.cover_group.as_ref()?.image;
-    let smallest = images
+    let smallest = album
+        .cover_group
+        .as_ref()?
+        .image
         .iter()
         .filter(|image| image.has_file_id())
         .min_by_key(|image| match image.size() {
@@ -125,13 +126,5 @@ fn cover_url(album: &AlbumMessage) -> Option<String> {
             ImageSize::XLARGE => 3,
         })?;
 
-    let file_id = smallest
-        .file_id()
-        .iter()
-        .fold(String::new(), |mut hex, byte| {
-            let _ = write!(hex, "{byte:02x}");
-            hex
-        });
-
-    Some(format!("{IMAGE_CDN}{file_id}"))
+    wire::image_url(smallest.file_id())
 }
