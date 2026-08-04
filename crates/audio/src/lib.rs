@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use anyhow::{Context as _, Result};
 use librespot_core::{Session, SpotifyUri};
-use librespot_playback::config::{AudioFormat, PlayerConfig};
+use librespot_playback::config::{AudioFormat, Bitrate, PlayerConfig};
 use librespot_playback::mixer::NoOpVolume;
 use librespot_playback::player::{Player, PlayerEvent};
 use tokio::sync::mpsc::UnboundedReceiver;
@@ -55,6 +55,7 @@ impl Engine {
         let flush = Flush::default();
 
         let player_config = PlayerConfig {
+            bitrate: Bitrate::Bitrate320,
             normalisation: config.normalisation,
             position_update_interval: Some(config.position_interval),
             ..Default::default()
