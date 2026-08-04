@@ -1,7 +1,7 @@
 use gpui::prelude::*;
 use gpui::{Context, Entity, MouseButton, Render, SharedString, Window, div};
 use gpui_component::button::Button;
-use gpui_component::{Disableable as _, Icon, Selectable as _, Sizable as _};
+use gpui_component::{Disableable as _, Selectable as _, Sizable as _};
 
 use crate::library::{LibraryView, Section};
 
@@ -37,7 +37,6 @@ impl LibraryToolbar {
 impl Render for LibraryToolbar {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let (tracks, playlists) = self.view.read(cx).counts(cx);
-        let loading = self.view.read(cx).is_loading(cx);
 
         div()
             .flex()
@@ -45,24 +44,15 @@ impl Render for LibraryToolbar {
             .items_center()
             .justify_between()
             .gap_3()
-            .occlude()
-            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
             .child(
                 div()
                     .flex()
+                    .flex_none()
                     .gap_1()
+                    .occlude()
+                    .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                     .child(self.tab(Section::Tracks, tracks, cx))
                     .child(self.tab(Section::Playlists, playlists, cx)),
-            )
-            .child(
-                Button::new("refresh")
-                    .label("Refresh")
-                    .small()
-                    .icon(Icon::default().path("icons/refresh-cw.svg"))
-                    .disabled(loading)
-                    .on_click(cx.listener(|this, _, _, cx| {
-                        this.view.update(cx, |view, cx| view.refresh(cx));
-                    })),
             )
     }
 }

@@ -11,13 +11,18 @@ use gpui_component::label::Label;
 use gpui_component::skeleton::Skeleton;
 use state::{Library, LibraryState};
 
-const NAV: [(&str, &str, Option<Destination>); 3] = [
+const NAV: [(&str, &str, Option<Destination>); 4] = [
     ("Home", "icons/house.svg", None),
     ("Search", "icons/search.svg", None),
     (
         "Your Library",
         "icons/library-big.svg",
         Some(Destination::Library),
+    ),
+    (
+        "Settings",
+        "icons/settings.svg",
+        Some(Destination::Settings),
     ),
 ];
 const DEFAULT_WIDTH: Pixels = px(220.);
@@ -183,37 +188,6 @@ impl Render for Sidebar {
                 .flex_1()
                 .into_any_element()
             })
-            .child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .flex_none()
-                    .p_3()
-                    .border_t_1()
-                    .border_color(sidebar_border)
-                    .child(
-                        div()
-                            .id("sidebar-settings")
-                            .flex()
-                            .items_center()
-                            .gap_2p5()
-                            .px_3()
-                            .py_1p5()
-                            .rounded_md()
-                            .cursor_pointer()
-                            .hover(move |style| style.bg(sidebar_accent))
-                            .child(
-                                Icon::default()
-                                    .path("icons/settings.svg")
-                                    .size_4()
-                                    .text_color(muted),
-                            )
-                            .child(Label::new("Settings").text_color(muted))
-                            .on_click(cx.listener(|_, _, _, cx| {
-                                cx.emit(SidebarEvent::Navigate(Destination::Settings));
-                            })),
-                    ),
-            )
             .child(
                 div()
                     .id("sidebar-resize-handle")
