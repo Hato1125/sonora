@@ -1,14 +1,17 @@
 use gpui::prelude::*;
-use gpui::{Context, Render};
+use gpui::{Context, Entity, Render};
 use gpui::{SharedString, Window, div, px, relative};
 use gpui_component::ActiveTheme as _;
 use gpui_component::Icon;
 use gpui_component::button::{Button, ButtonVariants as _};
 use gpui_component::label::Label;
+use gpui_component::{Disableable as _, Sizable as _};
+use state::{Playback, PlaybackState, Spotty};
 
 const HEIGHT: f32 = 68.;
 
 pub struct PlayerBar {
+    playback: Entity<Playback>,
     now_playing: Option<NowPlaying>,
 }
 
@@ -19,19 +22,59 @@ pub struct NowPlaying {
 }
 
 impl PlayerBar {
-    pub fn new() -> Self {
-        Self { now_playing: None }
+    pub fn new(cx: &mut Context<Self>) -> Self {
+        let playback = Spotty::global(cx).playback.clone();
+        cx.observe(&playback, |_, _, cx| cx.notify()).detach();
+
+        Self {
+            playback,
+            now_playing: None,
+        }
     }
 
     pub fn set_now_playing(&mut self, now_playing: Option<NowPlaying>, cx: &mut Context<Self>) {
         self.now_playing = now_playing;
         cx.notify();
     }
-}
 
-impl Default for PlayerBar {
-    fn default() -> Self {
-        Self::new()
+    fn transport(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        div()
+            .flex()
+            .items_center()
+            .gap_2()
+            .child(Self::skip("previous", "icons/skip-back.svg"))
+            .child(self.toggle(cx))
+            .child(Self::skip("next", "icons/skip-forward.svg"))
+    }
+
+    fn skip(id: &'static str, icon: &'static str) -> Button {
+        Button::new(id)
+            .ghost()
+            .small()
+            .icon(Icon::default().path(icon))
+            .disabled(true)
+    }
+
+    fn toggle(&self, cx: &mut Context<Self>) -> Button {
+        let state = self.playback.read(cx).state();
+        let playing = matches!(state, PlaybackState::Playing);
+        let idle = matches!(state, PlaybackState::Idle | PlaybackState::Failed(_));
+
+        let (id, icon) = if playing {
+            ("pause", "icons/pause.svg")
+        } else {
+            ("play", "icons/play.svg")
+        };
+
+        Button::new(id)
+            .ghost()
+            .small()
+            .icon(Icon::default().path(icon))
+            .disabled(idle)
+            .on_click(cx.listener(|this, _, _, cx| {
+                this.playback
+                    .update(cx, |playback, cx| playback.toggle_play(cx));
+            }))
     }
 }
 
@@ -83,19 +126,7 @@ impl Render for PlayerBar {
                     .flex_col()
                     .items_center()
                     .gap_2()
-                    .child(
-                        div().flex().items_center().gap_2().children(
-                            [
-                                ("previous", "icons/skip-back.svg"),
-                                ("play", "icons/play.svg"),
-                                ("next", "icons/skip-forward.svg"),
-                            ]
-                            .into_iter()
-                            .map(|(id, icon)| {
-                                Button::new(id).ghost().icon(Icon::default().path(icon))
-                            }),
-                        ),
-                    )
+                    .child(self.transport(cx))
                     .child(
                         div()
                             .w_full()

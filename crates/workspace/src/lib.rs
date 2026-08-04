@@ -27,7 +27,7 @@ impl Workspace {
     ) -> Self {
         let title_bar = cx.new(|cx| TitleBar::new(session, cx));
         let sidebar = cx.new(|cx| Sidebar::new(library, cx));
-        let player_bar = cx.new(|_| PlayerBar::new());
+        let player_bar = cx.new(PlayerBar::new);
 
         Self {
             title_bar,
