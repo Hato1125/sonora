@@ -60,6 +60,8 @@ fn open_window(session: Entity<Session>, library: Entity<Library>, cx: &mut App)
                 appears_transparent: false,
                 traffic_light_position: Some(point(px(9.), px(9.))),
             }),
+            is_movable: true,
+            is_resizable: true,
             app_id: Some("spotty".into()),
             window_min_size: Some(size(px(520.), px(400.))),
             ..Default::default()

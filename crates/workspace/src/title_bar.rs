@@ -1,5 +1,5 @@
-use gpui::prelude::*;
 use gpui::{Context, Entity, Render};
+use gpui::{MouseButton, prelude::*};
 use gpui::{Window, div, px};
 use gpui_component::ActiveTheme as _;
 use gpui_component::Icon;
@@ -42,6 +42,10 @@ impl Render for TitleBar {
             .bg(theme.title_bar)
             .border_b_1()
             .border_color(theme.title_bar_border)
+            .window_control_area(gpui::WindowControlArea::Drag)
+            .on_mouse_down(MouseButton::Left, |_, window, _| {
+                window.start_window_move();
+            })
             .child(match self.session.read(cx).state() {
                 SessionState::SignedIn(profile) => Avatar::new()
                     .name(profile.display_name.clone())
@@ -50,40 +54,49 @@ impl Render for TitleBar {
                 _ => Skeleton::new().size_12().rounded_full().into_any_element(),
             })
             .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .w_full()
-                    .child(
-                        Input::new(&input)
-                            .w_1_2()
-                            .h_12()
-                            .rounded_full()
-                            .text_lg()
-                            .rounded_none()
-                            .rounded_l_full(),
-                    )
-                    .child(
-                        Button::new("search")
-                            .h_12()
-                            .w_16()
-                            .rounded_none()
-                            .shadow_xs()
-                            .rounded_r_full()
-                            .outline()
-                            .border_l_0()
-                            .icon(Icon::default().path("icons/search.svg")),
-                    ),
+                div().flex().flex_1().items_center().justify_center().child(
+                    div()
+                        .flex()
+                        .occlude()
+                        .on_mouse_down(MouseButton::Left, |_, _, cx| {
+                            cx.stop_propagation();
+                        })
+                        .child(
+                            Input::new(&input)
+                                .w((window.viewport_size().width - px(280.)).min(px(580.)))
+                                .h_12()
+                                .text_lg()
+                                .rounded_none()
+                                .rounded_l_full(),
+                        )
+                        .child(
+                            Button::new("search")
+                                .h_12()
+                                .w_16()
+                                .rounded_none()
+                                .shadow_xs()
+                                .rounded_r_full()
+                                .outline()
+                                .border_l_0()
+                                .icon(Icon::default().path("icons/search.svg")),
+                        ),
+                ),
             )
             .child(
-                Button::new("sign-out")
-                    .label("Sign out")
-                    .small()
-                    .icon(Icon::default().path("icons/log-out.svg"))
-                    .on_click(move |_, _, cx| {
-                        session.update(cx, |session, cx| session.sign_out(cx));
-                    }),
+                div()
+                    .occlude()
+                    .on_mouse_down(MouseButton::Left, |_, _, cx| {
+                        cx.stop_propagation();
+                    })
+                    .child(
+                        Button::new("sign-out")
+                            .label("Sign out")
+                            .small()
+                            .icon(Icon::default().path("icons/log-out.svg"))
+                            .on_click(move |_, _, cx| {
+                                session.update(cx, |session, cx| session.sign_out(cx));
+                            }),
+                    ),
             )
     }
 }
