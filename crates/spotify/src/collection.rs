@@ -1,11 +1,13 @@
 use std::collections::HashMap;
+use std::fmt::Write as _;
 use std::time::Duration;
 
 use anyhow::{Context as _, Result};
 use librespot_core::Session;
 use librespot_protocol::extended_metadata::{BatchedEntityRequest, EntityRequest, ExtensionQuery};
 use librespot_protocol::extension_kind::ExtensionKind;
-use librespot_protocol::metadata::Track as TrackMessage;
+use librespot_protocol::metadata::image::Size as ImageSize;
+use librespot_protocol::metadata::{Album as AlbumMessage, Track as TrackMessage};
 use protobuf::{EnumOrUnknown, Message as _};
 
 use crate::models::Track;
@@ -13,6 +15,7 @@ use crate::models::Track;
 const LIKED_SONGS: &str = "spotify:collection:tracks";
 const TRACK_PREFIX: &str = "spotify:track:";
 const UNKNOWN: &str = "Unknown";
+const IMAGE_CDN: &str = "https://i.scdn.co/image/";
 
 pub async fn saved_tracks(session: &Session, limit: u32) -> Result<Vec<Track>> {
     let uris = liked_uris(session, limit as usize).await?;
@@ -101,10 +104,34 @@ fn track_from(uri: &str, track: &TrackMessage) -> Track {
             .and_then(|album| non_empty(album.name.as_deref()))
             .unwrap_or_default()
             .to_owned(),
+        cover: track.album.as_ref().and_then(cover_url),
         duration: Duration::from_millis(track.duration.unwrap_or_default().max(0) as u64),
     }
 }
 
 fn non_empty(value: Option<&str>) -> Option<&str> {
     value.filter(|value| !value.is_empty())
+}
+
+fn cover_url(album: &AlbumMessage) -> Option<String> {
+    let images = &album.cover_group.as_ref()?.image;
+    let smallest = images
+        .iter()
+        .filter(|image| image.has_file_id())
+        .min_by_key(|image| match image.size() {
+            ImageSize::SMALL => 0,
+            ImageSize::DEFAULT => 1,
+            ImageSize::LARGE => 2,
+            ImageSize::XLARGE => 3,
+        })?;
+
+    let file_id = smallest
+        .file_id()
+        .iter()
+        .fold(String::new(), |mut hex, byte| {
+            let _ = write!(hex, "{byte:02x}");
+            hex
+        });
+
+    Some(format!("{IMAGE_CDN}{file_id}"))
 }

@@ -12,6 +12,7 @@ pub struct Track {
     pub name: String,
     pub artists: String,
     pub album: String,
+    pub cover: Option<String>,
     pub duration: Duration,
 }
 
