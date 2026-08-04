@@ -1,4 +1,5 @@
 use gpui::{Context, Entity, FontWeight, Render};
+use gpui_component::button::Button;
 use state::{Session, SessionState};
 use ui::prelude::*;
 
@@ -44,8 +45,8 @@ impl Render for TitleBar {
                     .into_any_element(),
             })
             .child(
-                Button::new("sign-out", "Sign out")
-                    .variant(ButtonVariant::Ghost)
+                Button::new("sign-out")
+                    .label("Sign out")
                     .on_click(move |_, _, cx| {
                         session.update(cx, |session, cx| session.sign_out(cx));
                     }),

@@ -1,4 +1,5 @@
 use gpui::{Context, Render};
+use gpui_component::button::Button;
 use ui::prelude::*;
 
 const HEIGHT: f32 = 68.;
@@ -79,9 +80,9 @@ impl Render for PlayerBar {
                     .gap_2()
                     .child(
                         div().flex().items_center().gap_2().children(
-                            ["Previous", "Play", "Next"].into_iter().map(|label| {
-                                Button::new(label, label).variant(ButtonVariant::Ghost)
-                            }),
+                            ["Previous", "Play", "Next"]
+                                .into_iter()
+                                .map(|label| Button::new(label).label(label)),
                         ),
                     )
                     .child(

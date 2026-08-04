@@ -1,4 +1,6 @@
 use gpui::{Context, Entity, FontWeight, Render};
+use gpui_component::Disableable as _;
+use gpui_component::button::{Button, ButtonVariants as _};
 use state::{Session, SessionState};
 use ui::prelude::*;
 
@@ -44,7 +46,9 @@ impl Render for LoginView {
             .child(Label::new("spotty").size(px(28.)).weight(FontWeight::BOLD))
             .child(Message::new(status).tone(tone))
             .child(
-                Button::new("sign-in", "Sign in with Spotify")
+                Button::new("sign-in")
+                    .label("Sign in with Spotify")
+                    .primary()
                     .disabled(pending)
                     .on_click(move |_, _, cx| {
                         session.update(cx, |session, cx| session.sign_in(cx));
