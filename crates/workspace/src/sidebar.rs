@@ -43,6 +43,10 @@ impl Sidebar {
         self.open
     }
 
+    pub fn occupied_width(&self) -> Pixels {
+        if self.open { self.width } else { Pixels::ZERO }
+    }
+
     pub fn toggle(&mut self, cx: &mut Context<Self>) {
         self.open = !self.open;
         cx.notify();

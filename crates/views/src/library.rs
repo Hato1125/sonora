@@ -10,6 +10,7 @@ use gpui_component::skeleton::Skeleton;
 use gpui_component::table::{Column, Table, TableDelegate, TableEvent, TableState};
 use gpui_component::{ActiveTheme as _, Disableable as _, Icon, Selectable as _, Sizable as _};
 use state::{Library, LibraryState, Playback};
+use workspace::Sidebar;
 
 const CELL_PADDING: Pixels = px(8.);
 const COVER: Pixels = px(28.);
@@ -251,6 +252,7 @@ impl TableDelegate for LibraryTable {
 pub struct LibraryView {
     library: Entity<Library>,
     playback: Entity<Playback>,
+    sidebar: Entity<Sidebar>,
     section: Section,
     width: Pixels,
     table: Entity<TableState<LibraryTable>>,
@@ -260,6 +262,7 @@ impl LibraryView {
     pub fn new(
         library: Entity<Library>,
         playback: Entity<Playback>,
+        sidebar: Entity<Sidebar>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -268,9 +271,10 @@ impl LibraryView {
             cx.notify();
         })
         .detach();
+        cx.observe(&sidebar, |_, _, cx| cx.notify()).detach();
 
         let section = Section::Tracks;
-        let width = content_width(window);
+        let width = content_width(window, &sidebar, cx);
         let delegate = LibraryTable::new(library.clone(), section, width);
         let table = cx.new(|cx| TableState::new(delegate, window, cx).col_selectable(false));
 
@@ -284,6 +288,7 @@ impl LibraryView {
         Self {
             library,
             playback,
+            sidebar,
             section,
             width,
             table,
@@ -369,7 +374,7 @@ impl LibraryView {
 
 impl Render for LibraryView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let width = content_width(window);
+        let width = content_width(window, &self.sidebar, cx);
         if (width - self.width).abs() > px(1.) {
             self.width = width;
             self.table.update(cx, |table, cx| {
@@ -392,7 +397,8 @@ fn format_duration(duration: Duration) -> String {
     format!("{}:{:02}", total / 60, total % 60)
 }
 
-fn content_width(window: &Window) -> Pixels {
-    const CHROME: f32 = 240.;
-    (window.viewport_size().width - px(CHROME)).max(px(320.))
+fn content_width(window: &Window, sidebar: &Entity<Sidebar>, cx: &App) -> Pixels {
+    const CONTENT_CHROME: Pixels = px(20.);
+    (window.viewport_size().width - sidebar.read(cx).occupied_width() - CONTENT_CHROME)
+        .max(px(320.))
 }

@@ -3,7 +3,7 @@ use gpui::{Context, Entity, Render};
 use gpui::{Window, div};
 use gpui_component::ActiveTheme as _;
 use state::{Library, Playback, Session, SessionState};
-use workspace::Workspace;
+use workspace::{Sidebar, Workspace};
 
 use crate::{LibraryView, LoginView};
 
@@ -24,10 +24,11 @@ impl Root {
         cx.observe(&session, |_, _, cx| cx.notify()).detach();
 
         let login = cx.new(|cx| LoginView::new(session.clone(), cx));
+        let sidebar = cx.new(|cx| Sidebar::new(library.clone(), cx));
         let library_view =
-            cx.new(|cx| LibraryView::new(library.clone(), playback.clone(), window, cx));
+            cx.new(|cx| LibraryView::new(library, playback.clone(), sidebar.clone(), window, cx));
         let workspace = cx
-            .new(|cx| Workspace::new(session.clone(), library, playback, library_view.into(), cx));
+            .new(|cx| Workspace::new(session.clone(), sidebar, playback, library_view.into(), cx));
 
         Self {
             session,

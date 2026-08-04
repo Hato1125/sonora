@@ -9,7 +9,7 @@ pub use title_bar::TitleBar;
 use gpui::prelude::*;
 use gpui::{AnyView, Context, Entity, Render};
 use gpui::{Window, div};
-use state::{Library, Playback, Session};
+use state::{Playback, Session};
 
 pub struct Workspace {
     title_bar: Entity<TitleBar>,
@@ -21,12 +21,11 @@ pub struct Workspace {
 impl Workspace {
     pub fn new(
         session: Entity<Session>,
-        library: Entity<Library>,
+        sidebar: Entity<Sidebar>,
         playback: Entity<Playback>,
         content: AnyView,
         cx: &mut Context<Self>,
     ) -> Self {
-        let sidebar = cx.new(|cx| Sidebar::new(library, cx));
         let title_bar = cx.new(|cx| TitleBar::new(session, sidebar.clone(), cx));
         let player_bar = cx.new(|cx| PlayerBar::new(playback, cx));
 
