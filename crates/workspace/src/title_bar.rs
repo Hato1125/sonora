@@ -46,13 +46,22 @@ impl Render for TitleBar {
             .on_mouse_down(MouseButton::Left, |_, window, _| {
                 window.start_window_move();
             })
-            .child(match self.session.read(cx).state() {
-                SessionState::SignedIn(profile) => Avatar::new()
-                    .name(profile.display_name.clone())
-                    .size_12()
-                    .into_any_element(),
-                _ => Skeleton::new().size_12().rounded_full().into_any_element(),
-            })
+            .child(
+                div()
+                    .occlude()
+                    .on_mouse_down(MouseButton::Left, |_, _, cx| {
+                        cx.stop_propagation();
+                    })
+                    .child(
+                        Button::new("sign-out")
+                            .label("Sign out")
+                            .small()
+                            .icon(Icon::default().path("icons/log-out.svg"))
+                            .on_click(move |_, _, cx| {
+                                session.update(cx, |session, cx| session.sign_out(cx));
+                            }),
+                    ),
+            )
             .child(
                 div().flex().flex_1().items_center().justify_center().child(
                     div()
@@ -82,21 +91,12 @@ impl Render for TitleBar {
                         ),
                 ),
             )
-            .child(
-                div()
-                    .occlude()
-                    .on_mouse_down(MouseButton::Left, |_, _, cx| {
-                        cx.stop_propagation();
-                    })
-                    .child(
-                        Button::new("sign-out")
-                            .label("Sign out")
-                            .small()
-                            .icon(Icon::default().path("icons/log-out.svg"))
-                            .on_click(move |_, _, cx| {
-                                session.update(cx, |session, cx| session.sign_out(cx));
-                            }),
-                    ),
-            )
+            .child(match self.session.read(cx).state() {
+                SessionState::SignedIn(profile) => Avatar::new()
+                    .name(profile.display_name.clone())
+                    .size_12()
+                    .into_any_element(),
+                _ => Skeleton::new().size_12().rounded_full().into_any_element(),
+            })
     }
 }
