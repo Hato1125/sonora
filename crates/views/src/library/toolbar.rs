@@ -3,7 +3,7 @@ use gpui::{Context, Entity, MouseButton, Render, SharedString, Window, div};
 use gpui_component::button::Button;
 use gpui_component::{Disableable as _, Selectable as _, Sizable as _};
 
-use crate::library::{LibraryView, Section};
+use super::{LibraryView, Section};
 
 pub struct LibraryToolbar {
     view: Entity<LibraryView>,

@@ -1,5 +1,6 @@
 mod columns;
 mod table;
+mod toolbar;
 
 use gpui::prelude::*;
 use gpui::{App, Context, Entity, Pixels, Render, Window, div, px};
@@ -10,6 +11,8 @@ use columns::{Column, Field, PLAYLIST_COLUMNS, TRACK_COLUMNS};
 use gpui_component::table::Column as TableColumn;
 use gpui_component::table::ColumnSort;
 use table::LibraryTable;
+
+pub use toolbar::LibraryToolbar;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Section {
