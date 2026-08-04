@@ -7,6 +7,7 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace.dependencies]
+audio = { path = "crates/audio" }
 spotify = { path = "crates/spotify" }
 state = { path = "crates/state" }
 ui = { path = "crates/ui" }

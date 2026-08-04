@@ -1,13 +1,13 @@
 [package]
-name = "state"
+name = "audio"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
 anyhow.workspace = true
-audio.workspace = true
-gpui.workspace = true
+cpal.workspace = true
 librespot-core.workspace = true
+librespot-playback.workspace = true
 log.workspace = true
-spotify.workspace = true
+rodio.workspace = true
 tokio.workspace = true

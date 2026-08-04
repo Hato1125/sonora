@@ -1,15 +1,9 @@
-use librespot_core::SpotifyUri;
-use librespot_playback::config::{AudioFormat, PlayerConfig};
-use librespot_playback::mixer::NoOpVolume;
-use librespot_playback::player::{Player, PlayerEvent};
-
-use std::sync::Arc;
 use std::time::Duration;
 
+use audio::{AudioEvent, AudioEvents, Engine, EngineConfig};
 use gpui::{Context, Entity, EventEmitter, Task};
 use spotify::Track;
 
-use crate::sink::{BlazingSink, Flush, Volume};
 use crate::{Session, SessionEvent};
 
 const POSITION_INTERVAL: Duration = Duration::from_millis(500);
@@ -43,11 +37,9 @@ pub struct Playback {
     state: PlaybackState,
     position: Duration,
     track: Option<Track>,
-    player: Option<Arc<Player>>,
+    engine: Option<Engine>,
     session: Entity<Session>,
     level: f32,
-    volume: Volume,
-    flush: Flush,
     normalisation: bool,
     task: Option<Task<()>>,
 }
@@ -61,38 +53,35 @@ impl Playback {
                 let Some(librespot) = session.read(cx).librespot() else {
                     return;
                 };
-                this.spawn_player(librespot, cx);
+                this.start_engine(librespot, cx);
             }
             SessionEvent::SignedOut => this.teardown(cx),
         })
         .detach();
+
         Self {
             state: PlaybackState::Idle,
             position: Duration::ZERO,
             track: None,
-            player: None,
+            engine: None,
             session,
             level: INITIAL_LEVEL,
-            volume: Volume::new(gain(INITIAL_LEVEL)),
-            flush: Flush::default(),
             normalisation: true,
             task: None,
         }
     }
 
     pub fn play(&mut self, track: &Track, cx: &mut Context<Self>) {
-        let Some(player) = self.player.clone() else {
+        let Some(engine) = self.engine.as_ref() else {
             return;
         };
         let Some(id) = track.id.as_deref() else {
             return self.failed(format!("{} has no track id", track.name), cx);
         };
-        let Ok(uri) = SpotifyUri::from_uri(&format!("spotify:track:{id}")) else {
-            return self.failed(format!("{id} is not a track uri"), cx);
-        };
+        if let Err(error) = engine.load(id) {
+            return self.failed(format!("{error:#}"), cx);
+        }
 
-        self.flush.request();
-        player.load(uri, true, 0);
         self.track = Some(track.clone());
         self.state = PlaybackState::Loading;
         self.position = Duration::ZERO;
@@ -100,15 +89,15 @@ impl Playback {
     }
 
     pub fn resume(&mut self, cx: &mut Context<Self>) {
-        if let Some(player) = self.player.as_ref() {
-            player.play();
+        if let Some(engine) = self.engine.as_ref() {
+            engine.play();
             cx.notify();
         }
     }
 
     pub fn pause(&mut self, cx: &mut Context<Self>) {
-        if let Some(player) = self.player.as_ref() {
-            player.pause();
+        if let Some(engine) = self.engine.as_ref() {
+            engine.pause();
             cx.notify();
         }
     }
@@ -122,9 +111,8 @@ impl Playback {
     }
 
     pub fn seek(&mut self, position: Duration, cx: &mut Context<Self>) {
-        if let Some(player) = self.player.as_ref() {
-            self.flush.request();
-            player.seek(position.as_millis() as u32);
+        if let Some(engine) = self.engine.as_ref() {
+            engine.seek(position);
             self.position = position;
             cx.notify();
         }
@@ -176,7 +164,9 @@ impl Playback {
 
     pub fn set_volume(&mut self, level: f32, cx: &mut Context<Self>) {
         self.level = level.clamp(0., 1.);
-        self.volume.set(gain(self.level));
+        if let Some(engine) = self.engine.as_ref() {
+            engine.set_gain(gain(self.level));
+        }
         cx.notify();
     }
 
@@ -190,39 +180,34 @@ impl Playback {
         }
         self.normalisation = on;
 
-        if self.player.is_some() {
+        if self.engine.is_some() {
             let session = self.session.read(cx).librespot();
             if let Some(session) = session {
-                self.spawn_player(session, cx);
+                self.start_engine(session, cx);
                 return;
             }
         }
         cx.notify();
     }
 
-    fn spawn_player(&mut self, session: librespot_core::Session, cx: &mut Context<Self>) {
-        let config = PlayerConfig {
-            position_update_interval: Some(POSITION_INTERVAL),
+    fn start_engine(&mut self, session: librespot_core::Session, cx: &mut Context<Self>) {
+        let config = EngineConfig {
             normalisation: self.normalisation,
-            ..Default::default()
+            position_interval: POSITION_INTERVAL,
+            gain: gain(self.level),
         };
-        let flush = self.flush.clone();
-        let volume = self.volume.clone();
-        let player = Player::new(config, session, Box::new(NoOpVolume), move || {
-            BlazingSink::boxed(AudioFormat::default(), flush, volume)
-        });
+        let (engine, events) = Engine::start(session, config);
 
-        self.listen(&player, cx);
-        self.player = Some(player);
+        self.listen(events, cx);
+        self.engine = Some(engine);
         self.state = PlaybackState::Idle;
         self.position = Duration::ZERO;
         cx.notify();
     }
 
-    fn listen(&mut self, player: &Arc<Player>, cx: &mut Context<Self>) {
-        let mut events = player.get_player_event_channel();
+    fn listen(&mut self, mut events: AudioEvents, cx: &mut Context<Self>) {
         self.task = Some(cx.spawn(async move |this, cx| {
-            while let Some(event) = events.recv().await {
+            while let Some(event) = events.next().await {
                 if this.update(cx, |this, cx| this.apply(event, cx)).is_err() {
                     break;
                 }
@@ -230,45 +215,41 @@ impl Playback {
         }));
     }
 
-    fn apply(&mut self, event: PlayerEvent, cx: &mut Context<Self>) {
+    fn apply(&mut self, event: AudioEvent, cx: &mut Context<Self>) {
         match event {
-            PlayerEvent::Loading { position_ms, .. } => {
+            AudioEvent::Loading(position) => {
                 self.state = PlaybackState::Loading;
-                self.position = Duration::from_millis(position_ms as u64);
+                self.position = position;
             }
-            PlayerEvent::Playing { position_ms, .. } => {
+            AudioEvent::Playing(position) => {
                 let started = self.state != PlaybackState::Playing;
                 self.state = PlaybackState::Playing;
-                self.position = Duration::from_millis(position_ms as u64);
+                self.position = position;
                 if started {
                     cx.emit(PlaybackEvent::StartedPlayback);
                 }
             }
-            PlayerEvent::Paused { position_ms, .. } => {
+            AudioEvent::Paused(position) => {
                 self.state = PlaybackState::Paused;
-                self.position = Duration::from_millis(position_ms as u64);
+                self.position = position;
             }
-            PlayerEvent::PositionChanged { position_ms, .. }
-            | PlayerEvent::PositionCorrection { position_ms, .. } => {
-                self.position = Duration::from_millis(position_ms as u64);
-            }
-            PlayerEvent::Stopped { .. } | PlayerEvent::EndOfTrack { .. } => {
+            AudioEvent::Position(position) => self.position = position,
+            AudioEvent::Ended => {
                 self.state = PlaybackState::Idle;
                 self.position = Duration::ZERO;
                 self.track = None;
                 cx.emit(PlaybackEvent::EndedPlayback);
             }
-            PlayerEvent::Unavailable { .. } => {
+            AudioEvent::Unavailable => {
                 return self.failed("Spotify could not serve this track".to_owned(), cx);
             }
-            _ => return,
         }
         cx.notify();
     }
 
     fn teardown(&mut self, cx: &mut Context<Self>) {
         self.task = None;
-        self.player = None;
+        self.engine = None;
         self.track = None;
         self.state = PlaybackState::Idle;
         self.position = Duration::ZERO;
