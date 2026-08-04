@@ -1,3 +1,5 @@
+mod assets;
+
 use gpui::{
     App, AppContext as _, Application, Bounds, Entity, KeyBinding, Menu, MenuItem, TitlebarOptions,
     WindowBounds, WindowOptions, actions, point, px, size,
@@ -14,7 +16,7 @@ fn main() {
         .init();
 
     Application::new()
-        .with_assets(gpui_component_assets::Assets)
+        .with_assets(assets::Assets)
         .run(|cx: &mut App| {
             gpui_component::init(cx);
             gpui_component::Theme::change(gpui_component::ThemeMode::Dark, None, cx);

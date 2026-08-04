@@ -1,8 +1,13 @@
 use gpui::{Context, Entity, FontWeight, Render, uniform_list};
+use gpui_component::Icon;
 use state::{Library, LibraryState};
 use ui::prelude::*;
 
-const NAV: [&str; 3] = ["Home", "Search", "Your Library"];
+const NAV: [(&str, &str); 3] = [
+    ("Home", "icons/house.svg"),
+    ("Search", "icons/search.svg"),
+    ("Your Library", "icons/library-big.svg"),
+];
 const WIDTH: f32 = 220.;
 
 pub struct Sidebar {
@@ -27,6 +32,7 @@ impl Render for Sidebar {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
         let sidebar_accent = theme.sidebar_accent;
+        let muted = theme.muted_foreground;
         let sidebar_bg = theme.sidebar;
         let sidebar_border = theme.sidebar_border;
         let count = self.playlist_count(cx);
@@ -47,14 +53,18 @@ impl Render for Sidebar {
                     .flex_col()
                     .gap_1()
                     .p_3()
-                    .children(NAV.into_iter().enumerate().map(|(index, label)| {
+                    .children(NAV.into_iter().enumerate().map(|(index, (label, icon))| {
                         div()
                             .id(index)
+                            .flex()
+                            .items_center()
+                            .gap_2p5()
                             .px_3()
                             .py_1p5()
                             .rounded_md()
                             .cursor_pointer()
                             .hover(move |style| style.bg(sidebar_accent))
+                            .child(Icon::default().path(icon).size_4().text_color(muted))
                             .child(Label::new(label).tone(Tone::Muted))
                     })),
             )

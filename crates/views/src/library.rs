@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use gpui::{AnyElement, Context, Entity, Render, uniform_list};
 use gpui_component::Disableable as _;
+use gpui_component::Icon;
 use gpui_component::button::Button;
 use state::{Library, LibraryState};
 use ui::prelude::*;
@@ -79,6 +80,7 @@ impl LibraryView {
             .child(
                 Button::new("refresh")
                     .label("Refresh")
+                    .icon(Icon::default().path("icons/refresh-cw.svg"))
                     .disabled(loading)
                     .on_click(move |_, _, cx| {
                         library.update(cx, |library, cx| library.refresh(cx));

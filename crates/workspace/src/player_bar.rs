@@ -1,5 +1,6 @@
 use gpui::{Context, Render};
-use gpui_component::button::Button;
+use gpui_component::Icon;
+use gpui_component::button::{Button, ButtonVariants as _};
 use ui::prelude::*;
 
 const HEIGHT: f32 = 68.;
@@ -80,9 +81,15 @@ impl Render for PlayerBar {
                     .gap_2()
                     .child(
                         div().flex().items_center().gap_2().children(
-                            ["Previous", "Play", "Next"]
-                                .into_iter()
-                                .map(|label| Button::new(label).label(label)),
+                            [
+                                ("previous", "icons/skip-back.svg"),
+                                ("play", "icons/play.svg"),
+                                ("next", "icons/skip-forward.svg"),
+                            ]
+                            .into_iter()
+                            .map(|(id, icon)| {
+                                Button::new(id).ghost().icon(Icon::default().path(icon))
+                            }),
                         ),
                     )
                     .child(
