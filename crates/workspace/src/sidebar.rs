@@ -1,5 +1,7 @@
+use std::cell::Cell;
+
 use gpui::prelude::*;
-use gpui::{Context, Entity, FontWeight, Render, uniform_list};
+use gpui::{Context, DragMoveEvent, Empty, Entity, FontWeight, Pixels, Render, uniform_list};
 use gpui::{Window, div, px};
 use gpui_component::ActiveTheme as _;
 use gpui_component::Icon;
@@ -12,16 +14,27 @@ const NAV: [(&str, &str); 3] = [
     ("Search", "icons/search.svg"),
     ("Your Library", "icons/library-big.svg"),
 ];
-const WIDTH: f32 = 220.;
+const DEFAULT_WIDTH: Pixels = px(220.);
+const MIN_WIDTH: Pixels = px(130.);
+const MAX_WIDTH: Pixels = px(400.);
+
+struct SidebarResize {
+    start_width: Pixels,
+    start_x: Cell<Pixels>,
+}
 
 pub struct Sidebar {
     library: Entity<Library>,
+    width: Pixels,
 }
 
 impl Sidebar {
     pub fn new(library: Entity<Library>, cx: &mut Context<Self>) -> Self {
         cx.observe(&library, |_, _, cx| cx.notify()).detach();
-        Self { library }
+        Self {
+            library,
+            width: DEFAULT_WIDTH,
+        }
     }
 
     fn playlist_count(&self, cx: &Context<Self>) -> usize {
@@ -45,7 +58,8 @@ impl Render for Sidebar {
         div()
             .flex()
             .flex_col()
-            .w(px(WIDTH))
+            .relative()
+            .w(self.width)
             .flex_none()
             .h_full()
             .bg(sidebar_bg)
@@ -128,5 +142,34 @@ impl Render for Sidebar {
                 .flex_1()
                 .into_any_element()
             })
+            .child(
+                div()
+                    .id("sidebar-resize-handle")
+                    .absolute()
+                    .top_0()
+                    .right(px(-4.))
+                    .w(px(8.))
+                    .h_full()
+                    .cursor_col_resize()
+                    .on_drag_move(cx.listener(
+                        |this, event: &DragMoveEvent<SidebarResize>, _, cx| {
+                            let resize = event.drag(cx);
+                            this.width = (resize.start_width + event.event.position.x
+                                - resize.start_x.get())
+                            .clamp(MIN_WIDTH, MAX_WIDTH);
+                            cx.notify();
+                        },
+                    ))
+                    .on_drag(
+                        SidebarResize {
+                            start_width: self.width,
+                            start_x: Cell::new(Pixels::ZERO),
+                        },
+                        |resize, _, window, cx| {
+                            resize.start_x.set(window.mouse_position().x);
+                            cx.new(|_| Empty)
+                        },
+                    ),
+            )
     }
 }
