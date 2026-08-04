@@ -13,10 +13,12 @@ use views::Root;
 actions!(spotty, [Quit, SignOut, RefreshLibrary]);
 
 fn main() {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn"))
-        .format_timestamp(None)
-        .format_module_path(false)
-        .init();
+    env_logger::Builder::from_env(
+        env_logger::Env::default().default_filter_or("warn,symphonia=error"),
+    )
+    .format_timestamp(None)
+    .format_module_path(false)
+    .init();
 
     let io = match state::Io::new() {
         Ok(io) => io,
