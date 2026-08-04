@@ -4,15 +4,22 @@ use gpui_component::button::Button;
 use gpui_component::{Disableable as _, Selectable as _, Sizable as _};
 
 use super::{LibraryView, Section};
+use workspace::{Destination, LibraryTab, Navigation};
 
 pub struct LibraryToolbar {
     view: Entity<LibraryView>,
+    navigation: Entity<Navigation>,
 }
 
 impl LibraryToolbar {
-    pub fn new(view: Entity<LibraryView>, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        view: Entity<LibraryView>,
+        navigation: Entity<Navigation>,
+        cx: &mut Context<Self>,
+    ) -> Self {
         cx.observe(&view, |_, _, cx| cx.notify()).detach();
-        Self { view }
+        cx.observe(&navigation, |_, _, cx| cx.notify()).detach();
+        Self { view, navigation }
     }
 
     fn tab(&self, section: Section, count: usize, cx: &mut Context<Self>) -> Button {
@@ -29,7 +36,9 @@ impl LibraryToolbar {
             .selected(selected)
             .disabled(count == 0)
             .on_click(cx.listener(move |this, _, _, cx| {
-                this.view.update(cx, |view, cx| view.select(section, cx));
+                let destination = Destination::Library(LibraryTab::from(section));
+                this.navigation
+                    .update(cx, |navigation, cx| navigation.go(destination, cx));
             }))
     }
 }

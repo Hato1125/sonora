@@ -10,6 +10,8 @@ macro_rules! icons {
 }
 
 const ICONS: &[(&str, &[u8])] = icons![
+    "chevron-left",
+    "chevron-right",
     "house",
     "library-big",
     "log-out",

@@ -6,6 +6,7 @@ use gpui::prelude::*;
 use gpui::{App, Context, Entity, Pixels, Render, Window, div, px};
 use gpui_component::table::{Table, TableEvent, TableState};
 use state::{Library, LibraryState, Playback};
+use workspace::LibraryTab;
 
 use columns::{Column, Field, PLAYLIST_COLUMNS, TRACK_COLUMNS};
 use gpui_component::table::Column as TableColumn;
@@ -13,6 +14,24 @@ use gpui_component::table::ColumnSort;
 use table::LibraryTable;
 
 pub use toolbar::LibraryToolbar;
+
+impl From<LibraryTab> for Section {
+    fn from(tab: LibraryTab) -> Self {
+        match tab {
+            LibraryTab::Songs => Section::Tracks,
+            LibraryTab::Playlists => Section::Playlists,
+        }
+    }
+}
+
+impl From<Section> for LibraryTab {
+    fn from(section: Section) -> Self {
+        match section {
+            Section::Tracks => LibraryTab::Songs,
+            Section::Playlists => LibraryTab::Playlists,
+        }
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Section {

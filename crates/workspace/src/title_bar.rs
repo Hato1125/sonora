@@ -4,20 +4,27 @@ use gpui::{Window, div, px};
 use gpui_component::ActiveTheme as _;
 use gpui_component::Icon;
 
-use crate::Sidebar;
+use crate::{Navigation, Sidebar};
 
 const HEIGHT: f32 = 36.;
 
 pub struct TitleBar {
     sidebar: Entity<Sidebar>,
+    navigation: Entity<Navigation>,
     content: Option<AnyView>,
 }
 
 impl TitleBar {
-    pub fn new(sidebar: Entity<Sidebar>, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        sidebar: Entity<Sidebar>,
+        navigation: Entity<Navigation>,
+        cx: &mut Context<Self>,
+    ) -> Self {
         cx.observe(&sidebar, |_, _, cx| cx.notify()).detach();
+        cx.observe(&navigation, |_, _, cx| cx.notify()).detach();
         Self {
             sidebar,
+            navigation,
             content: None,
         }
     }
@@ -25,6 +32,68 @@ impl TitleBar {
     pub fn set_content(&mut self, content: Option<AnyView>, cx: &mut Context<Self>) {
         self.content = content;
         cx.notify();
+    }
+
+    fn chrome(
+        id: &'static str,
+        icon: &'static str,
+        enabled: bool,
+        hover: gpui::Hsla,
+        muted: gpui::Hsla,
+        on_click: impl Fn(&mut Window, &mut gpui::App) + 'static,
+    ) -> impl IntoElement {
+        div()
+            .id(id)
+            .flex()
+            .size_8()
+            .items_center()
+            .justify_center()
+            .rounded_md()
+            .when(enabled, |this| {
+                this.cursor_pointer().hover(move |this| this.bg(hover))
+            })
+            .child(
+                Icon::default()
+                    .path(icon)
+                    .size_4()
+                    .when(!enabled, |this| this.text_color(muted.opacity(0.4))),
+            )
+            .when(enabled, |this| {
+                this.on_click(move |_, window, cx| on_click(window, cx))
+            })
+    }
+
+    fn history(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let hover = cx.theme().sidebar_accent;
+        let muted = cx.theme().muted_foreground;
+        let navigation = self.navigation.read(cx);
+        let (can_back, can_forward) = (navigation.can_go_back(), navigation.can_go_forward());
+        let back = self.navigation.clone();
+        let forward = self.navigation.clone();
+
+        div()
+            .flex()
+            .flex_none()
+            .items_center()
+            .gap_1()
+            .occlude()
+            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+            .child(Self::chrome(
+                "history-back",
+                "icons/chevron-left.svg",
+                can_back,
+                hover,
+                muted,
+                move |_, cx| back.update(cx, |navigation, cx| navigation.back(cx)),
+            ))
+            .child(Self::chrome(
+                "history-forward",
+                "icons/chevron-right.svg",
+                can_forward,
+                hover,
+                muted,
+                move |_, cx| forward.update(cx, |navigation, cx| navigation.forward(cx)),
+            ))
     }
 
     fn toggle(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -84,8 +153,10 @@ impl Render for TitleBar {
                     .flex_none()
                     .items_center()
                     .px_3()
+                    .gap_1()
                     .when(offset > Pixels::ZERO, |this| this.w(offset))
-                    .child(self.toggle(cx)),
+                    .child(self.toggle(cx))
+                    .child(self.history(cx)),
             )
             .child(
                 div()

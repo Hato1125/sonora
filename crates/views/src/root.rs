@@ -3,7 +3,9 @@ use gpui::{AnyView, Context, Entity, Render};
 use gpui::{Window, div};
 use gpui_component::ActiveTheme as _;
 use state::{Library, Playback, Session, SessionState};
-use workspace::{Destination, Sidebar, SidebarEvent, Workspace};
+use workspace::{
+    Destination, LibraryTab, Navigation, NavigationEvent, Sidebar, SidebarEvent, Workspace,
+};
 
 use crate::{LibraryToolbar, LibraryView, LoginView, SettingsView};
 
@@ -18,7 +20,6 @@ pub struct Root {
     login: Entity<LoginView>,
     workspace: Entity<Workspace>,
     screens: Screens,
-    at: Destination,
 }
 
 impl Root {
@@ -34,18 +35,38 @@ impl Root {
         let login = cx.new(|cx| LoginView::new(session.clone(), cx));
         let sidebar = cx.new(|cx| Sidebar::new(library.clone(), cx));
 
-        cx.subscribe(&sidebar, |this, _, event, cx| {
-            let SidebarEvent::Navigate(destination) = event;
-            this.go(*destination, cx);
+        let navigation = cx.new(|_| Navigation::new(Destination::Library(LibraryTab::Songs)));
+
+        cx.subscribe(&sidebar, {
+            let navigation = navigation.clone();
+            move |_, _, event, cx| {
+                let SidebarEvent::Navigate(destination) = event;
+                let destination = *destination;
+                navigation.update(cx, |navigation, cx| navigation.go(destination, cx));
+            }
+        })
+        .detach();
+
+        cx.subscribe(&navigation, |this, _, event, cx| {
+            let NavigationEvent::Moved(destination) = event;
+            this.show(*destination, cx);
         })
         .detach();
 
         let library_view = cx.new(|cx| LibraryView::new(library, playback.clone(), window, cx));
-        let library_toolbar = cx.new(|cx| LibraryToolbar::new(library_view.clone(), cx));
+        let library_toolbar =
+            cx.new(|cx| LibraryToolbar::new(library_view.clone(), navigation.clone(), cx));
         let settings = cx.new(|cx| SettingsView::new(session.clone(), playback.clone(), cx));
 
-        let workspace =
-            cx.new(|cx| Workspace::new(sidebar, playback, library_view.clone().into(), cx));
+        let workspace = cx.new(|cx| {
+            Workspace::new(
+                sidebar,
+                navigation,
+                playback,
+                library_view.clone().into(),
+                cx,
+            )
+        });
         workspace.update(cx, |workspace, cx| {
             workspace.set_toolbar(Some(library_toolbar.clone().into()), cx);
         });
@@ -59,21 +80,20 @@ impl Root {
                 library_toolbar,
                 settings,
             },
-            at: Destination::Library,
         }
     }
 
-    fn go(&mut self, destination: Destination, cx: &mut Context<Self>) {
-        if self.at == destination {
-            return;
-        }
-        self.at = destination;
-
+    fn show(&mut self, destination: Destination, cx: &mut Context<Self>) {
         let (content, toolbar): (AnyView, Option<AnyView>) = match destination {
-            Destination::Library => (
-                self.screens.library.clone().into(),
-                Some(self.screens.library_toolbar.clone().into()),
-            ),
+            Destination::Library(tab) => {
+                self.screens
+                    .library
+                    .update(cx, |library, cx| library.select(tab.into(), cx));
+                (
+                    self.screens.library.clone().into(),
+                    Some(self.screens.library_toolbar.clone().into()),
+                )
+            }
             Destination::Settings => (self.screens.settings.clone().into(), None),
         };
 

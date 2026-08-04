@@ -17,7 +17,7 @@ const NAV: [(&str, &str, Option<Destination>); 4] = [
     (
         "Your Library",
         "icons/library-big.svg",
-        Some(Destination::Library),
+        Some(Destination::Library(LibraryTab::Songs)),
     ),
     (
         "Settings",
@@ -35,8 +35,14 @@ struct SidebarResize {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LibraryTab {
+    Songs,
+    Playlists,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Destination {
-    Library,
+    Library(LibraryTab),
     Settings,
 }
 

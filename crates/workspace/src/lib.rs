@@ -1,9 +1,11 @@
+mod navigation;
 mod player_bar;
 mod sidebar;
 mod title_bar;
 
+pub use navigation::{Navigation, NavigationEvent};
 pub use player_bar::PlayerBar;
-pub use sidebar::{Destination, Sidebar, SidebarEvent};
+pub use sidebar::{Destination, LibraryTab, Sidebar, SidebarEvent};
 pub use title_bar::TitleBar;
 
 use gpui::prelude::*;
@@ -21,11 +23,12 @@ pub struct Workspace {
 impl Workspace {
     pub fn new(
         sidebar: Entity<Sidebar>,
+        navigation: Entity<Navigation>,
         playback: Entity<Playback>,
         content: AnyView,
         cx: &mut Context<Self>,
     ) -> Self {
-        let title_bar = cx.new(|cx| TitleBar::new(sidebar.clone(), cx));
+        let title_bar = cx.new(|cx| TitleBar::new(sidebar.clone(), navigation, cx));
         let player_bar = cx.new(|cx| PlayerBar::new(playback, cx));
 
         Self {
