@@ -24,6 +24,7 @@ const ICONS: &[(&str, &[u8])] = icons![
     "panel-right-close",
     "panel-right-open",
     "play",
+    "play-off",
     "refresh-cw",
     "search",
     "settings",

@@ -12,6 +12,7 @@ use crate::cells::{self, ALWAYS, ARTWORK_COLUMN, NUMBER, ROOMY, SNUG, TRAILING, 
 const PLAY: &str = "icons/play.svg";
 const PLAYING: &str = "icons/music-2.svg";
 const PAUSE: &str = "icons/pause.svg";
+const UNAVAILABLE: &str = "icons/play-off.svg";
 const GLYPH: Pixels = px(11.);
 const HIT: Pixels = px(18.);
 
@@ -196,40 +197,48 @@ impl TrackSource {
                     .child(resting),
             );
 
-        if track.playable {
-            let playback = self.playback.clone();
-            let queued = self.provider.tracks(cx).to_vec();
-            let row = cell.row;
-            let icon = match playing {
-                true => PAUSE,
-                false => PLAY,
-            };
+        let playback = self.playback.clone();
+        let queued = self.provider.tracks(cx).to_vec();
+        let row = cell.row;
+        let icon = match playing {
+            true => PAUSE,
+            false => track.playable.then(|| PLAY).unwrap_or(UNAVAILABLE),
+        };
 
-            stack = stack.child(
-                div()
-                    .id(("transport", cell.row))
-                    .absolute()
-                    .top_0()
-                    .left_0()
-                    .right_0()
-                    .bottom_0()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .invisible()
-                    .group_hover(ROW_GROUP, |style| style.visible())
-                    .cursor_pointer()
-                    .child(svg().path(icon).size(GLYPH).text_color(theme.foreground))
-                    .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                    .on_click(move |_, _, cx| {
-                        playback.update(cx, |playback, cx| match state {
-                            Some(PlaybackState::Playing) => playback.pause(cx),
-                            Some(PlaybackState::Paused) => playback.resume(cx),
-                            _ => playback.start(queued.clone(), row, cx),
-                        });
-                    }),
-            );
-        }
+        stack = stack.child(
+            div()
+                .id(("transport", cell.row))
+                .absolute()
+                .top_0()
+                .left_0()
+                .right_0()
+                .bottom_0()
+                .flex()
+                .items_center()
+                .justify_center()
+                .invisible()
+                .group_hover(ROW_GROUP, |style| style.visible())
+                .child(svg().path(icon).size(GLYPH).text_color(if track.playable {
+                    theme.foreground
+                } else {
+                    theme.muted_foreground
+                }))
+                .when_else(
+                    track.playable,
+                    |this| this.cursor_pointer(),
+                    |this| this.cursor_not_allowed(),
+                )
+                .when(track.playable, |this| {
+                    this.on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                        .on_click(move |_, _, cx| {
+                            playback.update(cx, |playback, cx| match state {
+                                Some(PlaybackState::Playing) => playback.pause(cx),
+                                Some(PlaybackState::Paused) => playback.resume(cx),
+                                _ => playback.start(queued.clone(), row, cx),
+                            });
+                        })
+                }),
+        );
 
         cell.frame()
             .h_full()
