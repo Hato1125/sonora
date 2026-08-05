@@ -81,16 +81,15 @@ impl AlbumView {
     }
 
     fn play(&mut self, display: usize, cx: &mut Context<Self>) {
-        let track = {
+        let queued = {
             let state = self.table.read(cx);
-            let row = state.delegate().row(display);
-            state.delegate().source().at(row, cx)
-        };
-        let Some(track) = track else {
-            return;
+            let delegate = state.delegate();
+            (0..delegate.row_count())
+                .filter_map(|row| delegate.source().at(delegate.row(row), cx))
+                .collect::<Vec<_>>()
         };
         self.playback
-            .update(cx, |playback, cx| playback.play(&track, cx));
+            .update(cx, |playback, cx| playback.start(queued, display, cx));
     }
 
     fn resize(&mut self, window: &Window, cx: &mut Context<Self>) {

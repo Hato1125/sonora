@@ -11,7 +11,7 @@ pub use title_bar::TitleBar;
 use gpui::prelude::*;
 use gpui::{AnyView, Context, Entity, Render};
 use gpui::{Window, div};
-use state::Playback;
+use state::{Playback, Queue};
 
 pub struct Workspace {
     title_bar: Entity<TitleBar>,
@@ -25,11 +25,12 @@ impl Workspace {
         sidebar: Entity<Sidebar>,
         navigation: Entity<Navigation>,
         playback: Entity<Playback>,
+        queue: Entity<Queue>,
         content: AnyView,
         cx: &mut Context<Self>,
     ) -> Self {
         let title_bar = cx.new(|cx| TitleBar::new(sidebar.clone(), navigation, cx));
-        let player_bar = cx.new(|cx| PlayerBar::new(playback, cx));
+        let player_bar = cx.new(|cx| PlayerBar::new(playback, queue, cx));
 
         Self {
             title_bar,

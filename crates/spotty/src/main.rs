@@ -7,7 +7,7 @@ use gpui::{
     App, AppContext as _, Bounds, Entity, KeyBinding, Menu, MenuItem, TitlebarOptions,
     WindowBounds, WindowOptions, actions, point, px, size,
 };
-use state::{Library, Playback, Session, Spotty};
+use state::{Library, Playback, Queue, Session, Spotty};
 use views::Root;
 
 actions!(spotty, [Quit, SignOut, RefreshLibrary]);
@@ -42,10 +42,16 @@ fn main() {
                 session,
                 library,
                 playback,
+                queue,
             } = Spotty::global(cx);
-            let (session, library, playback) = (session.clone(), library.clone(), playback.clone());
+            let (session, library, playback, queue) = (
+                session.clone(),
+                library.clone(),
+                playback.clone(),
+                queue.clone(),
+            );
 
-            open_window(session.clone(), library, playback, cx);
+            open_window(session.clone(), library, playback, queue, cx);
             session.update(cx, |session, cx| session.restore(cx));
 
             cx.activate(true);
@@ -56,6 +62,7 @@ fn open_window(
     session: Entity<Session>,
     library: Entity<Library>,
     playback: Entity<Playback>,
+    queue: Entity<Queue>,
     cx: &mut App,
 ) {
     let bounds = Bounds::centered(None, size(px(920.), px(640.)), cx);
@@ -78,7 +85,7 @@ fn open_window(
         },
         |window, cx| {
             window.set_rem_size(px(13.));
-            cx.new(|cx| Root::new(session, library, playback, window, cx))
+            cx.new(|cx| Root::new(session, library, playback, queue, window, cx))
         },
     )
     .expect("failed to open window");

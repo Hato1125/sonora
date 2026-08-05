@@ -1,7 +1,7 @@
 use gpui::prelude::*;
 use gpui::{AnyView, Context, Entity, Render};
 use gpui::{Window, div};
-use state::{AlbumDetail, Io, Library, Playback, Session, SessionState};
+use state::{AlbumDetail, Io, Library, Playback, Queue, Session, SessionState};
 use ui::ActiveTheme as _;
 use workspace::{
     Destination, LibraryTab, Navigation, NavigationEvent, Sidebar, SidebarEvent, Workspace,
@@ -29,6 +29,7 @@ impl Root {
         session: Entity<Session>,
         library: Entity<Library>,
         playback: Entity<Playback>,
+        queue: Entity<Queue>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -88,6 +89,7 @@ impl Root {
                 sidebar,
                 navigation,
                 playback,
+                queue,
                 library_view.clone().into(),
                 cx,
             )

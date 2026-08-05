@@ -198,7 +198,8 @@ impl TrackSource {
 
         if track.playable {
             let playback = self.playback.clone();
-            let target = track.clone();
+            let queued = self.provider.tracks(cx).to_vec();
+            let row = cell.row;
             let icon = match playing {
                 true => PAUSE,
                 false => PLAY,
@@ -224,7 +225,7 @@ impl TrackSource {
                         playback.update(cx, |playback, cx| match state {
                             Some(PlaybackState::Playing) => playback.pause(cx),
                             Some(PlaybackState::Paused) => playback.resume(cx),
-                            _ => playback.play(&target, cx),
+                            _ => playback.start(queued.clone(), row, cx),
                         });
                     }),
             );

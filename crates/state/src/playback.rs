@@ -4,6 +4,7 @@ use audio::{AudioEvent, AudioEvents, Engine, EngineConfig};
 use gpui::{Context, Entity, EventEmitter, Task};
 use spotify::Track;
 
+use crate::queue::Queue;
 use crate::{Session, SessionEvent};
 
 const POSITION_INTERVAL: Duration = Duration::from_millis(500);
@@ -41,6 +42,7 @@ pub struct Playback {
     track: Option<Track>,
     engine: Option<Engine>,
     session: Entity<Session>,
+    queue: Entity<Queue>,
     level: f32,
     normalisation: bool,
     task: Option<Task<()>>,
@@ -51,7 +53,7 @@ pub struct Playback {
 impl EventEmitter<PlaybackEvent> for Playback {}
 
 impl Playback {
-    pub fn new(session: Entity<Session>, cx: &mut Context<Self>) -> Self {
+    pub fn new(session: Entity<Session>, queue: Entity<Queue>, cx: &mut Context<Self>) -> Self {
         cx.subscribe(&session, |this, session, event, cx| match event {
             SessionEvent::SignedIn => {
                 let Some(librespot) = session.read(cx).librespot() else {
@@ -69,6 +71,7 @@ impl Playback {
             track: None,
             engine: None,
             session,
+            queue,
             level: INITIAL_LEVEL,
             normalisation: true,
             task: None,
@@ -111,6 +114,30 @@ impl Playback {
             })
             .ok();
         }));
+    }
+
+    pub fn start(&mut self, tracks: Vec<Track>, index: usize, cx: &mut Context<Self>) {
+        let Some(track) = self
+            .queue
+            .update(cx, |queue, cx| queue.start(tracks, index, cx))
+        else {
+            return;
+        };
+        self.play(&track, cx);
+    }
+
+    pub fn next(&mut self, cx: &mut Context<Self>) {
+        let Some(track) = self.queue.update(cx, |queue, cx| queue.next(cx)) else {
+            return;
+        };
+        self.play(&track, cx);
+    }
+
+    pub fn previous(&mut self, cx: &mut Context<Self>) {
+        let Some(track) = self.queue.update(cx, |queue, cx| queue.previous(cx)) else {
+            return;
+        };
+        self.play(&track, cx);
     }
 
     pub fn resume(&mut self, cx: &mut Context<Self>) {
@@ -264,6 +291,7 @@ impl Playback {
                 self.position = Duration::ZERO;
                 self.track = None;
                 cx.emit(PlaybackEvent::EndedPlayback);
+                self.next(cx);
             }
             AudioEvent::Unavailable => {
                 let name = self.track.as_ref().map(|track| track.name.as_str());

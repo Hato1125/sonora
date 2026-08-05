@@ -4,7 +4,7 @@ use std::time::Duration;
 use gpui::prelude::*;
 use gpui::{svg, Context, Entity, MouseMoveEvent, MouseUpEvent, Render, SharedString};
 use gpui::{Window, div, px};
-use state::{Playback, PlaybackState};
+use state::{Playback, PlaybackState, Queue};
 
 use ui::{Artwork, Button, Scrubber, ScrubberState, clock};
 
@@ -19,6 +19,7 @@ const STEP: f32 = 0.004;
 
 pub struct PlayerBar {
     playback: Entity<Playback>,
+    queue: Entity<Queue>,
     seek: ScrubberState,
     volume: ScrubberState,
     pending: Option<f32>,
@@ -27,11 +28,13 @@ pub struct PlayerBar {
 }
 
 impl PlayerBar {
-    pub fn new(playback: Entity<Playback>, cx: &mut Context<Self>) -> Self {
+    pub fn new(playback: Entity<Playback>, queue: Entity<Queue>, cx: &mut Context<Self>) -> Self {
         cx.observe(&playback, |_, _, cx| cx.notify()).detach();
+        cx.observe(&queue, |_, _, cx| cx.notify()).detach();
 
         Self {
             playback,
+            queue,
             seek: ScrubberState::new("seek"),
             volume: ScrubberState::new("volume"),
             pending: None,
@@ -64,17 +67,36 @@ impl PlayerBar {
             .flex()
             .items_center()
             .gap_2()
-            .child(Self::skip("previous", "icons/skip-back.svg"))
+            .child(self.previous(cx))
             .child(self.toggle(cx))
-            .child(Self::skip("next", "icons/skip-forward.svg"))
+            .child(self.next(cx))
     }
 
-    fn skip(id: &'static str, icon: &'static str) -> Button {
-        Button::new(id)
+    fn previous(&self, cx: &mut Context<Self>) -> Button {
+        let enabled = self.queue.read(cx).has_previous();
+
+        Button::new("previous")
             .ghost()
             .small()
-            .icon(icon)
-            .disabled(true)
+            .icon("icons/skip-back.svg")
+            .disabled(!enabled)
+            .on_click(cx.listener(|this, _, _, cx| {
+                this.playback
+                    .update(cx, |playback, cx| playback.previous(cx));
+            }))
+    }
+
+    fn next(&self, cx: &mut Context<Self>) -> Button {
+        let enabled = self.queue.read(cx).has_next();
+
+        Button::new("next")
+            .ghost()
+            .small()
+            .icon("icons/skip-forward.svg")
+            .disabled(!enabled)
+            .on_click(cx.listener(|this, _, _, cx| {
+                this.playback.update(cx, |playback, cx| playback.next(cx));
+            }))
     }
 
     fn toggle(&self, cx: &mut Context<Self>) -> Button {
