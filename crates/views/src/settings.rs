@@ -1,12 +1,14 @@
 use gpui::prelude::*;
-use gpui::{Context, Entity, FontWeight, Render, Window, div, px};
-use state::{Playback, Session, SessionState};
+use gpui::{Context, Entity, FontWeight, Render, Window, deferred, div, px};
+use state::{AppSettings, Playback, Session, SessionState, Spotty};
 use ui::ActiveTheme as _;
-use ui::{Button, Initials, Skeleton};
+use ui::{Button, Initials, Skeleton, Theme, ThemeKind};
 
 pub struct SettingsView {
     session: Entity<Session>,
     playback: Entity<Playback>,
+    settings: Entity<AppSettings>,
+    themes_open: bool,
 }
 
 impl SettingsView {
@@ -15,9 +17,16 @@ impl SettingsView {
         playback: Entity<Playback>,
         cx: &mut Context<Self>,
     ) -> Self {
+        let settings = Spotty::global(cx).settings.clone();
         cx.observe(&session, |_, _, cx| cx.notify()).detach();
         cx.observe(&playback, |_, _, cx| cx.notify()).detach();
-        Self { session, playback }
+        cx.observe(&settings, |_, _, cx| cx.notify()).detach();
+        Self {
+            session,
+            playback,
+            settings,
+            themes_open: false,
+        }
     }
 
     fn profile(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -55,6 +64,90 @@ impl SettingsView {
                         _ => Skeleton::new().w(px(90.)).h(px(10.)).into_any_element(),
                     }),
             )
+    }
+
+    fn appearance_settings(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = cx.theme();
+        let muted = theme.muted_foreground;
+        let current = ThemeKind::from_id(self.settings.read(cx).theme());
+        let themes_open = self.themes_open;
+        let dropdown_background = theme.secondary;
+        let popover_foreground = theme.popover_foreground;
+        let border = theme.border;
+        let hover = theme.secondary_hover;
+        let selected = theme.secondary_active;
+
+        let picker = div()
+            .relative()
+            .child(
+                Button::new("theme-picker")
+                    .label(format!("{}  ▾", current.label()))
+                    .small()
+                    .outline()
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.themes_open = !this.themes_open;
+                        cx.notify();
+                    })),
+            )
+            .when(themes_open, |this| {
+                this.child(
+                    deferred(
+                        div()
+                            .id("theme-dropdown")
+                            .absolute()
+                            .top(px(30.))
+                            .right_0()
+                            .flex()
+                            .flex_col()
+                            .w(px(170.))
+                            .p_1()
+                            .rounded_md()
+                            .border_1()
+                            .border_color(border)
+                            .bg(dropdown_background)
+                            .text_color(popover_foreground)
+                            .occlude()
+                            .on_mouse_down_out(cx.listener(|this, _, _, cx| {
+                                this.themes_open = false;
+                                cx.notify();
+                            }))
+                            .children(ThemeKind::ALL.into_iter().map(|kind| {
+                                div()
+                                    .id(kind.id())
+                                    .flex()
+                                    .items_center()
+                                    .justify_between()
+                                    .px_3()
+                                    .py_2()
+                                    .rounded_md()
+                                    .cursor_pointer()
+                                    .when(current == kind, |this| this.bg(selected))
+                                    .hover(move |this| this.bg(hover))
+                                    .child(kind.label())
+                                    .when(current == kind, |this| this.child("✓"))
+                                    .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| {
+                                        cx.stop_propagation();
+                                    })
+                                    .on_click(cx.listener(move |this, _, _, cx| {
+                                        this.settings.update(cx, |settings, cx| {
+                                            settings.set_theme(kind.id(), cx);
+                                        });
+                                        this.themes_open = false;
+                                        Theme::set(kind, cx);
+                                        cx.notify();
+                                    }))
+                            })),
+                    )
+                    .with_priority(1),
+                )
+            });
+
+        self.row(
+            "Theme",
+            "Choose the application colour palette",
+            muted,
+            picker.into_any_element(),
+        )
     }
 
     fn playback_settings(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -135,6 +228,8 @@ impl Render for SettingsView {
                 .max_w(px(640.))
                 .p_6()
                 .child(self.profile(cx))
+                .child(div().h(px(1.)).w_full().bg(border))
+                .child(self.appearance_settings(cx))
                 .child(div().h(px(1.)).w_full().bg(border))
                 .child(self.playback_settings(cx))
                 .child(div().h(px(1.)).w_full().bg(border))
