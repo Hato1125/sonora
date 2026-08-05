@@ -19,6 +19,8 @@ const BAR: Pixels = px(6.);
 const MIN_THUMB: Pixels = px(24.);
 const SLACK: Pixels = px(2.);
 
+pub const ROW_GROUP: &str = "grid-row";
+
 #[derive(Clone, Copy)]
 pub enum Width {
     Fixed(Pixels),
@@ -391,6 +393,7 @@ impl<S: GridSource> GridState<S> {
 
                         div()
                             .id(("row", display))
+                            .group(ROW_GROUP)
                             .flex()
                             .items_center()
                             .h(ROW)

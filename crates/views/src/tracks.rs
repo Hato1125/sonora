@@ -1,12 +1,18 @@
 use std::cmp::Ordering;
 use ui::ActiveTheme as _;
 
-use gpui::{AnyElement, App, Entity, TextAlign};
+use gpui::prelude::*;
+use gpui::{AnyElement, App, Entity, MouseButton, Pixels, TextAlign, div, px, svg};
 use spotify::Track;
 use state::{Playback, PlaybackState};
-use ui::{Cell, ColumnSpec, GridSource, Width, clock};
+use ui::{Cell, ColumnSpec, GridSource, ROW_GROUP, Width, clock};
 
 use crate::cells::{self, ALWAYS, ARTWORK_COLUMN, NUMBER, ROOMY, SNUG, TRAILING, WIDE};
+
+const PLAY: &str = "icons/play.svg";
+const PAUSE: &str = "icons/pause.svg";
+const GLYPH: Pixels = px(11.);
+const HIT: Pixels = px(18.);
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TrackField {
@@ -148,6 +154,84 @@ impl TrackSource {
         }
     }
 
+    fn index_cell(&self, cell: &Cell<TrackField>, track: &Track, cx: &App) -> AnyElement {
+        let theme = *cx.theme();
+        let state = self.now_playing(track, cx);
+        let playing = matches!(state, Some(PlaybackState::Playing));
+
+        let resting = match &state {
+            Some(PlaybackState::Playing) => svg()
+                .path(PLAY)
+                .size(GLYPH)
+                .text_color(theme.foreground)
+                .into_any_element(),
+            Some(_) => svg()
+                .path(PAUSE)
+                .size(GLYPH)
+                .text_color(theme.muted_foreground)
+                .into_any_element(),
+            None => {
+                let color = match track.playable {
+                    true => theme.muted_foreground,
+                    false => theme.muted_foreground.opacity(0.5),
+                };
+                div()
+                    .text_color(color)
+                    .child(format!("{}", cell.display + 1))
+                    .into_any_element()
+            }
+        };
+
+        let mut stack = div()
+            .relative()
+            .flex()
+            .items_center()
+            .justify_center()
+            .size(HIT)
+            .child(
+                div()
+                    .flex()
+                    .group_hover(ROW_GROUP, |style| style.invisible())
+                    .child(resting),
+            );
+
+        if track.playable {
+            let playback = self.playback.clone();
+            let target = track.clone();
+            let icon = match playing {
+                true => PAUSE,
+                false => PLAY,
+            };
+
+            stack = stack.child(
+                div()
+                    .id(("transport", cell.row))
+                    .absolute()
+                    .top_0()
+                    .left_0()
+                    .right_0()
+                    .bottom_0()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .invisible()
+                    .group_hover(ROW_GROUP, |style| style.visible())
+                    .cursor_pointer()
+                    .child(svg().path(icon).size(GLYPH).text_color(theme.foreground))
+                    .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                    .on_click(move |_, _, cx| {
+                        playback.update(cx, |playback, cx| match state {
+                            Some(PlaybackState::Playing) => playback.pause(cx),
+                            Some(PlaybackState::Paused) => playback.resume(cx),
+                            _ => playback.play(&target, cx),
+                        });
+                    }),
+            );
+        }
+
+        cell.frame().child(stack).into_any_element()
+    }
+
     fn now_playing(&self, track: &Track, cx: &App) -> Option<PlaybackState> {
         let playback = self.playback.read(cx);
         let current = playback.track()?;
@@ -182,15 +266,7 @@ impl GridSource for TrackSource {
         };
 
         if cell.field == TrackField::Index {
-            return match self.now_playing(track, cx) {
-                Some(PlaybackState::Playing) => {
-                    cells::icon(&cell, "icons/play.svg", cx.theme().foreground)
-                }
-                Some(PlaybackState::Paused) | Some(PlaybackState::Loading) => {
-                    cells::icon(&cell, "icons/pause.svg", muted)
-                }
-                _ => cells::dim(&cell, format!("{}", cell.display + 1), muted),
-            };
+            return self.index_cell(&cell, track, cx);
         }
         let faded = muted.opacity(0.5);
         let (title, detail) = match track.playable {
