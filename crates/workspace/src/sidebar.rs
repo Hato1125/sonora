@@ -2,7 +2,7 @@ use std::cell::Cell;
 use ui::ActiveTheme as _;
 
 use gpui::prelude::*;
-use gpui::{Context, DragMoveEvent, Empty, Entity, Pixels, Render};
+use gpui::{AnyElement, Context, DragMoveEvent, Empty, Entity, Pixels, Render};
 use gpui::{Window, div, px, svg};
 use router::{Destination, LibraryTab, Link as _, Navigation};
 use state::{AppSettings, Spotty};
@@ -22,6 +22,12 @@ const NAV: [(&str, &str, Option<Destination>); 4] = [
     ),
 ];
 
+const TABS: [(&str, LibraryTab); 3] = [
+    ("Songs", LibraryTab::Songs),
+    ("Albums", LibraryTab::Albums),
+    ("Playlists", LibraryTab::Playlists),
+];
+
 const MIN_WIDTH: Pixels = px(130.);
 const MAX_WIDTH: Pixels = px(400.);
 const NARROW: Pixels = px(520.);
@@ -38,6 +44,7 @@ pub struct Sidebar {
     open: bool,
     cramped: bool,
     forced: Option<bool>,
+    library_open: bool,
 }
 
 impl Sidebar {
@@ -56,6 +63,7 @@ impl Sidebar {
             open,
             forced: None,
             cramped: false,
+            library_open: true,
         }
     }
 
@@ -114,6 +122,116 @@ impl Render for Sidebar {
         let radius = theme.radius;
         let current = self.trail.read(cx).current();
         self.adapt(window, cx);
+
+        let mut rows: Vec<AnyElement> = Vec::new();
+        for (index, (label, icon, destination)) in NAV.into_iter().enumerate() {
+            if matches!(destination, Some(Destination::Library(_))) {
+                let inside = matches!(current, Destination::Library(_));
+                let text = if inside { foreground } else { muted };
+
+                rows.push(
+                    div()
+                        .id(index)
+                        .flex()
+                        .items_center()
+                        .gap_2p5()
+                        .h(nav)
+                        .px_3()
+                        .rounded(radius)
+                        .cursor_pointer()
+                        .hover(move |style| style.bg(sidebar_accent))
+                        .child(svg().path(icon).size_4().flex_none().text_color(text))
+                        .child(div().text_color(text).child(label))
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.library_open = !this.library_open;
+                            cx.notify();
+                        }))
+                        .into_any_element(),
+                );
+
+                if self.library_open {
+                    let middle = nav / 2.;
+
+                    rows.push(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .ml_4()
+                            .children(TABS.into_iter().enumerate().map(|(step, (name, tab))| {
+                                let chosen = current == Destination::Library(tab);
+                                let tint = if chosen { foreground } else { muted };
+                                let tail = step + 1 == TABS.len();
+
+                                div()
+                                    .relative()
+                                    .flex()
+                                    .items_center()
+                                    .h(nav)
+                                    .pl_3()
+                                    .child(
+                                        div()
+                                            .absolute()
+                                            .left_0()
+                                            .top_0()
+                                            .w(px(1.))
+                                            .h(if tail { middle } else { nav })
+                                            .bg(sidebar_border),
+                                    )
+                                    .child(
+                                        div()
+                                            .absolute()
+                                            .left_0()
+                                            .top(middle)
+                                            .w(px(6.))
+                                            .h(px(1.))
+                                            .bg(sidebar_border),
+                                    )
+                                    .child(
+                                        div()
+                                            .id(name)
+                                            .flex()
+                                            .flex_1()
+                                            .items_center()
+                                            .h(nav)
+                                            .px_3()
+                                            .rounded(radius)
+                                            .cursor_pointer()
+                                            .when(chosen, |this| this.bg(sidebar_accent))
+                                            .hover(move |style| style.bg(sidebar_accent))
+                                            .child(div().text_color(tint).child(name))
+                                            .link(Destination::Library(tab)),
+                                    )
+                            }))
+                            .into_any_element(),
+                    );
+                }
+                continue;
+            }
+
+            let active = destination
+                .as_ref()
+                .is_some_and(|it| it.same_section(&current));
+            let text = if active { foreground } else { muted };
+
+            rows.push(
+                div()
+                    .id(index)
+                    .flex()
+                    .items_center()
+                    .gap_2p5()
+                    .h(nav)
+                    .px_3()
+                    .rounded(radius)
+                    .cursor_pointer()
+                    .when(active, |this| this.bg(sidebar_accent))
+                    .hover(move |style| style.bg(sidebar_accent))
+                    .child(svg().path(icon).size_4().flex_none().text_color(text))
+                    .child(div().text_color(text).child(label))
+                    .when_some(destination, |this, destination| this.link(destination))
+                    .into_any_element(),
+            );
+        }
+
         div()
             .flex()
             .flex_col()
@@ -125,36 +243,7 @@ impl Render for Sidebar {
             .bg(sidebar_bg)
             .border_r_1()
             .border_color(sidebar_border)
-            .child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .gap_1()
-                    .p_3()
-                    .children(NAV.into_iter().enumerate().map(
-                        |(index, (label, icon, destination))| {
-                            let active = destination
-                                .as_ref()
-                                .is_some_and(|it| it.same_section(&current));
-                            let text = if active { foreground } else { muted };
-
-                            div()
-                                .id(index)
-                                .flex()
-                                .items_center()
-                                .gap_2p5()
-                                .h(nav)
-                                .px_3()
-                                .rounded(radius)
-                                .cursor_pointer()
-                                .when(active, |this| this.bg(sidebar_accent))
-                                .hover(move |style| style.bg(sidebar_accent))
-                                .child(svg().path(icon).size_4().flex_none().text_color(text))
-                                .child(div().text_color(text).child(label))
-                                .when_some(destination, |this, destination| this.link(destination))
-                        },
-                    )),
-            )
+            .child(div().flex().flex_col().gap_1().p_3().children(rows))
             .child(
                 div()
                     .id("sidebar-resize-handle")
