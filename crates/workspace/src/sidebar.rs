@@ -8,7 +8,7 @@ use state::{AppSettings, Spotty};
 
 const NAV: [(&str, &str, Option<Destination>); 4] = [
     ("Home", "icons/house.svg", None),
-    ("Search", "icons/search.svg", None),
+    ("Search", "icons/search.svg", Some(Destination::Search)),
     (
         "Your Library",
         "icons/library-big.svg",
@@ -41,6 +41,7 @@ pub enum Destination {
     Library(LibraryTab),
     Album(SharedString),
     Playlist(SharedString),
+    Search,
     Settings,
 }
 

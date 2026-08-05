@@ -3,6 +3,7 @@ mod detail;
 mod library;
 mod login;
 mod root;
+mod search;
 mod settings;
 mod tracks;
 

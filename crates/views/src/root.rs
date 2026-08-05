@@ -1,12 +1,14 @@
 use gpui::prelude::*;
 use gpui::{AnyView, Context, Entity, Render};
 use gpui::{Window, div};
-use state::{Detail, Io, Library, Playback, Queue, Session, SessionState};
+use input::OpenSearch;
+use state::{Detail, Io, Library, Playback, Queue, Search, Session, SessionState};
 use ui::ActiveTheme as _;
 use workspace::{
     Destination, LibraryTab, Navigation, NavigationEvent, Sidebar, SidebarEvent, Workspace,
 };
 
+use crate::search::SearchView;
 use crate::tracks::{ALBUM_COLUMNS, LIBRARY_COLUMNS};
 use crate::{DetailView, LibraryToolbar, LibraryView, LoginView, SettingsView};
 
@@ -17,13 +19,21 @@ struct Screens {
     album_detail: Entity<Detail>,
     playlist: Entity<DetailView>,
     playlist_detail: Entity<Detail>,
+    search: Entity<SearchView>,
     settings: Entity<SettingsView>,
+}
+
+enum Focus {
+    Search,
+    Workspace,
 }
 
 pub struct Root {
     session: Entity<Session>,
     login: Entity<LoginView>,
     workspace: Entity<Workspace>,
+    navigation: Entity<Navigation>,
+    pending: Option<Focus>,
     screens: Screens,
 }
 
@@ -73,6 +83,7 @@ impl Root {
             cx.new(|cx| LibraryToolbar::new(library_view.clone(), navigation.clone(), cx));
 
         let io = Io::global(cx);
+        let search_library = library.clone();
         let album_detail =
             cx.new(|cx| Detail::new(session.clone(), library.clone(), io.clone(), cx));
         let album = cx.new(|cx| {
@@ -87,7 +98,7 @@ impl Root {
             )
         });
 
-        let playlist_detail = cx.new(|cx| Detail::new(session.clone(), library, io, cx));
+        let playlist_detail = cx.new(|cx| Detail::new(session.clone(), library, io.clone(), cx));
         let playlist = cx.new(|cx| {
             DetailView::new(
                 playlist_detail.clone(),
@@ -100,13 +111,24 @@ impl Root {
             )
         });
 
+        let queries = cx.new(|cx| Search::new(session.clone(), search_library, io.clone(), cx));
+        let search = cx.new(|cx| {
+            SearchView::new(
+                queries,
+                playback.clone(),
+                navigation.clone(),
+                sidebar.clone(),
+                cx,
+            )
+        });
+
         let settings = cx.new(|cx| SettingsView::new(session.clone(), playback.clone(), cx));
 
         let start = navigation.read(cx).current();
         let workspace = cx.new(|cx| {
             Workspace::new(
                 sidebar,
-                navigation,
+                navigation.clone(),
                 playback,
                 queue,
                 library_view.clone().into(),
@@ -118,6 +140,8 @@ impl Root {
             session,
             login,
             workspace,
+            navigation,
+            pending: None,
             screens: Screens {
                 library: library_view,
                 library_toolbar,
@@ -125,6 +149,7 @@ impl Root {
                 album_detail,
                 playlist,
                 playlist_detail,
+                search,
                 settings,
             },
         };
@@ -132,7 +157,19 @@ impl Root {
         root
     }
 
+    fn open_search(&mut self, cx: &mut Context<Self>) {
+        self.navigation
+            .update(cx, |navigation, cx| navigation.go(Destination::Search, cx));
+        self.pending = Some(Focus::Search);
+        cx.notify();
+    }
+
     fn show(&mut self, destination: Destination, cx: &mut Context<Self>) {
+        self.pending = Some(match destination {
+            Destination::Search => Focus::Search,
+            _ => Focus::Workspace,
+        });
+
         let (content, toolbar): (AnyView, Option<AnyView>) = match destination {
             Destination::Library(tab) => {
                 self.screens
@@ -155,6 +192,7 @@ impl Root {
                     .update(cx, |detail, cx| detail.open_playlist(&id, cx));
                 (self.screens.playlist.clone().into(), None)
             }
+            Destination::Search => (self.screens.search.clone().into(), None),
             Destination::Settings => (self.screens.settings.clone().into(), None),
         };
 
@@ -167,12 +205,24 @@ impl Root {
 }
 
 impl Render for Root {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = cx.theme();
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let show_sign_in = match self.session.read(cx).state() {
             SessionState::SignedOut | SessionState::Failed(_) | SessionState::Authorizing => true,
             SessionState::Restoring | SessionState::SignedIn(_) => false,
         };
+
+        match self.pending.take() {
+            Some(Focus::Search) => self
+                .screens
+                .search
+                .update(cx, |search, cx| search.focus(window, cx)),
+            Some(Focus::Workspace) => self
+                .workspace
+                .update(cx, |workspace, cx| workspace.focus(window, cx)),
+            None => {}
+        }
+
+        let theme = cx.theme();
 
         div()
             .flex()
@@ -180,6 +230,7 @@ impl Render for Root {
             .size_full()
             .bg(theme.background)
             .text_color(theme.foreground)
+            .on_action(cx.listener(|this, _: &OpenSearch, _, cx| this.open_search(cx)))
             .when_else(
                 show_sign_in,
                 |this| this.child(self.login.clone()),
