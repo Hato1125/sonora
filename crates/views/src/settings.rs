@@ -1,8 +1,8 @@
-use ui::{Button, Initials, Skeleton};
-use ui::ActiveTheme as _;
 use gpui::prelude::*;
 use gpui::{Context, Entity, FontWeight, Render, Window, div, px};
 use state::{Playback, Session, SessionState};
+use ui::ActiveTheme as _;
+use ui::{Button, Initials, Skeleton};
 
 pub struct SettingsView {
     session: Entity<Session>,
@@ -28,8 +28,9 @@ impl SettingsView {
             .items_center()
             .gap_4()
             .child(match self.session.read(cx).state() {
-                SessionState::SignedIn(profile) => Initials::new(profile.display_name.clone(), px(64.))
-                    .into_any_element(),
+                SessionState::SignedIn(profile) => {
+                    Initials::new(profile.display_name.clone(), px(64.)).into_any_element()
+                }
                 _ => Skeleton::new().size(px(64.)).circle().into_any_element(),
             })
             .child(
@@ -38,14 +39,16 @@ impl SettingsView {
                     .flex_col()
                     .gap_1()
                     .child(match self.session.read(cx).state() {
-                        SessionState::SignedIn(profile) => div().child(profile.display_name.clone())
+                        SessionState::SignedIn(profile) => div()
+                            .child(profile.display_name.clone())
                             .text_size(px(18.))
                             .font_weight(FontWeight::SEMIBOLD)
                             .into_any_element(),
                         _ => Skeleton::new().w(px(140.)).h(px(14.)).into_any_element(),
                     })
                     .child(match self.session.read(cx).state() {
-                        SessionState::SignedIn(profile) => div().child(profile.id.clone())
+                        SessionState::SignedIn(profile) => div()
+                            .child(profile.id.clone())
                             .text_color(muted)
                             .text_size(px(11.))
                             .into_any_element(),

@@ -45,11 +45,7 @@ pub async fn saved_uris(session: &Session, prefix: &str, limit: usize) -> Result
 
         let page = response(&raw).context("cannot decode the collection page")?;
 
-        found.extend(
-            page.uris
-                .into_iter()
-                .filter(|uri| uri.starts_with(prefix)),
-        );
+        found.extend(page.uris.into_iter().filter(|uri| uri.starts_with(prefix)));
 
         token = page.next;
         if found.len() >= limit || token.is_empty() {

@@ -1,8 +1,8 @@
-use ui::ActiveTheme as _;
 use std::time::Duration;
+use ui::ActiveTheme as _;
 
 use gpui::prelude::*;
-use gpui::{svg, Context, Entity, MouseMoveEvent, MouseUpEvent, Render, SharedString};
+use gpui::{Context, Entity, MouseMoveEvent, MouseUpEvent, Render, SharedString, svg};
 use gpui::{Window, div, px};
 use state::{Playback, PlaybackState, Queue};
 
@@ -142,17 +142,20 @@ impl PlayerBar {
                         .flex_1()
                         .min_w_0()
                         .child(match &track {
-                            Some(track) => div().child(SharedString::from(track.name.clone()))
+                            Some(track) => div()
+                                .child(SharedString::from(track.name.clone()))
                                 .w_full()
                                 .truncate(),
-                            None => div().child("Nothing playing")
+                            None => div()
+                                .child("Nothing playing")
                                 .w_full()
                                 .text_color(muted)
                                 .truncate(),
                         })
                         .when_some(track, |this, track| {
                             this.child(
-                                div().child(SharedString::from(track.artists))
+                                div()
+                                    .child(SharedString::from(track.artists))
                                     .w_full()
                                     .text_color(muted)
                                     .text_size(px(11.))
@@ -213,7 +216,8 @@ impl Render for PlayerBar {
         let volume_bubble = self.over_volume.map(|at| (at, percent(at)));
 
         let clock_label = |value: Duration, align_end: bool| {
-            div().child(clock(value))
+            div()
+                .child(clock(value))
                 .w(px(CLOCK_WIDTH))
                 .flex_none()
                 .text_size(px(10.))

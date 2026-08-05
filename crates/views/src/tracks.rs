@@ -5,8 +5,8 @@ use gpui::prelude::*;
 use gpui::{AnyElement, App, Entity, Hsla, TextAlign, div, svg};
 use spotify::Track;
 use state::{Playback, PlaybackState};
-use workspace::{Destination, Navigation};
 use ui::{Cell, ColumnSpec, GridSource, Width, clock};
+use workspace::{Destination, Navigation};
 
 use crate::cells::{self, ALWAYS, ARTWORK_COLUMN, GLYPH, NUMBER, ROOMY, SNUG, TRAILING, WIDE};
 

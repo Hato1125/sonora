@@ -1,9 +1,9 @@
+use crate::skeleton::Skeleton;
 use crate::theme::ActiveTheme as _;
 use gpui::prelude::*;
-use gpui::{svg, 
-    AnyElement, App, Div, IntoElement, Pixels, SharedString, SharedUri, Window, div, img, px,
+use gpui::{
+    AnyElement, App, Div, IntoElement, Pixels, SharedString, SharedUri, Window, div, img, px, svg,
 };
-use crate::skeleton::Skeleton;
 
 const FALLBACK_ICON: &str = "icons/music.svg";
 

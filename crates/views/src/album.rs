@@ -1,15 +1,15 @@
-use ui::ActiveTheme as _;
 use gpui::prelude::*;
 use gpui::{
     AnyElement, App, Context, Entity, FontWeight, Pixels, Render, SharedString, Window, div, px,
 };
 use spotify::{Album, Track};
 use state::{AlbumDetail, Playback};
+use ui::ActiveTheme as _;
 use ui::{Artwork, GridDelegate, GridEvent, GridState, grid};
 
 use crate::cells;
-use workspace::{Navigation, Sidebar};
 use crate::tracks::{ALBUM_COLUMNS, TrackSource, Tracks};
+use workspace::{Navigation, Sidebar};
 
 const PADDING: Pixels = px(24.);
 const INSET: Pixels = px(50.);
@@ -156,12 +156,7 @@ impl AlbumView {
                             .truncate()
                             .child(name),
                     )
-                    .child(
-                        div()
-                            .text_color(muted)
-                            .truncate()
-                            .children(album.map(meta)),
-                    ),
+                    .child(div().text_color(muted).truncate().children(album.map(meta))),
             )
             .into_any_element()
     }

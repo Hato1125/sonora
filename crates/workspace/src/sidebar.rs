@@ -1,5 +1,5 @@
-use ui::ActiveTheme as _;
 use std::cell::Cell;
+use ui::ActiveTheme as _;
 
 use gpui::prelude::*;
 use gpui::{Context, DragMoveEvent, Empty, EventEmitter, Pixels, Render, SharedString};
