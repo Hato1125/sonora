@@ -5,12 +5,9 @@ mod client;
 mod collection;
 mod collection2;
 mod models;
+mod pb;
 mod profiles;
 mod wire;
-
-mod protos {
-    include!(concat!(env!("OUT_DIR"), "/protos/mod.rs"));
-}
 
 pub use auth::AuthConfig;
 pub use client::{LibrespotClient, SpotifyApi};
