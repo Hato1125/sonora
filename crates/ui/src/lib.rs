@@ -11,8 +11,8 @@ mod time;
 pub use artwork::Artwork;
 pub use button::Button;
 pub use grid::{
-    Cell, ColumnSpec, GridDelegate, GridEvent, GridSource, GridState, ROW, ROW_GROUP, Viewport,
-    Width, grid,
+    Cell, ColumnSpec, Grid, GridDelegate, GridEvent, GridSource, GridState, ROW, ROW_GROUP,
+    Viewport, Width, grid,
 };
 pub use menu::{Menu, MenuItem};
 pub use scrollbar::{scrollbar, scrolled};

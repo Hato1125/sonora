@@ -2,8 +2,8 @@ use std::cmp::Ordering;
 
 use gpui::prelude::*;
 use gpui::{
-    AnyElement, App, Context, Div, Entity, EventEmitter, MouseButton, MouseDownEvent, Pixels,
-    TextAlign, Window, div, px, svg,
+    AbsoluteLength, AnyElement, App, Context, Corners, Div, Entity, EventEmitter, Interactivity,
+    MouseButton, MouseDownEvent, Pixels, StyleRefinement, TextAlign, Window, div, px, svg,
 };
 
 use crate::theme::ActiveTheme as _;
@@ -249,6 +249,7 @@ impl Viewport {
 pub struct GridState<S: GridSource> {
     delegate: GridDelegate<S>,
     viewport: Viewport,
+    corners: Corners<Pixels>,
 }
 
 impl<S: GridSource> EventEmitter<GridEvent> for GridState<S> {}
@@ -258,6 +259,7 @@ impl<S: GridSource> GridState<S> {
         Self {
             delegate,
             viewport: Viewport::default(),
+            corners: Corners::default(),
         }
     }
 
@@ -299,7 +301,7 @@ impl<S: GridSource> GridState<S> {
         cx.notify();
     }
 
-    fn header(&self, cx: &mut Context<Self>) -> Div {
+    fn header(&self, top: Corners<Pixels>, cx: &mut Context<Self>) -> Div {
         let theme = *cx.theme();
         let heads: Vec<_> = self
             .delegate
@@ -324,6 +326,8 @@ impl<S: GridSource> GridState<S> {
             .flex_none()
             .h(ROW)
             .bg(theme.table_head)
+            .rounded_tl(top.top_left)
+            .rounded_tr(top.top_right)
             .border_b_1()
             .border_color(theme.table_row_border)
             .text_color(theme.table_head_foreground)
@@ -370,10 +374,12 @@ impl<S: GridSource> GridState<S> {
         let count = self.delegate.order.len();
         let first = self.viewport.first();
         let last = (first + self.viewport.rows()).min(count);
+        let bottom = self.corners.bottom_left.max(self.corners.bottom_right);
 
         (first..last)
             .map(|display| {
                 let row = self.delegate.row(display);
+                let tail = display + 1 == count;
                 let cells: Vec<AnyElement> = (0..self.delegate.columns.len())
                     .map(|ix| {
                         let column = &self.delegate.columns[ix];
@@ -408,8 +414,13 @@ impl<S: GridSource> GridState<S> {
                     .flex()
                     .items_center()
                     .h(ROW)
-                    .border_b_1()
-                    .border_color(theme.table_row_border)
+                    .when(tail, |this| {
+                        this.rounded_bl(self.corners.bottom_left)
+                            .rounded_br(self.corners.bottom_right)
+                    })
+                    .when(!tail || bottom == Pixels::ZERO, |this| {
+                        this.border_b_1().border_color(theme.table_row_border)
+                    })
                     .hover(move |style| style.bg(theme.table_hover))
                     .on_mouse_down(
                         MouseButton::Left,
@@ -423,6 +434,30 @@ impl<S: GridSource> GridState<S> {
                     .into_any_element()
             })
             .collect()
+    }
+}
+
+fn unpinned(corners: Corners<Pixels>, pinned: Pixels) -> Corners<Pixels> {
+    Corners {
+        top_left: (corners.top_left - pinned).max(Pixels::ZERO),
+        top_right: (corners.top_right - pinned).max(Pixels::ZERO),
+        ..Corners::default()
+    }
+}
+
+fn radii(style: &StyleRefinement, rem: Pixels) -> Corners<Pixels> {
+    let resolve = |length: Option<AbsoluteLength>| {
+        length
+            .map(|length| length.to_pixels(rem))
+            .unwrap_or_default()
+            .max(Pixels::ZERO)
+    };
+
+    Corners {
+        top_left: resolve(style.corner_radii.top_left),
+        top_right: resolve(style.corner_radii.top_right),
+        bottom_right: resolve(style.corner_radii.bottom_right),
+        bottom_left: resolve(style.corner_radii.bottom_left),
     }
 }
 
@@ -443,6 +478,7 @@ impl<S: GridSource> Render for GridState<S> {
         let backdrop = cx.theme().background;
         let height = self.height();
         let pinned = self.viewport.top.clamp(Pixels::ZERO, height - ROW);
+        let top = unpinned(self.corners, pinned);
 
         div()
             .relative()
@@ -457,11 +493,43 @@ impl<S: GridSource> Render for GridState<S> {
                     .left_0()
                     .w_full()
                     .bg(backdrop)
-                    .child(self.header(cx)),
+                    .rounded_tl(top.top_left)
+                    .rounded_tr(top.top_right)
+                    .child(self.header(top, cx)),
             )
     }
 }
 
-pub fn grid<S: GridSource>(state: &Entity<GridState<S>>) -> impl IntoElement {
-    state.clone()
+#[derive(IntoElement)]
+pub struct Grid<S: GridSource> {
+    base: Div,
+    state: Entity<GridState<S>>,
+}
+
+impl<S: GridSource> Styled for Grid<S> {
+    fn style(&mut self) -> &mut StyleRefinement {
+        self.base.style()
+    }
+}
+
+impl<S: GridSource> InteractiveElement for Grid<S> {
+    fn interactivity(&mut self) -> &mut Interactivity {
+        self.base.interactivity()
+    }
+}
+
+impl<S: GridSource> RenderOnce for Grid<S> {
+    fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let corners = radii(self.base.style(), window.rem_size());
+        self.state.update(cx, |state, _| state.corners = corners);
+
+        self.base.child(self.state)
+    }
+}
+
+pub fn grid<S: GridSource>(state: &Entity<GridState<S>>) -> Grid<S> {
+    Grid {
+        base: div(),
+        state: state.clone(),
+    }
 }
