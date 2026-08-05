@@ -32,9 +32,12 @@ fn main() {
         .with_assets(assets::Assets)
         .with_http_client(Arc::new(http::Client::new(io.handle())))
         .run(move |cx: &mut App| {
-            ui::Theme::init(cx);
-
             state::init(cx, io);
+            let theme = {
+                let settings = &Spotty::global(cx).settings;
+                ui::ThemeKind::from_id(settings.read(cx).theme())
+            };
+            ui::Theme::init(theme, cx);
 
             register_actions(cx);
 
@@ -43,6 +46,7 @@ fn main() {
                 library,
                 playback,
                 queue,
+                settings: _,
             } = Spotty::global(cx);
             let (session, library, playback, queue) = (
                 session.clone(),

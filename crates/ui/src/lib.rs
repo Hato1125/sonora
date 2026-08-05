@@ -18,5 +18,5 @@ pub use link::Linked;
 pub use scrollbar::{scrollbar, scrolled};
 pub use scrubber::{Scrubber, ScrubberState};
 pub use skeleton::{Initials, Skeleton};
-pub use theme::{ActiveTheme, Theme};
+pub use theme::{ActiveTheme, Theme, ThemeKind};
 pub use time::clock;
