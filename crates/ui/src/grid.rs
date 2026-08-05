@@ -1,9 +1,11 @@
+use std::cell::Cell as Slot;
 use std::cmp::Ordering;
 
 use gpui::prelude::*;
 use gpui::{
-    AnyElement, App, Context, Div, Entity, EventEmitter, MouseButton, MouseDownEvent, Pixels,
-    TextAlign, UniformListScrollHandle, Window, div, px, svg, uniform_list,
+    AnyElement, App, Context, Div, DragMoveEvent, Empty, Entity, EventEmitter, MouseButton,
+    MouseDownEvent, Pixels, Stateful, TextAlign, UniformListScrollHandle, Window, div, point,
+    px, svg, uniform_list,
 };
 
 use crate::theme::ActiveTheme as _;
@@ -15,6 +17,7 @@ const MIN_FLEXIBLE: Pixels = px(120.);
 const ROW: Pixels = px(32.);
 const BAR: Pixels = px(6.);
 const MIN_THUMB: Pixels = px(24.);
+const SLACK: Pixels = px(2.);
 
 #[derive(Clone, Copy)]
 pub enum Width {
@@ -180,8 +183,9 @@ impl<S: GridSource> GridDelegate<S> {
 
 fn build<F: Copy + PartialEq + 'static>(
     specs: &'static [ColumnSpec<F>],
-    available: Pixels,
+    room: Pixels,
 ) -> Vec<Resolved<F>> {
+    let available = (room - SLACK).max(MIN_FLEXIBLE);
     let mut visible: Vec<_> = specs
         .iter()
         .filter(|spec| available >= spec.hide_below)
@@ -225,6 +229,18 @@ fn build<F: Copy + PartialEq + 'static>(
 
 pub enum GridEvent {
     DoubleClicked(usize),
+}
+
+#[derive(Clone)]
+struct Grab {
+    start: Slot<Pixels>,
+    offset: Slot<Pixels>,
+}
+
+impl gpui::Render for Grab {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        Empty
+    }
 }
 
 pub struct GridState<S: GridSource> {
@@ -398,7 +414,7 @@ impl<S: GridSource> GridState<S> {
         .size_full()
     }
 
-    fn scrollbar(&self, cx: &mut Context<Self>) -> Option<Div> {
+    fn scrollbar(&self, cx: &mut Context<Self>) -> Option<Stateful<Div>> {
         let theme = *cx.theme();
         let (viewport, hidden, offset) = {
             let state = self.scroll.0.borrow();
@@ -417,21 +433,61 @@ impl<S: GridSource> GridState<S> {
         let thumb = (viewport * (viewport / content)).max(MIN_THUMB);
         let travel = viewport - thumb;
 
+        let scroll = self.scroll.clone();
+        let jump = self.scroll.clone();
+
         Some(
             div()
+                .id("grid-scrollbar")
+                .occlude()
                 .absolute()
                 .top_0()
                 .right_0()
                 .w(BAR)
                 .h_full()
+                .on_mouse_down(
+                    MouseButton::Left,
+                    move |event: &MouseDownEvent, _, _| {
+                        let handle = jump.0.borrow().base_handle.clone();
+                        let bounds = handle.bounds();
+                        let local = event.position.y - bounds.origin.y - thumb / 2.;
+                        let fraction = (local / (viewport - thumb)).clamp(0., 1.);
+                        handle.set_offset(point(Pixels::ZERO, -hidden * fraction));
+                    },
+                )
                 .child(
                     div()
+                        .id("grid-thumb")
                         .absolute()
                         .top(travel * progress)
                         .w(BAR)
                         .h(thumb)
                         .rounded_full()
-                        .bg(theme.muted_foreground.opacity(0.35)),
+                        .bg(theme.muted_foreground.opacity(0.35))
+                        .hover(move |style| style.bg(theme.muted_foreground.opacity(0.55)))
+                        .cursor_pointer()
+                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                        .on_drag(
+                            Grab {
+                                start: Slot::new(Pixels::ZERO),
+                                offset: Slot::new(offset),
+                            },
+                            |grab, _, window, cx| {
+                                grab.start.set(window.mouse_position().y);
+                                cx.new(|_| grab.clone())
+                            },
+                        )
+                        .on_drag_move(move |event: &DragMoveEvent<Grab>, _, cx| {
+                            let grab = event.drag(cx);
+                            let moved = event.event.position.y - grab.start.get();
+                            let scrolled = grab.offset.get() + moved * (hidden / travel);
+                            let clamped = scrolled.clamp(Pixels::ZERO, hidden);
+                            scroll
+                                .0
+                                .borrow()
+                                .base_handle
+                                .set_offset(point(Pixels::ZERO, -clamped));
+                        }),
                 ),
         )
     }
