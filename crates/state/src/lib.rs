@@ -2,6 +2,7 @@ mod detail;
 mod library;
 mod playback;
 mod queue;
+mod search;
 mod session;
 mod settings;
 
@@ -9,6 +10,7 @@ pub use detail::{Detail, Header};
 pub use library::{Library, LibraryState};
 pub use playback::{Playback, PlaybackState};
 pub use queue::Queue;
+pub use search::{AlbumHit, ArtistHit, Hit, Kind, Search};
 pub use session::{Session, SessionEvent, SessionState};
 pub use settings::AppSettings;
 
