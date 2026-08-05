@@ -8,6 +8,7 @@ mod models;
 mod pb;
 mod playlists;
 mod profiles;
+mod search;
 mod wire;
 
 pub use auth::AuthConfig;
