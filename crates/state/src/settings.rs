@@ -18,6 +18,13 @@ struct Values {
     normalisation: bool,
     sidebar_width: f32,
     sidebar_open: bool,
+    appearance: Appearance,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(default)]
+struct Appearance {
+    auto_hide_sidebar: bool,
     theme: String,
     theme_overrides: ThemeOverrides,
 }
@@ -30,6 +37,15 @@ impl Default for Values {
             normalisation: true,
             sidebar_width: DEFAULT_SIDEBAR_WIDTH,
             sidebar_open: true,
+            appearance: Appearance::default(),
+        }
+    }
+}
+
+impl Default for Appearance {
+    fn default() -> Self {
+        Self {
+            auto_hide_sidebar: true,
             theme: "dark".to_owned(),
             theme_overrides: ThemeOverrides::default(),
         }
@@ -80,12 +96,16 @@ impl AppSettings {
         self.values.sidebar_open
     }
 
+    pub fn auto_hide_sidebar(&self) -> bool {
+        self.values.appearance.auto_hide_sidebar
+    }
+
     pub fn theme(&self) -> &str {
-        &self.values.theme
+        &self.values.appearance.theme
     }
 
     pub fn theme_overrides(&self) -> &ThemeOverrides {
-        &self.values.theme_overrides
+        &self.values.appearance.theme_overrides
     }
 
     pub fn ensure_file(&self) -> PathBuf {
@@ -111,8 +131,13 @@ impl AppSettings {
         self.schedule_save(cx);
     }
 
+    pub fn set_auto_hide_sidebar(&mut self, auto_hide: bool, cx: &mut Context<Self>) {
+        self.values.appearance.auto_hide_sidebar = auto_hide;
+        self.schedule_save(cx);
+    }
+
     pub fn set_theme(&mut self, theme: impl Into<String>, cx: &mut Context<Self>) {
-        self.values.theme = theme.into();
+        self.values.appearance.theme = theme.into();
         self.schedule_save(cx);
     }
 
