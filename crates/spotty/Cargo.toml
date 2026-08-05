@@ -10,7 +10,9 @@ log.workspace = true
 gpui.workspace = true
 gpui_platform.workspace = true
 state.workspace = true
+input.workspace = true
 ui.workspace = true
 views.workspace = true
+workspace.workspace = true
 reqwest.workspace = true
 tokio = { workspace = true, features = ["rt"] }
