@@ -1,9 +1,11 @@
 use gpui::prelude::*;
-use gpui::{App, ClickEvent, ElementId, Hsla, MouseButton, SharedString, Window, div, px, svg};
+use gpui::{
+    App, ClickEvent, Div, ElementId, Hsla, Interactivity, MouseButton, SharedString, Stateful,
+    StyleRefinement, Window, div, px, svg,
+};
 
 use crate::theme::ActiveTheme as _;
 
-#[derive(Clone, Copy, PartialEq)]
 enum Variant {
     Secondary,
     Ghost,
@@ -14,26 +16,31 @@ enum Variant {
 
 #[derive(IntoElement)]
 pub struct Button {
-    id: ElementId,
+    base: Stateful<Div>,
     label: Option<SharedString>,
     icon: Option<SharedString>,
     variant: Variant,
     small: bool,
     disabled: bool,
     selected: bool,
+    hovered: Option<StyleRefinement>,
+    pressed: Option<StyleRefinement>,
     on_click: Option<Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>>,
 }
 
 impl Button {
+    #[track_caller]
     pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
-            id: id.into(),
+            base: div().id(id),
             label: None,
             icon: None,
             variant: Variant::Secondary,
             small: false,
             disabled: false,
             selected: false,
+            hovered: None,
+            pressed: None,
             on_click: None,
         }
     }
@@ -92,6 +99,30 @@ impl Button {
     }
 }
 
+impl Styled for Button {
+    fn style(&mut self) -> &mut StyleRefinement {
+        self.base.style()
+    }
+}
+
+impl InteractiveElement for Button {
+    fn interactivity(&mut self) -> &mut Interactivity {
+        self.base.interactivity()
+    }
+
+    fn hover(mut self, f: impl FnOnce(StyleRefinement) -> StyleRefinement) -> Self {
+        self.hovered = Some(f(self.hovered.take().unwrap_or_default()));
+        self
+    }
+}
+
+impl StatefulInteractiveElement for Button {
+    fn active(mut self, f: impl FnOnce(StyleRefinement) -> StyleRefinement) -> Self {
+        self.pressed = Some(f(self.pressed.take().unwrap_or_default()));
+        self
+    }
+}
+
 struct Palette {
     background: Option<Hsla>,
     hover: Option<Hsla>,
@@ -102,8 +133,35 @@ struct Palette {
 
 impl RenderOnce for Button {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let Self {
+            mut base,
+            label,
+            icon,
+            variant,
+            small,
+            disabled,
+            selected,
+            hovered,
+            pressed,
+            on_click,
+        } = self;
+
         let theme = cx.theme();
-        let palette = match self.variant {
+        let subtle = |border| Palette {
+            background: None,
+            hover: Some(theme.secondary),
+            active: Some(theme.secondary_active),
+            foreground: theme.foreground,
+            border,
+        };
+        let solid = |background, hover, foreground| Palette {
+            background: Some(background),
+            hover: Some(hover),
+            active: Some(hover),
+            foreground,
+            border: None,
+        };
+        let palette = match variant {
             Variant::Secondary => Palette {
                 background: Some(theme.secondary),
                 hover: Some(theme.secondary_hover),
@@ -111,47 +169,28 @@ impl RenderOnce for Button {
                 foreground: theme.foreground,
                 border: Some(theme.border),
             },
-            Variant::Ghost => Palette {
-                background: None,
-                hover: Some(theme.secondary),
-                active: Some(theme.secondary_active),
-                foreground: theme.foreground,
-                border: None,
-            },
-            Variant::Outline => Palette {
-                background: None,
-                hover: Some(theme.secondary),
-                active: Some(theme.secondary_active),
-                foreground: theme.foreground,
-                border: Some(theme.border),
-            },
-            Variant::Primary => Palette {
-                background: Some(theme.primary),
-                hover: Some(theme.primary_hover),
-                active: Some(theme.primary_hover),
-                foreground: theme.primary_foreground,
-                border: None,
-            },
-            Variant::Danger => Palette {
-                background: Some(theme.danger),
-                hover: Some(theme.danger_hover),
-                active: Some(theme.danger_hover),
-                foreground: theme.danger_foreground,
-                border: None,
-            },
+            Variant::Ghost => subtle(None),
+            Variant::Outline => subtle(Some(theme.border)),
+            Variant::Primary => solid(theme.primary, theme.primary_hover, theme.primary_foreground),
+            Variant::Danger => solid(theme.danger, theme.danger_hover, theme.danger_foreground),
         };
 
         let selected_background = theme.secondary_active;
         let radius = theme.radius;
-        let interactive = !self.disabled;
-        let (height, padding, gap) = if self.small {
-            (px(26.), px(8.), px(4.))
-        } else {
-            (px(32.), px(12.), px(6.))
+        let interactive = !disabled;
+        let (height, padding, gap) = match small {
+            true => (px(26.), px(8.), px(4.)),
+            false => (px(32.), px(12.), px(6.)),
         };
+        let (hover, active) = match interactive {
+            true => (palette.hover, palette.active),
+            false => (None, None),
+        };
+        let hovered = state_style(hover, hovered);
+        let pressed = state_style(active, pressed);
+        let overrides = std::mem::take(base.style());
 
-        div()
-            .id(self.id)
+        let mut button = base
             .flex()
             .flex_none()
             .items_center()
@@ -161,23 +200,17 @@ impl RenderOnce for Button {
             .px(padding)
             .rounded(radius)
             .text_color(palette.foreground)
-            .when(self.small, |this| this.text_size(px(12.)))
-            .when(self.disabled, |this| this.opacity(0.4))
+            .when(small, |this| this.text_size(px(12.)))
+            .when(disabled, |this| this.opacity(0.4))
             .when_some(palette.background, |this, background| this.bg(background))
-            .when(self.selected, |this| this.bg(selected_background))
+            .when(selected, |this| this.bg(selected_background))
             .when_some(palette.border, |this, border| {
                 this.border_1().border_color(border)
             })
-            .when(interactive, |this| {
-                this.cursor_pointer()
-                    .when_some(palette.hover, |this, hover| {
-                        this.hover(move |style| style.bg(hover))
-                    })
-                    .when_some(palette.active, |this, active| {
-                        this.active(move |style| style.bg(active))
-                    })
-            })
-            .when_some(self.icon, |this, path| {
+            .when(interactive, |this| this.cursor_pointer())
+            .when_some(hovered, |this, style| this.hover(move |_| style))
+            .when_some(pressed, |this, style| this.active(move |_| style))
+            .when_some(icon, |this, path| {
                 this.child(
                     svg()
                         .path(path)
@@ -186,12 +219,33 @@ impl RenderOnce for Button {
                         .text_color(palette.foreground),
                 )
             })
-            .when_some(self.label, |this, label| this.child(label))
+            .when_some(label, |this, label| this.child(label))
             .when(interactive, |this| {
-                this.when_some(self.on_click, |this, handler| {
+                this.when_some(on_click, |this, handler| {
                     this.on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                         .on_click(move |event, window, cx| handler(event, window, cx))
                 })
-            })
+            });
+
+        button.style().refine(&overrides);
+        button
     }
+}
+
+fn state_style(
+    background: Option<Hsla>,
+    overrides: Option<StyleRefinement>,
+) -> Option<StyleRefinement> {
+    if background.is_none() && overrides.is_none() {
+        return None;
+    }
+
+    let mut style = StyleRefinement::default();
+    if let Some(background) = background {
+        style = style.bg(background);
+    }
+    if let Some(overrides) = overrides {
+        style.refine(&overrides);
+    }
+    Some(style)
 }
