@@ -1,11 +1,12 @@
 use gpui::prelude::*;
 use gpui::{
-    AnyElement, App, Context, Entity, FontWeight, Pixels, Render, SharedString, Window, div, px,
+    AnyElement, App, Context, Entity, FontWeight, Pixels, Render, ScrollHandle, SharedString,
+    Window, div, px,
 };
 use spotify::{Album, Track};
 use state::{AlbumDetail, Playback};
 use ui::ActiveTheme as _;
-use ui::{Artwork, GridDelegate, GridEvent, GridState, grid};
+use ui::{Artwork, GridDelegate, GridEvent, GridState, Viewport, grid, scrollbar, scrolled};
 
 use crate::cells;
 use crate::tracks::{ALBUM_COLUMNS, TrackSource, Tracks};
@@ -14,8 +15,7 @@ use workspace::{Navigation, Sidebar};
 const PADDING: Pixels = px(24.);
 const INSET: Pixels = px(50.);
 const COVER: Pixels = px(140.);
-const ROW: f32 = 32.;
-const FRAME: f32 = 2.;
+const FRAME: Pixels = px(1.);
 
 struct DetailTracks(Entity<AlbumDetail>);
 
@@ -34,6 +34,7 @@ pub struct AlbumView {
     playback: Entity<Playback>,
     sidebar: Entity<Sidebar>,
     width: Pixels,
+    scroll: ScrollHandle,
     table: Entity<GridState<TrackSource>>,
 }
 
@@ -55,10 +56,11 @@ impl AlbumView {
                 playback.clone(),
                 navigation.clone(),
             );
-            GridState::new(GridDelegate::new(source, width, cx), window, cx)
+            GridState::new(GridDelegate::new(source, width, cx))
         });
 
         cx.observe(&detail, |this, _, cx| {
+            this.scroll.set_offset(gpui::Point::default());
             this.rebuild(cx);
             cx.notify();
         })
@@ -82,6 +84,7 @@ impl AlbumView {
             playback,
             sidebar,
             width,
+            scroll: ScrollHandle::new(),
             table,
         }
     }
@@ -109,6 +112,23 @@ impl AlbumView {
             table.delegate_mut().set_width(width);
             table.refresh(cx);
         });
+    }
+
+    fn viewport(&self, window: &Window) -> Viewport {
+        let hero = self
+            .scroll
+            .bounds_for_item(0)
+            .map(|bounds| bounds.size.height)
+            .unwrap_or_default();
+        let visible = self.scroll.bounds().size.height;
+
+        Viewport {
+            top: (scrolled(&self.scroll) - PADDING - hero - FRAME).max(Pixels::ZERO),
+            height: match visible > Pixels::ZERO {
+                true => visible,
+                false => window.viewport_size().height,
+            },
+        }
     }
 
     fn rebuild(&mut self, cx: &mut Context<Self>) {
@@ -176,22 +196,30 @@ fn meta(album: &Album) -> SharedString {
 impl Render for AlbumView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.resize(window, cx);
-        let rows = self.table.read(cx).delegate().row_count();
-        let height = px((rows + 1) as f32 * ROW + FRAME);
+        let viewport = self.viewport(window);
+        self.table
+            .update(cx, |table, _| table.set_viewport(viewport));
 
         div()
-            .flex()
-            .flex_col()
+            .relative()
             .size_full()
-            .px(PADDING)
-            .pt(PADDING)
-            .child(self.header(cx))
             .child(
                 div()
-                    .h(height)
-                    .border_1()
-                    .border_color(cx.theme().border)
-                    .child(grid(&self.table)),
+                    .id("album-page")
+                    .size_full()
+                    .overflow_y_scroll()
+                    .track_scroll(&self.scroll)
+                    .px(PADDING)
+                    .pt(PADDING)
+                    .pb(PADDING)
+                    .child(self.header(cx))
+                    .child(
+                        div()
+                            .border_1()
+                            .border_color(cx.theme().border)
+                            .child(grid(&self.table)),
+                    ),
             )
+            .children(scrollbar(&self.scroll, cx))
     }
 }

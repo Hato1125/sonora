@@ -3,10 +3,10 @@ mod playlists;
 mod toolbar;
 
 use gpui::prelude::*;
-use gpui::{App, Context, Entity, Pixels, Render, Window, div, px};
+use gpui::{App, Context, Entity, Pixels, Point, Render, ScrollHandle, Window, div, px};
 use spotify::Track;
 use state::{Library, LibraryState, Playback};
-use ui::{GridDelegate, GridEvent, GridState, grid};
+use ui::{GridDelegate, GridEvent, GridState, Viewport, grid, scrollbar, scrolled};
 use workspace::{Destination, LibraryTab, Navigation, Sidebar};
 
 use crate::cells;
@@ -81,6 +81,7 @@ pub struct LibraryView {
     sidebar: Entity<Sidebar>,
     section: Section,
     width: Pixels,
+    scroll: ScrollHandle,
     tracks: Entity<GridState<TrackSource>>,
     albums: Entity<GridState<AlbumSource>>,
     playlists: Entity<GridState<PlaylistSource>>,
@@ -104,15 +105,15 @@ impl LibraryView {
                 playback.clone(),
                 navigation.clone(),
             );
-            GridState::new(GridDelegate::new(source, width, cx), window, cx)
+            GridState::new(GridDelegate::new(source, width, cx))
         });
         let albums = cx.new(|cx| {
             let source = AlbumSource::new(library.clone(), playback.clone());
-            GridState::new(GridDelegate::new(source, width, cx), window, cx)
+            GridState::new(GridDelegate::new(source, width, cx))
         });
         let playlists = cx.new(|cx| {
             let source = PlaylistSource::new(library.clone());
-            GridState::new(GridDelegate::new(source, width, cx), window, cx)
+            GridState::new(GridDelegate::new(source, width, cx))
         });
 
         cx.observe(&library, |this, _, cx| {
@@ -147,6 +148,7 @@ impl LibraryView {
             sidebar,
             section: Section::Tracks,
             width,
+            scroll: ScrollHandle::new(),
             tracks,
             albums,
             playlists,
@@ -186,8 +188,23 @@ impl LibraryView {
     }
 
     pub fn select(&mut self, section: Section, cx: &mut Context<Self>) {
+        if self.section != section {
+            self.scroll.set_offset(Point::default());
+        }
         self.section = section;
         cx.notify();
+    }
+
+    fn viewport(&self, window: &Window) -> Viewport {
+        let visible = self.scroll.bounds().size.height;
+
+        Viewport {
+            top: scrolled(&self.scroll),
+            height: match visible > Pixels::ZERO {
+                true => visible,
+                false => window.viewport_size().height,
+            },
+        }
     }
 
     fn play(&mut self, display: usize, cx: &mut Context<Self>) {
@@ -257,17 +274,37 @@ impl LibraryView {
 impl Render for LibraryView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.resize(window, cx);
+        let viewport = self.viewport(window);
 
         let table = match self.section {
-            Section::Tracks => grid(&self.tracks).into_any_element(),
-            Section::Albums => grid(&self.albums).into_any_element(),
-            Section::Playlists => grid(&self.playlists).into_any_element(),
+            Section::Tracks => {
+                self.tracks
+                    .update(cx, |table, _| table.set_viewport(viewport));
+                grid(&self.tracks).into_any_element()
+            }
+            Section::Albums => {
+                self.albums
+                    .update(cx, |table, _| table.set_viewport(viewport));
+                grid(&self.albums).into_any_element()
+            }
+            Section::Playlists => {
+                self.playlists
+                    .update(cx, |table, _| table.set_viewport(viewport));
+                grid(&self.playlists).into_any_element()
+            }
         };
 
         div()
-            .flex()
-            .flex_col()
+            .relative()
             .size_full()
-            .child(div().flex_1().min_h_0().child(table))
+            .child(
+                div()
+                    .id("library-page")
+                    .size_full()
+                    .overflow_y_scroll()
+                    .track_scroll(&self.scroll)
+                    .child(table),
+            )
+            .children(scrollbar(&self.scroll, cx))
     }
 }

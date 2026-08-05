@@ -1,11 +1,9 @@
-use std::cell::Cell as Slot;
 use std::cmp::Ordering;
 
 use gpui::prelude::*;
 use gpui::{
-    AnyElement, App, Context, Div, DragMoveEvent, Empty, Entity, EventEmitter, MouseButton,
-    MouseDownEvent, Pixels, Stateful, TextAlign, UniformListScrollHandle, Window, div, point, px,
-    svg, uniform_list,
+    AnyElement, App, Context, Div, Entity, EventEmitter, MouseButton, MouseDownEvent, Pixels,
+    TextAlign, Window, div, px, svg,
 };
 
 use crate::theme::ActiveTheme as _;
@@ -14,11 +12,10 @@ const PADDING: Pixels = px(8.);
 const TRAIL: Pixels = px(4.);
 const MIN_CELL: Pixels = px(24.);
 const MIN_FLEXIBLE: Pixels = px(120.);
-const ROW: Pixels = px(32.);
-const BAR: Pixels = px(6.);
-const MIN_THUMB: Pixels = px(24.);
 const SLACK: Pixels = px(2.);
+const OVERSCAN: usize = 2;
 
+pub const ROW: Pixels = px(32.);
 pub const ROW_GROUP: &str = "grid-row";
 
 #[derive(Clone, Copy)]
@@ -233,31 +230,43 @@ pub enum GridEvent {
     DoubleClicked(usize),
 }
 
-#[derive(Clone)]
-struct Grab {
-    start: Slot<Pixels>,
-    offset: Slot<Pixels>,
+#[derive(Clone, Copy, Default)]
+pub struct Viewport {
+    pub top: Pixels,
+    pub height: Pixels,
 }
 
-impl gpui::Render for Grab {
-    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        Empty
+impl Viewport {
+    fn rows(&self) -> usize {
+        (self.height / ROW).ceil().max(0.) as usize + OVERSCAN
+    }
+
+    fn first(&self) -> usize {
+        ((self.top - ROW) / ROW).floor().max(0.) as usize
     }
 }
 
 pub struct GridState<S: GridSource> {
     delegate: GridDelegate<S>,
-    scroll: UniformListScrollHandle,
+    viewport: Viewport,
 }
 
 impl<S: GridSource> EventEmitter<GridEvent> for GridState<S> {}
 
 impl<S: GridSource> GridState<S> {
-    pub fn new(delegate: GridDelegate<S>, _window: &mut Window, _cx: &mut Context<Self>) -> Self {
+    pub fn new(delegate: GridDelegate<S>) -> Self {
         Self {
             delegate,
-            scroll: UniformListScrollHandle::new(),
+            viewport: Viewport::default(),
         }
+    }
+
+    pub fn set_viewport(&mut self, viewport: Viewport) {
+        self.viewport = viewport;
+    }
+
+    pub fn height(&self) -> Pixels {
+        ROW * (self.delegate.row_count() + 1) as f32
     }
 
     pub fn delegate(&self) -> &GridDelegate<S> {
@@ -356,140 +365,64 @@ impl<S: GridSource> GridState<S> {
             ))
     }
 
-    fn rows(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn rows(&self, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let theme = *cx.theme();
         let count = self.delegate.order.len();
+        let first = self.viewport.first();
+        let last = (first + self.viewport.rows()).min(count);
 
-        uniform_list(
-            "grid-rows",
-            count,
-            cx.processor(move |this, range: std::ops::Range<usize>, _window, cx| {
-                range
-                    .map(|display| {
-                        let row = this.delegate.row(display);
-                        let cells: Vec<AnyElement> = (0..this.delegate.columns.len())
-                            .map(|ix| {
-                                let column = &this.delegate.columns[ix];
-                                let cell = Cell {
-                                    field: column.spec.field,
-                                    width: this.delegate.inner_width(ix),
-                                    align: column.spec.align,
-                                    display,
-                                    row,
-                                };
-                                let width = column.width;
-                                div()
-                                    .flex_none()
-                                    .w(width)
-                                    .h_full()
-                                    .px(PADDING)
-                                    .overflow_hidden()
-                                    .whitespace_nowrap()
-                                    .line_height(ROW)
-                                    .child(this.delegate.source.cell(cell, cx))
-                                    .into_any_element()
-                            })
-                            .collect();
-
+        (first..last)
+            .map(|display| {
+                let row = self.delegate.row(display);
+                let cells: Vec<AnyElement> = (0..self.delegate.columns.len())
+                    .map(|ix| {
+                        let column = &self.delegate.columns[ix];
+                        let cell = Cell {
+                            field: column.spec.field,
+                            width: self.delegate.inner_width(ix),
+                            align: column.spec.align,
+                            display,
+                            row,
+                        };
+                        let width = column.width;
                         div()
-                            .id(("row", display))
-                            .group(ROW_GROUP)
-                            .flex()
-                            .items_center()
-                            .h(ROW)
-                            .border_b_1()
-                            .border_color(theme.table_row_border)
-                            .hover(move |style| style.bg(theme.table_hover))
-                            .on_mouse_down(
-                                MouseButton::Left,
-                                cx.listener(move |_, event: &MouseDownEvent, _, cx| {
-                                    if event.click_count >= 2 {
-                                        cx.emit(GridEvent::DoubleClicked(display));
-                                    }
-                                }),
-                            )
-                            .children(cells)
+                            .flex_none()
+                            .w(width)
+                            .h_full()
+                            .px(PADDING)
+                            .overflow_hidden()
+                            .whitespace_nowrap()
+                            .line_height(ROW)
+                            .child(self.delegate.source.cell(cell, cx))
+                            .into_any_element()
                     })
-                    .collect()
-            }),
-        )
-        .track_scroll(&self.scroll)
-        .size_full()
-    }
+                    .collect();
 
-    fn scrollbar(&self, cx: &mut Context<Self>) -> Option<Stateful<Div>> {
-        let theme = *cx.theme();
-        let (viewport, hidden, offset) = {
-            let state = self.scroll.0.borrow();
-            (
-                state.base_handle.bounds().size.height,
-                state.base_handle.max_offset().y,
-                -state.base_handle.offset().y,
-            )
-        };
-        if viewport <= Pixels::ZERO || hidden <= Pixels::ZERO {
-            return None;
-        }
-
-        let content = viewport + hidden;
-        let progress = (offset / hidden).clamp(0., 1.);
-        let thumb = (viewport * (viewport / content)).max(MIN_THUMB);
-        let travel = viewport - thumb;
-
-        let scroll = self.scroll.clone();
-        let jump = self.scroll.clone();
-
-        Some(
-            div()
-                .id("grid-scrollbar")
-                .occlude()
-                .absolute()
-                .top_0()
-                .right_0()
-                .w(BAR)
-                .h_full()
-                .on_mouse_down(MouseButton::Left, move |event: &MouseDownEvent, _, _| {
-                    let handle = jump.0.borrow().base_handle.clone();
-                    let bounds = handle.bounds();
-                    let local = event.position.y - bounds.origin.y - thumb / 2.;
-                    let fraction = (local / (viewport - thumb)).clamp(0., 1.);
-                    handle.set_offset(point(Pixels::ZERO, Pixels::ZERO - hidden * fraction));
-                })
-                .child(
-                    div()
-                        .id("grid-thumb")
-                        .absolute()
-                        .top(travel * progress)
-                        .w(BAR)
-                        .h(thumb)
-                        .rounded_full()
-                        .bg(theme.muted_foreground.opacity(0.35))
-                        .hover(move |style| style.bg(theme.muted_foreground.opacity(0.55)))
-                        .cursor_pointer()
-                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                        .on_drag(
-                            Grab {
-                                start: Slot::new(Pixels::ZERO),
-                                offset: Slot::new(offset),
-                            },
-                            |grab, _, window, cx| {
-                                grab.start.set(window.mouse_position().y);
-                                cx.new(|_| grab.clone())
-                            },
-                        )
-                        .on_drag_move(move |event: &DragMoveEvent<Grab>, _, cx| {
-                            let grab = event.drag(cx);
-                            let moved = event.event.position.y - grab.start.get();
-                            let scrolled = grab.offset.get() + moved * (hidden / travel);
-                            let clamped = scrolled.clamp(Pixels::ZERO, hidden);
-                            scroll
-                                .0
-                                .borrow()
-                                .base_handle
-                                .set_offset(point(Pixels::ZERO, Pixels::ZERO - clamped));
+                div()
+                    .id(("row", display))
+                    .group(ROW_GROUP)
+                    .absolute()
+                    .top(ROW * (display + 1) as f32)
+                    .left_0()
+                    .w_full()
+                    .flex()
+                    .items_center()
+                    .h(ROW)
+                    .border_b_1()
+                    .border_color(theme.table_row_border)
+                    .hover(move |style| style.bg(theme.table_hover))
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(move |_, event: &MouseDownEvent, _, cx| {
+                            if event.click_count >= 2 {
+                                cx.emit(GridEvent::DoubleClicked(display));
+                            }
                         }),
-                ),
-        )
+                    )
+                    .children(cells)
+                    .into_any_element()
+            })
+            .collect()
     }
 }
 
@@ -507,19 +440,24 @@ fn sort_icon(direction: Option<Sort>) -> &'static str {
 
 impl<S: GridSource> Render for GridState<S> {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let backdrop = cx.theme().background;
+        let height = self.height();
+        let pinned = self.viewport.top.clamp(Pixels::ZERO, height - ROW);
+
         div()
-            .flex()
-            .flex_col()
-            .size_full()
-            .overflow_hidden()
-            .child(self.header(cx))
+            .relative()
+            .w_full()
+            .h(height)
+            .children(self.rows(cx))
             .child(
                 div()
-                    .relative()
-                    .flex_1()
-                    .min_h_0()
-                    .child(self.rows(cx))
-                    .children(self.scrollbar(cx)),
+                    .occlude()
+                    .absolute()
+                    .top(pinned)
+                    .left_0()
+                    .w_full()
+                    .bg(backdrop)
+                    .child(self.header(cx)),
             )
     }
 }
