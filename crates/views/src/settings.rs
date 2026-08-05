@@ -2,15 +2,35 @@ use std::path::Path;
 use std::process::Command;
 
 use gpui::prelude::*;
-use gpui::{Context, Entity, FontWeight, Render, Window, div, px};
+use gpui::{AnyElement, Context, Entity, FontWeight, Render, SharedString, Window, div, px};
 use state::{AppSettings, Playback, Session, SessionState, Spotty};
 use ui::ActiveTheme as _;
 use ui::{Button, Initials, Menu, MenuItem, Skeleton, Theme, ThemeKind};
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Tab {
+    Appearance,
+    Playback,
+    Account,
+}
+
+impl Tab {
+    const ALL: [Self; 3] = [Self::Appearance, Self::Playback, Self::Account];
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::Appearance => "Appearance",
+            Self::Playback => "Playback",
+            Self::Account => "Account",
+        }
+    }
+}
 
 pub struct SettingsView {
     session: Entity<Session>,
     playback: Entity<Playback>,
     settings: Entity<AppSettings>,
+    tab: Tab,
     themes_open: bool,
 }
 
@@ -28,8 +48,64 @@ impl SettingsView {
             session,
             playback,
             settings,
+            tab: Tab::Appearance,
             themes_open: false,
         }
+    }
+
+    fn tabs(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        div().flex().gap_1().children(Tab::ALL.map(|tab| {
+            Button::new(SharedString::from(tab.label()))
+                .label(tab.label())
+                .small()
+                .selected(self.tab == tab)
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.tab = tab;
+                    this.themes_open = false;
+                    cx.notify();
+                }))
+        }))
+    }
+
+    fn panel(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let border = cx.theme().border;
+        let rows: Vec<AnyElement> = match self.tab {
+            Tab::Appearance => vec![
+                self.theme_row(cx).into_any_element(),
+                self.auto_hide_row(cx).into_any_element(),
+            ],
+            Tab::Playback => vec![self.playback_row(cx).into_any_element()],
+            Tab::Account => vec![self.account_row(cx).into_any_element()],
+        };
+
+        let mut panel = div().flex().flex_col();
+        for (index, row) in rows.into_iter().enumerate() {
+            if index > 0 {
+                panel = panel.child(div().h(px(1.)).w_full().bg(border));
+            }
+            panel = panel.child(row);
+        }
+        panel
+    }
+
+    fn auto_hide_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let muted = cx.theme().muted_foreground;
+        let on = self.settings.read(cx).auto_hide_sidebar();
+
+        self.row(
+            "Auto-hide sidebar",
+            "Collapse the sidebar when the window gets narrow",
+            muted,
+            Button::new("auto-hide-sidebar")
+                .label(if on { "On" } else { "Off" })
+                .small()
+                .outline()
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.settings
+                        .update(cx, |settings, cx| settings.set_auto_hide_sidebar(!on, cx));
+                }))
+                .into_any_element(),
+        )
     }
 
     fn profile(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -69,7 +145,7 @@ impl SettingsView {
             )
     }
 
-    fn appearance_settings(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn theme_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let muted = cx.theme().muted_foreground;
         let current = ThemeKind::from_id(self.settings.read(cx).theme());
         let overrides = self.settings.read(cx).theme_overrides().clone();
@@ -139,7 +215,7 @@ impl SettingsView {
         )
     }
 
-    fn playback_settings(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn playback_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let muted = cx.theme().muted_foreground;
         let on = self.playback.read(cx).normalisation();
 
@@ -159,7 +235,7 @@ impl SettingsView {
         )
     }
 
-    fn account(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn account_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let muted = cx.theme().muted_foreground;
         let session = self.session.clone();
 
@@ -240,11 +316,8 @@ impl Render for SettingsView {
                     .p_6()
                     .child(self.profile(cx))
                     .child(div().h(px(1.)).w_full().bg(border))
-                    .child(self.appearance_settings(cx))
-                    .child(div().h(px(1.)).w_full().bg(border))
-                    .child(self.playback_settings(cx))
-                    .child(div().h(px(1.)).w_full().bg(border))
-                    .child(self.account(cx)),
+                    .child(self.tabs(cx))
+                    .child(self.panel(cx)),
             )
     }
 }
