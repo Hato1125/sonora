@@ -2,19 +2,17 @@ use std::cmp::Ordering;
 use ui::ActiveTheme as _;
 
 use gpui::prelude::*;
-use gpui::{AnyElement, App, Entity, MouseButton, Pixels, TextAlign, div, px, svg};
+use gpui::{AnyElement, App, Entity, TextAlign, div, svg};
 use spotify::Track;
 use state::{Playback, PlaybackState};
-use ui::{Cell, ColumnSpec, GridSource, ROW_GROUP, Width, clock};
+use ui::{Cell, ColumnSpec, GridSource, Width, clock};
 
-use crate::cells::{self, ALWAYS, ARTWORK_COLUMN, NUMBER, ROOMY, SNUG, TRAILING, WIDE};
+use crate::cells::{self, ALWAYS, ARTWORK_COLUMN, GLYPH, NUMBER, ROOMY, SNUG, TRAILING, WIDE};
 
 const PLAY: &str = "icons/play.svg";
 const PLAYING: &str = "icons/music-2.svg";
 const PAUSE: &str = "icons/pause.svg";
 const UNAVAILABLE: &str = "icons/play-off.svg";
-const GLYPH: Pixels = px(11.);
-const HIT: Pixels = px(18.);
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TrackField {
@@ -184,69 +182,35 @@ impl TrackSource {
             }
         };
 
-        let mut stack = div()
-            .relative()
-            .flex()
-            .items_center()
-            .justify_center()
-            .size(HIT)
-            .child(
-                div()
-                    .flex()
-                    .group_hover(ROW_GROUP, |style| style.invisible())
-                    .child(resting),
-            );
-
-        let playback = self.playback.clone();
-        let queued = self.provider.tracks(cx).to_vec();
-        let row = cell.row;
         let icon = match playing {
             true => PAUSE,
-            false => track.playable.then(|| PLAY).unwrap_or(UNAVAILABLE),
+            false => match track.playable {
+                true => PLAY,
+                false => UNAVAILABLE,
+            },
+        };
+        let color = match track.playable {
+            true => theme.foreground,
+            false => theme.muted_foreground,
         };
 
-        stack = stack.child(
-            div()
-                .id(("transport", cell.row))
-                .absolute()
-                .top_0()
-                .left_0()
-                .right_0()
-                .bottom_0()
-                .flex()
-                .items_center()
-                .justify_center()
-                .invisible()
-                .group_hover(ROW_GROUP, |style| style.visible())
-                .child(svg().path(icon).size(GLYPH).text_color(if track.playable {
-                    theme.foreground
-                } else {
-                    theme.muted_foreground
+        let press: Option<Box<dyn Fn(&mut App)>> = match track.playable {
+            false => None,
+            true => {
+                let playback = self.playback.clone();
+                let queued = self.provider.tracks(cx).to_vec();
+                let row = cell.row;
+                Some(Box::new(move |cx: &mut App| {
+                    playback.update(cx, |playback, cx| match state {
+                        Some(PlaybackState::Playing) => playback.pause(cx),
+                        Some(PlaybackState::Paused) => playback.resume(cx),
+                        _ => playback.start(queued.clone(), row, cx),
+                    });
                 }))
-                .when_else(
-                    track.playable,
-                    |this| this.cursor_pointer(),
-                    |this| this.cursor_not_allowed(),
-                )
-                .when(track.playable, |this| {
-                    this.on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                        .on_click(move |_, _, cx| {
-                            playback.update(cx, |playback, cx| match state {
-                                Some(PlaybackState::Playing) => playback.pause(cx),
-                                Some(PlaybackState::Paused) => playback.resume(cx),
-                                _ => playback.start(queued.clone(), row, cx),
-                            });
-                        })
-                }),
-        );
+            }
+        };
 
-        cell.frame()
-            .h_full()
-            .flex()
-            .items_center()
-            .justify_center()
-            .child(stack)
-            .into_any_element()
+        cells::transport(cell, resting, cells::Transport { icon, color, press })
     }
 
     fn now_playing(&self, track: &Track, cx: &App) -> Option<PlaybackState> {
