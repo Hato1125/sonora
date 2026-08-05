@@ -24,6 +24,7 @@ const NAV: [(&str, &str, Option<Destination>); 4] = [
 
 const MIN_WIDTH: Pixels = px(130.);
 const MAX_WIDTH: Pixels = px(400.);
+const NARROW: Pixels = px(520.);
 
 struct SidebarResize {
     start_width: Pixels,
@@ -35,6 +36,8 @@ pub struct Sidebar {
     trail: Entity<Navigation>,
     width: Pixels,
     open: bool,
+    cramped: bool,
+    forced: Option<bool>,
 }
 
 impl Sidebar {
@@ -51,21 +54,42 @@ impl Sidebar {
             trail,
             width,
             open,
+            forced: None,
+            cramped: false,
         }
     }
 
     pub fn is_open(&self) -> bool {
-        self.open
+        self.forced.unwrap_or(self.open && !self.cramped)
     }
 
     pub fn occupied_width(&self) -> Pixels {
-        if self.open { self.width } else { Pixels::ZERO }
+        if self.is_open() {
+            self.width
+        } else {
+            Pixels::ZERO
+        }
     }
 
     pub fn toggle(&mut self, cx: &mut Context<Self>) {
-        self.open = !self.open;
-        self.persist(cx);
+        match self.cramped {
+            true => self.forced = Some(!self.is_open()),
+            false => {
+                self.open = !self.open;
+                self.persist(cx);
+            }
+        }
         cx.notify();
+    }
+
+    pub fn adapt(&mut self, window: &Window, cx: &mut Context<Self>) {
+        let auto_hide = self.settings.read(cx).auto_hide_sidebar();
+        let space_left = window.viewport_size().width - self.width;
+        let cramped = auto_hide && space_left < NARROW;
+        if cramped != self.cramped {
+            self.cramped = cramped;
+            self.forced = None;
+        }
     }
 
     fn persist(&self, cx: &mut Context<Self>) {
@@ -77,7 +101,7 @@ impl Sidebar {
 }
 
 impl Render for Sidebar {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
         let sidebar_accent = theme.sidebar_accent;
         let foreground = theme.foreground;
@@ -85,11 +109,11 @@ impl Render for Sidebar {
         let sidebar_bg = theme.sidebar;
         let sidebar_border = theme.sidebar_border;
         let current = self.trail.read(cx).current();
-
+        self.adapt(window, cx);
         div()
             .flex()
             .flex_col()
-            .when(!self.open, |this| this.hidden())
+            .when(!self.is_open(), |this| this.hidden())
             .relative()
             .w(self.width)
             .flex_none()
