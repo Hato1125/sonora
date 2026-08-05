@@ -155,8 +155,7 @@ impl Render for TitleBar {
                     .px_3()
                     .gap_1()
                     .when(offset > Pixels::ZERO, |this| this.w(offset))
-                    .child(self.toggle(cx))
-                    .child(self.history(cx)),
+                    .child(self.toggle(cx)),
             )
             .child(
                 div()
@@ -165,6 +164,7 @@ impl Render for TitleBar {
                     .min_w_0()
                     .items_center()
                     .pr_3()
+                    .child(self.history(cx))
                     .children(self.content.clone()),
             )
     }
