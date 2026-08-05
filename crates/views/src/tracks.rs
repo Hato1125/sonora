@@ -10,6 +10,7 @@ use ui::{Cell, ColumnSpec, GridSource, ROW_GROUP, Width, clock};
 use crate::cells::{self, ALWAYS, ARTWORK_COLUMN, NUMBER, ROOMY, SNUG, TRAILING, WIDE};
 
 const PLAY: &str = "icons/play.svg";
+const PLAYING: &str = "icons/music-2.svg";
 const PAUSE: &str = "icons/pause.svg";
 const GLYPH: Pixels = px(11.);
 const HIT: Pixels = px(18.);
@@ -161,7 +162,7 @@ impl TrackSource {
 
         let resting = match &state {
             Some(PlaybackState::Playing) => svg()
-                .path(PLAY)
+                .path(PLAYING)
                 .size(GLYPH)
                 .text_color(theme.foreground)
                 .into_any_element(),

@@ -19,6 +19,7 @@ const ICONS: &[(&str, &[u8])] = icons![
     "library-big",
     "log-out",
     "music",
+    "music-2",
     "pause",
     "panel-right-close",
     "panel-right-open",
