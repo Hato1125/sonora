@@ -31,7 +31,7 @@ impl Tracks for DetailTracks {
     }
 }
 
-pub struct DetailView {
+pub(crate) struct DetailView {
     detail: Entity<Detail>,
     playback: Entity<Playback>,
     sidebar: Entity<Sidebar>,
@@ -41,7 +41,7 @@ pub struct DetailView {
 }
 
 impl DetailView {
-    pub fn new(
+    pub(crate) fn new(
         detail: Entity<Detail>,
         playback: Entity<Playback>,
         sidebar: Entity<Sidebar>,

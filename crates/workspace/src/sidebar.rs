@@ -39,6 +39,7 @@ pub enum LibraryTab {
 pub enum Destination {
     Library(LibraryTab),
     Album(SharedString),
+    Playlist(SharedString),
     Settings,
 }
 

@@ -94,6 +94,13 @@ impl Library {
         albums.iter().find(|album| album.id == id)
     }
 
+    pub fn playlist(&self, id: &str) -> Option<&Playlist> {
+        let LibraryState::Ready { playlists, .. } = &self.state else {
+            return None;
+        };
+        playlists.iter().find(|playlist| playlist.id == id)
+    }
+
     pub fn refresh(&mut self, cx: &mut Context<Self>) {
         let client = self.session.read(cx).client();
         if let Some(client) = client {

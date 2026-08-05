@@ -79,6 +79,10 @@ impl PlaylistSource {
         Self { library }
     }
 
+    pub(super) fn at(&self, row: usize, cx: &App) -> Option<Playlist> {
+        self.playlists(cx).get(row).cloned()
+    }
+
     fn playlists<'a>(&self, cx: &'a App) -> &'a [Playlist] {
         match self.library.read(cx).state() {
             LibraryState::Ready { playlists, .. } => playlists.as_slice(),

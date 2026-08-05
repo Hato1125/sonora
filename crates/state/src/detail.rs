@@ -1,7 +1,13 @@
 use gpui::{Context, Entity, Task};
-use spotify::{Album, Track};
+use spotify::{Album, Playlist, Track};
 
 use crate::{Io, Library, Session, SessionEvent, join};
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Kind {
+    Album,
+    Playlist,
+}
 
 pub struct Header {
     pub kind: &'static str,
@@ -67,11 +73,20 @@ impl Detail {
     }
 
     pub fn open_album(&mut self, id: &str, cx: &mut Context<Self>) {
+        let known = self.library.read(cx).album(id).map(album_header);
+        self.open(Kind::Album, id, known, cx);
+    }
+
+    pub fn open_playlist(&mut self, id: &str, cx: &mut Context<Self>) {
+        let known = self.library.read(cx).playlist(id).map(playlist_header);
+        self.open(Kind::Playlist, id, known, cx);
+    }
+
+    fn open(&mut self, kind: Kind, id: &str, known: Option<Header>, cx: &mut Context<Self>) {
         if self.shows(id) {
             return;
         }
 
-        let known = self.library.read(cx).album(id).map(album_header);
         self.clear();
         self.id = Some(id.to_owned());
         self.header = known;
@@ -87,7 +102,13 @@ impl Detail {
         let io = self.io.clone();
         let id = id.to_owned();
         self.task = Some(cx.spawn(async move |this, cx| {
-            let loaded = join(io.spawn(async move { client.album_tracks(&id).await })).await;
+            let loaded = join(io.spawn(async move {
+                match kind {
+                    Kind::Album => client.album_tracks(&id).await,
+                    Kind::Playlist => client.playlist_tracks(&id).await,
+                }
+            }))
+            .await;
 
             this.update(cx, |this, cx| {
                 this.loading = false;
@@ -130,5 +151,19 @@ fn album_header(album: &Album) -> Header {
         title: album.name.clone(),
         meta: parts.join(" • "),
         cover: album.cover_large.clone(),
+    }
+}
+
+fn playlist_header(playlist: &Playlist) -> Header {
+    let mut parts = vec![playlist.owner.clone()];
+    if playlist.track_count > 0 {
+        parts.push(format!("{} songs", playlist.track_count));
+    }
+
+    Header {
+        kind: "PLAYLIST",
+        title: playlist.name.clone(),
+        meta: parts.join(" • "),
+        cover: playlist.cover.clone(),
     }
 }

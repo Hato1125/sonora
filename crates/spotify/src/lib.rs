@@ -6,6 +6,7 @@ mod collection;
 mod collection2;
 mod models;
 mod pb;
+mod playlists;
 mod profiles;
 mod wire;
 

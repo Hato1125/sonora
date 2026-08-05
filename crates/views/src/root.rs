@@ -7,7 +7,7 @@ use workspace::{
     Destination, LibraryTab, Navigation, NavigationEvent, Sidebar, SidebarEvent, Workspace,
 };
 
-use crate::tracks::ALBUM_COLUMNS;
+use crate::tracks::{ALBUM_COLUMNS, LIBRARY_COLUMNS};
 use crate::{DetailView, LibraryToolbar, LibraryView, LoginView, SettingsView};
 
 struct Screens {
@@ -15,6 +15,8 @@ struct Screens {
     library_toolbar: Entity<LibraryToolbar>,
     album: Entity<DetailView>,
     album_detail: Entity<Detail>,
+    playlist: Entity<DetailView>,
+    playlist_detail: Entity<Detail>,
     settings: Entity<SettingsView>,
 }
 
@@ -71,7 +73,8 @@ impl Root {
             cx.new(|cx| LibraryToolbar::new(library_view.clone(), navigation.clone(), cx));
 
         let io = Io::global(cx);
-        let album_detail = cx.new(|cx| Detail::new(session.clone(), library, io, cx));
+        let album_detail =
+            cx.new(|cx| Detail::new(session.clone(), library.clone(), io.clone(), cx));
         let album = cx.new(|cx| {
             DetailView::new(
                 album_detail.clone(),
@@ -79,6 +82,19 @@ impl Root {
                 sidebar.clone(),
                 navigation.clone(),
                 ALBUM_COLUMNS,
+                window,
+                cx,
+            )
+        });
+
+        let playlist_detail = cx.new(|cx| Detail::new(session.clone(), library, io, cx));
+        let playlist = cx.new(|cx| {
+            DetailView::new(
+                playlist_detail.clone(),
+                playback.clone(),
+                sidebar.clone(),
+                navigation.clone(),
+                LIBRARY_COLUMNS,
                 window,
                 cx,
             )
@@ -107,6 +123,8 @@ impl Root {
                 library_toolbar,
                 album,
                 album_detail,
+                playlist,
+                playlist_detail,
                 settings,
             },
         };
@@ -130,6 +148,12 @@ impl Root {
                     .album_detail
                     .update(cx, |detail, cx| detail.open_album(&id, cx));
                 (self.screens.album.clone().into(), None)
+            }
+            Destination::Playlist(id) => {
+                self.screens
+                    .playlist_detail
+                    .update(cx, |detail, cx| detail.open_playlist(&id, cx));
+                (self.screens.playlist.clone().into(), None)
             }
             Destination::Settings => (self.screens.settings.clone().into(), None),
         };

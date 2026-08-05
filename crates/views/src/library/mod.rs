@@ -141,6 +141,12 @@ impl LibraryView {
         })
         .detach();
 
+        cx.subscribe(&playlists, |this, _, event, cx| {
+            let GridEvent::DoubleClicked(display) = event;
+            this.open_playlist(*display, cx);
+        })
+        .detach();
+
         Self {
             library,
             playback,
@@ -229,6 +235,20 @@ impl LibraryView {
             return;
         };
         let destination = Destination::Album(album.id.into());
+        self.navigation
+            .update(cx, |navigation, cx| navigation.go(destination, cx));
+    }
+
+    fn open_playlist(&mut self, display: usize, cx: &mut Context<Self>) {
+        let playlist = {
+            let state = self.playlists.read(cx);
+            let row = state.delegate().row(display);
+            state.delegate().source().at(row, cx)
+        };
+        let Some(playlist) = playlist else {
+            return;
+        };
+        let destination = Destination::Playlist(playlist.id.into());
         self.navigation
             .update(cx, |navigation, cx| navigation.go(destination, cx));
     }
