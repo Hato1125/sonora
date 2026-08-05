@@ -260,15 +260,15 @@ impl LibraryView {
         self.width = width;
 
         self.tracks.update(cx, |table, cx| {
-            table.delegate_mut().set_width(width);
+            table.delegate_mut().set_width(width, cx);
             table.refresh(cx);
         });
         self.albums.update(cx, |table, cx| {
-            table.delegate_mut().set_width(width);
+            table.delegate_mut().set_width(width, cx);
             table.refresh(cx);
         });
         self.playlists.update(cx, |table, cx| {
-            table.delegate_mut().set_width(width);
+            table.delegate_mut().set_width(width, cx);
             table.refresh(cx);
         });
     }

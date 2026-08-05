@@ -194,7 +194,8 @@ impl Render for Root {
             None => {}
         }
 
-        let theme = cx.theme();
+        let theme = *cx.theme();
+        window.set_rem_size(theme.font_size);
 
         div()
             .flex()

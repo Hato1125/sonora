@@ -7,17 +7,19 @@ use spotify::Track;
 use state::{Detail, Playback};
 use ui::ActiveTheme as _;
 use ui::{
-    Artwork, ColumnSpec, GridDelegate, GridEvent, GridState, Scrollbar, Viewport, grid, scrolled,
+    Artwork, ColumnSpec, GridDelegate, GridEvent, GridState, Scrollbar, Text, Viewport, grid,
+    scrolled,
 };
 
 use crate::cells;
 use crate::tracks::{TrackField, TrackSource, Tracks};
 use workspace::Sidebar;
 
-const PADDING: Pixels = px(24.);
-const INSET: Pixels = px(50.);
-const COVER: Pixels = px(140.);
 const FRAME: Pixels = px(1.);
+
+fn reserved(inset: Pixels) -> Pixels {
+    inset * 2. + px(2.)
+}
 
 struct DetailTracks(Entity<Detail>);
 
@@ -49,7 +51,9 @@ impl DetailView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let width = cells::content_width(window, sidebar.read(cx).occupied_width(), INSET);
+        let inset = cx.theme().metrics.inset;
+        let width =
+            cells::content_width(window, sidebar.read(cx).occupied_width(), reserved(inset));
 
         let table = cx.new(|cx| {
             let source = TrackSource::new(columns, DetailTracks(detail.clone()), playback.clone());
@@ -103,20 +107,20 @@ impl DetailView {
             .update(cx, |playback, cx| playback.start(queued, display, cx));
     }
 
-    fn resize(&mut self, window: &Window, cx: &mut Context<Self>) {
+    fn resize(&mut self, inset: Pixels, window: &Window, cx: &mut Context<Self>) {
         let sidebar = self.sidebar.read(cx).occupied_width();
-        let width = cells::content_width(window, sidebar, INSET);
+        let width = cells::content_width(window, sidebar, reserved(inset));
         if (width - self.width).abs() < px(0.5) {
             return;
         }
         self.width = width;
         self.table.update(cx, |table, cx| {
-            table.delegate_mut().set_width(width);
+            table.delegate_mut().set_width(width, cx);
             table.refresh(cx);
         });
     }
 
-    fn viewport(scroll: &ScrollHandle, window: &Window) -> Viewport {
+    fn viewport(scroll: &ScrollHandle, inset: Pixels, window: &Window) -> Viewport {
         let hero = scroll
             .bounds_for_item(0)
             .map(|bounds| bounds.size.height)
@@ -124,7 +128,7 @@ impl DetailView {
         let visible = scroll.bounds().size.height;
 
         Viewport {
-            top: (scrolled(scroll) - PADDING - hero - FRAME).max(Pixels::ZERO),
+            top: (scrolled(scroll) - inset - hero - FRAME).max(Pixels::ZERO),
             height: match visible > Pixels::ZERO {
                 true => visible,
                 false => window.viewport_size().height,
@@ -140,7 +144,8 @@ impl DetailView {
     }
 
     fn header(&self, cx: &Context<Self>) -> AnyElement {
-        let muted = cx.theme().muted_foreground;
+        let theme = cx.theme();
+        let muted = theme.muted_foreground;
         let header = self.detail.read(cx).header();
         let kind = header.map(|header| header.kind).unwrap_or_default();
         let title = header
@@ -156,8 +161,7 @@ impl DetailView {
             .pb_6()
             .child(
                 Artwork::new(header.and_then(|header| header.cover.clone()))
-                    .size(COVER)
-                    .rounded(px(8.)),
+                    .size(theme.metrics.cover),
             )
             .child(
                 div()
@@ -167,14 +171,14 @@ impl DetailView {
                     .gap_2()
                     .child(
                         div()
-                            .text_size(px(11.))
+                            .text_size(theme.text(Text::Small))
                             .text_color(muted)
                             .font_weight(FontWeight::SEMIBOLD)
                             .child(kind),
                     )
                     .child(
                         div()
-                            .text_size(px(28.))
+                            .text_size(theme.text(Text::Display))
                             .font_weight(FontWeight::BOLD)
                             .truncate()
                             .child(title),
@@ -187,10 +191,12 @@ impl DetailView {
 
 impl Render for DetailView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        self.resize(window, cx);
+        let theme = *cx.theme();
+        let inset = theme.metrics.inset;
+        self.resize(inset, window, cx);
 
         let scroll = self.scrollbar.read(cx).scroll().clone();
-        let viewport = Self::viewport(&scroll, window);
+        let viewport = Self::viewport(&scroll, inset, window);
         self.table
             .update(cx, |table, _| table.set_viewport(viewport));
 
@@ -202,15 +208,15 @@ impl Render for DetailView {
                     .size_full()
                     .overflow_y_scroll()
                     .track_scroll(&scroll)
-                    .px(PADDING)
-                    .pt(PADDING)
-                    .pb(PADDING)
+                    .px(inset)
+                    .pt(inset)
+                    .pb(inset)
                     .child(self.header(cx))
                     .child(
                         grid(&self.table)
-                            .rounded_xl()
+                            .rounded(theme.radius)
                             .border_1()
-                            .border_color(cx.theme().border),
+                            .border_color(theme.border),
                     ),
             )
             .child(self.scrollbar.clone())

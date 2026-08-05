@@ -1,14 +1,11 @@
 use gpui::prelude::*;
 use gpui::{AnyElement, App, Hsla, MouseButton, Pixels, SharedString, Window, div, px, svg};
 use router::{Destination, Link as _};
-use ui::{Artwork, Cell, ROW_GROUP};
+use ui::{ActiveTheme as _, Artwork, Cell, ROW_GROUP, Theme};
 
 pub(crate) const NUMBER: Pixels = px(44.);
 pub(crate) const TRAILING: Pixels = px(72.);
 pub(crate) const YEAR: Pixels = px(64.);
-pub(crate) const ARTWORK: Pixels = px(28.);
-pub(crate) const ARTWORK_COLUMN: Pixels = px(28. + 8. * 2.);
-pub(crate) const ROUNDED: Pixels = px(4.);
 pub(crate) const GLYPH: Pixels = px(11.);
 pub(crate) const HIT: Pixels = px(18.);
 
@@ -16,6 +13,38 @@ pub(crate) const ALWAYS: Pixels = Pixels::ZERO;
 pub(crate) const WIDE: Pixels = px(740.);
 pub(crate) const ROOMY: Pixels = px(620.);
 pub(crate) const SNUG: Pixels = px(420.);
+
+pub(crate) fn glyph(theme: &Theme) -> Pixels {
+    px((theme.metrics.row / px(1.) * 0.23).round())
+}
+
+#[derive(IntoElement)]
+struct Glyph {
+    icon: &'static str,
+    color: Hsla,
+}
+
+impl RenderOnce for Glyph {
+    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+        svg()
+            .path(self.icon)
+            .size(glyph(cx.theme()))
+            .text_color(self.color)
+    }
+}
+
+#[derive(IntoElement)]
+struct Thumb {
+    url: Option<String>,
+}
+
+impl RenderOnce for Thumb {
+    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+        let theme = cx.theme();
+
+        Artwork::new(self.url).size(theme.metrics.thumb)
+    }
+}
 
 pub(crate) struct Transport {
     pub(crate) icon: &'static str,
@@ -58,7 +87,7 @@ pub(crate) fn transport<F>(cell: &Cell<F>, resting: AnyElement, hover: Transport
                         .justify_center()
                         .invisible()
                         .group_hover(ROW_GROUP, |style| style.visible())
-                        .child(svg().path(icon).size(GLYPH).text_color(color))
+                        .child(Glyph { icon, color })
                         .when_else(
                             enabled,
                             |this| this.cursor_pointer(),
@@ -101,9 +130,7 @@ pub(crate) fn dim<F>(cell: &Cell<F>, value: impl Into<SharedString>, muted: Hsla
 }
 
 pub(crate) fn artwork<F>(cell: &Cell<F>, url: Option<String>) -> AnyElement {
-    cell.middle()
-        .child(Artwork::new(url).size(ARTWORK).rounded(ROUNDED))
-        .into_any_element()
+    cell.middle().child(Thumb { url }).into_any_element()
 }
 
 pub(crate) fn blank<F>(cell: &Cell<F>) -> AnyElement {

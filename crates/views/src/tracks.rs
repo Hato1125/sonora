@@ -8,7 +8,7 @@ use spotify::Track;
 use state::{Playback, PlaybackState};
 use ui::{Cell, ColumnSpec, GridSource, Width, clock};
 
-use crate::cells::{self, ALWAYS, ARTWORK_COLUMN, GLYPH, NUMBER, ROOMY, SNUG, TRAILING, WIDE};
+use crate::cells::{self, ALWAYS, GLYPH, NUMBER, ROOMY, SNUG, TRAILING, WIDE};
 
 const PLAY: &str = "icons/play.svg";
 const PLAYING: &str = "icons/music-2.svg";
@@ -41,7 +41,7 @@ pub(crate) const LIBRARY_COLUMNS: &[ColumnSpec<TrackField>] = &[
         key: "cover",
         header: "",
         align: TextAlign::Left,
-        width: Width::Fixed(ARTWORK_COLUMN),
+        width: Width::Thumb,
         flush: true,
         sortable: false,
         hide_below: ALWAYS,

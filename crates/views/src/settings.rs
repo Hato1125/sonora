@@ -2,10 +2,15 @@ use std::path::Path;
 use std::process::Command;
 
 use gpui::prelude::*;
-use gpui::{AnyElement, Context, Entity, FontWeight, Render, SharedString, Window, div, px};
+use gpui::{
+    AnyElement, Context, Entity, FontWeight, Pixels, Render, SharedString, Window, div, px,
+};
 use state::{AppSettings, Playback, Session, SessionState, Spotty};
 use ui::ActiveTheme as _;
-use ui::{Button, Initials, Menu, MenuItem, Skeleton, Theme, ThemeKind};
+use ui::{
+    Button, Initials, Look, MAX_FONT, MIN_FONT, Menu, MenuItem, Rounding, Skeleton, Text, Theme,
+    ThemeKind,
+};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Tab {
@@ -32,6 +37,7 @@ pub struct SettingsView {
     settings: Entity<AppSettings>,
     tab: Tab,
     themes_open: bool,
+    corners_open: bool,
 }
 
 impl SettingsView {
@@ -50,6 +56,7 @@ impl SettingsView {
             settings,
             tab: Tab::Appearance,
             themes_open: false,
+            corners_open: false,
         }
     }
 
@@ -62,6 +69,7 @@ impl SettingsView {
                 .on_click(cx.listener(move |this, _, _, cx| {
                     this.tab = tab;
                     this.themes_open = false;
+                    this.corners_open = false;
                     cx.notify();
                 }))
         }))
@@ -72,6 +80,8 @@ impl SettingsView {
         let rows: Vec<AnyElement> = match self.tab {
             Tab::Appearance => vec![
                 self.theme_row(cx).into_any_element(),
+                self.corners_row(cx).into_any_element(),
+                self.font_row(cx).into_any_element(),
                 self.auto_hide_row(cx).into_any_element(),
             ],
             Tab::Playback => vec![self.playback_row(cx).into_any_element()],
@@ -88,14 +98,129 @@ impl SettingsView {
         panel
     }
 
+    fn look(&self, cx: &Context<Self>) -> Look {
+        let settings = self.settings.read(cx);
+
+        Look {
+            kind: ThemeKind::from_id(settings.theme()),
+            rounding: Rounding::from_id(settings.rounding()),
+            font: settings.font_size(),
+        }
+    }
+
+    fn corners_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+        let muted = theme.muted_foreground;
+        let small = theme.text(Text::Small);
+        let look = self.look(cx);
+        let overrides = self.settings.read(cx).theme_overrides().clone();
+
+        let picker = div()
+            .relative()
+            .child(
+                Button::new("corners-picker")
+                    .label(format!("{}  ▾", look.rounding.label()))
+                    .small()
+                    .outline()
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.corners_open = !this.corners_open;
+                        cx.notify();
+                    })),
+            )
+            .when(self.corners_open, |this| {
+                this.child(
+                    Menu::new("corners-dropdown")
+                        .top(px(30.))
+                        .right_0()
+                        .w(px(170.))
+                        .on_dismiss(cx.listener(|this, _, _, cx| {
+                            this.corners_open = false;
+                            cx.notify();
+                        }))
+                        .items(Rounding::ALL.into_iter().map(|rounding| {
+                            let overrides = overrides.clone();
+                            MenuItem::new(rounding.id(), rounding.label())
+                                .selected(look.rounding == rounding)
+                                .on_click(cx.listener(move |this, _, _, cx| {
+                                    this.settings.update(cx, |settings, cx| {
+                                        settings.set_rounding(rounding.id(), cx);
+                                    });
+                                    this.corners_open = false;
+                                    Theme::set(Look { rounding, ..look }, &overrides, cx);
+                                    cx.notify();
+                                }))
+                        })),
+                )
+            });
+
+        self.row(
+            "Corners",
+            "How rounded surfaces and controls are",
+            muted,
+            small,
+            picker.into_any_element(),
+        )
+    }
+
+    fn font_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+        let muted = theme.muted_foreground;
+        let small = theme.text(Text::Small);
+        let look = self.look(cx);
+        let overrides = self.settings.read(cx).theme_overrides().clone();
+
+        let step = move |id: &'static str, label: &'static str, delta: f32| {
+            let overrides = overrides.clone();
+            let wanted = (look.font + delta).clamp(MIN_FONT, MAX_FONT);
+
+            Button::new(id)
+                .label(label)
+                .small()
+                .outline()
+                .disabled(wanted == look.font)
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.settings
+                        .update(cx, |settings, cx| settings.set_font_size(wanted, cx));
+                    Theme::set(
+                        Look {
+                            font: wanted,
+                            ..look
+                        },
+                        &overrides,
+                        cx,
+                    );
+                    cx.notify();
+                }))
+        };
+
+        let actions = div()
+            .flex()
+            .items_center()
+            .gap_2()
+            .child(step("font-smaller", "−", -1.))
+            .child(div().child(format!("{:.0} px", look.font)))
+            .child(step("font-larger", "+", 1.));
+
+        self.row(
+            "Font size",
+            "Base text size, everything else scales with it",
+            muted,
+            small,
+            actions.into_any_element(),
+        )
+    }
+
     fn auto_hide_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let muted = cx.theme().muted_foreground;
+        let theme = *cx.theme();
+        let muted = theme.muted_foreground;
+        let small = theme.text(Text::Small);
         let on = self.settings.read(cx).auto_hide_sidebar();
 
         self.row(
             "Auto-hide sidebar",
             "Collapse the sidebar when the window gets narrow",
             muted,
+            small,
             Button::new("auto-hide-sidebar")
                 .label(if on { "On" } else { "Off" })
                 .small()
@@ -109,7 +234,8 @@ impl SettingsView {
     }
 
     fn profile(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let muted = cx.theme().muted_foreground;
+        let theme = *cx.theme();
+        let muted = theme.muted_foreground;
 
         div()
             .flex()
@@ -129,7 +255,7 @@ impl SettingsView {
                     .child(match self.session.read(cx).state() {
                         SessionState::SignedIn(profile) => div()
                             .child(profile.display_name.clone())
-                            .text_size(px(18.))
+                            .text_size(theme.text(Text::Large))
                             .font_weight(FontWeight::SEMIBOLD)
                             .into_any_element(),
                         _ => Skeleton::new().w(px(140.)).h(px(14.)).into_any_element(),
@@ -138,7 +264,7 @@ impl SettingsView {
                         SessionState::SignedIn(profile) => div()
                             .child(profile.id.clone())
                             .text_color(muted)
-                            .text_size(px(11.))
+                            .text_size(theme.text(Text::Small))
                             .into_any_element(),
                         _ => Skeleton::new().w(px(90.)).h(px(10.)).into_any_element(),
                     }),
@@ -146,8 +272,11 @@ impl SettingsView {
     }
 
     fn theme_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let muted = cx.theme().muted_foreground;
-        let current = ThemeKind::from_id(self.settings.read(cx).theme());
+        let theme = *cx.theme();
+        let muted = theme.muted_foreground;
+        let small = theme.text(Text::Small);
+        let look = self.look(cx);
+        let current = look.kind;
         let overrides = self.settings.read(cx).theme_overrides().clone();
 
         let picker = div()
@@ -181,7 +310,7 @@ impl SettingsView {
                                         settings.set_theme(kind.id(), cx);
                                     });
                                     this.themes_open = false;
-                                    Theme::set(kind, &overrides, cx);
+                                    Theme::set(Look { kind, ..look }, &overrides, cx);
                                     cx.notify();
                                 }))
                         })),
@@ -211,18 +340,22 @@ impl SettingsView {
             "Theme",
             "Choose the application colour palette",
             muted,
+            small,
             actions.into_any_element(),
         )
     }
 
     fn playback_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let muted = cx.theme().muted_foreground;
+        let theme = *cx.theme();
+        let muted = theme.muted_foreground;
+        let small = theme.text(Text::Small);
         let on = self.playback.read(cx).normalisation();
 
         self.row(
             "Normalise loudness",
             "Keeps tracks at a consistent volume",
             muted,
+            small,
             Button::new("normalisation")
                 .label(if on { "On" } else { "Off" })
                 .small()
@@ -236,13 +369,16 @@ impl SettingsView {
     }
 
     fn account_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let muted = cx.theme().muted_foreground;
+        let theme = *cx.theme();
+        let muted = theme.muted_foreground;
+        let small = theme.text(Text::Small);
         let session = self.session.clone();
 
         self.row(
             "Account",
             "Sign out of Spotify on this device",
             muted,
+            small,
             Button::new("sign-out")
                 .label("Sign out")
                 .small()
@@ -260,6 +396,7 @@ impl SettingsView {
         title: &'static str,
         detail: &'static str,
         muted: gpui::Hsla,
+        small: Pixels,
         action: gpui::AnyElement,
     ) -> impl IntoElement {
         div()
@@ -274,7 +411,7 @@ impl SettingsView {
                     .flex_col()
                     .gap_1()
                     .child(div().child(title))
-                    .child(div().text_color(muted).text_size(px(11.)).child(detail)),
+                    .child(div().text_color(muted).text_size(small).child(detail)),
             )
             .child(action)
     }

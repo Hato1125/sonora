@@ -1,6 +1,18 @@
 use gpui::{App, Global, Hsla, Pixels, px, rgb, rgba};
 use serde::{Deserialize, Serialize};
 
+use crate::metrics::{Metrics, Rounding, Text};
+
+pub const MIN_FONT: f32 = 10.;
+pub const MAX_FONT: f32 = 24.;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Look {
+    pub kind: ThemeKind,
+    pub rounding: Rounding,
+    pub font: f32,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ThemeKind {
     Dark,
@@ -131,6 +143,7 @@ pub struct Theme {
     pub table_active_border: Hsla,
     pub radius: Pixels,
     pub font_size: Pixels,
+    pub metrics: Metrics,
 }
 
 impl Global for Theme {}
@@ -167,7 +180,8 @@ impl Theme {
             table_active: rgba(0x1e40af33).into(),
             table_active_border: rgb(0x1d4ed8).into(),
             radius: px(6.),
-            font_size: px(13.),
+            font_size: px(14.),
+            metrics: Metrics::default(),
         }
     }
 
@@ -202,7 +216,8 @@ impl Theme {
             table_active: rgba(0x2563eb1f).into(),
             table_active_border: rgb(0x2563eb).into(),
             radius: px(6.),
-            font_size: px(13.),
+            font_size: px(14.),
+            metrics: Metrics::default(),
         }
     }
 
@@ -237,7 +252,8 @@ impl Theme {
             table_active: rgba(0x0284c733).into(),
             table_active_border: rgb(0x38bdf8).into(),
             radius: px(6.),
-            font_size: px(13.),
+            font_size: px(14.),
+            metrics: Metrics::default(),
         }
     }
 
@@ -272,7 +288,8 @@ impl Theme {
             table_active: rgba(0x16a34a33).into(),
             table_active_border: rgb(0x4ade80).into(),
             radius: px(6.),
-            font_size: px(13.),
+            font_size: px(14.),
+            metrics: Metrics::default(),
         }
     }
 
@@ -444,12 +461,30 @@ impl Theme {
         self
     }
 
-    pub fn init(kind: ThemeKind, overrides: &ThemeOverrides, cx: &mut App) {
-        cx.set_global(Self::for_kind(kind).with_overrides(overrides));
+    pub fn for_look(look: Look, overrides: &ThemeOverrides) -> Self {
+        let base = px(overrides
+            .font_size
+            .unwrap_or(look.font)
+            .clamp(MIN_FONT, MAX_FONT));
+        let mut theme = Self::for_kind(look.kind);
+
+        theme.radius = look.rounding.radius();
+        theme = theme.with_overrides(overrides);
+        theme.font_size = base;
+        theme.metrics = Metrics::new(base);
+        theme
     }
 
-    pub fn set(kind: ThemeKind, overrides: &ThemeOverrides, cx: &mut App) {
-        cx.set_global(Self::for_kind(kind).with_overrides(overrides));
+    pub fn text(&self, step: Text) -> Pixels {
+        px((self.font_size / px(1.) * step.ratio()).round())
+    }
+
+    pub fn init(look: Look, overrides: &ThemeOverrides, cx: &mut App) {
+        cx.set_global(Self::for_look(look, overrides));
+    }
+
+    pub fn set(look: Look, overrides: &ThemeOverrides, cx: &mut App) {
+        cx.set_global(Self::for_look(look, overrides));
         cx.refresh_windows();
     }
 }

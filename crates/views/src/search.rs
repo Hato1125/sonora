@@ -7,18 +7,21 @@ use input::Input;
 use router::{Destination, navigate};
 use state::{Hit, Kind, Playback, Search};
 use ui::ActiveTheme as _;
-use ui::{Artwork, Scrollbar, Theme, clock};
+use ui::{Artwork, Scrollbar, Text, Theme, clock, snapped};
 use workspace::Sidebar;
 
 use crate::cells;
 
-const PADDING: Pixels = px(24.);
 const READABLE: Pixels = px(1180.);
 const COLUMNS: Pixels = px(720.);
-const ROW: Pixels = px(52.);
-const COVER: Pixels = px(36.);
-const BEST_COVER: Pixels = px(84.);
-const AVATAR: Pixels = px(18.);
+
+fn result_cover(theme: &Theme) -> Pixels {
+    theme.metrics.list_row - theme.metrics.pad * 2.
+}
+
+fn best_cover(theme: &Theme) -> Pixels {
+    theme.metrics.cover * 0.6
+}
 
 enum Press {
     Song(usize),
@@ -91,7 +94,7 @@ impl SearchView {
             .flex_none()
             .items_center()
             .gap_2()
-            .h(px(40.))
+            .h(theme.metrics.field)
             .px_3()
             .rounded(theme.radius)
             .bg(theme.secondary)
@@ -153,7 +156,7 @@ impl SearchView {
             .p_4()
             .rounded(theme.radius)
             .bg(theme.secondary)
-            .child(Artwork::new(cover).size(BEST_COVER).rounded(cells::ROUNDED))
+            .child(Artwork::new(cover).size(best_cover(&theme)))
             .child(
                 div()
                     .flex()
@@ -162,14 +165,14 @@ impl SearchView {
                     .gap_1()
                     .child(
                         div()
-                            .text_size(px(11.))
+                            .text_size(theme.text(Text::Small))
                             .text_color(theme.muted_foreground)
                             .font_weight(FontWeight::SEMIBOLD)
                             .child(label(kind)),
                     )
                     .child(
                         div()
-                            .text_size(px(22.))
+                            .text_size(theme.text(Text::Title))
                             .font_weight(FontWeight::BOLD)
                             .truncate()
                             .child(title),
@@ -187,7 +190,7 @@ impl SearchView {
                 .flex()
                 .flex_col()
                 .gap_2()
-                .child(heading("Best match", theme.muted_foreground))
+                .child(heading(&theme, "Best match"))
                 .child(self.pressable("best", card, press, cx))
                 .into_any_element(),
         )
@@ -213,8 +216,9 @@ impl SearchView {
             .into_any_element()
     }
 
-    fn column(&self, kind: Kind, cx: &Context<Self>) -> AnyElement {
+    fn column(&self, kind: Kind, window: &Window, cx: &Context<Self>) -> AnyElement {
         let theme = *cx.theme();
+        let height = snapped(theme.metrics.list_row, window);
         let search = self.search.read(cx);
         let playing = self
             .playback
@@ -235,8 +239,9 @@ impl SearchView {
                         ("song", index),
                         row(
                             theme,
+                            height,
                             track.cover.clone(),
-                            cells::ROUNDED,
+                            false,
                             track.name.clone().into(),
                             tint,
                             track.artists.clone().into(),
@@ -244,7 +249,7 @@ impl SearchView {
                         .child(
                             div()
                                 .flex_none()
-                                .text_size(px(11.))
+                                .text_size(theme.text(Text::Small))
                                 .text_color(theme.muted_foreground)
                                 .child(clock(track.duration)),
                         ),
@@ -259,8 +264,9 @@ impl SearchView {
                 .map(|artist| {
                     row(
                         theme,
+                        height,
                         artist.cover.clone(),
-                        AVATAR,
+                        true,
                         artist.name.clone().into(),
                         theme.foreground,
                         songs_label(artist.tracks).into(),
@@ -277,8 +283,9 @@ impl SearchView {
                         ("album", index),
                         row(
                             theme,
+                            height,
                             album.cover.clone(),
-                            cells::ROUNDED,
+                            false,
                             album.name.clone().into(),
                             theme.foreground,
                             album.artists.clone().into(),
@@ -296,11 +303,11 @@ impl SearchView {
             .flex_1()
             .min_w_0()
             .gap_1()
-            .child(heading(heading_for(kind), theme.muted_foreground))
+            .child(heading(&theme, heading_for(kind)))
             .when(rows.is_empty(), |this| {
                 this.child(
                     div()
-                        .h(ROW)
+                        .h(height)
                         .flex()
                         .items_center()
                         .text_color(theme.muted_foreground)
@@ -314,8 +321,9 @@ impl SearchView {
 
 fn row(
     theme: Theme,
+    height: Pixels,
     cover: Option<String>,
-    rounded: Pixels,
+    circle: bool,
     title: SharedString,
     tint: Hsla,
     meta: SharedString,
@@ -324,11 +332,15 @@ fn row(
         .flex()
         .items_center()
         .gap_3()
-        .h(ROW)
+        .h(height)
         .px_2()
         .rounded(theme.radius)
         .hover(move |style| style.bg(theme.table_hover))
-        .child(Artwork::new(cover).size(COVER).rounded(rounded))
+        .child(
+            Artwork::new(cover)
+                .size(result_cover(&theme))
+                .when(circle, Artwork::circle),
+        )
         .child(
             div()
                 .flex()
@@ -339,20 +351,20 @@ fn row(
                 .child(
                     div()
                         .truncate()
-                        .text_size(px(11.))
+                        .text_size(theme.text(Text::Small))
                         .text_color(theme.muted_foreground)
                         .child(meta),
                 ),
         )
 }
 
-fn heading(label: impl Into<SharedString>, color: Hsla) -> AnyElement {
+fn heading(theme: &Theme, label: impl Into<SharedString>) -> AnyElement {
     div()
         .flex_none()
         .pb_1()
-        .text_size(px(11.))
+        .text_size(theme.text(Text::Small))
         .font_weight(FontWeight::SEMIBOLD)
-        .text_color(color)
+        .text_color(theme.muted_foreground)
         .child(label.into().to_uppercase())
         .into_any_element()
 }
@@ -382,14 +394,16 @@ fn songs_label(count: usize) -> String {
 
 impl Render for SearchView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+        let pad = theme.metrics.inset;
         let sidebar = self.sidebar.read(cx).occupied_width();
-        let room = cells::content_width(window, sidebar, PADDING * 2.);
+        let room = cells::content_width(window, sidebar, pad * 2.);
         let stacked = room < COLUMNS;
         let inset = match room > READABLE {
             true => (room - READABLE) / 2.,
             false => Pixels::ZERO,
         };
-        let border = cx.theme().border;
+        let border = theme.border;
         let asked = !self.search.read(cx).query().trim().is_empty();
 
         let columns = match stacked {
@@ -397,17 +411,17 @@ impl Render for SearchView {
                 .flex()
                 .flex_col()
                 .gap_6()
-                .child(self.column(Kind::Song, cx))
-                .child(self.column(Kind::Artist, cx))
-                .child(self.column(Kind::Album, cx)),
+                .child(self.column(Kind::Song, window, cx))
+                .child(self.column(Kind::Artist, window, cx))
+                .child(self.column(Kind::Album, window, cx)),
             false => div()
                 .flex()
                 .gap_6()
-                .child(self.column(Kind::Song, cx))
+                .child(self.column(Kind::Song, window, cx))
                 .child(divider(border))
-                .child(self.column(Kind::Artist, cx))
+                .child(self.column(Kind::Artist, window, cx))
                 .child(divider(border))
-                .child(self.column(Kind::Album, cx)),
+                .child(self.column(Kind::Album, window, cx)),
         };
 
         div()
@@ -419,9 +433,9 @@ impl Render for SearchView {
                     .size_full()
                     .overflow_y_scroll()
                     .track_scroll(self.scrollbar.read(cx).scroll())
-                    .px(PADDING + inset)
-                    .pt(PADDING)
-                    .pb(PADDING)
+                    .px(pad + inset)
+                    .pt(pad)
+                    .pb(pad)
                     .child(
                         div()
                             .flex()

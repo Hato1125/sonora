@@ -6,7 +6,7 @@ use spotify::Playlist;
 use state::{Library, LibraryState};
 use ui::{Cell, ColumnSpec, GridSource, Width};
 
-use crate::cells::{self, ALWAYS, ARTWORK_COLUMN, NUMBER, ROOMY, SNUG, TRAILING};
+use crate::cells::{self, ALWAYS, NUMBER, ROOMY, SNUG, TRAILING};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum PlaylistField {
@@ -33,7 +33,7 @@ pub(super) const COLUMNS: &[ColumnSpec<PlaylistField>] = &[
         key: "cover",
         header: "",
         align: TextAlign::Left,
-        width: Width::Fixed(ARTWORK_COLUMN),
+        width: Width::Thumb,
         flush: true,
         sortable: false,
         hide_below: ALWAYS,

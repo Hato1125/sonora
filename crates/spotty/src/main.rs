@@ -10,6 +10,7 @@ use gpui::{
 };
 use router::{Destination, LibraryTab};
 use state::{Library, Playback, Queue, Session, Spotty};
+use ui::ActiveTheme as _;
 use views::Root;
 
 fn main() {
@@ -34,14 +35,18 @@ fn main() {
         .run(move |cx: &mut App| {
             state::init(cx, io);
             router::init(Destination::Library(LibraryTab::Songs), cx);
-            let (theme, overrides) = {
+            let (look, overrides) = {
                 let settings = Spotty::global(cx).settings.read(cx);
                 (
-                    ui::ThemeKind::from_id(settings.theme()),
+                    ui::Look {
+                        kind: ui::ThemeKind::from_id(settings.theme()),
+                        rounding: ui::Rounding::from_id(settings.rounding()),
+                        font: settings.font_size(),
+                    },
                     settings.theme_overrides().clone(),
                 )
             };
-            ui::Theme::init(theme, &overrides, cx);
+            ui::Theme::init(look, &overrides, cx);
 
             actions::register(cx);
 
@@ -92,7 +97,7 @@ fn open_window(
             ..Default::default()
         },
         |window, cx| {
-            window.set_rem_size(px(13.));
+            window.set_rem_size(cx.theme().font_size);
             cx.new(|cx| Root::new(session, library, playback, queue, window, cx))
         },
     )

@@ -6,6 +6,7 @@ use gpui::{
     MouseButton, MouseDownEvent, Pixels, StyleRefinement, TextAlign, Window, div, px, svg,
 };
 
+use crate::metrics::{Metrics, snapped};
 use crate::theme::ActiveTheme as _;
 
 const PADDING: Pixels = px(8.);
@@ -15,13 +16,13 @@ const MIN_FLEXIBLE: Pixels = px(120.);
 const SLACK: Pixels = px(2.);
 const OVERSCAN: usize = 2;
 
-pub const ROW: Pixels = px(38.);
 pub const ROW_GROUP: &str = "grid-row";
 
 #[derive(Clone, Copy)]
 pub enum Width {
     Fixed(Pixels),
     Fill(f32),
+    Thumb,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -44,14 +45,15 @@ pub struct ColumnSpec<F: 'static> {
 impl<F: 'static> ColumnSpec<F> {
     fn share(&self) -> f32 {
         match self.width {
-            Width::Fixed(_) => 0.,
             Width::Fill(share) => share,
+            _ => 0.,
         }
     }
 
-    fn resolve(&self, flexible: Pixels, shares: f32) -> Pixels {
+    fn resolve(&self, flexible: Pixels, shares: f32, metrics: Metrics) -> Pixels {
         match self.width {
             Width::Fixed(width) => width,
+            Width::Thumb => metrics.thumb + metrics.pad * 2.,
             Width::Fill(share) if shares > 0. => flexible * (share / shares),
             Width::Fill(_) => Pixels::ZERO,
         }
@@ -116,7 +118,7 @@ pub struct GridDelegate<S: GridSource> {
 
 impl<S: GridSource> GridDelegate<S> {
     pub fn new(source: S, width: Pixels, cx: &App) -> Self {
-        let columns = build(source.columns(), width);
+        let columns = build(source.columns(), width, cx.theme().metrics);
         let mut delegate = Self {
             source,
             columns,
@@ -132,13 +134,13 @@ impl<S: GridSource> GridDelegate<S> {
         &self.source
     }
 
-    pub fn set_width(&mut self, width: Pixels) {
+    pub fn set_width(&mut self, width: Pixels, cx: &App) {
         self.width = width;
-        self.relayout();
+        self.relayout(cx);
     }
 
     pub fn rebuild(&mut self, cx: &App) {
-        self.relayout();
+        self.relayout(cx);
         self.reorder(cx);
     }
 
@@ -150,8 +152,8 @@ impl<S: GridSource> GridDelegate<S> {
         self.order.len()
     }
 
-    fn relayout(&mut self) {
-        self.columns = build(self.source.columns(), self.width);
+    fn relayout(&mut self, cx: &App) {
+        self.columns = build(self.source.columns(), self.width, cx.theme().metrics);
     }
 
     fn reorder(&mut self, cx: &App) {
@@ -183,6 +185,7 @@ impl<S: GridSource> GridDelegate<S> {
 fn build<F: Copy + PartialEq + 'static>(
     specs: &'static [ColumnSpec<F>],
     room: Pixels,
+    metrics: Metrics,
 ) -> Vec<Resolved<F>> {
     let available = (room - SLACK).max(MIN_FLEXIBLE);
     let mut visible: Vec<_> = specs
@@ -195,7 +198,7 @@ fn build<F: Copy + PartialEq + 'static>(
 
     let fixed = visible
         .iter()
-        .map(|spec| spec.resolve(Pixels::ZERO, 0.))
+        .map(|spec| spec.resolve(Pixels::ZERO, 0., metrics))
         .fold(Pixels::ZERO, |total, width| total + width);
     let shares: f32 = visible.iter().map(|spec| spec.share()).sum();
     let flexible = (available - fixed).max(MIN_FLEXIBLE);
@@ -204,7 +207,7 @@ fn build<F: Copy + PartialEq + 'static>(
         .iter()
         .map(|spec| Resolved {
             spec,
-            width: spec.resolve(flexible, shares),
+            width: spec.resolve(flexible, shares, metrics),
         })
         .collect();
 
@@ -237,12 +240,12 @@ pub struct Viewport {
 }
 
 impl Viewport {
-    fn rows(&self) -> usize {
-        (self.height / ROW).ceil().max(0.) as usize + OVERSCAN
+    fn rows(&self, row: Pixels) -> usize {
+        (self.height / row).ceil().max(0.) as usize + OVERSCAN
     }
 
-    fn first(&self) -> usize {
-        ((self.top - ROW) / ROW).floor().max(0.) as usize
+    fn first(&self, head: Pixels, row: Pixels) -> usize {
+        ((self.top - head) / row).floor().max(0.) as usize
     }
 }
 
@@ -267,8 +270,8 @@ impl<S: GridSource> GridState<S> {
         self.viewport = viewport;
     }
 
-    pub fn height(&self) -> Pixels {
-        ROW * (self.delegate.row_count() + 1) as f32
+    fn height(&self, head: Pixels, row: Pixels) -> Pixels {
+        head + row * self.delegate.row_count() as f32
     }
 
     pub fn delegate(&self) -> &GridDelegate<S> {
@@ -301,7 +304,7 @@ impl<S: GridSource> GridState<S> {
         cx.notify();
     }
 
-    fn header(&self, top: Corners<Pixels>, cx: &mut Context<Self>) -> Div {
+    fn header(&self, head: Pixels, top: Corners<Pixels>, cx: &mut Context<Self>) -> Div {
         let theme = *cx.theme();
         let heads: Vec<_> = self
             .delegate
@@ -324,7 +327,7 @@ impl<S: GridSource> GridState<S> {
         div()
             .flex()
             .flex_none()
-            .h(ROW)
+            .h(head)
             .bg(theme.table_head)
             .rounded_tl(top.top_left)
             .rounded_tr(top.top_right)
@@ -369,11 +372,11 @@ impl<S: GridSource> GridState<S> {
             ))
     }
 
-    fn rows(&self, cx: &mut Context<Self>) -> Vec<AnyElement> {
+    fn rows(&self, head: Pixels, row_height: Pixels, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let theme = *cx.theme();
         let count = self.delegate.order.len();
-        let first = self.viewport.first();
-        let last = (first + self.viewport.rows()).min(count);
+        let first = self.viewport.first(head, row_height);
+        let last = (first + self.viewport.rows(row_height)).min(count);
         let bottom = self.corners.bottom_left.max(self.corners.bottom_right);
 
         (first..last)
@@ -398,7 +401,7 @@ impl<S: GridSource> GridState<S> {
                             .px(PADDING)
                             .overflow_hidden()
                             .whitespace_nowrap()
-                            .line_height(ROW)
+                            .line_height(row_height)
                             .child(self.delegate.source.cell(cell, cx))
                             .into_any_element()
                     })
@@ -408,12 +411,12 @@ impl<S: GridSource> GridState<S> {
                     .id(("row", display))
                     .group(ROW_GROUP)
                     .absolute()
-                    .top(ROW * (display + 1) as f32)
+                    .top(head + row_height * display as f32)
                     .left_0()
                     .w_full()
                     .flex()
                     .items_center()
-                    .h(ROW)
+                    .h(row_height)
                     .when(tail, |this| {
                         this.rounded_bl(self.corners.bottom_left)
                             .rounded_br(self.corners.bottom_right)
@@ -474,17 +477,20 @@ fn sort_icon(direction: Option<Sort>) -> &'static str {
 }
 
 impl<S: GridSource> Render for GridState<S> {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let metrics = cx.theme().metrics;
         let backdrop = cx.theme().background;
-        let height = self.height();
-        let pinned = self.viewport.top.clamp(Pixels::ZERO, height - ROW);
+        let row = snapped(metrics.row, window);
+        let head = snapped(metrics.header, window);
+        let height = self.height(head, row);
+        let pinned = snapped(self.viewport.top.clamp(Pixels::ZERO, height - head), window);
         let top = unpinned(self.corners, pinned);
 
         div()
             .relative()
             .w_full()
             .h(height)
-            .children(self.rows(cx))
+            .children(self.rows(head, row, cx))
             .child(
                 div()
                     .occlude()
@@ -495,7 +501,7 @@ impl<S: GridSource> Render for GridState<S> {
                     .bg(backdrop)
                     .rounded_tl(top.top_left)
                     .rounded_tr(top.top_right)
-                    .child(self.header(top, cx)),
+                    .child(self.header(head, top, cx)),
             )
     }
 }

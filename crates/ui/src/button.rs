@@ -4,6 +4,7 @@ use gpui::{
     StyleRefinement, Window, div, px, svg,
 };
 
+use crate::metrics::Text;
 use crate::theme::ActiveTheme as _;
 
 enum Variant {
@@ -179,8 +180,8 @@ impl RenderOnce for Button {
         let radius = theme.radius;
         let interactive = !disabled;
         let (height, padding, gap) = match small {
-            true => (px(26.), px(8.), px(4.)),
-            false => (px(32.), px(12.), px(6.)),
+            true => (theme.metrics.control_small, px(8.), px(4.)),
+            false => (theme.metrics.control, px(12.), px(6.)),
         };
         let (hover, active) = match interactive {
             true => (palette.hover, palette.active),
@@ -200,7 +201,7 @@ impl RenderOnce for Button {
             .px(padding)
             .rounded(radius)
             .text_color(palette.foreground)
-            .when(small, |this| this.text_size(px(12.)))
+            .when(small, |this| this.text_size(theme.text(Text::Label)))
             .when(disabled, |this| this.opacity(0.4))
             .when_some(palette.background, |this, background| this.bg(background))
             .when(selected, |this| this.bg(selected_background))

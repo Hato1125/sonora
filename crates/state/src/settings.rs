@@ -9,6 +9,7 @@ use ui::ThemeOverrides;
 const SAVE_DELAY: Duration = Duration::from_millis(300);
 const DEFAULT_VOLUME: f32 = 0.7;
 const DEFAULT_SIDEBAR_WIDTH: f32 = 220.;
+const DEFAULT_FONT_SIZE: f32 = 14.;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
@@ -26,6 +27,8 @@ struct Values {
 struct Appearance {
     auto_hide_sidebar: bool,
     theme: String,
+    rounding: String,
+    font_size: f32,
     theme_overrides: ThemeOverrides,
 }
 
@@ -47,6 +50,8 @@ impl Default for Appearance {
         Self {
             auto_hide_sidebar: true,
             theme: "dark".to_owned(),
+            rounding: "subtle".to_owned(),
+            font_size: DEFAULT_FONT_SIZE,
             theme_overrides: ThemeOverrides::default(),
         }
     }
@@ -104,6 +109,17 @@ impl AppSettings {
         &self.values.appearance.theme
     }
 
+    pub fn rounding(&self) -> &str {
+        &self.values.appearance.rounding
+    }
+
+    pub fn font_size(&self) -> f32 {
+        self.values
+            .appearance
+            .font_size
+            .clamp(ui::MIN_FONT, ui::MAX_FONT)
+    }
+
     pub fn theme_overrides(&self) -> &ThemeOverrides {
         &self.values.appearance.theme_overrides
     }
@@ -138,6 +154,16 @@ impl AppSettings {
 
     pub fn set_theme(&mut self, theme: impl Into<String>, cx: &mut Context<Self>) {
         self.values.appearance.theme = theme.into();
+        self.schedule_save(cx);
+    }
+
+    pub fn set_rounding(&mut self, rounding: impl Into<String>, cx: &mut Context<Self>) {
+        self.values.appearance.rounding = rounding.into();
+        self.schedule_save(cx);
+    }
+
+    pub fn set_font_size(&mut self, size: f32, cx: &mut Context<Self>) {
+        self.values.appearance.font_size = size.clamp(ui::MIN_FONT, ui::MAX_FONT);
         self.schedule_save(cx);
     }
 

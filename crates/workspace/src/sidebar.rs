@@ -83,6 +83,8 @@ impl Sidebar {
     }
 
     pub fn adapt(&mut self, window: &Window, cx: &mut Context<Self>) {
+        self.width = ui::snapped(self.width, window);
+
         let auto_hide = self.settings.read(cx).auto_hide_sidebar();
         let space_left = window.viewport_size().width - self.width;
         let cramped = auto_hide && space_left < NARROW;
@@ -102,12 +104,14 @@ impl Sidebar {
 
 impl Render for Sidebar {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = cx.theme();
+        let theme = *cx.theme();
         let sidebar_accent = theme.sidebar_accent;
         let foreground = theme.foreground;
         let muted = theme.muted_foreground;
         let sidebar_bg = theme.sidebar;
         let sidebar_border = theme.sidebar_border;
+        let nav = theme.metrics.control;
+        let radius = theme.radius;
         let current = self.trail.read(cx).current();
         self.adapt(window, cx);
         div()
@@ -139,9 +143,9 @@ impl Render for Sidebar {
                                 .flex()
                                 .items_center()
                                 .gap_2p5()
+                                .h(nav)
                                 .px_3()
-                                .py_1p5()
-                                .rounded_md()
+                                .rounded(radius)
                                 .cursor_pointer()
                                 .when(active, |this| this.bg(sidebar_accent))
                                 .hover(move |style| style.bg(sidebar_accent))
@@ -161,11 +165,12 @@ impl Render for Sidebar {
                     .h_full()
                     .cursor_col_resize()
                     .on_drag_move(cx.listener(
-                        |this, event: &DragMoveEvent<SidebarResize>, _, cx| {
+                        |this, event: &DragMoveEvent<SidebarResize>, window, cx| {
                             let resize = event.drag(cx);
-                            this.width = (resize.start_width + event.event.position.x
+                            let dragged = (resize.start_width + event.event.position.x
                                 - resize.start_x.get())
                             .clamp(MIN_WIDTH, MAX_WIDTH);
+                            this.width = ui::snapped(dragged, window);
                             this.persist(cx);
                             cx.notify();
                         },

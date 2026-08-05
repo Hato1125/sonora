@@ -4,7 +4,7 @@ use gpui::{
 };
 use state::{Session, SessionState};
 use ui::ActiveTheme as _;
-use ui::Button;
+use ui::{Button, Text};
 
 pub struct LoginView {
     session: Entity<Session>,
@@ -30,10 +30,11 @@ impl Render for LoginView {
             SessionState::Failed(error) => error.clone(),
         };
 
+        let theme = *cx.theme();
         let status_color = if matches!(state, SessionState::Failed(_)) {
-            cx.theme().danger
+            theme.danger
         } else {
-            cx.theme().muted_foreground
+            theme.muted_foreground
         };
 
         let session = self.session.clone();
@@ -48,14 +49,14 @@ impl Render for LoginView {
             .child(
                 div()
                     .child("spotty")
-                    .text_size(px(28.))
+                    .text_size(theme.text(Text::Display))
                     .font_weight(FontWeight::BOLD),
             )
             .child(
                 div()
                     .max_w(px(560.))
                     .text_center()
-                    .text_size(px(13.))
+                    .text_size(theme.text(Text::Body))
                     .text_color(status_color)
                     .child(status),
             )

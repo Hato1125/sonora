@@ -1,3 +1,4 @@
+use crate::metrics::Text;
 use crate::theme::ActiveTheme as _;
 use std::cell::Cell;
 use std::rc::Rc;
@@ -128,6 +129,7 @@ impl RenderOnce for Scrubber {
         let popover = cx.theme().popover;
         let popover_border = cx.theme().border;
         let popover_text = cx.theme().popover_foreground;
+        let text_size = cx.theme().text(Text::Tiny);
 
         let Self {
             id,
@@ -244,7 +246,7 @@ impl RenderOnce for Scrubber {
                                         .border_1()
                                         .border_color(popover_border)
                                         .text_color(popover_text)
-                                        .text_size(px(10.))
+                                        .text_size(text_size)
                                         .child(text),
                                 ),
                         )

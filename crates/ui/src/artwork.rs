@@ -7,12 +7,13 @@ use gpui::{
 };
 
 const FALLBACK_ICON: &str = "icons/music.svg";
+const ROUNDED: Pixels = px(4.);
 
 #[derive(IntoElement)]
 pub struct Artwork {
     url: Option<SharedString>,
     size: Pixels,
-    rounded: Pixels,
+    circle: bool,
     interactivity: Interactivity,
 }
 
@@ -22,7 +23,7 @@ impl Artwork {
         Self {
             url: url.map(Into::into),
             size: px(28.),
-            rounded: px(4.),
+            circle: false,
             interactivity: Interactivity::new(),
         }
     }
@@ -32,8 +33,8 @@ impl Artwork {
         self
     }
 
-    pub fn rounded(mut self, rounded: Pixels) -> Self {
-        self.rounded = rounded;
+    pub fn circle(mut self) -> Self {
+        self.circle = true;
         self
     }
 }
@@ -55,10 +56,14 @@ impl RenderOnce for Artwork {
         let Self {
             url,
             size,
-            rounded,
+            circle,
             interactivity,
         } = self;
         let muted = cx.theme().muted_foreground;
+        let rounded = match circle {
+            true => size / 2.,
+            false => cx.theme().radius.min(ROUNDED),
+        };
         let placeholder = move || blank(size, rounded, muted).into_any_element();
 
         match url {

@@ -7,7 +7,6 @@ use router::Navigation;
 
 use crate::Sidebar;
 
-const HEIGHT: f32 = 36.;
 #[cfg(target_os = "macos")]
 const TITLE_BAR_LEFT_INSET: f32 = 74.;
 #[cfg(not(target_os = "macos"))]
@@ -43,6 +42,7 @@ impl TitleBar {
         enabled: bool,
         hover: gpui::Hsla,
         muted: gpui::Hsla,
+        radius: Pixels,
         on_click: impl Fn(&mut Window, &mut gpui::App) + 'static,
     ) -> impl IntoElement {
         div()
@@ -51,7 +51,7 @@ impl TitleBar {
             .size_8()
             .items_center()
             .justify_center()
-            .rounded_md()
+            .rounded(radius)
             .when(enabled, |this| {
                 this.cursor_pointer().hover(move |this| this.bg(hover))
             })
@@ -68,6 +68,7 @@ impl TitleBar {
     fn history(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let hover = cx.theme().sidebar_accent;
         let muted = cx.theme().muted_foreground;
+        let radius = cx.theme().radius;
         let navigation = self.navigation.read(cx);
         let (can_back, can_forward) = (navigation.can_go_back(), navigation.can_go_forward());
         let back = self.navigation.clone();
@@ -86,6 +87,7 @@ impl TitleBar {
                 can_back,
                 hover,
                 muted,
+                radius,
                 move |_, cx| back.update(cx, |navigation, cx| navigation.back(cx)),
             ))
             .child(Self::chrome(
@@ -94,6 +96,7 @@ impl TitleBar {
                 can_forward,
                 hover,
                 muted,
+                radius,
                 move |_, cx| forward.update(cx, |navigation, cx| navigation.forward(cx)),
             ))
     }
@@ -102,6 +105,7 @@ impl TitleBar {
         let sidebar = self.sidebar.clone();
         let hover = cx.theme().sidebar_accent;
         let icon_color = cx.theme().foreground;
+        let radius = cx.theme().radius;
         let icon = if sidebar.read(cx).is_open() {
             "icons/panel-right-close.svg"
         } else {
@@ -121,7 +125,7 @@ impl TitleBar {
                     .size_8()
                     .items_center()
                     .justify_center()
-                    .rounded_md()
+                    .rounded(radius)
                     .cursor_pointer()
                     .hover(move |this| this.bg(hover))
                     .child(svg().path(icon).size_4().text_color(icon_color))
@@ -133,15 +137,16 @@ impl TitleBar {
 }
 
 impl Render for TitleBar {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
+        let height = ui::snapped(theme.metrics.title_bar, window);
         let offset = self.sidebar.read(cx).occupied_width();
 
         div()
             .flex()
             .items_center()
             .w_full()
-            .h(px(HEIGHT))
+            .h(height)
             .flex_none()
             .bg(theme.background)
             .border_b_1()

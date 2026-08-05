@@ -9,10 +9,9 @@ use state::{Playback, PlaybackState, Queue};
 
 use ui::{Artwork, Button, Scrubber, ScrubberState, clock};
 
-const HEIGHT: f32 = 76.;
 const SEEK_MAX: f32 = 560.;
 const VOLUME_WIDTH: f32 = 110.;
-const CLOCK_WIDTH: f32 = 34.;
+const CLOCK_CHARS: f32 = 3.4;
 const VOLUME_BREAKPOINT: f32 = 720.;
 const CLOCK_BREAKPOINT: f32 = 560.;
 const TRACK_BREAKPOINT: f32 = 460.;
@@ -122,8 +121,11 @@ impl PlayerBar {
             }))
     }
 
-    fn now_playing(&self, room: bool, cx: &mut Context<Self>) -> impl IntoElement {
-        let muted = cx.theme().muted_foreground;
+    fn now_playing(&self, room: bool, window: &Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = cx.theme();
+        let muted = theme.muted_foreground;
+        let artwork = ui::snapped(theme.metrics.row, window);
+        let artists = theme.text(ui::Text::Small);
         let track = self.playback.read(cx).track().cloned();
         let cover = track.as_ref().and_then(|track| track.cover.clone());
 
@@ -133,7 +135,7 @@ impl PlayerBar {
             .gap_3()
             .flex_1()
             .min_w_0()
-            .child(Artwork::new(cover).size(px(48.)).rounded(px(6.)))
+            .child(Artwork::new(cover).size(artwork))
             .when(room, |this| {
                 this.child(
                     div()
@@ -165,7 +167,7 @@ impl PlayerBar {
                                     .child(SharedString::from(track.artists))
                                     .w_full()
                                     .text_color(muted)
-                                    .text_size(px(11.))
+                                    .text_size(artists)
                                     .truncate(),
                             )
                         }),
@@ -197,9 +199,12 @@ fn percent(fraction: f32) -> SharedString {
 
 impl Render for PlayerBar {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = cx.theme().clone();
+        let theme = *cx.theme();
         let muted = theme.muted_foreground;
         let empty = muted.opacity(0.3);
+        let height = ui::snapped(theme.metrics.player_bar, window);
+        let clock_text = theme.text(ui::Text::Tiny);
+        let clock_width = clock_text * CLOCK_CHARS;
 
         let viewport = window.viewport_size().width;
         let show_volume = viewport >= px(VOLUME_BREAKPOINT);
@@ -225,9 +230,9 @@ impl Render for PlayerBar {
         let clock_label = |value: Duration, align_end: bool| {
             div()
                 .child(clock(value))
-                .w(px(CLOCK_WIDTH))
+                .w(clock_width)
                 .flex_none()
-                .text_size(px(10.))
+                .text_size(clock_text)
                 .text_color(muted)
                 .when_else(align_end, |this| this.text_right(), |this| this.text_left())
         };
@@ -237,14 +242,14 @@ impl Render for PlayerBar {
             .items_center()
             .gap_4()
             .w_full()
-            .h(px(HEIGHT))
+            .h(height)
             .flex_none()
             .px_5()
             .bg(theme.secondary)
             .border_t_1()
             .border_color(theme.border)
             .on_mouse_move(cx.listener(Self::hover))
-            .child(self.now_playing(show_track, cx))
+            .child(self.now_playing(show_track, window, cx))
             .child(
                 div()
                     .flex()
