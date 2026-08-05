@@ -98,15 +98,24 @@ fn track_from(uri: &str, track: &TrackMessage) -> Track {
         } else {
             artists
         },
+        artist_id: track.artist.first().and_then(|artist| base62(artist.gid())),
         album: track
             .album
             .as_ref()
             .and_then(|album| non_empty(album.name.as_deref()))
             .unwrap_or_default()
             .to_owned(),
+        album_id: track.album.as_ref().and_then(|album| base62(album.gid())),
         cover: track.album.as_ref().and_then(cover_url),
         duration: Duration::from_millis(track.duration.unwrap_or_default().max(0) as u64),
     }
+}
+
+fn base62(gid: &[u8]) -> Option<String> {
+    librespot_core::SpotifyId::from_raw(gid)
+        .ok()?
+        .to_base62()
+        .ok()
 }
 
 fn non_empty(value: Option<&str>) -> Option<&str> {
