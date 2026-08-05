@@ -9,8 +9,9 @@ pub use sidebar::{Destination, LibraryTab, Sidebar, SidebarEvent};
 pub use title_bar::TitleBar;
 
 use gpui::prelude::*;
-use gpui::{AnyView, Context, Entity, Render};
+use gpui::{AnyView, App, Context, Entity, FocusHandle, Render};
 use gpui::{Window, div};
+use input::WORKSPACE_CONTEXT;
 use state::{Playback, Queue};
 
 pub struct Workspace {
@@ -18,6 +19,7 @@ pub struct Workspace {
     sidebar: Entity<Sidebar>,
     player_bar: Entity<PlayerBar>,
     content: AnyView,
+    focus: FocusHandle,
 }
 
 impl Workspace {
@@ -37,7 +39,12 @@ impl Workspace {
             sidebar,
             player_bar,
             content,
+            focus: cx.focus_handle(),
         }
+    }
+
+    pub fn focus(&self, window: &mut Window, cx: &mut App) {
+        window.focus(&self.focus, cx);
     }
 
     pub fn content(&self) -> &AnyView {
@@ -65,6 +72,8 @@ impl Render for Workspace {
             .flex()
             .flex_col()
             .size_full()
+            .key_context(WORKSPACE_CONTEXT)
+            .track_focus(&self.focus)
             .child(self.title_bar.clone())
             .child(
                 div()
