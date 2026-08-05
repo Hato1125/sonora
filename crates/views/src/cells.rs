@@ -1,6 +1,6 @@
 use gpui::prelude::*;
 use gpui::{AnyElement, App, Hsla, MouseButton, Pixels, SharedString, Window, div, px, svg};
-use ui::{Artwork, Cell, ROW_GROUP};
+use ui::{Artwork, Cell, Linked as _, ROW_GROUP};
 
 pub(crate) const NUMBER: Pixels = px(44.);
 pub(crate) const TRAILING: Pixels = px(72.);
@@ -69,6 +69,21 @@ pub(crate) fn transport<F>(cell: &Cell<F>, resting: AnyElement, hover: Transport
                         }),
                 ),
         )
+        .into_any_element()
+}
+
+pub(crate) fn link<F>(
+    cell: &Cell<F>,
+    id: &'static str,
+    value: impl Into<SharedString>,
+    color: Hsla,
+    press: impl Fn(&mut Window, &mut App) + 'static,
+) -> AnyElement {
+    cell.frame()
+        .id((id, cell.row))
+        .text_color(color)
+        .link(press)
+        .child(value.into())
         .into_any_element()
 }
 
