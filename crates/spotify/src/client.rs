@@ -8,7 +8,7 @@ use crate::models::{Album, Playlist, Track, UserProfile};
 use crate::{albums, collection, profiles, wire};
 
 #[async_trait]
-pub trait SpotifyApi: Send + Sync + 'static {
+pub trait SpotifyApi: Send + Sync {
     async fn profile(&self) -> Result<UserProfile>;
     async fn saved_tracks(&self, limit: u32) -> Result<Vec<Track>>;
     async fn playlists(&self, limit: u32) -> Result<Vec<Playlist>>;
