@@ -6,7 +6,14 @@ use gpui::{KeyBinding, actions};
 
 actions!(
     spotty,
-    [Quit, SignOut, RefreshLibrary, TogglePlayback, OpenSearch]
+    [
+        Quit,
+        SignOut,
+        RefreshLibrary,
+        TogglePlayback,
+        OpenSearch,
+        OpenSettings
+    ]
 );
 
 actions!(
@@ -50,6 +57,8 @@ pub fn bindings() -> Vec<KeyBinding> {
         KeyBinding::new("ctrl-r", RefreshLibrary, None),
         KeyBinding::new("cmd-f", OpenSearch, None),
         KeyBinding::new("ctrl-f", OpenSearch, None),
+        KeyBinding::new("ctrl-,", OpenSettings, None),
+        KeyBinding::new("cmd-,", OpenSettings, None),
         KeyBinding::new("space", TogglePlayback, Some(&away_from_text)),
         KeyBinding::new("backspace", Backspace, editing),
         KeyBinding::new("ctrl-backspace", BackspaceWord, editing),

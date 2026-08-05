@@ -1,7 +1,7 @@
 use gpui::prelude::*;
 use gpui::{AnyView, Context, Entity, Render};
 use gpui::{Window, div};
-use input::OpenSearch;
+use input::{OpenSearch, OpenSettings};
 use state::{Detail, Io, Library, Playback, Queue, Search, Session, SessionState};
 use ui::ActiveTheme as _;
 use workspace::{
@@ -164,6 +164,14 @@ impl Root {
         cx.notify();
     }
 
+    fn open_settings(&mut self, cx: &mut Context<Self>) {
+        self.navigation.update(cx, |navigation, cx| {
+            navigation.go(Destination::Settings, cx)
+        });
+        self.pending = Some(Focus::Workspace);
+        cx.notify();
+    }
+
     fn show(&mut self, destination: Destination, cx: &mut Context<Self>) {
         self.pending = Some(match destination {
             Destination::Search => Focus::Search,
@@ -231,6 +239,7 @@ impl Render for Root {
             .bg(theme.background)
             .text_color(theme.foreground)
             .on_action(cx.listener(|this, _: &OpenSearch, _, cx| this.open_search(cx)))
+            .on_action(cx.listener(|this, _: &OpenSettings, _, cx| this.open_settings(cx)))
             .when_else(
                 show_sign_in,
                 |this| this.child(self.login.clone()),
