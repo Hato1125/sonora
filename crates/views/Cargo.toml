@@ -8,5 +8,4 @@ gpui.workspace = true
 spotify.workspace = true
 ui.workspace = true
 state.workspace = true
-gpui-component.workspace = true
 workspace.workspace = true

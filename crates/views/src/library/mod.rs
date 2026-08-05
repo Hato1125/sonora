@@ -4,10 +4,9 @@ mod toolbar;
 
 use gpui::prelude::*;
 use gpui::{App, Context, Entity, Pixels, Render, Window, div, px};
-use gpui_component::table::{TableEvent, TableState};
 use spotify::Track;
 use state::{Library, LibraryState, Playback};
-use ui::{GridDelegate, GridState, grid};
+use ui::{GridDelegate, GridEvent, GridState, grid};
 use workspace::{Destination, LibraryTab, Navigation, Sidebar};
 
 use crate::cells;
@@ -100,15 +99,15 @@ impl LibraryView {
 
         let tracks = cx.new(|cx| {
             let source = TrackSource::new(LIBRARY_COLUMNS, LibraryTracks(library.clone()));
-            TableState::new(GridDelegate::new(source, width, cx), window, cx).col_selectable(false)
+            GridState::new(GridDelegate::new(source, width, cx), window, cx)
         });
         let albums = cx.new(|cx| {
             let source = AlbumSource::new(library.clone());
-            TableState::new(GridDelegate::new(source, width, cx), window, cx).col_selectable(false)
+            GridState::new(GridDelegate::new(source, width, cx), window, cx)
         });
         let playlists = cx.new(|cx| {
             let source = PlaylistSource::new(library.clone());
-            TableState::new(GridDelegate::new(source, width, cx), window, cx).col_selectable(false)
+            GridState::new(GridDelegate::new(source, width, cx), window, cx)
         });
 
         cx.observe(&library, |this, _, cx| {
@@ -120,16 +119,14 @@ impl LibraryView {
         cx.observe(&sidebar, |_, _, cx| cx.notify()).detach();
 
         cx.subscribe(&tracks, |this, _, event, cx| {
-            if let TableEvent::DoubleClickedRow(display) = event {
-                this.play(*display, cx);
-            }
+            let GridEvent::DoubleClicked(display) = event;
+            this.play(*display, cx);
         })
         .detach();
 
         cx.subscribe(&albums, |this, _, event, cx| {
-            if let TableEvent::DoubleClickedRow(display) = event {
-                this.open_album(*display, cx);
-            }
+            let GridEvent::DoubleClicked(display) = event;
+            this.open_album(*display, cx);
         })
         .detach();
 

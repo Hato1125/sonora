@@ -1,18 +1,31 @@
 use std::cmp::Ordering;
 
 use gpui::prelude::*;
-use gpui::{AnyElement, App, Context, Div, Edges, Pixels, TextAlign, Window, div, px};
-use gpui_component::table::{Column as TableColumn, ColumnSort, Table, TableDelegate, TableState};
+use gpui::{
+    AnyElement, App, Context, Div, Entity, EventEmitter, MouseButton, MouseDownEvent, Pixels,
+    TextAlign, UniformListScrollHandle, Window, div, px, svg, uniform_list,
+};
+
+use crate::theme::ActiveTheme as _;
 
 const PADDING: Pixels = px(8.);
-const TRAIL: Pixels = px(12.);
+const TRAIL: Pixels = px(4.);
 const MIN_CELL: Pixels = px(24.);
 const MIN_FLEXIBLE: Pixels = px(120.);
+const ROW: Pixels = px(32.);
+const BAR: Pixels = px(6.);
+const MIN_THUMB: Pixels = px(24.);
 
 #[derive(Clone, Copy)]
 pub enum Width {
     Fixed(Pixels),
     Fill(f32),
+}
+
+#[derive(Clone, Copy, PartialEq)]
+pub enum Sort {
+    Ascending,
+    Descending,
 }
 
 pub struct ColumnSpec<F: 'static> {
@@ -78,7 +91,7 @@ pub trait GridSource: 'static {
 }
 
 fn frame(width: Pixels, align: TextAlign) -> Div {
-    let frame = div().w(width);
+    let frame = div().w(width).flex_none().min_w_0();
     match align {
         TextAlign::Left => frame.truncate(),
         TextAlign::Center => frame.flex().justify_center(),
@@ -86,30 +99,24 @@ fn frame(width: Pixels, align: TextAlign) -> Div {
     }
 }
 
-fn flush_paddings() -> Edges<Pixels> {
-    Edges {
-        top: px(0.),
-        bottom: px(0.),
-        left: PADDING,
-        right: PADDING,
-    }
+struct Resolved<F: 'static> {
+    spec: &'static ColumnSpec<F>,
+    width: Pixels,
 }
 
 pub struct GridDelegate<S: GridSource> {
     source: S,
-    specs: Vec<&'static ColumnSpec<S::Field>>,
-    columns: Vec<TableColumn>,
+    columns: Vec<Resolved<S::Field>>,
     width: Pixels,
-    sort: Option<(S::Field, ColumnSort)>,
+    sort: Option<(S::Field, Sort)>,
     order: Vec<usize>,
 }
 
 impl<S: GridSource> GridDelegate<S> {
     pub fn new(source: S, width: Pixels, cx: &App) -> Self {
-        let (specs, columns) = build(source.columns(), width, None);
+        let columns = build(source.columns(), width);
         let mut delegate = Self {
             source,
-            specs,
             columns,
             width,
             sort: None,
@@ -133,14 +140,16 @@ impl<S: GridSource> GridDelegate<S> {
         self.reorder(cx);
     }
 
-    fn relayout(&mut self) {
-        let (specs, columns) = build(self.source.columns(), self.width, self.sort);
-        self.specs = specs;
-        self.columns = columns;
-    }
-
     pub fn row(&self, display: usize) -> usize {
         self.order.get(display).copied().unwrap_or(display)
+    }
+
+    pub fn row_count(&self) -> usize {
+        self.order.len()
+    }
+
+    fn relayout(&mut self) {
+        self.columns = build(self.source.columns(), self.width);
     }
 
     fn reorder(&mut self, cx: &App) {
@@ -148,13 +157,8 @@ impl<S: GridSource> GridDelegate<S> {
 
         if let Some((field, direction)) = self.sort {
             match direction {
-                ColumnSort::Ascending => {
-                    order.sort_by(|&a, &b| self.source.compare(field, a, b, cx))
-                }
-                ColumnSort::Descending => {
-                    order.sort_by(|&a, &b| self.source.compare(field, b, a, cx))
-                }
-                ColumnSort::Default => (),
+                Sort::Ascending => order.sort_by(|&a, &b| self.source.compare(field, a, b, cx)),
+                Sort::Descending => order.sort_by(|&a, &b| self.source.compare(field, b, a, cx)),
             }
         }
 
@@ -166,15 +170,18 @@ impl<S: GridSource> GridDelegate<S> {
         let gutter = if trailing { TRAIL } else { Pixels::ZERO };
         (self.columns[col_ix].width - PADDING * 2. - gutter).max(MIN_CELL)
     }
-}
 
-type Layout<F> = (Vec<&'static ColumnSpec<F>>, Vec<TableColumn>);
+    fn direction(&self, field: S::Field) -> Option<Sort> {
+        self.sort
+            .filter(|(sorted, _)| *sorted == field)
+            .map(|(_, direction)| direction)
+    }
+}
 
 fn build<F: Copy + PartialEq + 'static>(
     specs: &'static [ColumnSpec<F>],
     available: Pixels,
-    sort: Option<(F, ColumnSort)>,
-) -> Layout<F> {
+) -> Vec<Resolved<F>> {
     let mut visible: Vec<_> = specs
         .iter()
         .filter(|spec| available >= spec.hide_below)
@@ -190,27 +197,11 @@ fn build<F: Copy + PartialEq + 'static>(
     let shares: f32 = visible.iter().map(|spec| spec.share()).sum();
     let flexible = (available - fixed).max(MIN_FLEXIBLE);
 
-    let mut columns: Vec<TableColumn> = visible
+    let mut columns: Vec<Resolved<F>> = visible
         .iter()
-        .map(|spec| {
-            let mut column = TableColumn::new(spec.key, spec.header)
-                .width(spec.resolve(flexible, shares))
-                .resizable(false)
-                .movable(false);
-
-            if spec.flush {
-                column = column.paddings(flush_paddings());
-            }
-            column.align = spec.align;
-
-            if spec.sortable {
-                let direction = match sort {
-                    Some((field, direction)) if field == spec.field => direction,
-                    _ => ColumnSort::Default,
-                };
-                column = column.sort(direction);
-            }
-            column
+        .map(|spec| Resolved {
+            spec,
+            width: spec.resolve(flexible, shares),
         })
         .collect();
 
@@ -229,73 +220,254 @@ fn build<F: Copy + PartialEq + 'static>(
         }
     }
 
-    (visible, columns)
+    columns
 }
 
-impl<S: GridSource> TableDelegate for GridDelegate<S> {
-    fn columns_count(&self, _cx: &App) -> usize {
-        self.columns.len()
+pub enum GridEvent {
+    DoubleClicked(usize),
+}
+
+pub struct GridState<S: GridSource> {
+    delegate: GridDelegate<S>,
+    scroll: UniformListScrollHandle,
+}
+
+impl<S: GridSource> EventEmitter<GridEvent> for GridState<S> {}
+
+impl<S: GridSource> GridState<S> {
+    pub fn new(delegate: GridDelegate<S>, _window: &mut Window, _cx: &mut Context<Self>) -> Self {
+        Self {
+            delegate,
+            scroll: UniformListScrollHandle::new(),
+        }
     }
 
-    fn rows_count(&self, _cx: &App) -> usize {
-        self.order.len()
+    pub fn delegate(&self) -> &GridDelegate<S> {
+        &self.delegate
     }
 
-    fn column(&self, col_ix: usize, _cx: &App) -> &TableColumn {
-        &self.columns[col_ix]
+    pub fn delegate_mut(&mut self) -> &mut GridDelegate<S> {
+        &mut self.delegate
     }
 
-    fn loading(&self, cx: &App) -> bool {
-        self.source.is_loading(cx)
+    pub fn refresh(&mut self, cx: &mut Context<Self>) {
+        cx.notify();
     }
 
-    fn perform_sort(
-        &mut self,
-        col_ix: usize,
-        sort: ColumnSort,
-        _window: &mut Window,
-        cx: &mut Context<TableState<Self>>,
-    ) {
-        let field = self.specs[col_ix].field;
-        self.sort = match sort {
-            ColumnSort::Default => None,
-            direction => Some((field, direction)),
+    fn toggle_sort(&mut self, col_ix: usize, cx: &mut Context<Self>) {
+        let Some(column) = self.delegate.columns.get(col_ix) else {
+            return;
         };
-        self.reorder(cx);
-    }
+        if !column.spec.sortable {
+            return;
+        }
 
-    fn render_th(
-        &mut self,
-        col_ix: usize,
-        _window: &mut Window,
-        _cx: &mut Context<TableState<Self>>,
-    ) -> impl IntoElement {
-        let width = self.inner_width(col_ix);
-        let column = &self.columns[col_ix];
-        frame(width, column.align).child(column.name.clone())
-    }
-
-    fn render_td(
-        &mut self,
-        row_ix: usize,
-        col_ix: usize,
-        _window: &mut Window,
-        cx: &mut Context<TableState<Self>>,
-    ) -> impl IntoElement {
-        let spec = self.specs[col_ix];
-        let cell = Cell {
-            field: spec.field,
-            width: self.inner_width(col_ix),
-            align: spec.align,
-            display: row_ix,
-            row: self.row(row_ix),
+        let field = column.spec.field;
+        self.delegate.sort = match self.delegate.direction(field) {
+            None => Some((field, Sort::Ascending)),
+            Some(Sort::Ascending) => Some((field, Sort::Descending)),
+            Some(Sort::Descending) => None,
         };
-        self.source.cell(cell, cx)
+        self.delegate.rebuild(cx);
+        cx.notify();
+    }
+
+    fn header(&self, cx: &mut Context<Self>) -> Div {
+        let theme = *cx.theme();
+        let heads: Vec<_> = self
+            .delegate
+            .columns
+            .iter()
+            .enumerate()
+            .map(|(ix, column)| {
+                (
+                    ix,
+                    column.width,
+                    self.delegate.inner_width(ix),
+                    column.spec.align,
+                    column.spec.header,
+                    column.spec.sortable,
+                    self.delegate.direction(column.spec.field),
+                )
+            })
+            .collect();
+
+        div()
+            .flex()
+            .flex_none()
+            .h(ROW)
+            .bg(theme.table_head)
+            .border_b_1()
+            .border_color(theme.table_row_border)
+            .text_color(theme.table_head_foreground)
+            .children(heads.into_iter().map(
+                |(ix, width, inner, align, header, sortable, direction)| {
+                    div()
+                        .id(("head", ix))
+                        .flex()
+                        .flex_none()
+                        .items_center()
+                        .gap_1()
+                        .w(width)
+                        .h_full()
+                        .px(PADDING)
+                        .when(sortable, |this| {
+                            this.cursor_pointer()
+                                .hover(move |style| style.text_color(theme.foreground))
+                                .on_mouse_down(
+                                    MouseButton::Left,
+                                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                                        this.toggle_sort(ix, cx)
+                                    }),
+                                )
+                        })
+                        .child(frame(inner - sort_room(sortable), align).child(header))
+                        .when(sortable, |this| {
+                            this.child(
+                                svg()
+                                    .path(sort_icon(direction))
+                                    .size(px(12.))
+                                    .flex_none()
+                                    .text_color(match direction {
+                                        Some(_) => theme.foreground,
+                                        None => theme.table_head_foreground,
+                                    }),
+                            )
+                        })
+                },
+            ))
+    }
+
+    fn rows(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+        let count = self.delegate.order.len();
+
+        uniform_list(
+            "grid-rows",
+            count,
+            cx.processor(move |this, range: std::ops::Range<usize>, _window, cx| {
+                range
+                    .map(|display| {
+                        let row = this.delegate.row(display);
+                        let cells: Vec<AnyElement> = (0..this.delegate.columns.len())
+                            .map(|ix| {
+                                let column = &this.delegate.columns[ix];
+                                let cell = Cell {
+                                    field: column.spec.field,
+                                    width: this.delegate.inner_width(ix),
+                                    align: column.spec.align,
+                                    display,
+                                    row,
+                                };
+                                let width = column.width;
+                                div()
+                                    .flex_none()
+                                    .w(width)
+                                    .h_full()
+                                    .px(PADDING)
+                                    .overflow_hidden()
+                                    .whitespace_nowrap()
+                                    .line_height(ROW)
+                                    .child(this.delegate.source.cell(cell, cx))
+                                    .into_any_element()
+                            })
+                            .collect();
+
+                        div()
+                            .id(("row", display))
+                            .flex()
+                            .items_center()
+                            .h(ROW)
+                            .border_b_1()
+                            .border_color(theme.table_row_border)
+                            .hover(move |style| style.bg(theme.table_hover))
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(move |_, event: &MouseDownEvent, _, cx| {
+                                    if event.click_count >= 2 {
+                                        cx.emit(GridEvent::DoubleClicked(display));
+                                    }
+                                }),
+                            )
+                            .children(cells)
+                    })
+                    .collect()
+            }),
+        )
+        .track_scroll(self.scroll.clone())
+        .size_full()
+    }
+
+    fn scrollbar(&self, cx: &mut Context<Self>) -> Option<Div> {
+        let theme = *cx.theme();
+        let (viewport, hidden, offset) = {
+            let state = self.scroll.0.borrow();
+            (
+                state.base_handle.bounds().size.height,
+                state.base_handle.max_offset().height,
+                -state.base_handle.offset().y,
+            )
+        };
+        if viewport <= Pixels::ZERO || hidden <= Pixels::ZERO {
+            return None;
+        }
+
+        let content = viewport + hidden;
+        let progress = (offset / hidden).clamp(0., 1.);
+        let thumb = (viewport * (viewport / content)).max(MIN_THUMB);
+        let travel = viewport - thumb;
+
+        Some(
+            div()
+                .absolute()
+                .top_0()
+                .right_0()
+                .w(BAR)
+                .h_full()
+                .child(
+                    div()
+                        .absolute()
+                        .top(travel * progress)
+                        .w(BAR)
+                        .h(thumb)
+                        .rounded_full()
+                        .bg(theme.muted_foreground.opacity(0.35)),
+                ),
+        )
     }
 }
 
-pub type GridState<S> = TableState<GridDelegate<S>>;
+fn sort_room(sortable: bool) -> Pixels {
+    if sortable { px(16.) } else { Pixels::ZERO }
+}
 
-pub fn grid<S: GridSource>(state: &gpui::Entity<GridState<S>>) -> Table<GridDelegate<S>> {
-    Table::new(state).bordered(false)
+fn sort_icon(direction: Option<Sort>) -> &'static str {
+    match direction {
+        Some(Sort::Ascending) => "icons/chevron-up.svg",
+        Some(Sort::Descending) => "icons/chevron-down.svg",
+        None => "icons/chevrons-up-down.svg",
+    }
+}
+
+impl<S: GridSource> Render for GridState<S> {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        div()
+            .flex()
+            .flex_col()
+            .size_full()
+            .overflow_hidden()
+            .child(self.header(cx))
+            .child(
+                div()
+                    .relative()
+                    .flex_1()
+                    .min_h_0()
+                    .child(self.rows(cx))
+                    .children(self.scrollbar(cx)),
+            )
+    }
+}
+
+pub fn grid<S: GridSource>(state: &Entity<GridState<S>>) -> impl IntoElement {
+    state.clone()
 }

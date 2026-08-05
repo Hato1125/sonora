@@ -32,9 +32,7 @@ fn main() {
         .with_assets(assets::Assets)
         .with_http_client(Arc::new(http::Client::new(io.handle())))
         .run(move |cx: &mut App| {
-            gpui_component::init(cx);
-            gpui_component::Theme::change(gpui_component::ThemeMode::Dark, None, cx);
-            gpui_component::Theme::global_mut(cx).font_size = px(13.);
+            ui::Theme::init(cx);
 
             state::init(cx, io);
 
@@ -76,9 +74,8 @@ fn open_window(
             ..Default::default()
         },
         |window, cx| {
-            let root = cx.new(|cx| Root::new(session, library, playback, window, cx));
-            let view: gpui::AnyView = root.into();
-            cx.new(|cx| gpui_component::Root::new(view, window, cx))
+            window.set_rem_size(px(13.));
+            cx.new(|cx| Root::new(session, library, playback, window, cx))
         },
     )
     .expect("failed to open window");

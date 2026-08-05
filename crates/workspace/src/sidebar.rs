@@ -1,11 +1,9 @@
+use ui::ActiveTheme as _;
 use std::cell::Cell;
 
 use gpui::prelude::*;
 use gpui::{Context, DragMoveEvent, Empty, EventEmitter, Pixels, Render, SharedString};
-use gpui::{Window, div, px};
-use gpui_component::ActiveTheme as _;
-use gpui_component::Icon;
-use gpui_component::label::Label;
+use gpui::{Window, div, px, svg};
 
 const NAV: [(&str, &str, Option<Destination>); 4] = [
     ("Home", "icons/house.svg", None),
@@ -120,8 +118,8 @@ impl Render for Sidebar {
                                 .rounded_md()
                                 .cursor_pointer()
                                 .hover(move |style| style.bg(sidebar_accent))
-                                .child(Icon::default().path(icon).size_4().text_color(muted))
-                                .child(Label::new(label).text_color(muted))
+                                .child(svg().path(icon).size_4().flex_none().text_color(muted))
+                                .child(div().text_color(muted).child(label))
                                 .when_some(destination, |this, destination| {
                                     this.on_click(cx.listener(move |_, _, _, cx| {
                                         cx.emit(SidebarEvent::Navigate(destination.clone()));

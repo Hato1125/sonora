@@ -1,9 +1,9 @@
+use crate::theme::ActiveTheme as _;
 use gpui::prelude::*;
-use gpui::{
+use gpui::{svg, 
     AnyElement, App, Div, IntoElement, Pixels, SharedString, SharedUri, Window, div, img, px,
 };
-use gpui_component::skeleton::Skeleton;
-use gpui_component::{ActiveTheme as _, Icon};
+use crate::skeleton::Skeleton;
 
 const FALLBACK_ICON: &str = "icons/music.svg";
 
@@ -70,7 +70,7 @@ fn blank(size: Pixels, rounded: Pixels, muted: gpui::Hsla) -> Div {
         .items_center()
         .justify_center()
         .child(
-            Icon::default()
+            svg()
                 .path(FALLBACK_ICON)
                 .size(size * 0.46)
                 .text_color(muted.opacity(0.5)),

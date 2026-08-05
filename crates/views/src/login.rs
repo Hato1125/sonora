@@ -1,10 +1,9 @@
+use ui::ActiveTheme as _;
 use gpui::{
     Context, Entity, FontWeight, IntoElement, ParentElement as _, Render, Styled as _, Window, div,
     px,
 };
-use gpui_component::button::{Button, ButtonVariants as _};
-use gpui_component::label::Label;
-use gpui_component::{ActiveTheme as _, Disableable as _};
+use ui::Button;
 use state::{Session, SessionState};
 
 pub struct LoginView {
@@ -47,7 +46,7 @@ impl Render for LoginView {
             .gap_4()
             .size_full()
             .child(
-                Label::new("spotty")
+                div().child("spotty")
                     .text_size(px(28.))
                     .font_weight(FontWeight::BOLD),
             )

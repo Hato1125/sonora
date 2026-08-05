@@ -1,8 +1,7 @@
+use ui::ActiveTheme as _;
 use gpui::prelude::*;
 use gpui::{AnyView, Context, Entity, MouseButton, Pixels, Render};
-use gpui::{Window, div, px};
-use gpui_component::ActiveTheme as _;
-use gpui_component::Icon;
+use gpui::{Window, div, px, svg};
 
 use crate::{Navigation, Sidebar};
 
@@ -53,10 +52,10 @@ impl TitleBar {
                 this.cursor_pointer().hover(move |this| this.bg(hover))
             })
             .child(
-                Icon::default()
+                svg()
                     .path(icon)
                     .size_4()
-                    .when(!enabled, |this| this.text_color(muted.opacity(0.4))),
+                    .text_color(if enabled { muted } else { muted.opacity(0.4) }),
             )
             .when(enabled, |this| {
                 this.on_click(move |_, window, cx| on_click(window, cx))
@@ -99,6 +98,7 @@ impl TitleBar {
     fn toggle(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let sidebar = self.sidebar.clone();
         let hover = cx.theme().sidebar_accent;
+        let icon_color = cx.theme().foreground;
         let icon = if sidebar.read(cx).is_open() {
             "icons/panel-right-close.svg"
         } else {
@@ -121,7 +121,7 @@ impl TitleBar {
                     .rounded_md()
                     .cursor_pointer()
                     .hover(move |this| this.bg(hover))
-                    .child(Icon::default().path(icon).size_4())
+                    .child(svg().path(icon).size_4().text_color(icon_color))
                     .on_click(move |_, _, cx| {
                         sidebar.update(cx, |sidebar, cx| sidebar.toggle(cx));
                     }),

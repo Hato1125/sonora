@@ -1,19 +1,21 @@
+use ui::ActiveTheme as _;
 use gpui::prelude::*;
 use gpui::{
     AnyElement, App, Context, Entity, FontWeight, Pixels, Render, SharedString, Window, div, px,
 };
-use gpui_component::ActiveTheme as _;
-use gpui_component::table::{TableEvent, TableState};
 use spotify::{Album, Track};
 use state::{AlbumDetail, Playback};
-use ui::{Artwork, GridDelegate, GridState, grid};
+use ui::{Artwork, GridDelegate, GridEvent, GridState, grid};
 
 use crate::cells;
 use workspace::Sidebar;
 use crate::tracks::{ALBUM_COLUMNS, TrackSource, Tracks};
 
-const INSET: Pixels = px(48.);
+const PADDING: Pixels = px(24.);
+const INSET: Pixels = px(50.);
 const COVER: Pixels = px(140.);
+const ROW: f32 = 32.;
+const FRAME: f32 = 2.;
 
 struct DetailTracks(Entity<AlbumDetail>);
 
@@ -47,7 +49,7 @@ impl AlbumView {
 
         let table = cx.new(|cx| {
             let source = TrackSource::new(ALBUM_COLUMNS, DetailTracks(detail.clone()));
-            TableState::new(GridDelegate::new(source, width, cx), window, cx).col_selectable(false)
+            GridState::new(GridDelegate::new(source, width, cx), window, cx)
         });
 
         cx.observe(&detail, |this, _, cx| {
@@ -59,9 +61,8 @@ impl AlbumView {
         cx.observe(&sidebar, |_, _, cx| cx.notify()).detach();
 
         cx.subscribe(&table, |this, _, event, cx| {
-            if let TableEvent::DoubleClickedRow(display) = event {
-                this.play(*display, cx);
-            }
+            let GridEvent::DoubleClicked(display) = event;
+            this.play(*display, cx);
         })
         .detach();
 
@@ -170,14 +171,22 @@ fn meta(album: &Album) -> SharedString {
 impl Render for AlbumView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.resize(window, cx);
+        let rows = self.table.read(cx).delegate().row_count();
+        let height = px((rows + 1) as f32 * ROW + FRAME);
 
         div()
             .flex()
             .flex_col()
             .size_full()
-            .px_6()
-            .pt_6()
+            .px(PADDING)
+            .pt(PADDING)
             .child(self.header(cx))
-            .child(div().flex_1().min_h_0().child(grid(&self.table)))
+            .child(
+                div()
+                    .h(height)
+                    .border_1()
+                    .border_color(cx.theme().border)
+                    .child(grid(&self.table)),
+            )
     }
 }

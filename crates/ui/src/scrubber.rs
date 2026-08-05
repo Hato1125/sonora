@@ -1,3 +1,4 @@
+use crate::theme::ActiveTheme as _;
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -6,7 +7,6 @@ use gpui::{
     App, Bounds, DragMoveEvent, Empty, Hsla, MouseButton, MouseDownEvent, MouseUpEvent, Pixels,
     Point, Render, SharedString, Window, canvas, div, px, relative,
 };
-use gpui_component::ActiveTheme as _;
 
 const TRACK: f32 = 4.;
 const THUMB: f32 = 12.;

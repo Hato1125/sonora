@@ -1,10 +1,7 @@
+use ui::{Button, Initials, Skeleton};
+use ui::ActiveTheme as _;
 use gpui::prelude::*;
 use gpui::{Context, Entity, FontWeight, Render, Window, div, px};
-use gpui_component::avatar::Avatar;
-use gpui_component::button::Button;
-use gpui_component::label::Label;
-use gpui_component::skeleton::Skeleton;
-use gpui_component::{ActiveTheme as _, Icon, Sizable as _};
 use state::{Playback, Session, SessionState};
 
 pub struct SettingsView {
@@ -31,11 +28,9 @@ impl SettingsView {
             .items_center()
             .gap_4()
             .child(match self.session.read(cx).state() {
-                SessionState::SignedIn(profile) => Avatar::new()
-                    .name(profile.display_name.clone())
-                    .size_16()
+                SessionState::SignedIn(profile) => Initials::new(profile.display_name.clone(), px(64.))
                     .into_any_element(),
-                _ => Skeleton::new().size_16().rounded_full().into_any_element(),
+                _ => Skeleton::new().size(px(64.)).circle().into_any_element(),
             })
             .child(
                 div()
@@ -43,14 +38,14 @@ impl SettingsView {
                     .flex_col()
                     .gap_1()
                     .child(match self.session.read(cx).state() {
-                        SessionState::SignedIn(profile) => Label::new(profile.display_name.clone())
+                        SessionState::SignedIn(profile) => div().child(profile.display_name.clone())
                             .text_size(px(18.))
                             .font_weight(FontWeight::SEMIBOLD)
                             .into_any_element(),
                         _ => Skeleton::new().w(px(140.)).h(px(14.)).into_any_element(),
                     })
                     .child(match self.session.read(cx).state() {
-                        SessionState::SignedIn(profile) => Label::new(profile.id.clone())
+                        SessionState::SignedIn(profile) => div().child(profile.id.clone())
                             .text_color(muted)
                             .text_size(px(11.))
                             .into_any_element(),
@@ -91,7 +86,7 @@ impl SettingsView {
                 .label("Sign out")
                 .small()
                 .outline()
-                .icon(Icon::default().path("icons/log-out.svg"))
+                .icon("icons/log-out.svg")
                 .on_click(move |_, _, cx| {
                     session.update(cx, |session, cx| session.sign_out(cx));
                 })
@@ -117,8 +112,8 @@ impl SettingsView {
                     .flex()
                     .flex_col()
                     .gap_1()
-                    .child(Label::new(title))
-                    .child(Label::new(detail).text_color(muted).text_size(px(11.))),
+                    .child(div().child(title))
+                    .child(div().text_color(muted).text_size(px(11.)).child(detail)),
             )
             .child(action)
     }

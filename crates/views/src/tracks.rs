@@ -1,7 +1,7 @@
+use ui::ActiveTheme as _;
 use std::cmp::Ordering;
 
 use gpui::{AnyElement, App, TextAlign};
-use gpui_component::ActiveTheme as _;
 use spotify::Track;
 use ui::{Cell, ColumnSpec, GridSource, Width, clock};
 

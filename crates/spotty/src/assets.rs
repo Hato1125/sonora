@@ -10,8 +10,11 @@ macro_rules! icons {
 }
 
 const ICONS: &[(&str, &[u8])] = icons![
+    "chevron-down",
     "chevron-left",
     "chevron-right",
+    "chevrons-up-down",
+    "chevron-up",
     "house",
     "library-big",
     "log-out",
@@ -37,17 +40,14 @@ impl AssetSource for Assets {
         if let Some((_, bytes)) = ICONS.iter().find(|(name, _)| *name == path) {
             return Ok(Some(Cow::Borrowed(bytes)));
         }
-        gpui_component_assets::Assets.load(path)
+        Ok(None)
     }
 
     fn list(&self, path: &str) -> Result<Vec<SharedString>> {
-        let mut assets = gpui_component_assets::Assets.list(path)?;
-        assets.extend(
-            ICONS
-                .iter()
-                .filter(|(name, _)| name.starts_with(path))
-                .map(|(name, _)| SharedString::from(*name)),
-        );
-        Ok(assets)
+        Ok(ICONS
+            .iter()
+            .filter(|(name, _)| name.starts_with(path))
+            .map(|(name, _)| SharedString::from(*name))
+            .collect())
     }
 }

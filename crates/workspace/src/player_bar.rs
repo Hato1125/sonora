@@ -1,16 +1,12 @@
+use ui::ActiveTheme as _;
 use std::time::Duration;
 
 use gpui::prelude::*;
-use gpui::{Context, Entity, MouseMoveEvent, MouseUpEvent, Render, SharedString};
+use gpui::{svg, Context, Entity, MouseMoveEvent, MouseUpEvent, Render, SharedString};
 use gpui::{Window, div, px};
-use gpui_component::ActiveTheme as _;
-use gpui_component::Icon;
-use gpui_component::button::{Button, ButtonVariants as _};
-use gpui_component::label::Label;
-use gpui_component::{Disableable as _, Sizable as _};
 use state::{Playback, PlaybackState};
 
-use ui::{Artwork, Scrubber, ScrubberState, clock};
+use ui::{Artwork, Button, Scrubber, ScrubberState, clock};
 
 const HEIGHT: f32 = 76.;
 const SEEK_MAX: f32 = 560.;
@@ -77,7 +73,7 @@ impl PlayerBar {
         Button::new(id)
             .ghost()
             .small()
-            .icon(Icon::default().path(icon))
+            .icon(icon)
             .disabled(true)
     }
 
@@ -95,7 +91,7 @@ impl PlayerBar {
         Button::new(id)
             .ghost()
             .small()
-            .icon(Icon::default().path(icon))
+            .icon(icon)
             .disabled(idle)
             .on_click(cx.listener(|this, _, _, cx| {
                 this.playback
@@ -124,17 +120,17 @@ impl PlayerBar {
                         .flex_1()
                         .min_w_0()
                         .child(match &track {
-                            Some(track) => Label::new(SharedString::from(track.name.clone()))
+                            Some(track) => div().child(SharedString::from(track.name.clone()))
                                 .w_full()
                                 .truncate(),
-                            None => Label::new("Nothing playing")
+                            None => div().child("Nothing playing")
                                 .w_full()
                                 .text_color(muted)
                                 .truncate(),
                         })
                         .when_some(track, |this, track| {
                             this.child(
-                                Label::new(SharedString::from(track.artists))
+                                div().child(SharedString::from(track.artists))
                                     .w_full()
                                     .text_color(muted)
                                     .text_size(px(11.))
@@ -195,7 +191,7 @@ impl Render for PlayerBar {
         let volume_bubble = self.over_volume.map(|at| (at, percent(at)));
 
         let clock_label = |value: Duration, align_end: bool| {
-            Label::new(clock(value))
+            div().child(clock(value))
                 .w(px(CLOCK_WIDTH))
                 .flex_none()
                 .text_size(px(10.))
@@ -262,7 +258,7 @@ impl Render for PlayerBar {
                     .flex_1()
                     .min_w_0()
                     .child(
-                        Icon::default()
+                        svg()
                             .path(volume_icon(level))
                             .size_4()
                             .flex_none()

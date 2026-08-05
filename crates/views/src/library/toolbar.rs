@@ -1,7 +1,6 @@
 use gpui::prelude::*;
 use gpui::{Context, Entity, MouseButton, Render, SharedString, Window, div};
-use gpui_component::button::Button;
-use gpui_component::{Disableable as _, Selectable as _, Sizable as _};
+use ui::Button;
 
 use super::{LibraryView, Section};
 use workspace::{Destination, LibraryTab, Navigation};
@@ -23,11 +22,7 @@ impl LibraryToolbar {
     }
 
     fn tab(&self, section: Section, count: usize, cx: &mut Context<Self>) -> Button {
-        let label = if count == 0 {
-            section.label().to_owned()
-        } else {
-            format!("{} ({count})", section.label())
-        };
+        let label = section.label().to_owned();
         let selected = self.view.read(cx).section() == section;
 
         Button::new(SharedString::from(section.label()))
