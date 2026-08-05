@@ -496,7 +496,7 @@ impl<S: GridSource> Render for GridState<S> {
         let row = snapped(metrics.row, window);
         let head = snapped(metrics.header, window);
         let height = self.height(head, row);
-        let pinned = snapped(self.viewport.top.clamp(Pixels::ZERO, height - head), window);
+        let pinned = self.viewport.top.clamp(Pixels::ZERO, height - head);
         let top = unpinned(self.corners, pinned);
 
         div()
