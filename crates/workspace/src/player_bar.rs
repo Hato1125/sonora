@@ -1,3 +1,4 @@
+use router::{Destination, Link};
 use std::time::Duration;
 use ui::ActiveTheme as _;
 
@@ -143,10 +144,16 @@ impl PlayerBar {
                         .min_w_0()
                         .child(match &track {
                             Some(track) => div()
+                                .id("now-playing-album")
+                                .when_some(track.album_id.clone(), |this, album| {
+                                    this.hover(|style| style.underline())
+                                        .link(Destination::Album(album.into()))
+                                })
                                 .child(SharedString::from(track.name.clone()))
                                 .w_full()
                                 .truncate(),
                             None => div()
+                                .id("now-playing-album")
                                 .child("Nothing playing")
                                 .w_full()
                                 .text_color(muted)
