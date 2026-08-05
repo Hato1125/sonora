@@ -8,7 +8,7 @@ use state::{AlbumDetail, Playback};
 use ui::{Artwork, GridDelegate, GridEvent, GridState, grid};
 
 use crate::cells;
-use workspace::Sidebar;
+use workspace::{Navigation, Sidebar};
 use crate::tracks::{ALBUM_COLUMNS, TrackSource, Tracks};
 
 const PADDING: Pixels = px(24.);
@@ -42,13 +42,19 @@ impl AlbumView {
         detail: Entity<AlbumDetail>,
         playback: Entity<Playback>,
         sidebar: Entity<Sidebar>,
+        navigation: Entity<Navigation>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
         let width = cells::content_width(window, sidebar.read(cx).occupied_width(), INSET);
 
         let table = cx.new(|cx| {
-            let source = TrackSource::new(ALBUM_COLUMNS, DetailTracks(detail.clone()), playback.clone());
+            let source = TrackSource::new(
+                ALBUM_COLUMNS,
+                DetailTracks(detail.clone()),
+                playback.clone(),
+                navigation.clone(),
+            );
             GridState::new(GridDelegate::new(source, width, cx), window, cx)
         });
 

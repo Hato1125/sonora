@@ -76,6 +76,7 @@ impl Root {
                 album_detail.clone(),
                 playback.clone(),
                 sidebar.clone(),
+                navigation.clone(),
                 window,
                 cx,
             )

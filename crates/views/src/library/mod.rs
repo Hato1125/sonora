@@ -102,6 +102,7 @@ impl LibraryView {
                 LIBRARY_COLUMNS,
                 LibraryTracks(library.clone()),
                 playback.clone(),
+                navigation.clone(),
             );
             GridState::new(GridDelegate::new(source, width, cx), window, cx)
         });

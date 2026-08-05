@@ -2,9 +2,10 @@ use std::cmp::Ordering;
 use ui::ActiveTheme as _;
 
 use gpui::prelude::*;
-use gpui::{AnyElement, App, Entity, TextAlign, div, svg};
+use gpui::{AnyElement, App, Entity, Hsla, TextAlign, div, svg};
 use spotify::Track;
 use state::{Playback, PlaybackState};
+use workspace::{Destination, Navigation};
 use ui::{Cell, ColumnSpec, GridSource, Width, clock};
 
 use crate::cells::{self, ALWAYS, ARTWORK_COLUMN, GLYPH, NUMBER, ROOMY, SNUG, TRAILING, WIDE};
@@ -139,6 +140,7 @@ pub(crate) struct TrackSource {
     columns: &'static [ColumnSpec<TrackField>],
     provider: Box<dyn Tracks>,
     playback: Entity<Playback>,
+    navigation: Entity<Navigation>,
 }
 
 impl TrackSource {
@@ -146,12 +148,26 @@ impl TrackSource {
         columns: &'static [ColumnSpec<TrackField>],
         provider: impl Tracks,
         playback: Entity<Playback>,
+        navigation: Entity<Navigation>,
     ) -> Self {
         Self {
             columns,
             provider: Box::new(provider),
             playback,
+            navigation,
         }
+    }
+
+    fn album_cell(&self, cell: &Cell<TrackField>, track: &Track, color: Hsla) -> AnyElement {
+        let Some(album) = track.album_id.clone() else {
+            return cells::dim(cell, track.album.clone(), color);
+        };
+
+        let navigation = self.navigation.clone();
+        cells::link(cell, "album", track.album.clone(), color, move |_, cx| {
+            let destination = Destination::Album(album.clone().into());
+            navigation.update(cx, |navigation, cx| navigation.go(destination, cx));
+        })
     }
 
     fn index_cell(&self, cell: &Cell<TrackField>, track: &Track, cx: &App) -> AnyElement {
@@ -262,7 +278,7 @@ impl GridSource for TrackSource {
                 None => cells::text(&cell, track.name.clone()),
             },
             TrackField::Artists => cells::dim(&cell, track.artists.clone(), detail),
-            TrackField::Album => cells::dim(&cell, track.album.clone(), detail),
+            TrackField::Album => self.album_cell(&cell, track, detail),
             TrackField::Duration => cells::dim(&cell, clock(track.duration), detail),
             TrackField::Index => cells::blank(&cell),
         }
