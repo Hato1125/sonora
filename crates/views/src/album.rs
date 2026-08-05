@@ -9,6 +9,7 @@ use state::{AlbumDetail, Playback};
 use ui::{Artwork, GridDelegate, GridState, grid};
 
 use crate::cells;
+use workspace::Sidebar;
 use crate::tracks::{ALBUM_COLUMNS, TrackSource, Tracks};
 
 const INSET: Pixels = px(48.);
@@ -29,6 +30,7 @@ impl Tracks for DetailTracks {
 pub struct AlbumView {
     detail: Entity<AlbumDetail>,
     playback: Entity<Playback>,
+    sidebar: Entity<Sidebar>,
     width: Pixels,
     table: Entity<GridState<TrackSource>>,
 }
@@ -37,10 +39,11 @@ impl AlbumView {
     pub fn new(
         detail: Entity<AlbumDetail>,
         playback: Entity<Playback>,
+        sidebar: Entity<Sidebar>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let width = cells::table_width(window, INSET);
+        let width = cells::content_width(window, sidebar.read(cx).occupied_width(), INSET);
 
         let table = cx.new(|cx| {
             let source = TrackSource::new(ALBUM_COLUMNS, DetailTracks(detail.clone()));
@@ -53,6 +56,8 @@ impl AlbumView {
         })
         .detach();
 
+        cx.observe(&sidebar, |_, _, cx| cx.notify()).detach();
+
         cx.subscribe(&table, |this, _, event, cx| {
             if let TableEvent::DoubleClickedRow(display) = event {
                 this.play(*display, cx);
@@ -63,6 +68,7 @@ impl AlbumView {
         Self {
             detail,
             playback,
+            sidebar,
             width,
             table,
         }
@@ -81,10 +87,22 @@ impl AlbumView {
             .update(cx, |playback, cx| playback.play(&track, cx));
     }
 
-    fn rebuild(&mut self, cx: &mut Context<Self>) {
-        let width = self.width;
+    fn resize(&mut self, window: &Window, cx: &mut Context<Self>) {
+        let sidebar = self.sidebar.read(cx).occupied_width();
+        let width = cells::content_width(window, sidebar, INSET);
+        if (width - self.width).abs() < px(0.5) {
+            return;
+        }
+        self.width = width;
         self.table.update(cx, |table, cx| {
-            table.delegate_mut().set_width(width, cx);
+            table.delegate_mut().set_width(width);
+            table.refresh(cx);
+        });
+    }
+
+    fn rebuild(&mut self, cx: &mut Context<Self>) {
+        self.table.update(cx, |table, cx| {
+            table.delegate_mut().rebuild(cx);
             table.refresh(cx);
         });
     }
@@ -151,11 +169,7 @@ fn meta(album: &Album) -> SharedString {
 
 impl Render for AlbumView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let width = cells::table_width(window, INSET);
-        if (width - self.width).abs() > px(1.) {
-            self.width = width;
-            self.rebuild(cx);
-        }
+        self.resize(window, cx);
 
         div()
             .flex()

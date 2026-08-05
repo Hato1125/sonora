@@ -1,16 +1,11 @@
 use std::cell::Cell;
 
 use gpui::prelude::*;
-use gpui::{
-    Context, DragMoveEvent, Empty, Entity, EventEmitter, FontWeight, Pixels, Render, SharedString,
-    uniform_list,
-};
+use gpui::{Context, DragMoveEvent, Empty, EventEmitter, Pixels, Render, SharedString};
 use gpui::{Window, div, px};
 use gpui_component::ActiveTheme as _;
 use gpui_component::Icon;
 use gpui_component::label::Label;
-use gpui_component::skeleton::Skeleton;
-use state::{Library, LibraryState};
 
 const NAV: [(&str, &str, Option<Destination>); 4] = [
     ("Home", "icons/house.svg", None),
@@ -54,7 +49,6 @@ pub enum SidebarEvent {
 }
 
 pub struct Sidebar {
-    library: Entity<Library>,
     width: Pixels,
     open: bool,
 }
@@ -62,10 +56,8 @@ pub struct Sidebar {
 impl EventEmitter<SidebarEvent> for Sidebar {}
 
 impl Sidebar {
-    pub fn new(library: Entity<Library>, cx: &mut Context<Self>) -> Self {
-        cx.observe(&library, |_, _, cx| cx.notify()).detach();
+    pub fn new() -> Self {
         Self {
-            library,
             width: DEFAULT_WIDTH,
             open: true,
         }
@@ -83,12 +75,11 @@ impl Sidebar {
         self.open = !self.open;
         cx.notify();
     }
+}
 
-    fn playlist_count(&self, cx: &Context<Self>) -> usize {
-        match self.library.read(cx).state() {
-            LibraryState::Ready { playlists, .. } => playlists.len(),
-            _ => 0,
-        }
+impl Default for Sidebar {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -99,8 +90,6 @@ impl Render for Sidebar {
         let muted = theme.muted_foreground;
         let sidebar_bg = theme.sidebar;
         let sidebar_border = theme.sidebar_border;
-        let count = self.playlist_count(cx);
-        let loading = self.library.read(cx).is_loading();
 
         div()
             .flex()
@@ -141,62 +130,6 @@ impl Render for Sidebar {
                         },
                     )),
             )
-            .child(
-                div().px_5().py_2().child(
-                    Label::new("PLAYLISTS")
-                        .text_color(muted)
-                        .text_size(px(10.))
-                        .font_weight(FontWeight::SEMIBOLD),
-                ),
-            )
-            .child(if loading {
-                div()
-                    .flex()
-                    .flex_col()
-                    .gap_3()
-                    .px_5()
-                    .py_2()
-                    .children((0..6).map(|index| {
-                        Skeleton::new()
-                            .w(px(120. - (index % 3) as f32 * 22.))
-                            .h(px(10.))
-                    }))
-                    .into_any_element()
-            } else {
-                uniform_list(
-                    "sidebar-playlists",
-                    count,
-                    cx.processor(move |this, range: std::ops::Range<usize>, _window, cx| {
-                        let elevated = cx.theme().sidebar_accent;
-                        let muted = cx.theme().muted_foreground;
-                        let LibraryState::Ready { playlists, .. } = this.library.read(cx).state()
-                        else {
-                            return Vec::new();
-                        };
-
-                        range
-                            .filter_map(|index| {
-                                let playlist = playlists.get(index)?;
-                                Some(
-                                    div()
-                                        .id(index)
-                                        .px_5()
-                                        .py_1p5()
-                                        .cursor_pointer()
-                                        .hover(move |style| style.bg(elevated))
-                                        .child(
-                                            Label::new(playlist.name.clone())
-                                                .text_color(muted)
-                                                .truncate(),
-                                        ),
-                                )
-                            })
-                            .collect()
-                    }),
-                )
-                .flex_1()
-                .into_any_element()
-            })
             .child(
                 div()
                     .id("sidebar-resize-handle")

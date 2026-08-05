@@ -5,8 +5,9 @@ use gpui::{AnyElement, App, Context, Div, Edges, Pixels, TextAlign, Window, div,
 use gpui_component::table::{Column as TableColumn, ColumnSort, Table, TableDelegate, TableState};
 
 const PADDING: Pixels = px(8.);
+const TRAIL: Pixels = px(12.);
 const MIN_CELL: Pixels = px(24.);
-const MIN_FLEXIBLE: Pixels = px(240.);
+const MIN_FLEXIBLE: Pixels = px(120.);
 
 #[derive(Clone, Copy)]
 pub enum Width {
@@ -22,17 +23,22 @@ pub struct ColumnSpec<F: 'static> {
     pub width: Width,
     pub flush: bool,
     pub sortable: bool,
+    pub hide_below: Pixels,
 }
 
 impl<F: 'static> ColumnSpec<F> {
-    fn is_fill(&self) -> bool {
-        matches!(self.width, Width::Fill(_))
+    fn share(&self) -> f32 {
+        match self.width {
+            Width::Fixed(_) => 0.,
+            Width::Fill(share) => share,
+        }
     }
 
-    fn resolve(&self, flexible: Pixels) -> Pixels {
+    fn resolve(&self, flexible: Pixels, shares: f32) -> Pixels {
         match self.width {
             Width::Fixed(width) => width,
-            Width::Fill(share) => flexible * share,
+            Width::Fill(share) if shares > 0. => flexible * (share / shares),
+            Width::Fill(_) => Pixels::ZERO,
         }
     }
 }
@@ -91,6 +97,7 @@ fn flush_paddings() -> Edges<Pixels> {
 
 pub struct GridDelegate<S: GridSource> {
     source: S,
+    specs: Vec<&'static ColumnSpec<S::Field>>,
     columns: Vec<TableColumn>,
     width: Pixels,
     sort: Option<(S::Field, ColumnSort)>,
@@ -99,9 +106,10 @@ pub struct GridDelegate<S: GridSource> {
 
 impl<S: GridSource> GridDelegate<S> {
     pub fn new(source: S, width: Pixels, cx: &App) -> Self {
-        let columns = build(source.columns(), width, None);
+        let (specs, columns) = build(source.columns(), width, None);
         let mut delegate = Self {
             source,
+            specs,
             columns,
             width,
             sort: None,
@@ -115,14 +123,20 @@ impl<S: GridSource> GridDelegate<S> {
         &self.source
     }
 
-    pub fn set_width(&mut self, width: Pixels, cx: &App) {
+    pub fn set_width(&mut self, width: Pixels) {
         self.width = width;
-        self.rebuild(cx);
+        self.relayout();
     }
 
     pub fn rebuild(&mut self, cx: &App) {
-        self.columns = build(self.source.columns(), self.width, self.sort);
+        self.relayout();
         self.reorder(cx);
+    }
+
+    fn relayout(&mut self) {
+        let (specs, columns) = build(self.source.columns(), self.width, self.sort);
+        self.specs = specs;
+        self.columns = columns;
     }
 
     pub fn row(&self, display: usize) -> usize {
@@ -148,27 +162,39 @@ impl<S: GridSource> GridDelegate<S> {
     }
 
     fn inner_width(&self, col_ix: usize) -> Pixels {
-        (self.columns[col_ix].width - PADDING * 2.).max(MIN_CELL)
+        let trailing = col_ix + 1 == self.columns.len();
+        let gutter = if trailing { TRAIL } else { Pixels::ZERO };
+        (self.columns[col_ix].width - PADDING * 2. - gutter).max(MIN_CELL)
     }
 }
+
+type Layout<F> = (Vec<&'static ColumnSpec<F>>, Vec<TableColumn>);
 
 fn build<F: Copy + PartialEq + 'static>(
     specs: &'static [ColumnSpec<F>],
     available: Pixels,
     sort: Option<(F, ColumnSort)>,
-) -> Vec<TableColumn> {
-    let fixed = specs
+) -> Layout<F> {
+    let mut visible: Vec<_> = specs
         .iter()
-        .filter(|spec| !spec.is_fill())
-        .map(|spec| spec.resolve(Pixels::ZERO))
+        .filter(|spec| available >= spec.hide_below)
+        .collect();
+    if visible.is_empty() {
+        visible.extend(specs.iter().take(1));
+    }
+
+    let fixed = visible
+        .iter()
+        .map(|spec| spec.resolve(Pixels::ZERO, 0.))
         .fold(Pixels::ZERO, |total, width| total + width);
+    let shares: f32 = visible.iter().map(|spec| spec.share()).sum();
     let flexible = (available - fixed).max(MIN_FLEXIBLE);
 
-    specs
+    let mut columns: Vec<TableColumn> = visible
         .iter()
         .map(|spec| {
             let mut column = TableColumn::new(spec.key, spec.header)
-                .width(spec.resolve(flexible))
+                .width(spec.resolve(flexible, shares))
                 .resizable(false)
                 .movable(false);
 
@@ -186,7 +212,24 @@ fn build<F: Copy + PartialEq + 'static>(
             }
             column
         })
-        .collect()
+        .collect();
+
+    let total = columns
+        .iter()
+        .map(|column| column.width)
+        .fold(Pixels::ZERO, |total, width| total + width);
+    let leftover = available - total;
+    let stretchy = visible
+        .iter()
+        .rposition(|spec| spec.share() > 0.)
+        .unwrap_or(visible.len().saturating_sub(1));
+    if leftover > Pixels::ZERO {
+        if let Some(column) = columns.get_mut(stretchy) {
+            column.width += leftover;
+        }
+    }
+
+    (visible, columns)
 }
 
 impl<S: GridSource> TableDelegate for GridDelegate<S> {
@@ -213,7 +256,7 @@ impl<S: GridSource> TableDelegate for GridDelegate<S> {
         _window: &mut Window,
         cx: &mut Context<TableState<Self>>,
     ) {
-        let field = self.source.columns()[col_ix].field;
+        let field = self.specs[col_ix].field;
         self.sort = match sort {
             ColumnSort::Default => None,
             direction => Some((field, direction)),
@@ -239,7 +282,7 @@ impl<S: GridSource> TableDelegate for GridDelegate<S> {
         _window: &mut Window,
         cx: &mut Context<TableState<Self>>,
     ) -> impl IntoElement {
-        let spec = &self.source.columns()[col_ix];
+        let spec = self.specs[col_ix];
         let cell = Cell {
             field: spec.field,
             width: self.inner_width(col_ix),

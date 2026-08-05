@@ -8,7 +8,7 @@ use gpui_component::table::{TableEvent, TableState};
 use spotify::Track;
 use state::{Library, LibraryState, Playback};
 use ui::{GridDelegate, GridState, grid};
-use workspace::{Destination, LibraryTab, Navigation};
+use workspace::{Destination, LibraryTab, Navigation, Sidebar};
 
 use crate::cells;
 use crate::tracks::{LIBRARY_COLUMNS, TrackSource, Tracks};
@@ -79,6 +79,7 @@ pub struct LibraryView {
     library: Entity<Library>,
     playback: Entity<Playback>,
     navigation: Entity<Navigation>,
+    sidebar: Entity<Sidebar>,
     section: Section,
     width: Pixels,
     tracks: Entity<GridState<TrackSource>>,
@@ -91,10 +92,11 @@ impl LibraryView {
         library: Entity<Library>,
         playback: Entity<Playback>,
         navigation: Entity<Navigation>,
+        sidebar: Entity<Sidebar>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let width = cells::table_width(window, Pixels::ZERO);
+        let width = cells::content_width(window, sidebar.read(cx).occupied_width(), Pixels::ZERO);
 
         let tracks = cx.new(|cx| {
             let source = TrackSource::new(LIBRARY_COLUMNS, LibraryTracks(library.clone()));
@@ -115,6 +117,8 @@ impl LibraryView {
         })
         .detach();
 
+        cx.observe(&sidebar, |_, _, cx| cx.notify()).detach();
+
         cx.subscribe(&tracks, |this, _, event, cx| {
             if let TableEvent::DoubleClickedRow(display) = event {
                 this.play(*display, cx);
@@ -133,6 +137,7 @@ impl LibraryView {
             library,
             playback,
             navigation,
+            sidebar,
             section: Section::Tracks,
             width,
             tracks,
@@ -205,18 +210,39 @@ impl LibraryView {
             .update(cx, |navigation, cx| navigation.go(destination, cx));
     }
 
-    fn rebuild(&mut self, cx: &mut Context<Self>) {
-        let width = self.width;
+    fn resize(&mut self, window: &Window, cx: &mut Context<Self>) {
+        let sidebar = self.sidebar.read(cx).occupied_width();
+        let width = cells::content_width(window, sidebar, Pixels::ZERO);
+        if (width - self.width).abs() < px(0.5) {
+            return;
+        }
+        self.width = width;
+
         self.tracks.update(cx, |table, cx| {
-            table.delegate_mut().set_width(width, cx);
+            table.delegate_mut().set_width(width);
             table.refresh(cx);
         });
         self.albums.update(cx, |table, cx| {
-            table.delegate_mut().set_width(width, cx);
+            table.delegate_mut().set_width(width);
             table.refresh(cx);
         });
         self.playlists.update(cx, |table, cx| {
-            table.delegate_mut().set_width(width, cx);
+            table.delegate_mut().set_width(width);
+            table.refresh(cx);
+        });
+    }
+
+    fn rebuild(&mut self, cx: &mut Context<Self>) {
+        self.tracks.update(cx, |table, cx| {
+            table.delegate_mut().rebuild(cx);
+            table.refresh(cx);
+        });
+        self.albums.update(cx, |table, cx| {
+            table.delegate_mut().rebuild(cx);
+            table.refresh(cx);
+        });
+        self.playlists.update(cx, |table, cx| {
+            table.delegate_mut().rebuild(cx);
             table.refresh(cx);
         });
     }
@@ -224,11 +250,7 @@ impl LibraryView {
 
 impl Render for LibraryView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let width = cells::table_width(window, Pixels::ZERO);
-        if (width - self.width).abs() > px(1.) {
-            self.width = width;
-            self.rebuild(cx);
-        }
+        self.resize(window, cx);
 
         let table = match self.section {
             Section::Tracks => grid(&self.tracks).into_any_element(),

@@ -3,9 +3,9 @@ use std::cmp::Ordering;
 use gpui::{AnyElement, App, TextAlign};
 use gpui_component::ActiveTheme as _;
 use spotify::Track;
-use ui::{Cell, ColumnSpec, GridSource, Width};
+use ui::{Cell, ColumnSpec, GridSource, Width, clock};
 
-use crate::cells::{self, ARTWORK_COLUMN, NUMBER, TRAILING};
+use crate::cells::{self, ALWAYS, ARTWORK_COLUMN, NUMBER, ROOMY, SNUG, TRAILING, WIDE};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TrackField {
@@ -26,6 +26,7 @@ pub(crate) const LIBRARY_COLUMNS: &[ColumnSpec<TrackField>] = &[
         width: Width::Fixed(NUMBER),
         flush: false,
         sortable: false,
+        hide_below: ALWAYS,
     },
     ColumnSpec {
         field: TrackField::Cover,
@@ -35,6 +36,7 @@ pub(crate) const LIBRARY_COLUMNS: &[ColumnSpec<TrackField>] = &[
         width: Width::Fixed(ARTWORK_COLUMN),
         flush: true,
         sortable: false,
+        hide_below: SNUG,
     },
     ColumnSpec {
         field: TrackField::Title,
@@ -44,6 +46,7 @@ pub(crate) const LIBRARY_COLUMNS: &[ColumnSpec<TrackField>] = &[
         width: Width::Fill(0.42),
         flush: false,
         sortable: true,
+        hide_below: ALWAYS,
     },
     ColumnSpec {
         field: TrackField::Artists,
@@ -53,6 +56,7 @@ pub(crate) const LIBRARY_COLUMNS: &[ColumnSpec<TrackField>] = &[
         width: Width::Fill(0.29),
         flush: false,
         sortable: true,
+        hide_below: ROOMY,
     },
     ColumnSpec {
         field: TrackField::Album,
@@ -62,6 +66,7 @@ pub(crate) const LIBRARY_COLUMNS: &[ColumnSpec<TrackField>] = &[
         width: Width::Fill(0.29),
         flush: false,
         sortable: true,
+        hide_below: WIDE,
     },
     ColumnSpec {
         field: TrackField::Duration,
@@ -71,6 +76,7 @@ pub(crate) const LIBRARY_COLUMNS: &[ColumnSpec<TrackField>] = &[
         width: Width::Fixed(TRAILING),
         flush: false,
         sortable: true,
+        hide_below: SNUG,
     },
 ];
 
@@ -83,6 +89,7 @@ pub(crate) const ALBUM_COLUMNS: &[ColumnSpec<TrackField>] = &[
         width: Width::Fixed(NUMBER),
         flush: false,
         sortable: false,
+        hide_below: ALWAYS,
     },
     ColumnSpec {
         field: TrackField::Title,
@@ -92,6 +99,7 @@ pub(crate) const ALBUM_COLUMNS: &[ColumnSpec<TrackField>] = &[
         width: Width::Fill(0.62),
         flush: false,
         sortable: true,
+        hide_below: ALWAYS,
     },
     ColumnSpec {
         field: TrackField::Artists,
@@ -101,6 +109,7 @@ pub(crate) const ALBUM_COLUMNS: &[ColumnSpec<TrackField>] = &[
         width: Width::Fill(0.38),
         flush: false,
         sortable: true,
+        hide_below: ROOMY,
     },
     ColumnSpec {
         field: TrackField::Duration,
@@ -110,6 +119,7 @@ pub(crate) const ALBUM_COLUMNS: &[ColumnSpec<TrackField>] = &[
         width: Width::Fixed(TRAILING),
         flush: false,
         sortable: true,
+        hide_below: SNUG,
     },
 ];
 
@@ -124,10 +134,7 @@ pub(crate) struct TrackSource {
 }
 
 impl TrackSource {
-    pub(crate) fn new(
-        columns: &'static [ColumnSpec<TrackField>],
-        provider: impl Tracks,
-    ) -> Self {
+    pub(crate) fn new(columns: &'static [ColumnSpec<TrackField>], provider: impl Tracks) -> Self {
         Self {
             columns,
             provider: Box::new(provider),
@@ -170,7 +177,7 @@ impl GridSource for TrackSource {
             TrackField::Title => cells::text(&cell, track.name.clone()),
             TrackField::Artists => cells::dim(&cell, track.artists.clone(), muted),
             TrackField::Album => cells::dim(&cell, track.album.clone(), muted),
-            TrackField::Duration => cells::dim(&cell, cells::length(track.duration), muted),
+            TrackField::Duration => cells::dim(&cell, clock(track.duration), muted),
             TrackField::Index => cells::blank(&cell),
         }
     }

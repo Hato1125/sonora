@@ -6,7 +6,7 @@ use spotify::Album;
 use state::{Library, LibraryState};
 use ui::{Cell, ColumnSpec, GridSource, Width};
 
-use crate::cells::{self, ARTWORK_COLUMN, NUMBER, TRAILING, YEAR};
+use crate::cells::{self, ALWAYS, ARTWORK_COLUMN, NUMBER, ROOMY, SNUG, TRAILING, WIDE, YEAR};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum AlbumField {
@@ -27,6 +27,7 @@ pub(super) const COLUMNS: &[ColumnSpec<AlbumField>] = &[
         width: Width::Fixed(NUMBER),
         flush: false,
         sortable: false,
+        hide_below: ALWAYS,
     },
     ColumnSpec {
         field: AlbumField::Cover,
@@ -36,6 +37,7 @@ pub(super) const COLUMNS: &[ColumnSpec<AlbumField>] = &[
         width: Width::Fixed(ARTWORK_COLUMN),
         flush: true,
         sortable: false,
+        hide_below: SNUG,
     },
     ColumnSpec {
         field: AlbumField::Name,
@@ -45,6 +47,7 @@ pub(super) const COLUMNS: &[ColumnSpec<AlbumField>] = &[
         width: Width::Fill(0.55),
         flush: false,
         sortable: true,
+        hide_below: ALWAYS,
     },
     ColumnSpec {
         field: AlbumField::Artists,
@@ -54,6 +57,7 @@ pub(super) const COLUMNS: &[ColumnSpec<AlbumField>] = &[
         width: Width::Fill(0.45),
         flush: false,
         sortable: true,
+        hide_below: ROOMY,
     },
     ColumnSpec {
         field: AlbumField::Year,
@@ -63,15 +67,17 @@ pub(super) const COLUMNS: &[ColumnSpec<AlbumField>] = &[
         width: Width::Fixed(YEAR),
         flush: false,
         sortable: true,
+        hide_below: WIDE,
     },
     ColumnSpec {
         field: AlbumField::TrackCount,
         key: "tracks",
         header: "Tracks",
-        align: TextAlign::Right,
+        align: TextAlign::Center,
         width: Width::Fixed(TRAILING),
         flush: false,
         sortable: true,
+        hide_below: WIDE,
     },
 ];
 
@@ -127,9 +133,7 @@ impl GridSource for AlbumSource {
             AlbumField::Name => cells::text(&cell, album.name.clone()),
             AlbumField::Artists => cells::dim(&cell, album.artists.clone(), muted),
             AlbumField::Year => cells::dim(&cell, year(album), muted),
-            AlbumField::TrackCount => {
-                cells::dim(&cell, format!("{}", album.track_count), muted)
-            }
+            AlbumField::TrackCount => cells::dim(&cell, format!("{}", album.track_count), muted),
             AlbumField::Index => cells::blank(&cell),
         }
     }

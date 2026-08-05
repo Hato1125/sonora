@@ -6,7 +6,7 @@ use spotify::Playlist;
 use state::{Library, LibraryState};
 use ui::{Cell, ColumnSpec, GridSource, Width};
 
-use crate::cells::{self, ARTWORK_COLUMN, NUMBER, TRAILING};
+use crate::cells::{self, ALWAYS, ARTWORK_COLUMN, NUMBER, ROOMY, SNUG, TRAILING, WIDE};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum PlaylistField {
@@ -26,6 +26,7 @@ pub(super) const COLUMNS: &[ColumnSpec<PlaylistField>] = &[
         width: Width::Fixed(NUMBER),
         flush: false,
         sortable: false,
+        hide_below: ALWAYS,
     },
     ColumnSpec {
         field: PlaylistField::Cover,
@@ -35,6 +36,7 @@ pub(super) const COLUMNS: &[ColumnSpec<PlaylistField>] = &[
         width: Width::Fixed(ARTWORK_COLUMN),
         flush: true,
         sortable: false,
+        hide_below: SNUG,
     },
     ColumnSpec {
         field: PlaylistField::Name,
@@ -44,6 +46,7 @@ pub(super) const COLUMNS: &[ColumnSpec<PlaylistField>] = &[
         width: Width::Fill(0.55),
         flush: false,
         sortable: true,
+        hide_below: ALWAYS,
     },
     ColumnSpec {
         field: PlaylistField::Owner,
@@ -53,6 +56,7 @@ pub(super) const COLUMNS: &[ColumnSpec<PlaylistField>] = &[
         width: Width::Fill(0.45),
         flush: false,
         sortable: true,
+        hide_below: ROOMY,
     },
     ColumnSpec {
         field: PlaylistField::TrackCount,
@@ -62,6 +66,7 @@ pub(super) const COLUMNS: &[ColumnSpec<PlaylistField>] = &[
         width: Width::Fixed(TRAILING),
         flush: false,
         sortable: true,
+        hide_below: WIDE,
     },
 ];
 

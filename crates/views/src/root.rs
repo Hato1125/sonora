@@ -35,7 +35,7 @@ impl Root {
         cx.observe(&session, |_, _, cx| cx.notify()).detach();
 
         let login = cx.new(|cx| LoginView::new(session.clone(), cx));
-        let sidebar = cx.new(|cx| Sidebar::new(library.clone(), cx));
+        let sidebar = cx.new(|_| Sidebar::new());
 
         let navigation = cx.new(|_| Navigation::new(Destination::Library(LibraryTab::Songs)));
 
@@ -60,6 +60,7 @@ impl Root {
                 library.clone(),
                 playback.clone(),
                 navigation.clone(),
+                sidebar.clone(),
                 window,
                 cx,
             )
@@ -69,10 +70,19 @@ impl Root {
 
         let io = Io::global(cx);
         let album_detail = cx.new(|cx| AlbumDetail::new(session.clone(), library, io, cx));
-        let album = cx.new(|cx| AlbumView::new(album_detail.clone(), playback.clone(), window, cx));
+        let album = cx.new(|cx| {
+            AlbumView::new(
+                album_detail.clone(),
+                playback.clone(),
+                sidebar.clone(),
+                window,
+                cx,
+            )
+        });
 
         let settings = cx.new(|cx| SettingsView::new(session.clone(), playback.clone(), cx));
 
+        let start = navigation.read(cx).current();
         let workspace = cx.new(|cx| {
             Workspace::new(
                 sidebar,
@@ -82,11 +92,8 @@ impl Root {
                 cx,
             )
         });
-        workspace.update(cx, |workspace, cx| {
-            workspace.set_toolbar(Some(library_toolbar.clone().into()), cx);
-        });
 
-        Self {
+        let mut root = Self {
             session,
             login,
             workspace,
@@ -97,7 +104,9 @@ impl Root {
                 album_detail,
                 settings,
             },
-        }
+        };
+        root.show(start, cx);
+        root
     }
 
     fn show(&mut self, destination: Destination, cx: &mut Context<Self>) {
