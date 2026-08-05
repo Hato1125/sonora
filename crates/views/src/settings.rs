@@ -224,21 +224,27 @@ impl Render for SettingsView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let border = cx.theme().border;
 
-        div().flex().flex_col().size_full().overflow_hidden().child(
-            div()
-                .flex()
-                .flex_col()
-                .gap_6()
-                .w_full()
-                .max_w(px(640.))
-                .p_6()
-                .child(self.profile(cx))
-                .child(div().h(px(1.)).w_full().bg(border))
-                .child(self.appearance_settings(cx))
-                .child(div().h(px(1.)).w_full().bg(border))
-                .child(self.playback_settings(cx))
-                .child(div().h(px(1.)).w_full().bg(border))
-                .child(self.account(cx)),
-        )
+        div()
+            .flex()
+            .flex_col()
+            .items_center()
+            .size_full()
+            .overflow_hidden()
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap_6()
+                    .w_full()
+                    .max_w(px(640.))
+                    .p_6()
+                    .child(self.profile(cx))
+                    .child(div().h(px(1.)).w_full().bg(border))
+                    .child(self.appearance_settings(cx))
+                    .child(div().h(px(1.)).w_full().bg(border))
+                    .child(self.playback_settings(cx))
+                    .child(div().h(px(1.)).w_full().bg(border))
+                    .child(self.account(cx)),
+            )
     }
 }

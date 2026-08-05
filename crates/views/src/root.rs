@@ -63,9 +63,15 @@ impl Root {
         })
         .detach();
 
-        cx.subscribe(&navigation, |this, _, event, cx| {
-            let NavigationEvent::Moved(destination) = event;
-            this.show(destination.clone(), cx);
+        cx.subscribe(&navigation, {
+            let sidebar = sidebar.clone();
+            move |this, _, event, cx| {
+                let NavigationEvent::Moved(destination) = event;
+                sidebar.update(cx, |sidebar, cx| {
+                    sidebar.set_current(destination.clone(), cx)
+                });
+                this.show(destination.clone(), cx);
+            }
         })
         .detach();
 
