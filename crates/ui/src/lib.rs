@@ -2,6 +2,7 @@ mod artwork;
 mod button;
 mod grid;
 mod link;
+mod menu;
 mod scrollbar;
 mod scrubber;
 mod skeleton;
@@ -15,6 +16,7 @@ pub use grid::{
     Width, grid,
 };
 pub use link::Linked;
+pub use menu::{Menu, MenuItem};
 pub use scrollbar::{scrollbar, scrolled};
 pub use scrubber::{Scrubber, ScrubberState};
 pub use skeleton::{Initials, Skeleton};
