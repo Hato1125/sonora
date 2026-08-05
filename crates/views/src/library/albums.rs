@@ -1,12 +1,15 @@
 use std::cmp::Ordering;
 use ui::ActiveTheme as _;
 
-use gpui::{AnyElement, App, Entity, TextAlign};
+use gpui::prelude::*;
+use gpui::{AnyElement, App, Entity, TextAlign, div};
 use spotify::Album;
-use state::{Library, LibraryState};
+use state::{Library, LibraryState, Playback};
 use ui::{Cell, ColumnSpec, GridSource, Width};
 
 use crate::cells::{self, ALWAYS, ARTWORK_COLUMN, NUMBER, ROOMY, TRAILING, WIDE, YEAR};
+
+const PLAY: &str = "icons/play.svg";
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum AlbumField {
@@ -83,11 +86,36 @@ pub(super) const COLUMNS: &[ColumnSpec<AlbumField>] = &[
 
 pub(super) struct AlbumSource {
     library: Entity<Library>,
+    playback: Entity<Playback>,
 }
 
 impl AlbumSource {
-    pub(super) fn new(library: Entity<Library>) -> Self {
-        Self { library }
+    pub(super) fn new(library: Entity<Library>, playback: Entity<Playback>) -> Self {
+        Self { library, playback }
+    }
+
+    fn index_cell(&self, cell: &Cell<AlbumField>, album: &Album, cx: &App) -> AnyElement {
+        let theme = *cx.theme();
+        let resting = div()
+            .text_color(theme.muted_foreground)
+            .child(format!("{}", cell.display + 1))
+            .into_any_element();
+
+        let playback = self.playback.clone();
+        let id = album.id.clone();
+        let press: Option<Box<dyn Fn(&mut App)>> = Some(Box::new(move |cx: &mut App| {
+            playback.update(cx, |playback, cx| playback.play_album(&id, cx));
+        }));
+
+        cells::transport(
+            cell,
+            resting,
+            cells::Transport {
+                icon: PLAY,
+                color: theme.foreground,
+                press,
+            },
+        )
     }
 
     pub(super) fn at(&self, row: usize, cx: &App) -> Option<Album> {
@@ -120,13 +148,13 @@ impl GridSource for AlbumSource {
     fn cell(&self, cell: Cell<AlbumField>, cx: &mut App) -> AnyElement {
         let muted = cx.theme().muted_foreground;
 
-        if cell.field == AlbumField::Index {
-            return cells::dim(&cell, format!("{}", cell.display + 1), muted);
-        }
-
         let Some(album) = self.albums(cx).get(cell.row) else {
             return cells::blank(&cell);
         };
+
+        if cell.field == AlbumField::Index {
+            return self.index_cell(&cell, album, cx);
+        }
 
         match cell.field {
             AlbumField::Cover => cells::artwork(&cell, album.cover.clone()),

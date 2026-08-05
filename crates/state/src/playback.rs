@@ -5,7 +5,7 @@ use gpui::{Context, Entity, EventEmitter, Task};
 use spotify::Track;
 
 use crate::queue::Queue;
-use crate::{Session, SessionEvent};
+use crate::{Io, Session, SessionEvent, join};
 
 const POSITION_INTERVAL: Duration = Duration::from_millis(500);
 const LOAD_DEBOUNCE: Duration = Duration::from_millis(250);
@@ -47,6 +47,7 @@ pub struct Playback {
     normalisation: bool,
     task: Option<Task<()>>,
     load: Option<Task<()>>,
+    fetch: Option<Task<()>>,
     blocked_until: Option<Instant>,
 }
 
@@ -76,6 +77,7 @@ impl Playback {
             normalisation: true,
             task: None,
             load: None,
+            fetch: None,
             blocked_until: None,
         }
     }
@@ -124,6 +126,27 @@ impl Playback {
             return;
         };
         self.play(&track, cx);
+    }
+
+    pub fn play_album(&mut self, album: &str, cx: &mut Context<Self>) {
+        let Some(client) = self.session.read(cx).client() else {
+            return;
+        };
+
+        let io = Io::global(cx);
+        let album = album.to_owned();
+        self.state = PlaybackState::Loading;
+        cx.notify();
+
+        self.fetch = Some(cx.spawn(async move |this, cx| {
+            let loaded = join(io.spawn(async move { client.album_tracks(&album).await })).await;
+
+            this.update(cx, |this, cx| match loaded {
+                Ok(tracks) => this.start(tracks, 0, cx),
+                Err(error) => this.failed(format!("{error:#}"), cx),
+            })
+            .ok();
+        }));
     }
 
     pub fn next(&mut self, cx: &mut Context<Self>) {
@@ -313,6 +336,7 @@ impl Playback {
     fn teardown(&mut self, cx: &mut Context<Self>) {
         self.task = None;
         self.load = None;
+        self.fetch = None;
         self.blocked_until = None;
         self.engine = None;
         self.track = None;

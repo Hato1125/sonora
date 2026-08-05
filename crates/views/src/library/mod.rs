@@ -106,7 +106,7 @@ impl LibraryView {
             GridState::new(GridDelegate::new(source, width, cx), window, cx)
         });
         let albums = cx.new(|cx| {
-            let source = AlbumSource::new(library.clone());
+            let source = AlbumSource::new(library.clone(), playback.clone());
             GridState::new(GridDelegate::new(source, width, cx), window, cx)
         });
         let playlists = cx.new(|cx| {
