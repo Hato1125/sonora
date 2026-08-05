@@ -1,8 +1,8 @@
-use ui::ActiveTheme as _;
 use gpui::prelude::*;
 use gpui::{AnyView, Context, Entity, Render};
 use gpui::{Window, div};
 use state::{AlbumDetail, Io, Library, Playback, Session, SessionState};
+use ui::ActiveTheme as _;
 use workspace::{
     Destination, LibraryTab, Navigation, NavigationEvent, Sidebar, SidebarEvent, Workspace,
 };

@@ -229,7 +229,13 @@ impl TrackSource {
             );
         }
 
-        cell.frame().child(stack).into_any_element()
+        cell.frame()
+            .h_full()
+            .flex()
+            .items_center()
+            .justify_center()
+            .child(stack)
+            .into_any_element()
     }
 
     fn now_playing(&self, track: &Track, cx: &App) -> Option<PlaybackState> {
