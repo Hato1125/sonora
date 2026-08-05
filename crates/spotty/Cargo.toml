@@ -7,6 +7,7 @@ edition.workspace = true
 anyhow.workspace = true
 env_logger.workspace = true
 gpui.workspace = true
+gpui_platform.workspace = true
 state.workspace = true
 ui.workspace = true
 views.workspace = true
