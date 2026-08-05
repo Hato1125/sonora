@@ -4,12 +4,14 @@ use std::rc::Rc;
 use gpui::prelude::*;
 use gpui::{
     App, Bounds, DragMoveEvent, Empty, Hsla, MouseButton, MouseDownEvent, MouseUpEvent, Pixels,
-    Render, SharedString, Window, canvas, div, px, relative,
+    Point, Render, SharedString, Window, canvas, div, px, relative,
 };
+use gpui_component::ActiveTheme as _;
 
 const TRACK: f32 = 4.;
 const THUMB: f32 = 12.;
 const HIT: f32 = 16.;
+const BUBBLE: f32 = 56.;
 
 #[derive(Clone)]
 struct Grab(SharedString);
@@ -33,6 +35,17 @@ impl ScrubberState {
         }
     }
 
+    pub fn hovered(&self, position: Point<Pixels>) -> Option<f32> {
+        let bounds = self.bounds.get();
+        let reach = Bounds {
+            origin: gpui::point(bounds.origin.x, bounds.origin.y - px(HIT / 2.)),
+            size: gpui::size(bounds.size.width, bounds.size.height + px(HIT)),
+        };
+        reach
+            .contains(&position)
+            .then(|| self.fraction_at(position.x))
+    }
+
     fn fraction_at(&self, x: Pixels) -> f32 {
         let bounds = self.bounds.get();
         if bounds.size.width <= px(0.) {
@@ -51,6 +64,8 @@ pub struct Scrubber {
     empty: Hsla,
     thumb: Hsla,
     enabled: bool,
+    bubble: Option<(f32, SharedString)>,
+    lift: Pixels,
     on_move: Option<Box<dyn Fn(&f32, &mut Window, &mut App) + 'static>>,
     on_release: Option<Box<dyn Fn(&MouseUpEvent, &mut Window, &mut App) + 'static>>,
 }
@@ -65,9 +80,21 @@ impl Scrubber {
             empty: gpui::black(),
             thumb: gpui::white(),
             enabled: true,
+            bubble: None,
+            lift: px(12.),
             on_move: None,
             on_release: None,
         }
+    }
+
+    pub fn bubble(mut self, fraction: f32, text: impl Into<SharedString>) -> Self {
+        self.bubble = Some((fraction.clamp(0., 1.), text.into()));
+        self
+    }
+
+    pub fn lift(mut self, lift: Pixels) -> Self {
+        self.lift = lift;
+        self
     }
 
     pub fn colors(mut self, filled: Hsla, empty: Hsla, thumb: Hsla) -> Self {
@@ -97,7 +124,11 @@ impl Scrubber {
 }
 
 impl RenderOnce for Scrubber {
-    fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
+    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let popover = cx.theme().popover;
+        let popover_border = cx.theme().border;
+        let popover_text = cx.theme().popover_foreground;
+
         let Self {
             id,
             bounds,
@@ -106,6 +137,8 @@ impl RenderOnce for Scrubber {
             empty,
             thumb,
             enabled,
+            bubble,
+            lift,
             on_move,
             on_release,
         } = self;
@@ -185,6 +218,35 @@ impl RenderOnce for Scrubber {
                                 .size(px(THUMB))
                                 .rounded_full()
                                 .bg(thumb),
+                        )
+                    })
+                    .when_some(bubble, |this, (at, text)| {
+                        this.child(
+                            div()
+                                .absolute()
+                                .map(|this| {
+                                    if lift >= Pixels::ZERO {
+                                        this.bottom(lift)
+                                    } else {
+                                        this.top(Pixels::ZERO - lift)
+                                    }
+                                })
+                                .left(relative(at))
+                                .ml(px(-BUBBLE / 2.))
+                                .w(px(BUBBLE))
+                                .flex()
+                                .justify_center()
+                                .child(
+                                    div()
+                                        .px_1p5()
+                                        .rounded_md()
+                                        .bg(popover)
+                                        .border_1()
+                                        .border_color(popover_border)
+                                        .text_color(popover_text)
+                                        .text_size(px(10.))
+                                        .child(text),
+                                ),
                         )
                     })
                     .child(

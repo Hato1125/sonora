@@ -1,0 +1,8 @@
+use std::time::Duration;
+
+use gpui::SharedString;
+
+pub fn clock(value: Duration) -> SharedString {
+    let total = value.as_secs();
+    SharedString::from(format!("{}:{:02}", total / 60, total % 60))
+}

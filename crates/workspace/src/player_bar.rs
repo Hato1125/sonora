@@ -1,6 +1,8 @@
+use std::time::Duration;
+
 use gpui::prelude::*;
-use gpui::{Context, Entity, MouseUpEvent, Render};
-use gpui::{SharedString, Window, div, px};
+use gpui::{Context, Entity, MouseMoveEvent, MouseUpEvent, Render, SharedString};
+use gpui::{Window, div, px};
 use gpui_component::ActiveTheme as _;
 use gpui_component::Icon;
 use gpui_component::button::{Button, ButtonVariants as _};
@@ -8,17 +10,24 @@ use gpui_component::label::Label;
 use gpui_component::{Disableable as _, Sizable as _};
 use state::{Playback, PlaybackState};
 
-use ui::{Artwork, Scrubber, ScrubberState};
+use ui::{Artwork, Scrubber, ScrubberState, clock};
 
-const HEIGHT: f32 = 68.;
-const TRACK_WIDTH: f32 = 420.;
-const VOLUME_WIDTH: f32 = 120.;
+const HEIGHT: f32 = 76.;
+const SEEK_MAX: f32 = 560.;
+const VOLUME_WIDTH: f32 = 110.;
+const CLOCK_WIDTH: f32 = 34.;
+const VOLUME_BREAKPOINT: f32 = 720.;
+const CLOCK_BREAKPOINT: f32 = 560.;
+const TRACK_BREAKPOINT: f32 = 460.;
+const STEP: f32 = 0.004;
 
 pub struct PlayerBar {
     playback: Entity<Playback>,
     seek: ScrubberState,
     volume: ScrubberState,
     pending: Option<f32>,
+    over_seek: Option<f32>,
+    over_volume: Option<f32>,
 }
 
 impl PlayerBar {
@@ -30,6 +39,8 @@ impl PlayerBar {
             seek: ScrubberState::new("seek"),
             volume: ScrubberState::new("volume"),
             pending: None,
+            over_seek: None,
+            over_volume: None,
         }
     }
 
@@ -39,6 +50,17 @@ impl PlayerBar {
         };
         self.playback
             .update(cx, |playback, cx| playback.seek_fraction(fraction, cx));
+    }
+
+    fn hover(&mut self, event: &MouseMoveEvent, _: &mut Window, cx: &mut Context<Self>) {
+        let seek = self.seek.hovered(event.position);
+        let volume = self.volume.hovered(event.position);
+
+        if moved(self.over_seek, seek) || moved(self.over_volume, volume) {
+            self.over_seek = seek;
+            self.over_volume = volume;
+            cx.notify();
+        }
     }
 
     fn transport(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -81,51 +103,105 @@ impl PlayerBar {
             }))
     }
 
-    fn now_playing(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn now_playing(&self, room: bool, cx: &mut Context<Self>) -> impl IntoElement {
         let muted = cx.theme().muted_foreground;
         let track = self.playback.read(cx).track().cloned();
         let cover = track.as_ref().and_then(|track| track.cover.clone());
 
-        let width = window.viewport_size().width / 3. - px(100.);
-
         div()
             .flex()
-            .gap_4()
+            .items_center()
+            .gap_3()
+            .flex_1()
+            .min_w_0()
             .child(Artwork::new(cover).size(px(48.)).rounded(px(6.)))
-            .child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .justify_center()
-                    .w(width)
-                    .flex_none()
-                    .min_w_0()
-                    .child(match &track {
-                        Some(track) => Label::new(SharedString::from(track.name.clone()))
-                            .w(width)
-                            .truncate(),
-                        None => Label::new("Nothing playing").text_color(muted),
-                    })
-                    .when_some(track, |this, track| {
-                        this.child(
-                            Label::new(SharedString::from(track.artists))
-                                .w(width)
-                                .text_color(muted)
-                                .text_size(px(11.))
+            .when(room, |this| {
+                this.child(
+                    div()
+                        .flex()
+                        .flex_col()
+                        .justify_center()
+                        .flex_1()
+                        .min_w_0()
+                        .child(match &track {
+                            Some(track) => Label::new(SharedString::from(track.name.clone()))
+                                .w_full()
                                 .truncate(),
-                        )
-                    }),
-            )
+                            None => Label::new("Nothing playing")
+                                .w_full()
+                                .text_color(muted)
+                                .truncate(),
+                        })
+                        .when_some(track, |this, track| {
+                            this.child(
+                                Label::new(SharedString::from(track.artists))
+                                    .w_full()
+                                    .text_color(muted)
+                                    .text_size(px(11.))
+                                    .truncate(),
+                            )
+                        }),
+                )
+            })
     }
+}
+
+fn moved(before: Option<f32>, after: Option<f32>) -> bool {
+    match (before, after) {
+        (Some(before), Some(after)) => (before - after).abs() > STEP,
+        (before, after) => before.is_some() != after.is_some(),
+    }
+}
+
+fn volume_icon(level: f32) -> &'static str {
+    if level <= 0.001 {
+        "icons/volume-x.svg"
+    } else if level < 0.5 {
+        "icons/volume-1.svg"
+    } else {
+        "icons/volume-2.svg"
+    }
+}
+
+fn percent(fraction: f32) -> SharedString {
+    SharedString::from(format!("{}%", (fraction * 100.).round()))
 }
 
 impl Render for PlayerBar {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme().clone();
+        let muted = theme.muted_foreground;
+        let empty = muted.opacity(0.3);
+
+        let viewport = window.viewport_size().width;
+        let show_volume = viewport >= px(VOLUME_BREAKPOINT);
+        let show_clocks = viewport >= px(CLOCK_BREAKPOINT);
+        let show_track = viewport >= px(TRACK_BREAKPOINT);
+
         let playback = self.playback.read(cx);
         let seekable = playback.track().is_some();
         let progress = self.pending.unwrap_or_else(|| playback.progress());
+        let elapsed = playback.position();
+        let total = playback
+            .track()
+            .map(|track| track.duration)
+            .unwrap_or(Duration::ZERO);
         let level = playback.volume();
+
+        let seek_bubble = self
+            .over_seek
+            .or(self.pending)
+            .map(|at| (at, clock(total.mul_f32(at))));
+        let volume_bubble = self.over_volume.map(|at| (at, percent(at)));
+
+        let clock_label = |value: Duration, align_end: bool| {
+            Label::new(clock(value))
+                .w(px(CLOCK_WIDTH))
+                .flex_none()
+                .text_size(px(10.))
+                .text_color(muted)
+                .when_else(align_end, |this| this.text_right(), |this| this.text_left())
+        };
 
         div()
             .flex()
@@ -138,28 +214,43 @@ impl Render for PlayerBar {
             .bg(theme.secondary)
             .border_t_1()
             .border_color(theme.border)
-            .child(self.now_playing(window, cx))
+            .on_mouse_move(cx.listener(Self::hover))
+            .child(self.now_playing(show_track, cx))
             .child(
                 div()
                     .flex()
-                    .flex_1()
                     .flex_col()
                     .items_center()
                     .gap_1()
+                    .flex_1()
+                    .min_w_0()
+                    .max_w(px(SEEK_MAX))
                     .child(self.transport(cx))
                     .child(
-                        div().w_full().max_w(px(TRACK_WIDTH)).child(
-                            Scrubber::new(&self.seek, progress)
-                                .colors(theme.progress_bar, theme.muted, theme.foreground)
-                                .enabled(seekable)
-                                .on_move(cx.listener(|this, fraction: &f32, _, cx| {
-                                    this.pending = Some(*fraction);
-                                    cx.notify();
-                                }))
-                                .on_release(cx.listener(|this, _: &MouseUpEvent, _, cx| {
-                                    this.commit_seek(cx)
-                                })),
-                        ),
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap_2()
+                            .w_full()
+                            .when(show_clocks, |this| this.child(clock_label(elapsed, true)))
+                            .child(
+                                div().flex_1().min_w_0().child(
+                                    Scrubber::new(&self.seek, progress)
+                                        .colors(theme.progress_bar, empty, theme.foreground)
+                                        .enabled(seekable)
+                                        .when_some(seek_bubble, |this, (at, text)| {
+                                            this.bubble(at, text)
+                                        })
+                                        .on_move(cx.listener(|this, fraction: &f32, _, cx| {
+                                            this.pending = Some(*fraction);
+                                            cx.notify();
+                                        }))
+                                        .on_release(cx.listener(
+                                            |this, _: &MouseUpEvent, _, cx| this.commit_seek(cx),
+                                        )),
+                                ),
+                            )
+                            .when(show_clocks, |this| this.child(clock_label(total, false))),
                     ),
             )
             .child(
@@ -167,19 +258,33 @@ impl Render for PlayerBar {
                     .flex()
                     .items_center()
                     .justify_end()
-                    .w(px(240.))
-                    .flex_none()
+                    .gap_2()
+                    .flex_1()
+                    .min_w_0()
                     .child(
-                        div().w(px(VOLUME_WIDTH)).child(
-                            Scrubber::new(&self.volume, level)
-                                .colors(theme.progress_bar, theme.muted, theme.foreground)
-                                .on_move(cx.listener(|this, fraction: &f32, _, cx| {
-                                    let level = *fraction;
-                                    this.playback
-                                        .update(cx, |playback, cx| playback.set_volume(level, cx));
-                                })),
-                        ),
-                    ),
+                        Icon::default()
+                            .path(volume_icon(level))
+                            .size_4()
+                            .flex_none()
+                            .text_color(muted),
+                    )
+                    .when(show_volume, |this| {
+                        this.child(
+                            div().w(px(VOLUME_WIDTH)).flex_none().child(
+                                Scrubber::new(&self.volume, level)
+                                    .colors(theme.progress_bar, empty, theme.foreground)
+                                    .when_some(volume_bubble, |this, (at, text)| {
+                                        this.bubble(at, text)
+                                    })
+                                    .on_move(cx.listener(|this, fraction: &f32, _, cx| {
+                                        let level = *fraction;
+                                        this.playback.update(cx, |playback, cx| {
+                                            playback.set_volume(level, cx)
+                                        });
+                                    })),
+                            ),
+                        )
+                    }),
             )
     }
 }

@@ -25,6 +25,9 @@ const ICONS: &[(&str, &[u8])] = icons![
     "settings",
     "skip-back",
     "skip-forward",
+    "volume-1",
+    "volume-2",
+    "volume-x",
 ];
 
 pub struct Assets;
