@@ -1,4 +1,5 @@
 use gpui::{App, Global, Hsla, Pixels, px, rgb, rgba};
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ThemeKind {
@@ -62,6 +63,40 @@ impl ThemeKind {
             _ => Self::Dark,
         }
     }
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct ThemeOverrides {
+    pub background: Option<String>,
+    pub foreground: Option<String>,
+    pub border: Option<String>,
+    pub muted: Option<String>,
+    pub muted_foreground: Option<String>,
+    pub secondary: Option<String>,
+    pub secondary_hover: Option<String>,
+    pub secondary_active: Option<String>,
+    pub primary: Option<String>,
+    pub primary_foreground: Option<String>,
+    pub primary_hover: Option<String>,
+    pub danger: Option<String>,
+    pub danger_foreground: Option<String>,
+    pub danger_hover: Option<String>,
+    pub popover: Option<String>,
+    pub popover_foreground: Option<String>,
+    pub progress_bar: Option<String>,
+    pub selection: Option<String>,
+    pub sidebar: Option<String>,
+    pub sidebar_accent: Option<String>,
+    pub sidebar_border: Option<String>,
+    pub title_bar_border: Option<String>,
+    pub table_head: Option<String>,
+    pub table_head_foreground: Option<String>,
+    pub table_row_border: Option<String>,
+    pub table_hover: Option<String>,
+    pub table_active: Option<String>,
+    pub table_active_border: Option<String>,
+    pub radius: Option<f32>,
+    pub font_size: Option<f32>,
 }
 
 #[derive(Clone, Copy)]
@@ -362,13 +397,70 @@ impl Theme {
         }
     }
 
-    pub fn init(kind: ThemeKind, cx: &mut App) {
-        cx.set_global(Self::for_kind(kind));
+    pub fn with_overrides(mut self, overrides: &ThemeOverrides) -> Self {
+        macro_rules! apply_color {
+            ($field:ident) => {
+                if let Some(value) = overrides.$field.as_deref().and_then(parse_color) {
+                    self.$field = value;
+                }
+            };
+        }
+
+        apply_color!(background);
+        apply_color!(foreground);
+        apply_color!(border);
+        apply_color!(muted);
+        apply_color!(muted_foreground);
+        apply_color!(secondary);
+        apply_color!(secondary_hover);
+        apply_color!(secondary_active);
+        apply_color!(primary);
+        apply_color!(primary_foreground);
+        apply_color!(primary_hover);
+        apply_color!(danger);
+        apply_color!(danger_foreground);
+        apply_color!(danger_hover);
+        apply_color!(popover);
+        apply_color!(popover_foreground);
+        apply_color!(progress_bar);
+        apply_color!(selection);
+        apply_color!(sidebar);
+        apply_color!(sidebar_accent);
+        apply_color!(sidebar_border);
+        apply_color!(title_bar_border);
+        apply_color!(table_head);
+        apply_color!(table_head_foreground);
+        apply_color!(table_row_border);
+        apply_color!(table_hover);
+        apply_color!(table_active);
+        apply_color!(table_active_border);
+
+        if let Some(radius) = overrides.radius {
+            self.radius = px(radius.clamp(0., 24.));
+        }
+        if let Some(font_size) = overrides.font_size {
+            self.font_size = px(font_size.clamp(10., 24.));
+        }
+        self
     }
 
-    pub fn set(kind: ThemeKind, cx: &mut App) {
-        cx.set_global(Self::for_kind(kind));
+    pub fn init(kind: ThemeKind, overrides: &ThemeOverrides, cx: &mut App) {
+        cx.set_global(Self::for_kind(kind).with_overrides(overrides));
+    }
+
+    pub fn set(kind: ThemeKind, overrides: &ThemeOverrides, cx: &mut App) {
+        cx.set_global(Self::for_kind(kind).with_overrides(overrides));
         cx.refresh_windows();
+    }
+}
+
+fn parse_color(value: &str) -> Option<Hsla> {
+    let value = value.trim().strip_prefix('#').unwrap_or(value.trim());
+    let parsed = u32::from_str_radix(value, 16).ok()?;
+    match value.len() {
+        6 => Some(rgb(parsed).into()),
+        8 => Some(rgba(parsed).into()),
+        _ => None,
     }
 }
 

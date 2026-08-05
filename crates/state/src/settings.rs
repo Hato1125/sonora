@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use gpui::{Context, Task};
 use serde::{Deserialize, Serialize};
+use ui::ThemeOverrides;
 
 const SAVE_DELAY: Duration = Duration::from_millis(300);
 const DEFAULT_VOLUME: f32 = 0.7;
@@ -18,6 +19,7 @@ struct Values {
     sidebar_width: f32,
     sidebar_open: bool,
     theme: String,
+    theme_overrides: ThemeOverrides,
 }
 
 impl Default for Values {
@@ -29,6 +31,7 @@ impl Default for Values {
             sidebar_width: DEFAULT_SIDEBAR_WIDTH,
             sidebar_open: true,
             theme: "dark".to_owned(),
+            theme_overrides: ThemeOverrides::default(),
         }
     }
 }
@@ -79,6 +82,17 @@ impl AppSettings {
 
     pub fn theme(&self) -> &str {
         &self.values.theme
+    }
+
+    pub fn theme_overrides(&self) -> &ThemeOverrides {
+        &self.values.theme_overrides
+    }
+
+    pub fn ensure_file(&self) -> PathBuf {
+        if !self.path.exists() {
+            self.save_now();
+        }
+        self.path.clone()
     }
 
     pub fn set_volume(&mut self, volume: f32, cx: &mut Context<Self>) {

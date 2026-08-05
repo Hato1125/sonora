@@ -32,11 +32,14 @@ fn main() {
         .with_http_client(Arc::new(http::Client::new(io.handle())))
         .run(move |cx: &mut App| {
             state::init(cx, io);
-            let theme = {
-                let settings = &Spotty::global(cx).settings;
-                ui::ThemeKind::from_id(settings.read(cx).theme())
+            let (theme, overrides) = {
+                let settings = Spotty::global(cx).settings.read(cx);
+                (
+                    ui::ThemeKind::from_id(settings.theme()),
+                    settings.theme_overrides().clone(),
+                )
             };
-            ui::Theme::init(theme, cx);
+            ui::Theme::init(theme, &overrides, cx);
 
             actions::register(cx);
 

@@ -20,5 +20,5 @@ pub use menu::{Menu, MenuItem};
 pub use scrollbar::{scrollbar, scrolled};
 pub use scrubber::{Scrubber, ScrubberState};
 pub use skeleton::{Initials, Skeleton};
-pub use theme::{ActiveTheme, Theme, ThemeKind};
+pub use theme::{ActiveTheme, Theme, ThemeKind, ThemeOverrides};
 pub use time::clock;

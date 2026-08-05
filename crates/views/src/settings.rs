@@ -1,3 +1,6 @@
+use std::path::Path;
+use std::process::Command;
+
 use gpui::prelude::*;
 use gpui::{Context, Entity, FontWeight, Render, Window, div, px};
 use state::{AppSettings, Playback, Session, SessionState, Spotty};
@@ -69,6 +72,7 @@ impl SettingsView {
     fn appearance_settings(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let muted = cx.theme().muted_foreground;
         let current = ThemeKind::from_id(self.settings.read(cx).theme());
+        let overrides = self.settings.read(cx).theme_overrides().clone();
 
         let picker = div()
             .relative()
@@ -93,6 +97,7 @@ impl SettingsView {
                             cx.notify();
                         }))
                         .items(ThemeKind::ALL.into_iter().map(|kind| {
+                            let overrides = overrides.clone();
                             MenuItem::new(kind.id(), kind.label())
                                 .selected(current == kind)
                                 .on_click(cx.listener(move |this, _, _, cx| {
@@ -100,18 +105,37 @@ impl SettingsView {
                                         settings.set_theme(kind.id(), cx);
                                     });
                                     this.themes_open = false;
-                                    Theme::set(kind, cx);
+                                    Theme::set(kind, &overrides, cx);
                                     cx.notify();
                                 }))
                         })),
                 )
             });
 
+        let settings = self.settings.clone();
+        let actions = div()
+            .flex()
+            .items_center()
+            .gap_2()
+            .child(
+                Button::new("open-theme-config")
+                    .label("Open config")
+                    .small()
+                    .outline()
+                    .on_click(move |_, _, cx| {
+                        let path = settings.update(cx, |settings, _| settings.ensure_file());
+                        if let Err(error) = open_settings_file(&path) {
+                            eprintln!("spotty: cannot open {}: {error}", path.display());
+                        }
+                    }),
+            )
+            .child(picker);
+
         self.row(
             "Theme",
             "Choose the application colour palette",
             muted,
-            picker.into_any_element(),
+            actions.into_any_element(),
         )
     }
 
@@ -178,6 +202,22 @@ impl SettingsView {
             )
             .child(action)
     }
+}
+
+fn open_settings_file(path: &Path) -> std::io::Result<()> {
+    #[cfg(target_os = "windows")]
+    Command::new("cmd")
+        .args(["/C", "start", ""])
+        .arg(path)
+        .spawn()?;
+
+    #[cfg(target_os = "macos")]
+    Command::new("open").arg(path).spawn()?;
+
+    #[cfg(target_os = "linux")]
+    Command::new("xdg-open").arg(path).spawn()?;
+
+    Ok(())
 }
 
 impl Render for SettingsView {

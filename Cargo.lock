@@ -6552,6 +6552,7 @@ dependencies = [
  "serde_json",
  "spotify",
  "tokio",
+ "ui",
 ]
 
 [[package]]
@@ -7474,6 +7475,7 @@ name = "ui"
 version = "0.1.0"
 dependencies = [
  "gpui",
+ "serde",
 ]
 
 [[package]]
