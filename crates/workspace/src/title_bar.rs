@@ -3,7 +3,9 @@ use gpui::{AnyView, Context, Entity, MouseButton, Pixels, Render};
 use gpui::{Window, div, px, svg};
 use ui::ActiveTheme as _;
 
-use crate::{Navigation, Sidebar};
+use router::Navigation;
+
+use crate::Sidebar;
 
 const HEIGHT: f32 = 36.;
 #[cfg(target_os = "macos")]
@@ -18,11 +20,9 @@ pub struct TitleBar {
 }
 
 impl TitleBar {
-    pub fn new(
-        sidebar: Entity<Sidebar>,
-        navigation: Entity<Navigation>,
-        cx: &mut Context<Self>,
-    ) -> Self {
+    pub fn new(sidebar: Entity<Sidebar>, cx: &mut Context<Self>) -> Self {
+        let navigation = router::trail(cx);
+
         cx.observe(&sidebar, |_, _, cx| cx.notify()).detach();
         cx.observe(&navigation, |_, _, cx| cx.notify()).detach();
         Self {

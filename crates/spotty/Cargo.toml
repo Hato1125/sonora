@@ -11,6 +11,7 @@ gpui.workspace = true
 gpui_platform.workspace = true
 state.workspace = true
 input.workspace = true
+router.workspace = true
 ui.workspace = true
 views.workspace = true
 workspace.workspace = true

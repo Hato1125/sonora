@@ -3,22 +3,16 @@ use gpui::{Context, Entity, MouseButton, Render, SharedString, Window, div};
 use ui::Button;
 
 use super::{LibraryView, Section};
-use workspace::{Destination, LibraryTab, Navigation};
+use router::{Destination, LibraryTab, navigate};
 
 pub struct LibraryToolbar {
     view: Entity<LibraryView>,
-    navigation: Entity<Navigation>,
 }
 
 impl LibraryToolbar {
-    pub fn new(
-        view: Entity<LibraryView>,
-        navigation: Entity<Navigation>,
-        cx: &mut Context<Self>,
-    ) -> Self {
+    pub fn new(view: Entity<LibraryView>, cx: &mut Context<Self>) -> Self {
         cx.observe(&view, |_, _, cx| cx.notify()).detach();
-        cx.observe(&navigation, |_, _, cx| cx.notify()).detach();
-        Self { view, navigation }
+        Self { view }
     }
 
     fn tab(&self, section: Section, count: usize, cx: &mut Context<Self>) -> Button {
@@ -30,10 +24,8 @@ impl LibraryToolbar {
             .small()
             .selected(selected)
             .disabled(count == 0)
-            .on_click(cx.listener(move |this, _, _, cx| {
-                let destination = Destination::Library(LibraryTab::from(section));
-                this.navigation
-                    .update(cx, |navigation, cx| navigation.go(destination, cx));
+            .on_click(cx.listener(move |_, _, _, cx| {
+                navigate(Destination::Library(LibraryTab::from(section)), cx);
             }))
     }
 }

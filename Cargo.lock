@@ -5734,6 +5734,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "router"
+version = "0.1.0"
+dependencies = [
+ "gpui",
+ "ui",
+]
+
+[[package]]
 name = "roxmltree"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6491,6 +6499,7 @@ dependencies = [
  "input",
  "log",
  "reqwest",
+ "router",
  "state",
  "tokio",
  "ui",
@@ -7734,6 +7743,7 @@ version = "0.1.0"
 dependencies = [
  "gpui",
  "input",
+ "router",
  "spotify",
  "state",
  "ui",
@@ -8715,6 +8725,7 @@ version = "0.1.0"
 dependencies = [
  "gpui",
  "input",
+ "router",
  "state",
  "ui",
 ]

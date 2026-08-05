@@ -4,10 +4,11 @@ use gpui::{
     ScrollHandle, SharedString, Window, div, px, svg,
 };
 use input::Input;
+use router::{Destination, navigate};
 use state::{Hit, Kind, Playback, Search};
 use ui::ActiveTheme as _;
 use ui::{Artwork, Theme, clock, scrollbar};
-use workspace::{Destination, Navigation, Sidebar};
+use workspace::Sidebar;
 
 use crate::cells;
 
@@ -28,7 +29,6 @@ pub(crate) struct SearchView {
     input: Entity<Input>,
     search: Entity<Search>,
     playback: Entity<Playback>,
-    navigation: Entity<Navigation>,
     sidebar: Entity<Sidebar>,
     scroll: ScrollHandle,
 }
@@ -37,7 +37,6 @@ impl SearchView {
     pub(crate) fn new(
         search: Entity<Search>,
         playback: Entity<Playback>,
-        navigation: Entity<Navigation>,
         sidebar: Entity<Sidebar>,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -60,7 +59,6 @@ impl SearchView {
             input,
             search,
             playback,
-            navigation,
             sidebar,
             scroll: ScrollHandle::new(),
         }
@@ -80,9 +78,7 @@ impl SearchView {
     }
 
     fn open_album(&mut self, id: String, cx: &mut Context<Self>) {
-        self.navigation.update(cx, |navigation, cx| {
-            navigation.go(Destination::Album(id.into()), cx)
-        });
+        navigate(Destination::Album(id.into()), cx);
     }
 
     fn bar(&self, cx: &Context<Self>) -> AnyElement {

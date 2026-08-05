@@ -2,8 +2,9 @@ use std::cell::Cell;
 use ui::ActiveTheme as _;
 
 use gpui::prelude::*;
-use gpui::{Context, DragMoveEvent, Empty, Entity, EventEmitter, Pixels, Render, SharedString};
+use gpui::{Context, DragMoveEvent, Empty, Entity, Pixels, Render};
 use gpui::{Window, div, px, svg};
+use router::{Destination, LibraryTab, Link as _, Navigation};
 use state::{AppSettings, Spotty};
 
 const NAV: [(&str, &str, Option<Destination>); 4] = [
@@ -29,65 +30,32 @@ struct SidebarResize {
     start_x: Cell<Pixels>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum LibraryTab {
-    Songs,
-    Albums,
-    Playlists,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Destination {
-    Library(LibraryTab),
-    Album(SharedString),
-    Playlist(SharedString),
-    Search,
-    Settings,
-}
-
-impl Destination {
-    /// Whether both destinations belong to the same sidebar entry.
-    fn same_section(&self, other: &Destination) -> bool {
-        match (self, other) {
-            (Destination::Library(_), Destination::Library(_)) => true,
-            _ => self == other,
-        }
-    }
-}
-
-pub enum SidebarEvent {
-    Navigate(Destination),
-}
-
 pub struct Sidebar {
     settings: Entity<AppSettings>,
+    trail: Entity<Navigation>,
     width: Pixels,
     open: bool,
-    current: Destination,
 }
-
-impl EventEmitter<SidebarEvent> for Sidebar {}
 
 impl Sidebar {
     pub fn new(cx: &mut Context<Self>) -> Self {
         let settings = Spotty::global(cx).settings.clone();
         let width = px(settings.read(cx).sidebar_width()).clamp(MIN_WIDTH, MAX_WIDTH);
         let open = settings.read(cx).sidebar_open();
+        let trail = router::trail(cx);
+
+        cx.observe(&trail, |_, _, cx| cx.notify()).detach();
+
         Self {
             settings,
+            trail,
             width,
             open,
-            current: Destination::Library(LibraryTab::Songs),
         }
     }
 
     pub fn is_open(&self) -> bool {
         self.open
-    }
-
-    pub fn set_current(&mut self, destination: Destination, cx: &mut Context<Self>) {
-        self.current = destination;
-        cx.notify();
     }
 
     pub fn occupied_width(&self) -> Pixels {
@@ -116,7 +84,7 @@ impl Render for Sidebar {
         let muted = theme.muted_foreground;
         let sidebar_bg = theme.sidebar;
         let sidebar_border = theme.sidebar_border;
-        let current = self.current.clone();
+        let current = self.trail.read(cx).current();
 
         div()
             .flex()
@@ -155,11 +123,7 @@ impl Render for Sidebar {
                                 .hover(move |style| style.bg(sidebar_accent))
                                 .child(svg().path(icon).size_4().flex_none().text_color(text))
                                 .child(div().text_color(text).child(label))
-                                .when_some(destination, |this, destination| {
-                                    this.on_click(cx.listener(move |_, _, _, cx| {
-                                        cx.emit(SidebarEvent::Navigate(destination.clone()));
-                                    }))
-                                })
+                                .when_some(destination, |this, destination| this.link(destination))
                         },
                     )),
             )

@@ -1,0 +1,58 @@
+mod link;
+mod navigation;
+
+pub use link::Link;
+pub use navigation::{Navigation, NavigationEvent};
+
+use gpui::{App, AppContext as _, Entity, Global, SharedString};
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LibraryTab {
+    Songs,
+    Albums,
+    Playlists,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Destination {
+    Library(LibraryTab),
+    Album(SharedString),
+    Playlist(SharedString),
+    Search,
+    Settings,
+}
+
+impl Destination {
+    pub fn same_section(&self, other: &Destination) -> bool {
+        match (self, other) {
+            (Destination::Library(_), Destination::Library(_)) => true,
+            _ => self == other,
+        }
+    }
+}
+
+#[derive(Clone)]
+struct Router(Entity<Navigation>);
+
+impl Global for Router {}
+
+pub fn init(start: Destination, cx: &mut App) {
+    let navigation = cx.new(|_| Navigation::new(start));
+    cx.set_global(Router(navigation));
+}
+
+pub fn trail(cx: &App) -> Entity<Navigation> {
+    cx.global::<Router>().0.clone()
+}
+
+pub fn navigate(destination: Destination, cx: &mut App) {
+    trail(cx).update(cx, |navigation, cx| navigation.go(destination, cx));
+}
+
+pub fn back(cx: &mut App) {
+    trail(cx).update(cx, |navigation, cx| navigation.back(cx));
+}
+
+pub fn forward(cx: &mut App) {
+    trail(cx).update(cx, |navigation, cx| navigation.forward(cx));
+}

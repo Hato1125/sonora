@@ -12,7 +12,7 @@ use ui::{
 
 use crate::cells;
 use crate::tracks::{TrackField, TrackSource, Tracks};
-use workspace::{Navigation, Sidebar};
+use workspace::Sidebar;
 
 const PADDING: Pixels = px(24.);
 const INSET: Pixels = px(50.);
@@ -45,7 +45,6 @@ impl DetailView {
         detail: Entity<Detail>,
         playback: Entity<Playback>,
         sidebar: Entity<Sidebar>,
-        navigation: Entity<Navigation>,
         columns: &'static [ColumnSpec<TrackField>],
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -53,12 +52,7 @@ impl DetailView {
         let width = cells::content_width(window, sidebar.read(cx).occupied_width(), INSET);
 
         let table = cx.new(|cx| {
-            let source = TrackSource::new(
-                columns,
-                DetailTracks(detail.clone()),
-                playback.clone(),
-                navigation.clone(),
-            );
+            let source = TrackSource::new(columns, DetailTracks(detail.clone()), playback.clone());
             GridState::new(GridDelegate::new(source, width, cx))
         });
 

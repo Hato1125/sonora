@@ -11,6 +11,7 @@ audio = { path = "crates/audio" }
 spotify = { path = "crates/spotify" }
 state = { path = "crates/state" }
 input = { path = "crates/input" }
+router = { path = "crates/router" }
 ui = { path = "crates/ui" }
 views = { path = "crates/views" }
 workspace = { path = "crates/workspace" }

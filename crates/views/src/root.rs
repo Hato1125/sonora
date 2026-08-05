@@ -2,11 +2,10 @@ use gpui::prelude::*;
 use gpui::{AnyView, Context, Entity, Render};
 use gpui::{Window, div};
 use input::{OpenSearch, OpenSettings};
+use router::{Destination, NavigationEvent, navigate};
 use state::{Detail, Io, Library, Playback, Queue, Search, Session, SessionState};
 use ui::ActiveTheme as _;
-use workspace::{
-    Destination, LibraryTab, Navigation, NavigationEvent, Sidebar, SidebarEvent, Workspace,
-};
+use workspace::{Sidebar, Workspace};
 
 use crate::search::SearchView;
 use crate::tracks::{ALBUM_COLUMNS, LIBRARY_COLUMNS};
@@ -32,7 +31,6 @@ pub struct Root {
     session: Entity<Session>,
     login: Entity<LoginView>,
     workspace: Entity<Workspace>,
-    navigation: Entity<Navigation>,
     pending: Option<Focus>,
     screens: Screens,
 }
@@ -51,27 +49,11 @@ impl Root {
         let login = cx.new(|cx| LoginView::new(session.clone(), cx));
         let sidebar = cx.new(Sidebar::new);
 
-        let navigation = cx.new(|_| Navigation::new(Destination::Library(LibraryTab::Songs)));
+        let navigation = router::trail(cx);
 
-        cx.subscribe(&sidebar, {
-            let navigation = navigation.clone();
-            move |_, _, event, cx| {
-                let SidebarEvent::Navigate(destination) = event;
-                let destination = destination.clone();
-                navigation.update(cx, |navigation, cx| navigation.go(destination, cx));
-            }
-        })
-        .detach();
-
-        cx.subscribe(&navigation, {
-            let sidebar = sidebar.clone();
-            move |this, _, event, cx| {
-                let NavigationEvent::Moved(destination) = event;
-                sidebar.update(cx, |sidebar, cx| {
-                    sidebar.set_current(destination.clone(), cx)
-                });
-                this.show(destination.clone(), cx);
-            }
+        cx.subscribe(&navigation, |this, _, event, cx| {
+            let NavigationEvent::Moved(destination) = event;
+            this.show(destination.clone(), cx);
         })
         .detach();
 
@@ -79,14 +61,12 @@ impl Root {
             LibraryView::new(
                 library.clone(),
                 playback.clone(),
-                navigation.clone(),
                 sidebar.clone(),
                 window,
                 cx,
             )
         });
-        let library_toolbar =
-            cx.new(|cx| LibraryToolbar::new(library_view.clone(), navigation.clone(), cx));
+        let library_toolbar = cx.new(|cx| LibraryToolbar::new(library_view.clone(), cx));
 
         let io = Io::global(cx);
         let search_library = library.clone();
@@ -97,7 +77,6 @@ impl Root {
                 album_detail.clone(),
                 playback.clone(),
                 sidebar.clone(),
-                navigation.clone(),
                 ALBUM_COLUMNS,
                 window,
                 cx,
@@ -110,7 +89,6 @@ impl Root {
                 playlist_detail.clone(),
                 playback.clone(),
                 sidebar.clone(),
-                navigation.clone(),
                 LIBRARY_COLUMNS,
                 window,
                 cx,
@@ -118,35 +96,18 @@ impl Root {
         });
 
         let queries = cx.new(|cx| Search::new(session.clone(), search_library, io.clone(), cx));
-        let search = cx.new(|cx| {
-            SearchView::new(
-                queries,
-                playback.clone(),
-                navigation.clone(),
-                sidebar.clone(),
-                cx,
-            )
-        });
+        let search = cx.new(|cx| SearchView::new(queries, playback.clone(), sidebar.clone(), cx));
 
         let settings = cx.new(|cx| SettingsView::new(session.clone(), playback.clone(), cx));
 
         let start = navigation.read(cx).current();
-        let workspace = cx.new(|cx| {
-            Workspace::new(
-                sidebar,
-                navigation.clone(),
-                playback,
-                queue,
-                library_view.clone().into(),
-                cx,
-            )
-        });
+        let workspace =
+            cx.new(|cx| Workspace::new(sidebar, playback, queue, library_view.clone().into(), cx));
 
         let mut root = Self {
             session,
             login,
             workspace,
-            navigation,
             pending: None,
             screens: Screens {
                 library: library_view,
@@ -164,16 +125,13 @@ impl Root {
     }
 
     fn open_search(&mut self, cx: &mut Context<Self>) {
-        self.navigation
-            .update(cx, |navigation, cx| navigation.go(Destination::Search, cx));
+        navigate(Destination::Search, cx);
         self.pending = Some(Focus::Search);
         cx.notify();
     }
 
     fn open_settings(&mut self, cx: &mut Context<Self>) {
-        self.navigation.update(cx, |navigation, cx| {
-            navigation.go(Destination::Settings, cx)
-        });
+        navigate(Destination::Settings, cx);
         self.pending = Some(Focus::Workspace);
         cx.notify();
     }

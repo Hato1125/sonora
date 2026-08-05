@@ -4,10 +4,11 @@ mod toolbar;
 
 use gpui::prelude::*;
 use gpui::{App, Context, Entity, Pixels, Point, Render, ScrollHandle, Window, div, px};
+use router::{Destination, LibraryTab, navigate};
 use spotify::Track;
 use state::{Library, LibraryState, Playback};
 use ui::{GridDelegate, GridEvent, GridState, Viewport, grid, scrollbar, scrolled};
-use workspace::{Destination, LibraryTab, Navigation, Sidebar};
+use workspace::Sidebar;
 
 use crate::cells;
 use crate::tracks::{LIBRARY_COLUMNS, TrackSource, Tracks};
@@ -77,7 +78,6 @@ impl Tracks for LibraryTracks {
 pub struct LibraryView {
     library: Entity<Library>,
     playback: Entity<Playback>,
-    navigation: Entity<Navigation>,
     sidebar: Entity<Sidebar>,
     section: Section,
     width: Pixels,
@@ -91,7 +91,6 @@ impl LibraryView {
     pub fn new(
         library: Entity<Library>,
         playback: Entity<Playback>,
-        navigation: Entity<Navigation>,
         sidebar: Entity<Sidebar>,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -103,7 +102,6 @@ impl LibraryView {
                 LIBRARY_COLUMNS,
                 LibraryTracks(library.clone()),
                 playback.clone(),
-                navigation.clone(),
             );
             GridState::new(GridDelegate::new(source, width, cx))
         });
@@ -150,7 +148,6 @@ impl LibraryView {
         Self {
             library,
             playback,
-            navigation,
             sidebar,
             section: Section::Tracks,
             width,
@@ -234,9 +231,7 @@ impl LibraryView {
         let Some(album) = album else {
             return;
         };
-        let destination = Destination::Album(album.id.into());
-        self.navigation
-            .update(cx, |navigation, cx| navigation.go(destination, cx));
+        navigate(Destination::Album(album.id.into()), cx);
     }
 
     fn open_playlist(&mut self, display: usize, cx: &mut Context<Self>) {
@@ -248,9 +243,7 @@ impl LibraryView {
         let Some(playlist) = playlist else {
             return;
         };
-        let destination = Destination::Playlist(playlist.id.into());
-        self.navigation
-            .update(cx, |navigation, cx| navigation.go(destination, cx));
+        navigate(Destination::Playlist(playlist.id.into()), cx);
     }
 
     fn resize(&mut self, window: &Window, cx: &mut Context<Self>) {
