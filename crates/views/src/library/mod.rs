@@ -98,7 +98,11 @@ impl LibraryView {
         let width = cells::content_width(window, sidebar.read(cx).occupied_width(), Pixels::ZERO);
 
         let tracks = cx.new(|cx| {
-            let source = TrackSource::new(LIBRARY_COLUMNS, LibraryTracks(library.clone()));
+            let source = TrackSource::new(
+                LIBRARY_COLUMNS,
+                LibraryTracks(library.clone()),
+                playback.clone(),
+            );
             GridState::new(GridDelegate::new(source, width, cx), window, cx)
         });
         let albums = cx.new(|cx| {
@@ -117,6 +121,11 @@ impl LibraryView {
         .detach();
 
         cx.observe(&sidebar, |_, _, cx| cx.notify()).detach();
+
+        cx.observe(&playback, |this, _, cx| {
+            this.tracks.update(cx, |table, cx| table.refresh(cx));
+        })
+        .detach();
 
         cx.subscribe(&tracks, |this, _, event, cx| {
             let GridEvent::DoubleClicked(display) = event;

@@ -48,7 +48,7 @@ impl AlbumView {
         let width = cells::content_width(window, sidebar.read(cx).occupied_width(), INSET);
 
         let table = cx.new(|cx| {
-            let source = TrackSource::new(ALBUM_COLUMNS, DetailTracks(detail.clone()));
+            let source = TrackSource::new(ALBUM_COLUMNS, DetailTracks(detail.clone()), playback.clone());
             GridState::new(GridDelegate::new(source, width, cx), window, cx)
         });
 
@@ -59,6 +59,11 @@ impl AlbumView {
         .detach();
 
         cx.observe(&sidebar, |_, _, cx| cx.notify()).detach();
+
+        cx.observe(&playback, |this, _, cx| {
+            this.table.update(cx, |table, cx| table.refresh(cx));
+        })
+        .detach();
 
         cx.subscribe(&table, |this, _, event, cx| {
             let GridEvent::DoubleClicked(display) = event;

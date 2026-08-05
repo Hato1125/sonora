@@ -1,5 +1,5 @@
 use gpui::prelude::*;
-use gpui::{AnyElement, Hsla, Pixels, SharedString, Window, px};
+use gpui::{AnyElement, Hsla, Pixels, SharedString, Window, px, svg};
 use ui::{Artwork, Cell};
 
 pub(crate) const NUMBER: Pixels = px(44.);
@@ -28,6 +28,15 @@ pub(crate) fn dim<F>(cell: &Cell<F>, value: impl Into<SharedString>, muted: Hsla
 pub(crate) fn artwork<F>(cell: &Cell<F>, url: Option<String>) -> AnyElement {
     cell.middle()
         .child(Artwork::new(url).size(ARTWORK).rounded(ROUNDED))
+        .into_any_element()
+}
+
+pub(crate) fn icon<F>(cell: &Cell<F>, path: &'static str, color: Hsla) -> AnyElement {
+    cell.frame()
+        .child(svg().path(path).size(px(11.)).flex_none().text_color(color))
+        .h_full()
+        .flex()
+        .items_center()
         .into_any_element()
 }
 

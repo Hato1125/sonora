@@ -1,8 +1,9 @@
 use std::cmp::Ordering;
 use ui::ActiveTheme as _;
 
-use gpui::{AnyElement, App, TextAlign};
+use gpui::{AnyElement, App, Entity, TextAlign};
 use spotify::Track;
+use state::{Playback, PlaybackState};
 use ui::{Cell, ColumnSpec, GridSource, Width, clock};
 
 use crate::cells::{self, ALWAYS, ARTWORK_COLUMN, NUMBER, ROOMY, SNUG, TRAILING, WIDE};
@@ -131,14 +132,26 @@ pub(crate) trait Tracks: 'static {
 pub(crate) struct TrackSource {
     columns: &'static [ColumnSpec<TrackField>],
     provider: Box<dyn Tracks>,
+    playback: Entity<Playback>,
 }
 
 impl TrackSource {
-    pub(crate) fn new(columns: &'static [ColumnSpec<TrackField>], provider: impl Tracks) -> Self {
+    pub(crate) fn new(
+        columns: &'static [ColumnSpec<TrackField>],
+        provider: impl Tracks,
+        playback: Entity<Playback>,
+    ) -> Self {
         Self {
             columns,
             provider: Box::new(provider),
+            playback,
         }
+    }
+
+    fn now_playing(&self, track: &Track, cx: &App) -> Option<PlaybackState> {
+        let playback = self.playback.read(cx);
+        let current = playback.track()?;
+        (current.id.is_some() && current.id == track.id).then(|| playback.state().clone())
     }
 
     pub(crate) fn at(&self, row: usize, cx: &App) -> Option<Track> {
@@ -164,20 +177,36 @@ impl GridSource for TrackSource {
     fn cell(&self, cell: Cell<TrackField>, cx: &mut App) -> AnyElement {
         let muted = cx.theme().muted_foreground;
 
-        if cell.field == TrackField::Index {
-            return cells::dim(&cell, format!("{}", cell.display + 1), muted);
-        }
-
         let Some(track) = self.provider.tracks(cx).get(cell.row) else {
             return cells::blank(&cell);
         };
 
+        if cell.field == TrackField::Index {
+            return match self.now_playing(track, cx) {
+                Some(PlaybackState::Playing) => {
+                    cells::icon(&cell, "icons/play.svg", cx.theme().foreground)
+                }
+                Some(PlaybackState::Paused) | Some(PlaybackState::Loading) => {
+                    cells::icon(&cell, "icons/pause.svg", muted)
+                }
+                _ => cells::dim(&cell, format!("{}", cell.display + 1), muted),
+            };
+        }
+        let faded = muted.opacity(0.5);
+        let (title, detail) = match track.playable {
+            true => (None, muted),
+            false => (Some(faded), faded),
+        };
+
         match cell.field {
             TrackField::Cover => cells::artwork(&cell, track.cover.clone()),
-            TrackField::Title => cells::text(&cell, track.name.clone()),
-            TrackField::Artists => cells::dim(&cell, track.artists.clone(), muted),
-            TrackField::Album => cells::dim(&cell, track.album.clone(), muted),
-            TrackField::Duration => cells::dim(&cell, clock(track.duration), muted),
+            TrackField::Title => match title {
+                Some(color) => cells::dim(&cell, track.name.clone(), color),
+                None => cells::text(&cell, track.name.clone()),
+            },
+            TrackField::Artists => cells::dim(&cell, track.artists.clone(), detail),
+            TrackField::Album => cells::dim(&cell, track.album.clone(), detail),
+            TrackField::Duration => cells::dim(&cell, clock(track.duration), detail),
             TrackField::Index => cells::blank(&cell),
         }
     }
