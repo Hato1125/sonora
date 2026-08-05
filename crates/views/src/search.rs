@@ -30,7 +30,6 @@ pub(crate) struct SearchView {
     search: Entity<Search>,
     playback: Entity<Playback>,
     sidebar: Entity<Sidebar>,
-    scroll: ScrollHandle,
     scrollbar: Entity<Scrollbar>,
 }
 
@@ -56,15 +55,13 @@ impl SearchView {
         let asked = input.read(cx).text().to_owned();
         search.update(cx, |search, cx| search.ask(&asked, cx));
 
-        let scroll = ScrollHandle::new();
-        let scrollbar = cx.new(|_| Scrollbar::new(scroll.clone()));
+        let scrollbar = cx.new(|_| Scrollbar::new(ScrollHandle::new()));
 
         Self {
             input,
             search,
             playback,
             sidebar,
-            scroll,
             scrollbar,
         }
     }
@@ -421,7 +418,7 @@ impl Render for SearchView {
                     .id("search-page")
                     .size_full()
                     .overflow_y_scroll()
-                    .track_scroll(&self.scroll)
+                    .track_scroll(self.scrollbar.read(cx).scroll())
                     .px(PADDING + inset)
                     .pt(PADDING)
                     .pb(PADDING)

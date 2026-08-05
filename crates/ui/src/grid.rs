@@ -15,7 +15,7 @@ const MIN_FLEXIBLE: Pixels = px(120.);
 const SLACK: Pixels = px(2.);
 const OVERSCAN: usize = 2;
 
-pub const ROW: Pixels = px(32.);
+pub const ROW: Pixels = px(38.);
 pub const ROW_GROUP: &str = "grid-row";
 
 #[derive(Clone, Copy)]

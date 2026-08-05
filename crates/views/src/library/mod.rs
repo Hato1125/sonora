@@ -81,7 +81,6 @@ pub struct LibraryView {
     sidebar: Entity<Sidebar>,
     section: Section,
     width: Pixels,
-    scroll: ScrollHandle,
     scrollbar: Entity<Scrollbar>,
     tracks: Entity<GridState<TrackSource>>,
     albums: Entity<GridState<AlbumSource>>,
@@ -146,8 +145,7 @@ impl LibraryView {
         })
         .detach();
 
-        let scroll = ScrollHandle::new();
-        let scrollbar = cx.new(|_| Scrollbar::new(scroll.clone()));
+        let scrollbar = cx.new(|_| Scrollbar::new(ScrollHandle::new()));
 
         Self {
             library,
@@ -155,7 +153,6 @@ impl LibraryView {
             sidebar,
             section: Section::Tracks,
             width,
-            scroll,
             scrollbar,
             tracks,
             albums,
@@ -197,17 +194,20 @@ impl LibraryView {
 
     pub fn select(&mut self, section: Section, cx: &mut Context<Self>) {
         if self.section != section {
-            self.scroll.set_offset(Point::default());
+            self.scrollbar
+                .read(cx)
+                .scroll()
+                .set_offset(Point::default());
         }
         self.section = section;
         cx.notify();
     }
 
-    fn viewport(&self, window: &Window) -> Viewport {
-        let visible = self.scroll.bounds().size.height;
+    fn viewport(scroll: &ScrollHandle, window: &Window) -> Viewport {
+        let visible = scroll.bounds().size.height;
 
         Viewport {
-            top: scrolled(&self.scroll),
+            top: scrolled(scroll),
             height: match visible > Pixels::ZERO {
                 true => visible,
                 false => window.viewport_size().height,
@@ -292,7 +292,9 @@ impl LibraryView {
 impl Render for LibraryView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.resize(window, cx);
-        let viewport = self.viewport(window);
+
+        let scroll = self.scrollbar.read(cx).scroll().clone();
+        let viewport = Self::viewport(&scroll, window);
 
         let table = match self.section {
             Section::Tracks => {
@@ -320,7 +322,7 @@ impl Render for LibraryView {
                     .id("library-page")
                     .size_full()
                     .overflow_y_scroll()
-                    .track_scroll(&self.scroll)
+                    .track_scroll(&scroll)
                     .child(table),
             )
             .child(self.scrollbar.clone())

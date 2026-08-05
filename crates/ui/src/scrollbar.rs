@@ -51,6 +51,10 @@ impl Scrollbar {
         }
     }
 
+    pub fn scroll(&self) -> &ScrollHandle {
+        &self.scroll
+    }
+
     fn wake(&mut self, cx: &mut Context<Self>) {
         self.awake = true;
         cx.notify();
