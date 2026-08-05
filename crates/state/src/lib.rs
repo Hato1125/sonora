@@ -1,10 +1,10 @@
-mod album;
+mod detail;
 mod library;
 mod playback;
 mod queue;
 mod session;
 
-pub use album::AlbumDetail;
+pub use detail::{Detail, Header};
 pub use library::{Library, LibraryState};
 pub use playback::{Playback, PlaybackState};
 pub use queue::Queue;

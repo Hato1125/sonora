@@ -3,13 +3,15 @@ use gpui::{
     AnyElement, App, Context, Entity, FontWeight, Pixels, Render, ScrollHandle, SharedString,
     Window, div, px,
 };
-use spotify::{Album, Track};
-use state::{AlbumDetail, Playback};
+use spotify::Track;
+use state::{Detail, Playback};
 use ui::ActiveTheme as _;
-use ui::{Artwork, GridDelegate, GridEvent, GridState, Viewport, grid, scrollbar, scrolled};
+use ui::{
+    Artwork, ColumnSpec, GridDelegate, GridEvent, GridState, Viewport, grid, scrollbar, scrolled,
+};
 
 use crate::cells;
-use crate::tracks::{ALBUM_COLUMNS, TrackSource, Tracks};
+use crate::tracks::{TrackField, TrackSource, Tracks};
 use workspace::{Navigation, Sidebar};
 
 const PADDING: Pixels = px(24.);
@@ -17,7 +19,7 @@ const INSET: Pixels = px(50.);
 const COVER: Pixels = px(140.);
 const FRAME: Pixels = px(1.);
 
-struct DetailTracks(Entity<AlbumDetail>);
+struct DetailTracks(Entity<Detail>);
 
 impl Tracks for DetailTracks {
     fn tracks<'a>(&self, cx: &'a App) -> &'a [Track] {
@@ -29,8 +31,8 @@ impl Tracks for DetailTracks {
     }
 }
 
-pub struct AlbumView {
-    detail: Entity<AlbumDetail>,
+pub struct DetailView {
+    detail: Entity<Detail>,
     playback: Entity<Playback>,
     sidebar: Entity<Sidebar>,
     width: Pixels,
@@ -38,12 +40,13 @@ pub struct AlbumView {
     table: Entity<GridState<TrackSource>>,
 }
 
-impl AlbumView {
+impl DetailView {
     pub fn new(
-        detail: Entity<AlbumDetail>,
+        detail: Entity<Detail>,
         playback: Entity<Playback>,
         sidebar: Entity<Sidebar>,
         navigation: Entity<Navigation>,
+        columns: &'static [ColumnSpec<TrackField>],
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -51,7 +54,7 @@ impl AlbumView {
 
         let table = cx.new(|cx| {
             let source = TrackSource::new(
-                ALBUM_COLUMNS,
+                columns,
                 DetailTracks(detail.clone()),
                 playback.clone(),
                 navigation.clone(),
@@ -140,10 +143,12 @@ impl AlbumView {
 
     fn header(&self, cx: &Context<Self>) -> AnyElement {
         let muted = cx.theme().muted_foreground;
-        let album = self.detail.read(cx).album();
-        let name = album
-            .map(|album| SharedString::from(album.name.clone()))
-            .unwrap_or_else(|| SharedString::from("Album"));
+        let header = self.detail.read(cx).header();
+        let kind = header.map(|header| header.kind).unwrap_or_default();
+        let title = header
+            .map(|header| SharedString::from(header.title.clone()))
+            .unwrap_or_default();
+        let meta = header.map(|header| SharedString::from(header.meta.clone()));
 
         div()
             .flex()
@@ -152,7 +157,7 @@ impl AlbumView {
             .gap_5()
             .pb_6()
             .child(
-                Artwork::new(album.and_then(|album| album.cover_large.clone()))
+                Artwork::new(header.and_then(|header| header.cover.clone()))
                     .size(COVER)
                     .rounded(px(8.)),
             )
@@ -167,33 +172,22 @@ impl AlbumView {
                             .text_size(px(11.))
                             .text_color(muted)
                             .font_weight(FontWeight::SEMIBOLD)
-                            .child("ALBUM"),
+                            .child(kind),
                     )
                     .child(
                         div()
                             .text_size(px(28.))
                             .font_weight(FontWeight::BOLD)
                             .truncate()
-                            .child(name),
+                            .child(title),
                     )
-                    .child(div().text_color(muted).truncate().children(album.map(meta))),
+                    .child(div().text_color(muted).truncate().children(meta)),
             )
             .into_any_element()
     }
 }
 
-fn meta(album: &Album) -> SharedString {
-    let mut parts = vec![album.artists.clone()];
-    if album.year > 0 {
-        parts.push(format!("{}", album.year));
-    }
-    if album.track_count > 0 {
-        parts.push(format!("{} songs", album.track_count));
-    }
-    SharedString::from(parts.join(" • "))
-}
-
-impl Render for AlbumView {
+impl Render for DetailView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.resize(window, cx);
         let viewport = self.viewport(window);
@@ -205,7 +199,7 @@ impl Render for AlbumView {
             .size_full()
             .child(
                 div()
-                    .id("album-page")
+                    .id("detail-page")
                     .size_full()
                     .overflow_y_scroll()
                     .track_scroll(&self.scroll)

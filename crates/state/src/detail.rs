@@ -3,8 +3,16 @@ use spotify::{Album, Track};
 
 use crate::{Io, Library, Session, SessionEvent, join};
 
-pub struct AlbumDetail {
-    album: Option<Album>,
+pub struct Header {
+    pub kind: &'static str,
+    pub title: String,
+    pub meta: String,
+    pub cover: Option<String>,
+}
+
+pub struct Detail {
+    id: Option<String>,
+    header: Option<Header>,
     tracks: Vec<Track>,
     loading: bool,
     error: Option<String>,
@@ -14,7 +22,7 @@ pub struct AlbumDetail {
     task: Option<Task<()>>,
 }
 
-impl AlbumDetail {
+impl Detail {
     pub fn new(
         session: Entity<Session>,
         library: Entity<Library>,
@@ -30,7 +38,8 @@ impl AlbumDetail {
         .detach();
 
         Self {
-            album: None,
+            id: None,
+            header: None,
             tracks: Vec::new(),
             loading: false,
             error: None,
@@ -41,8 +50,8 @@ impl AlbumDetail {
         }
     }
 
-    pub fn album(&self) -> Option<&Album> {
-        self.album.as_ref()
+    pub fn header(&self) -> Option<&Header> {
+        self.header.as_ref()
     }
 
     pub fn tracks(&self) -> &[Track] {
@@ -57,14 +66,15 @@ impl AlbumDetail {
         self.error.as_deref()
     }
 
-    pub fn open(&mut self, id: &str, cx: &mut Context<Self>) {
+    pub fn open_album(&mut self, id: &str, cx: &mut Context<Self>) {
         if self.shows(id) {
             return;
         }
 
-        let known = self.library.read(cx).album(id).cloned();
+        let known = self.library.read(cx).album(id).map(album_header);
         self.clear();
-        self.album = known;
+        self.id = Some(id.to_owned());
+        self.header = known;
 
         let Some(client) = self.session.read(cx).client() else {
             cx.notify();
@@ -92,15 +102,33 @@ impl AlbumDetail {
     }
 
     fn shows(&self, id: &str) -> bool {
-        let same = self.album.as_ref().is_some_and(|album| album.id == id);
+        let same = self.id.as_deref() == Some(id);
         same && (self.loading || !self.tracks.is_empty())
     }
 
     fn clear(&mut self) {
         self.task = None;
-        self.album = None;
+        self.id = None;
+        self.header = None;
         self.tracks.clear();
         self.loading = false;
         self.error = None;
+    }
+}
+
+fn album_header(album: &Album) -> Header {
+    let mut parts = vec![album.artists.clone()];
+    if album.year > 0 {
+        parts.push(format!("{}", album.year));
+    }
+    if album.track_count > 0 {
+        parts.push(format!("{} songs", album.track_count));
+    }
+
+    Header {
+        kind: "ALBUM",
+        title: album.name.clone(),
+        meta: parts.join(" • "),
+        cover: album.cover_large.clone(),
     }
 }

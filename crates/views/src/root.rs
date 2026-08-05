@@ -1,19 +1,20 @@
 use gpui::prelude::*;
 use gpui::{AnyView, Context, Entity, Render};
 use gpui::{Window, div};
-use state::{AlbumDetail, Io, Library, Playback, Queue, Session, SessionState};
+use state::{Detail, Io, Library, Playback, Queue, Session, SessionState};
 use ui::ActiveTheme as _;
 use workspace::{
     Destination, LibraryTab, Navigation, NavigationEvent, Sidebar, SidebarEvent, Workspace,
 };
 
-use crate::{AlbumView, LibraryToolbar, LibraryView, LoginView, SettingsView};
+use crate::tracks::ALBUM_COLUMNS;
+use crate::{DetailView, LibraryToolbar, LibraryView, LoginView, SettingsView};
 
 struct Screens {
     library: Entity<LibraryView>,
     library_toolbar: Entity<LibraryToolbar>,
-    album: Entity<AlbumView>,
-    album_detail: Entity<AlbumDetail>,
+    album: Entity<DetailView>,
+    album_detail: Entity<Detail>,
     settings: Entity<SettingsView>,
 }
 
@@ -70,13 +71,14 @@ impl Root {
             cx.new(|cx| LibraryToolbar::new(library_view.clone(), navigation.clone(), cx));
 
         let io = Io::global(cx);
-        let album_detail = cx.new(|cx| AlbumDetail::new(session.clone(), library, io, cx));
+        let album_detail = cx.new(|cx| Detail::new(session.clone(), library, io, cx));
         let album = cx.new(|cx| {
-            AlbumView::new(
+            DetailView::new(
                 album_detail.clone(),
                 playback.clone(),
                 sidebar.clone(),
                 navigation.clone(),
+                ALBUM_COLUMNS,
                 window,
                 cx,
             )
@@ -126,7 +128,7 @@ impl Root {
             Destination::Album(id) => {
                 self.screens
                     .album_detail
-                    .update(cx, |detail, cx| detail.open(&id, cx));
+                    .update(cx, |detail, cx| detail.open_album(&id, cx));
                 (self.screens.album.clone().into(), None)
             }
             Destination::Settings => (self.screens.settings.clone().into(), None),
