@@ -6,6 +6,10 @@ use ui::ActiveTheme as _;
 use crate::{Navigation, Sidebar};
 
 const HEIGHT: f32 = 36.;
+#[cfg(target_os = "macos")]
+const TITLE_BAR_LEFT_INSET: f32 = 74.;
+#[cfg(not(target_os = "macos"))]
+const TITLE_BAR_LEFT_INSET: f32 = 12.;
 
 pub struct TitleBar {
     sidebar: Entity<Sidebar>,
@@ -151,7 +155,8 @@ impl Render for TitleBar {
                     .flex()
                     .flex_none()
                     .items_center()
-                    .px_3()
+                    .pl(px(TITLE_BAR_LEFT_INSET))
+                    .pr_3()
                     .gap_1()
                     .when(offset > Pixels::ZERO, |this| this.w(offset))
                     .child(self.toggle(cx)),
