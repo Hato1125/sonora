@@ -13,7 +13,7 @@ use ui::{
 
 use crate::cells;
 use crate::tracks::{TrackField, TrackSource, Tracks};
-use workspace::Sidebar;
+use workspace::{Searchable, Sidebar};
 
 const FRAME: Pixels = px(1.);
 
@@ -220,5 +220,19 @@ impl Render for DetailView {
                     ),
             )
             .child(self.scrollbar.clone())
+    }
+}
+
+impl Searchable for DetailView {
+    fn search(&mut self, query: &str, cx: &mut Context<Self>) {
+        self.table.update(cx, |table, cx| {
+            table.delegate_mut().set_filter(query, cx);
+            table.refresh(cx);
+        });
+        cx.notify();
+    }
+
+    fn hint() -> &'static str {
+        "Filter album tracks"
     }
 }

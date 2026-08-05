@@ -174,7 +174,8 @@ impl Render for TitleBar {
                     .gap_1()
                     .items_center()
                     .child(self.history(cx))
-                    .children(self.content.clone()),
+                    .children(self.content.clone())
+                    .pr_3(),
             )
     }
 }

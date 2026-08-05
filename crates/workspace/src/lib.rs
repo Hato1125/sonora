@@ -1,8 +1,10 @@
 mod player_bar;
+mod searchable;
 mod sidebar;
 mod title_bar;
 
 pub use player_bar::PlayerBar;
+pub use searchable::{Filter, Searchable};
 pub use sidebar::Sidebar;
 pub use title_bar::TitleBar;
 

@@ -102,6 +102,13 @@ impl GridSource for PlaylistSource {
         self.playlists(cx).len()
     }
 
+    fn matches(&self, row: usize, query: &str, cx: &App) -> bool {
+        self.at(row, cx).is_some_and(|playlist| {
+            let haystack = format!("{} {}", playlist.name, playlist.owner);
+            haystack.to_lowercase().contains(query)
+        })
+    }
+
     fn is_loading(&self, cx: &App) -> bool {
         self.library.read(cx).is_loading()
     }

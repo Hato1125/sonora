@@ -141,6 +141,13 @@ impl GridSource for AlbumSource {
         self.albums(cx).len()
     }
 
+    fn matches(&self, row: usize, query: &str, cx: &App) -> bool {
+        self.at(row, cx).is_some_and(|album| {
+            let haystack = format!("{} {} {}", album.name, album.artists, album.year);
+            haystack.to_lowercase().contains(query)
+        })
+    }
+
     fn is_loading(&self, cx: &App) -> bool {
         self.library.read(cx).is_loading()
     }

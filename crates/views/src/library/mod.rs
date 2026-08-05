@@ -1,6 +1,5 @@
 mod albums;
 mod playlists;
-mod toolbar;
 
 use gpui::prelude::*;
 use gpui::{App, Context, Entity, Pixels, Point, Render, ScrollHandle, Window, div, px};
@@ -8,14 +7,12 @@ use router::{Destination, LibraryTab, navigate};
 use spotify::Track;
 use state::{Library, LibraryState, Playback};
 use ui::{GridDelegate, GridEvent, GridState, Scrollbar, Viewport, grid, scrolled};
-use workspace::Sidebar;
+use workspace::{Searchable, Sidebar};
 
 use crate::cells;
 use crate::tracks::{LIBRARY_COLUMNS, TrackSource, Tracks};
 use albums::AlbumSource;
 use playlists::PlaylistSource;
-
-pub use toolbar::LibraryToolbar;
 
 impl From<LibraryTab> for Section {
     fn from(tab: LibraryTab) -> Self {
@@ -42,22 +39,6 @@ pub enum Section {
     Tracks,
     Albums,
     Playlists,
-}
-
-impl Section {
-    pub fn label(self) -> &'static str {
-        match self {
-            Section::Tracks => "Songs",
-            Section::Albums => "Albums",
-            Section::Playlists => "Playlists",
-        }
-    }
-}
-
-pub struct Counts {
-    pub tracks: usize,
-    pub albums: usize,
-    pub playlists: usize,
 }
 
 struct LibraryTracks(Entity<Library>);
@@ -162,26 +143,6 @@ impl LibraryView {
 
     pub fn section(&self) -> Section {
         self.section
-    }
-
-    pub fn counts(&self, cx: &App) -> Counts {
-        match self.library.read(cx).state() {
-            LibraryState::Ready {
-                tracks,
-                albums,
-                playlists,
-                ..
-            } => Counts {
-                tracks: tracks.len(),
-                albums: albums.len(),
-                playlists: playlists.len(),
-            },
-            _ => Counts {
-                tracks: 0,
-                albums: 0,
-                playlists: 0,
-            },
-        }
     }
 
     pub fn is_loading(&self, cx: &App) -> bool {
@@ -326,5 +287,27 @@ impl Render for LibraryView {
                     .child(table),
             )
             .child(self.scrollbar.clone())
+    }
+}
+
+impl Searchable for LibraryView {
+    fn search(&mut self, query: &str, cx: &mut Context<Self>) {
+        self.tracks.update(cx, |table, cx| {
+            table.delegate_mut().set_filter(query, cx);
+            table.refresh(cx);
+        });
+        self.albums.update(cx, |table, cx| {
+            table.delegate_mut().set_filter(query, cx);
+            table.refresh(cx);
+        });
+        self.playlists.update(cx, |table, cx| {
+            table.delegate_mut().set_filter(query, cx);
+            table.refresh(cx);
+        });
+        cx.notify();
+    }
+
+    fn hint() -> &'static str {
+        "Filter your library"
     }
 }

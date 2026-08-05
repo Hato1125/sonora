@@ -89,6 +89,10 @@ pub trait GridSource: 'static {
         a.cmp(&b)
     }
 
+    fn matches(&self, _row: usize, _query: &str, _cx: &App) -> bool {
+        true
+    }
+
     fn is_loading(&self, _cx: &App) -> bool {
         false
     }
@@ -113,6 +117,7 @@ pub struct GridDelegate<S: GridSource> {
     columns: Vec<Resolved<S::Field>>,
     width: Pixels,
     sort: Option<(S::Field, Sort)>,
+    filter: String,
     order: Vec<usize>,
 }
 
@@ -124,6 +129,7 @@ impl<S: GridSource> GridDelegate<S> {
             columns,
             width,
             sort: None,
+            filter: String::new(),
             order: Vec::new(),
         };
         delegate.reorder(cx);
@@ -156,8 +162,15 @@ impl<S: GridSource> GridDelegate<S> {
         self.columns = build(self.source.columns(), self.width, cx.theme().metrics);
     }
 
+    pub fn set_filter(&mut self, query: &str, cx: &App) {
+        self.filter = query.trim().to_lowercase();
+        self.reorder(cx);
+    }
+
     fn reorder(&mut self, cx: &App) {
-        let mut order: Vec<usize> = (0..self.source.rows(cx)).collect();
+        let mut order: Vec<usize> = (0..self.source.rows(cx))
+            .filter(|row| self.filter.is_empty() || self.source.matches(*row, &self.filter, cx))
+            .collect();
 
         if let Some((field, direction)) = self.sort {
             match direction {

@@ -250,6 +250,13 @@ impl GridSource for TrackSource {
         self.provider.tracks(cx).len()
     }
 
+    fn matches(&self, row: usize, query: &str, cx: &App) -> bool {
+        self.at(row, cx).is_some_and(|track| {
+            let haystack = format!("{} {} {}", track.name, track.artists, track.album);
+            haystack.to_lowercase().contains(query)
+        })
+    }
+
     fn is_loading(&self, cx: &App) -> bool {
         self.provider.is_loading(cx)
     }

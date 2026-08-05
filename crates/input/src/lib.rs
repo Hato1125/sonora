@@ -37,6 +37,7 @@ actions!(
         SelectHome,
         SelectEnd,
         Paste,
+        Dismiss,
         Cut,
         Copy,
         Space
@@ -89,5 +90,6 @@ pub fn bindings() -> Vec<KeyBinding> {
         KeyBinding::new("cmd-x", Cut, editing),
         KeyBinding::new("ctrl-x", Cut, editing),
         KeyBinding::new("space", Space, editing),
+        KeyBinding::new("escape", Dismiss, editing),
     ]
 }

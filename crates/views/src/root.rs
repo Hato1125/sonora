@@ -5,15 +5,14 @@ use input::{OpenSearch, OpenSettings};
 use router::{Destination, NavigationEvent, navigate};
 use state::{Detail, Io, Library, Playback, Queue, Search, Session, SessionState};
 use ui::ActiveTheme as _;
-use workspace::{Sidebar, Workspace};
+use workspace::{Filter, Sidebar, Workspace};
 
 use crate::search::SearchView;
 use crate::tracks::{ALBUM_COLUMNS, LIBRARY_COLUMNS};
-use crate::{DetailView, LibraryToolbar, LibraryView, LoginView, SettingsView};
+use crate::{DetailView, LibraryView, LoginView, SettingsView};
 
 struct Screens {
     library: Entity<LibraryView>,
-    library_toolbar: Entity<LibraryToolbar>,
     album: Entity<DetailView>,
     album_detail: Entity<Detail>,
     playlist: Entity<DetailView>,
@@ -31,6 +30,7 @@ pub struct Root {
     session: Entity<Session>,
     login: Entity<LoginView>,
     workspace: Entity<Workspace>,
+    filter: Entity<Filter>,
     pending: Option<Focus>,
     screens: Screens,
 }
@@ -66,7 +66,6 @@ impl Root {
                 cx,
             )
         });
-        let library_toolbar = cx.new(|cx| LibraryToolbar::new(library_view.clone(), cx));
 
         let io = Io::global(cx);
         let search_library = library.clone();
@@ -100,6 +99,7 @@ impl Root {
 
         let settings = cx.new(|cx| SettingsView::new(session.clone(), playback.clone(), cx));
 
+        let filter = cx.new(Filter::new);
         let start = navigation.read(cx).current();
         let workspace =
             cx.new(|cx| Workspace::new(sidebar, playback, queue, library_view.clone().into(), cx));
@@ -108,10 +108,10 @@ impl Root {
             session,
             login,
             workspace,
+            filter,
             pending: None,
             screens: Screens {
                 library: library_view,
-                library_toolbar,
                 album,
                 album_detail,
                 playlist,
@@ -142,31 +142,47 @@ impl Root {
             _ => Focus::Workspace,
         });
 
-        let (content, toolbar): (AnyView, Option<AnyView>) = match destination {
+        let searchable = matches!(
+            destination,
+            Destination::Library(_) | Destination::Album(_) | Destination::Playlist(_)
+        );
+
+        let content: AnyView = match destination {
             Destination::Library(tab) => {
                 self.screens
                     .library
                     .update(cx, |library, cx| library.select(tab.into(), cx));
-                (
-                    self.screens.library.clone().into(),
-                    Some(self.screens.library_toolbar.clone().into()),
-                )
+                let library = self.screens.library.clone();
+                self.filter
+                    .update(cx, |filter, cx| filter.bind(&library, cx));
+                library.into()
             }
             Destination::Album(id) => {
                 self.screens
                     .album_detail
                     .update(cx, |detail, cx| detail.open_album(&id, cx));
-                (self.screens.album.clone().into(), None)
+                let album = self.screens.album.clone();
+                self.filter.update(cx, |filter, cx| filter.bind(&album, cx));
+                album.into()
             }
             Destination::Playlist(id) => {
                 self.screens
                     .playlist_detail
                     .update(cx, |detail, cx| detail.open_playlist(&id, cx));
-                (self.screens.playlist.clone().into(), None)
+                let playlist = self.screens.playlist.clone();
+                self.filter
+                    .update(cx, |filter, cx| filter.bind(&playlist, cx));
+                playlist.into()
             }
-            Destination::Search => (self.screens.search.clone().into(), None),
-            Destination::Settings => (self.screens.settings.clone().into(), None),
+            Destination::Search => self.screens.search.clone().into(),
+            Destination::Settings => self.screens.settings.clone().into(),
         };
+
+        if !searchable {
+            self.filter.update(cx, |filter, cx| filter.release(cx));
+        }
+
+        let toolbar = searchable.then(|| self.filter.clone().into());
 
         self.workspace.update(cx, |workspace, cx| {
             workspace.set_content(content, cx);
