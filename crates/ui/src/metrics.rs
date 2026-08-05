@@ -89,7 +89,7 @@ impl Metrics {
             title_bar: roomy(36., 2.4),
             player_bar: roomy(76., 5.),
             list_row: roomy(52., 3.2),
-            thumb: px(36.),
+            thumb: px(34.),
             cover: px(140.),
         }
     }

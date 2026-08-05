@@ -313,6 +313,7 @@ impl Theme {
         theme.sidebar_border = rgb(0x1d4145).into();
         theme.title_bar_border = rgb(0x1d4145).into();
         theme.table_head = rgba(0x0f292de6).into();
+        theme.table_head_foreground = rgb(0x5a787b).into();
         theme.table_row_border = rgba(0x1d4145b3).into();
         theme.table_hover = rgb(0x123136).into();
         theme.table_active = rgba(0x0d948833).into();
@@ -340,6 +341,7 @@ impl Theme {
         theme.sidebar_border = rgb(0x4b2633).into();
         theme.title_bar_border = rgb(0x4b2633).into();
         theme.table_head = rgba(0x2b161ee6).into();
+        theme.table_head_foreground = rgb(0x80626c).into();
         theme.table_row_border = rgba(0x4b2633b3).into();
         theme.table_hover = rgb(0x341b24).into();
         theme.table_active = rgba(0xe11d4833).into();
@@ -367,6 +369,7 @@ impl Theme {
         theme.sidebar_border = rgb(0x3d3158).into();
         theme.title_bar_border = rgb(0x3d3158).into();
         theme.table_head = rgba(0x241c35e6).into();
+        theme.table_head_foreground = rgb(0x786e8a).into();
         theme.table_row_border = rgba(0x3d3158b3).into();
         theme.table_hover = rgb(0x2a213d).into();
         theme.table_active = rgba(0x7c3aed33).into();
@@ -394,6 +397,7 @@ impl Theme {
         theme.sidebar_border = rgb(0x49371d).into();
         theme.title_bar_border = rgb(0x49371d).into();
         theme.table_head = rgba(0x291f11e6).into();
+        theme.table_head_foreground = rgb(0x7b6c55).into();
         theme.table_row_border = rgba(0x49371db3).into();
         theme.table_hover = rgb(0x312514).into();
         theme.table_active = rgba(0xd9770633).into();
