@@ -189,7 +189,6 @@ impl Render for DetailView {
             .update(cx, |table, _| table.set_viewport(viewport));
 
         div()
-            .relative()
             .size_full()
             .child(
                 div()
@@ -202,10 +201,10 @@ impl Render for DetailView {
                     .pb(PADDING)
                     .child(self.header(cx))
                     .child(
-                        div()
+                        grid(&self.table)
+                            .rounded_xl()
                             .border_1()
-                            .border_color(cx.theme().border)
-                            .child(grid(&self.table)),
+                            .border_color(cx.theme().border),
                     ),
             )
             .children(scrollbar(&self.scroll, cx))
