@@ -32,10 +32,6 @@ impl Client {
 }
 
 impl HttpClient for Client {
-    fn type_name(&self) -> &'static str {
-        "spotty"
-    }
-
     fn user_agent(&self) -> Option<&HeaderValue> {
         Some(&self.user_agent)
     }

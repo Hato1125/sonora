@@ -4,8 +4,8 @@ use std::cmp::Ordering;
 use gpui::prelude::*;
 use gpui::{
     AnyElement, App, Context, Div, DragMoveEvent, Empty, Entity, EventEmitter, MouseButton,
-    MouseDownEvent, Pixels, Stateful, TextAlign, UniformListScrollHandle, Window, div, point,
-    px, svg, uniform_list,
+    MouseDownEvent, Pixels, Stateful, TextAlign, UniformListScrollHandle, Window, div, point, px,
+    svg, uniform_list,
 };
 
 use crate::theme::ActiveTheme as _;
@@ -410,7 +410,7 @@ impl<S: GridSource> GridState<S> {
                     .collect()
             }),
         )
-        .track_scroll(self.scroll.clone())
+        .track_scroll(&self.scroll)
         .size_full()
     }
 
@@ -420,7 +420,7 @@ impl<S: GridSource> GridState<S> {
             let state = self.scroll.0.borrow();
             (
                 state.base_handle.bounds().size.height,
-                state.base_handle.max_offset().height,
+                state.base_handle.max_offset().y,
                 -state.base_handle.offset().y,
             )
         };
@@ -445,16 +445,13 @@ impl<S: GridSource> GridState<S> {
                 .right_0()
                 .w(BAR)
                 .h_full()
-                .on_mouse_down(
-                    MouseButton::Left,
-                    move |event: &MouseDownEvent, _, _| {
-                        let handle = jump.0.borrow().base_handle.clone();
-                        let bounds = handle.bounds();
-                        let local = event.position.y - bounds.origin.y - thumb / 2.;
-                        let fraction = (local / (viewport - thumb)).clamp(0., 1.);
-                        handle.set_offset(point(Pixels::ZERO, -hidden * fraction));
-                    },
-                )
+                .on_mouse_down(MouseButton::Left, move |event: &MouseDownEvent, _, _| {
+                    let handle = jump.0.borrow().base_handle.clone();
+                    let bounds = handle.bounds();
+                    let local = event.position.y - bounds.origin.y - thumb / 2.;
+                    let fraction = (local / (viewport - thumb)).clamp(0., 1.);
+                    handle.set_offset(point(Pixels::ZERO, Pixels::ZERO - hidden * fraction));
+                })
                 .child(
                     div()
                         .id("grid-thumb")
@@ -486,7 +483,7 @@ impl<S: GridSource> GridState<S> {
                                 .0
                                 .borrow()
                                 .base_handle
-                                .set_offset(point(Pixels::ZERO, -clamped));
+                                .set_offset(point(Pixels::ZERO, Pixels::ZERO - clamped));
                         }),
                 ),
         )

@@ -4,7 +4,7 @@ mod http;
 use std::sync::Arc;
 
 use gpui::{
-    App, AppContext as _, Application, Bounds, Entity, KeyBinding, Menu, MenuItem, TitlebarOptions,
+    App, AppContext as _, Bounds, Entity, KeyBinding, Menu, MenuItem, TitlebarOptions,
     WindowBounds, WindowOptions, actions, point, px, size,
 };
 use state::{Library, Playback, Session, Spotty};
@@ -28,7 +28,7 @@ fn main() {
         }
     };
 
-    Application::new()
+    gpui_platform::application()
         .with_assets(assets::Assets)
         .with_http_client(Arc::new(http::Client::new(io.handle())))
         .run(move |cx: &mut App| {
@@ -91,7 +91,7 @@ fn register_actions(cx: &mut App) {
 
     cx.on_action(|_: &Quit, cx: &mut App| cx.quit());
 
-    cx.on_window_closed(|cx| {
+    cx.on_window_closed(|cx, _| {
         if cx.windows().is_empty() {
             cx.quit();
         }
@@ -110,6 +110,7 @@ fn register_actions(cx: &mut App) {
 
     cx.set_menus(vec![Menu {
         name: "spotty".into(),
+        disabled: false,
         items: vec![
             MenuItem::action("Refresh Library", RefreshLibrary),
             MenuItem::action("Sign Out", SignOut),
