@@ -45,6 +45,16 @@ pub enum Destination {
     Settings,
 }
 
+impl Destination {
+    /// Whether both destinations belong to the same sidebar entry.
+    fn same_section(&self, other: &Destination) -> bool {
+        match (self, other) {
+            (Destination::Library(_), Destination::Library(_)) => true,
+            _ => self == other,
+        }
+    }
+}
+
 pub enum SidebarEvent {
     Navigate(Destination),
 }
@@ -53,6 +63,7 @@ pub struct Sidebar {
     settings: Entity<AppSettings>,
     width: Pixels,
     open: bool,
+    current: Destination,
 }
 
 impl EventEmitter<SidebarEvent> for Sidebar {}
@@ -66,11 +77,17 @@ impl Sidebar {
             settings,
             width,
             open,
+            current: Destination::Library(LibraryTab::Songs),
         }
     }
 
     pub fn is_open(&self) -> bool {
         self.open
+    }
+
+    pub fn set_current(&mut self, destination: Destination, cx: &mut Context<Self>) {
+        self.current = destination;
+        cx.notify();
     }
 
     pub fn occupied_width(&self) -> Pixels {
@@ -95,9 +112,11 @@ impl Render for Sidebar {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
         let sidebar_accent = theme.sidebar_accent;
+        let foreground = theme.foreground;
         let muted = theme.muted_foreground;
         let sidebar_bg = theme.sidebar;
         let sidebar_border = theme.sidebar_border;
+        let current = self.current.clone();
 
         div()
             .flex()
@@ -118,6 +137,11 @@ impl Render for Sidebar {
                     .p_3()
                     .children(NAV.into_iter().enumerate().map(
                         |(index, (label, icon, destination))| {
+                            let active = destination
+                                .as_ref()
+                                .is_some_and(|it| it.same_section(&current));
+                            let text = if active { foreground } else { muted };
+
                             div()
                                 .id(index)
                                 .flex()
@@ -127,9 +151,10 @@ impl Render for Sidebar {
                                 .py_1p5()
                                 .rounded_md()
                                 .cursor_pointer()
+                                .when(active, |this| this.bg(sidebar_accent))
                                 .hover(move |style| style.bg(sidebar_accent))
-                                .child(svg().path(icon).size_4().flex_none().text_color(muted))
-                                .child(div().text_color(muted).child(label))
+                                .child(svg().path(icon).size_4().flex_none().text_color(text))
+                                .child(div().text_color(text).child(label))
                                 .when_some(destination, |this, destination| {
                                     this.on_click(cx.listener(move |_, _, _, cx| {
                                         cx.emit(SidebarEvent::Navigate(destination.clone()));
