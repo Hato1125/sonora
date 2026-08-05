@@ -1,7 +1,7 @@
 use gpui::prelude::*;
 use gpui::{
     AnyElement, App, Context, Div, ElementId, Entity, FontWeight, Hsla, Pixels, Render,
-    ScrollHandle, SharedString, Window, div, px, svg,
+    ScrollHandle, SharedString, Window, div, px,
 };
 use input::Input;
 use router::{Destination, navigate};
@@ -43,7 +43,8 @@ impl SearchView {
         sidebar: Entity<Sidebar>,
         cx: &mut Context<Self>,
     ) -> Self {
-        let input = cx.new(|cx| Input::new("What do you want to listen to?", cx));
+        let input =
+            cx.new(|cx| Input::new("What do you want to listen to?", cx).icon("icons/search.svg"));
 
         cx.observe(&input, |this, input, cx| {
             let query = input.read(cx).text().to_owned();
@@ -84,31 +85,6 @@ impl SearchView {
 
     fn open_album(&mut self, id: String, cx: &mut Context<Self>) {
         navigate(Destination::Album(id.into()), cx);
-    }
-
-    fn bar(&self, cx: &Context<Self>) -> AnyElement {
-        let theme = cx.theme();
-
-        div()
-            .flex()
-            .flex_none()
-            .items_center()
-            .gap_2()
-            .h(theme.metrics.field)
-            .px_3()
-            .rounded(theme.radius)
-            .bg(theme.secondary)
-            .border_1()
-            .border_color(theme.border)
-            .child(
-                svg()
-                    .path("icons/search.svg")
-                    .size_4()
-                    .flex_none()
-                    .text_color(theme.muted_foreground),
-            )
-            .child(self.input.clone())
-            .into_any_element()
     }
 
     fn failure(&self, cx: &Context<Self>) -> Option<AnyElement> {
@@ -441,7 +417,7 @@ impl Render for SearchView {
                             .flex()
                             .flex_col()
                             .gap_6()
-                            .child(self.bar(cx))
+                            .child(self.input.clone())
                             .children(self.failure(cx))
                             .children(self.best(cx))
                             .when(asked, |this| this.child(columns)),

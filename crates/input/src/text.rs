@@ -6,7 +6,7 @@ use gpui::{
     EntityInputHandler, FocusHandle, Focusable, GlobalElementId, InspectorElementId, LayoutId,
     MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, PaintQuad, Pixels, Point,
     ShapedLine, SharedString, Style, TextRun, UTF16Selection, UnderlineStyle, Window, div, fill,
-    point, px, relative, size,
+    point, px, relative, size, svg,
 };
 
 use ui::ActiveTheme as _;
@@ -18,6 +18,7 @@ use crate::{
 };
 
 const CARET: Pixels = px(2.);
+const CARET_LINES: f32 = 1.25;
 
 type Motion = fn(&str, usize) -> usize;
 
@@ -103,6 +104,8 @@ fn offset_to_utf16(text: &str, offset: usize) -> usize {
 pub struct Input {
     focus_handle: FocusHandle,
     placeholder: SharedString,
+    icon: Option<SharedString>,
+    compact: bool,
     content: SharedString,
     selected_range: Range<usize>,
     selection_reversed: bool,
@@ -117,6 +120,8 @@ impl Input {
         Self {
             focus_handle: cx.focus_handle(),
             placeholder: placeholder.into(),
+            icon: None,
+            compact: false,
             content: SharedString::default(),
             selected_range: 0..0,
             selection_reversed: false,
@@ -127,8 +132,27 @@ impl Input {
         }
     }
 
+    pub fn icon(mut self, path: impl Into<SharedString>) -> Self {
+        self.icon = Some(path.into());
+        self
+    }
+
+    pub fn compact(mut self) -> Self {
+        self.compact = true;
+        self
+    }
+
     pub fn text(&self) -> &str {
         &self.content
+    }
+
+    pub fn set_placeholder(
+        &mut self,
+        placeholder: impl Into<SharedString>,
+        cx: &mut Context<Self>,
+    ) {
+        self.placeholder = placeholder.into();
+        cx.notify();
     }
 
     pub fn set_text(&mut self, text: impl Into<SharedString>, cx: &mut Context<Self>) {
@@ -581,8 +605,11 @@ impl Element for Text {
                 None,
                 Some(fill(
                     Bounds::new(
-                        point(bounds.left() + line.x_for_index(cursor), bounds.top()),
-                        size(CARET, bounds.bottom() - bounds.top()),
+                        point(
+                            bounds.left() + line.x_for_index(cursor),
+                            bounds.top() + (bounds.size.height - font_size * CARET_LINES) / 2.,
+                        ),
+                        size(CARET, font_size * CARET_LINES),
                     ),
                     theme.foreground,
                 )),
@@ -661,10 +688,24 @@ impl Element for Text {
 
 impl Render for Input {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+        let height = match self.compact {
+            true => theme.metrics.control_small,
+            false => theme.metrics.field,
+        };
+
         div()
             .flex()
             .flex_1()
+            .items_center()
+            .gap_2()
             .min_w_0()
+            .h(height)
+            .px_3()
+            .rounded(theme.radius)
+            .bg(theme.secondary)
+            .border_1()
+            .border_color(theme.border)
             .overflow_hidden()
             .key_context(INPUT_CONTEXT)
             .track_focus(&self.focus_handle)
@@ -693,6 +734,15 @@ impl Render for Input {
             .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
             .on_mouse_move(cx.listener(Self::on_mouse_move))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
+            .when_some(self.icon.clone(), |this, path| {
+                this.child(
+                    svg()
+                        .path(path)
+                        .size_4()
+                        .flex_none()
+                        .text_color(theme.muted_foreground),
+                )
+            })
             .child(Text {
                 input: cx.entity().clone(),
             })
