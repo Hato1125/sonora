@@ -10,6 +10,7 @@ pub struct UserProfile {
 pub struct Track {
     pub id: Option<String>,
     pub name: String,
+    pub playable: bool,
     pub artists: String,
     pub album: String,
     pub cover: Option<String>,

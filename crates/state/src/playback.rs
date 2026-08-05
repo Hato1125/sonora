@@ -84,6 +84,9 @@ impl Playback {
         let Some(id) = track.id.clone() else {
             return self.failed(format!("{} has no track id", track.name), cx);
         };
+        if !track.playable {
+            return self.failed(format!("{} is not available to stream", track.name), cx);
+        }
 
         self.track = Some(track.clone());
         self.state = PlaybackState::Loading;
@@ -265,8 +268,9 @@ impl Playback {
             AudioEvent::Unavailable => {
                 let name = self.track.as_ref().map(|track| track.name.as_str());
                 log::warn!(
-                    "playback: no audio key for {}, backing off",
-                    name.unwrap_or("?")
+                    "playback: {} failed to load, backing off {}s",
+                    name.unwrap_or("?"),
+                    KEY_COOLDOWN.as_secs()
                 );
                 self.blocked_until = Some(Instant::now() + KEY_COOLDOWN);
                 self.state = PlaybackState::Idle;
