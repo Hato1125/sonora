@@ -41,6 +41,7 @@ impl AssetSource for Assets {
         if let Some((_, bytes)) = ICONS.iter().find(|(name, _)| *name == path) {
             return Ok(Some(Cow::Borrowed(bytes)));
         }
+        log::warn!("assets: {path} is not registered in ICONS");
         Ok(None)
     }
 

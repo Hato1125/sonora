@@ -6480,6 +6480,7 @@ dependencies = [
  "env_logger",
  "gpui",
  "gpui_platform",
+ "log",
  "reqwest",
  "state",
  "tokio",
