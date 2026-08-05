@@ -1,12 +1,12 @@
-use ui::ActiveTheme as _;
 use std::cmp::Ordering;
+use ui::ActiveTheme as _;
 
 use gpui::{AnyElement, App, Entity, TextAlign};
 use spotify::Playlist;
 use state::{Library, LibraryState};
 use ui::{Cell, ColumnSpec, GridSource, Width};
 
-use crate::cells::{self, ALWAYS, ARTWORK_COLUMN, NUMBER, ROOMY, SNUG, TRAILING, WIDE};
+use crate::cells::{self, ALWAYS, ARTWORK_COLUMN, NUMBER, ROOMY, SNUG, TRAILING};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum PlaylistField {
@@ -36,7 +36,7 @@ pub(super) const COLUMNS: &[ColumnSpec<PlaylistField>] = &[
         width: Width::Fixed(ARTWORK_COLUMN),
         flush: true,
         sortable: false,
-        hide_below: SNUG,
+        hide_below: ALWAYS,
     },
     ColumnSpec {
         field: PlaylistField::Name,
@@ -66,7 +66,7 @@ pub(super) const COLUMNS: &[ColumnSpec<PlaylistField>] = &[
         width: Width::Fixed(TRAILING),
         flush: false,
         sortable: true,
-        hide_below: WIDE,
+        hide_below: SNUG,
     },
 ];
 

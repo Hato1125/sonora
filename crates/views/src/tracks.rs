@@ -1,5 +1,5 @@
-use ui::ActiveTheme as _;
 use std::cmp::Ordering;
+use ui::ActiveTheme as _;
 
 use gpui::{AnyElement, App, TextAlign};
 use spotify::Track;
@@ -36,7 +36,7 @@ pub(crate) const LIBRARY_COLUMNS: &[ColumnSpec<TrackField>] = &[
         width: Width::Fixed(ARTWORK_COLUMN),
         flush: true,
         sortable: false,
-        hide_below: SNUG,
+        hide_below: ALWAYS,
     },
     ColumnSpec {
         field: TrackField::Title,

@@ -1,7 +1,7 @@
-use ui::ActiveTheme as _;
 use gpui::prelude::*;
 use gpui::{AnyView, Context, Entity, MouseButton, Pixels, Render};
 use gpui::{Window, div, px, svg};
+use ui::ActiveTheme as _;
 
 use crate::{Navigation, Sidebar};
 
@@ -51,12 +51,11 @@ impl TitleBar {
             .when(enabled, |this| {
                 this.cursor_pointer().hover(move |this| this.bg(hover))
             })
-            .child(
-                svg()
-                    .path(icon)
-                    .size_4()
-                    .text_color(if enabled { muted } else { muted.opacity(0.4) }),
-            )
+            .child(svg().path(icon).size_4().text_color(if enabled {
+                muted
+            } else {
+                muted.opacity(0.4)
+            }))
             .when(enabled, |this| {
                 this.on_click(move |_, window, cx| on_click(window, cx))
             })
@@ -162,8 +161,8 @@ impl Render for TitleBar {
                     .flex()
                     .flex_1()
                     .min_w_0()
+                    .gap_1()
                     .items_center()
-                    .pr_3()
                     .child(self.history(cx))
                     .children(self.content.clone()),
             )
