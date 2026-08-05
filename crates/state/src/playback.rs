@@ -5,14 +5,13 @@ use gpui::{Context, Entity, EventEmitter, Task};
 use spotify::Track;
 
 use crate::queue::Queue;
-use crate::{Io, Session, SessionEvent, join};
+use crate::{AppSettings, Io, Session, SessionEvent, join};
 
 const POSITION_INTERVAL: Duration = Duration::from_millis(500);
 const LOAD_DEBOUNCE: Duration = Duration::from_millis(250);
 const KEY_COOLDOWN: Duration = Duration::from_secs(6);
 const TAPER_DB: f32 = 60.;
 const CEILING_DB: f32 = 9.;
-const INITIAL_LEVEL: f32 = 0.7;
 
 fn gain(level: f32) -> f32 {
     let level = level.clamp(0., 1.);
@@ -43,6 +42,7 @@ pub struct Playback {
     engine: Option<Engine>,
     session: Entity<Session>,
     queue: Entity<Queue>,
+    settings: Entity<AppSettings>,
     level: f32,
     normalisation: bool,
     task: Option<Task<()>>,
@@ -54,7 +54,12 @@ pub struct Playback {
 impl EventEmitter<PlaybackEvent> for Playback {}
 
 impl Playback {
-    pub fn new(session: Entity<Session>, queue: Entity<Queue>, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        session: Entity<Session>,
+        queue: Entity<Queue>,
+        settings: Entity<AppSettings>,
+        cx: &mut Context<Self>,
+    ) -> Self {
         cx.subscribe(&session, |this, session, event, cx| match event {
             SessionEvent::SignedIn => {
                 let Some(librespot) = session.read(cx).librespot() else {
@@ -66,6 +71,9 @@ impl Playback {
         })
         .detach();
 
+        let level = settings.read(cx).volume();
+        let normalisation = settings.read(cx).normalisation();
+
         Self {
             state: PlaybackState::Idle,
             position: Duration::ZERO,
@@ -73,8 +81,9 @@ impl Playback {
             engine: None,
             session,
             queue,
-            level: INITIAL_LEVEL,
-            normalisation: true,
+            settings,
+            level,
+            normalisation,
             task: None,
             load: None,
             fetch: None,
@@ -239,6 +248,8 @@ impl Playback {
 
     pub fn set_volume(&mut self, level: f32, cx: &mut Context<Self>) {
         self.level = level.clamp(0., 1.);
+        self.settings
+            .update(cx, |settings, cx| settings.set_volume(self.level, cx));
         if let Some(engine) = self.engine.as_ref() {
             engine.set_gain(gain(self.level));
         }
@@ -254,6 +265,8 @@ impl Playback {
             return;
         }
         self.normalisation = on;
+        self.settings
+            .update(cx, |settings, cx| settings.set_normalisation(on, cx));
 
         if self.engine.is_some() {
             let session = self.session.read(cx).librespot();

@@ -6534,9 +6534,12 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "audio",
+ "dirs",
  "gpui",
  "librespot-core",
  "log",
+ "serde",
+ "serde_json",
  "spotify",
  "tokio",
 ]

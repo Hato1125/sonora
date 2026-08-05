@@ -2,8 +2,9 @@ use std::cell::Cell;
 use ui::ActiveTheme as _;
 
 use gpui::prelude::*;
-use gpui::{Context, DragMoveEvent, Empty, EventEmitter, Pixels, Render, SharedString};
+use gpui::{Context, DragMoveEvent, Empty, Entity, EventEmitter, Pixels, Render, SharedString};
 use gpui::{Window, div, px, svg};
+use state::{AppSettings, Spotty};
 
 const NAV: [(&str, &str, Option<Destination>); 4] = [
     ("Home", "icons/house.svg", None),
@@ -19,7 +20,7 @@ const NAV: [(&str, &str, Option<Destination>); 4] = [
         Some(Destination::Settings),
     ),
 ];
-const DEFAULT_WIDTH: Pixels = px(220.);
+
 const MIN_WIDTH: Pixels = px(130.);
 const MAX_WIDTH: Pixels = px(400.);
 
@@ -48,6 +49,7 @@ pub enum SidebarEvent {
 }
 
 pub struct Sidebar {
+    settings: Entity<AppSettings>,
     width: Pixels,
     open: bool,
 }
@@ -55,10 +57,14 @@ pub struct Sidebar {
 impl EventEmitter<SidebarEvent> for Sidebar {}
 
 impl Sidebar {
-    pub fn new() -> Self {
+    pub fn new(cx: &mut Context<Self>) -> Self {
+        let settings = Spotty::global(cx).settings.clone();
+        let width = px(settings.read(cx).sidebar_width()).clamp(MIN_WIDTH, MAX_WIDTH);
+        let open = settings.read(cx).sidebar_open();
         Self {
-            width: DEFAULT_WIDTH,
-            open: true,
+            settings,
+            width,
+            open,
         }
     }
 
@@ -72,13 +78,15 @@ impl Sidebar {
 
     pub fn toggle(&mut self, cx: &mut Context<Self>) {
         self.open = !self.open;
+        self.persist(cx);
         cx.notify();
     }
-}
 
-impl Default for Sidebar {
-    fn default() -> Self {
-        Self::new()
+    fn persist(&self, cx: &mut Context<Self>) {
+        let width = self.width / px(1.);
+        let open = self.open;
+        self.settings
+            .update(cx, |settings, cx| settings.set_sidebar(width, open, cx));
     }
 }
 
@@ -144,6 +152,7 @@ impl Render for Sidebar {
                             this.width = (resize.start_width + event.event.position.x
                                 - resize.start_x.get())
                             .clamp(MIN_WIDTH, MAX_WIDTH);
+                            this.persist(cx);
                             cx.notify();
                         },
                     ))

@@ -39,7 +39,7 @@ impl Root {
         cx.observe(&session, |_, _, cx| cx.notify()).detach();
 
         let login = cx.new(|cx| LoginView::new(session.clone(), cx));
-        let sidebar = cx.new(|_| Sidebar::new());
+        let sidebar = cx.new(Sidebar::new);
 
         let navigation = cx.new(|_| Navigation::new(Destination::Library(LibraryTab::Songs)));
 

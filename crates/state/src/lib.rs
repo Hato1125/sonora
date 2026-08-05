@@ -3,12 +3,14 @@ mod library;
 mod playback;
 mod queue;
 mod session;
+mod settings;
 
 pub use detail::{Detail, Header};
 pub use library::{Library, LibraryState};
 pub use playback::{Playback, PlaybackState};
 pub use queue::Queue;
 pub use session::{Session, SessionEvent, SessionState};
+pub use settings::AppSettings;
 
 use std::future::Future;
 use std::sync::Arc;
@@ -55,6 +57,7 @@ pub struct Spotty {
     pub library: Entity<Library>,
     pub playback: Entity<Playback>,
     pub queue: Entity<Queue>,
+    pub settings: Entity<AppSettings>,
 }
 
 impl Global for Spotty {}
@@ -68,15 +71,17 @@ impl Spotty {
 pub fn init(cx: &mut App, io: Io) {
     cx.set_global(io.clone());
 
+    let settings = cx.new(|_| AppSettings::load());
     let session = cx.new(|_| Session::new(AuthConfig::from_env(), io.clone()));
     let library = cx.new(|cx| Library::new(session.clone(), io, cx));
     let queue = cx.new(|_| Queue::new());
-    let playback = cx.new(|cx| Playback::new(session.clone(), queue.clone(), cx));
+    let playback = cx.new(|cx| Playback::new(session.clone(), queue.clone(), settings.clone(), cx));
 
     cx.set_global(Spotty {
         session,
         library,
         playback,
         queue,
+        settings,
     });
 }
