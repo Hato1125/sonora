@@ -161,6 +161,7 @@ impl RenderOnce for Button {
             .px(padding)
             .rounded(radius)
             .text_color(palette.foreground)
+            .when(self.small, |this| this.text_size(px(12.)))
             .when(self.disabled, |this| this.opacity(0.4))
             .when_some(palette.background, |this, background| this.bg(background))
             .when(self.selected, |this| this.bg(selected_background))

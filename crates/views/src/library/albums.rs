@@ -1,12 +1,12 @@
-use ui::ActiveTheme as _;
 use std::cmp::Ordering;
+use ui::ActiveTheme as _;
 
 use gpui::{AnyElement, App, Entity, TextAlign};
 use spotify::Album;
 use state::{Library, LibraryState};
 use ui::{Cell, ColumnSpec, GridSource, Width};
 
-use crate::cells::{self, ALWAYS, ARTWORK_COLUMN, NUMBER, ROOMY, SNUG, TRAILING, WIDE, YEAR};
+use crate::cells::{self, ALWAYS, ARTWORK_COLUMN, NUMBER, ROOMY, TRAILING, WIDE, YEAR};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum AlbumField {
@@ -37,7 +37,7 @@ pub(super) const COLUMNS: &[ColumnSpec<AlbumField>] = &[
         width: Width::Fixed(ARTWORK_COLUMN),
         flush: true,
         sortable: false,
-        hide_below: SNUG,
+        hide_below: ALWAYS,
     },
     ColumnSpec {
         field: AlbumField::Name,
@@ -57,7 +57,7 @@ pub(super) const COLUMNS: &[ColumnSpec<AlbumField>] = &[
         width: Width::Fill(0.45),
         flush: false,
         sortable: true,
-        hide_below: ROOMY,
+        hide_below: ALWAYS,
     },
     ColumnSpec {
         field: AlbumField::Year,
@@ -67,13 +67,13 @@ pub(super) const COLUMNS: &[ColumnSpec<AlbumField>] = &[
         width: Width::Fixed(YEAR),
         flush: false,
         sortable: true,
-        hide_below: WIDE,
+        hide_below: ROOMY,
     },
     ColumnSpec {
         field: AlbumField::TrackCount,
         key: "tracks",
         header: "Tracks",
-        align: TextAlign::Center,
+        align: TextAlign::Right,
         width: Width::Fixed(TRAILING),
         flush: false,
         sortable: true,
