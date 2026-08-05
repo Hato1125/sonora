@@ -7,7 +7,7 @@ use spotify::Track;
 use state::{Detail, Playback};
 use ui::ActiveTheme as _;
 use ui::{
-    Artwork, ColumnSpec, GridDelegate, GridEvent, GridState, Viewport, grid, scrollbar, scrolled,
+    Artwork, ColumnSpec, GridDelegate, GridEvent, GridState, Scrollbar, Viewport, grid, scrolled,
 };
 
 use crate::cells;
@@ -37,6 +37,7 @@ pub(crate) struct DetailView {
     sidebar: Entity<Sidebar>,
     width: Pixels,
     scroll: ScrollHandle,
+    scrollbar: Entity<Scrollbar>,
     table: Entity<GridState<TrackSource>>,
 }
 
@@ -76,12 +77,16 @@ impl DetailView {
         })
         .detach();
 
+        let scroll = ScrollHandle::new();
+        let scrollbar = cx.new(|_| Scrollbar::new(scroll.clone()));
+
         Self {
             detail,
             playback,
             sidebar,
             width,
-            scroll: ScrollHandle::new(),
+            scroll,
+            scrollbar,
             table,
         }
     }
@@ -207,6 +212,6 @@ impl Render for DetailView {
                             .border_color(cx.theme().border),
                     ),
             )
-            .children(scrollbar(&self.scroll, cx))
+            .child(self.scrollbar.clone())
     }
 }

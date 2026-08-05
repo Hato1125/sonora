@@ -7,7 +7,7 @@ use input::Input;
 use router::{Destination, navigate};
 use state::{Hit, Kind, Playback, Search};
 use ui::ActiveTheme as _;
-use ui::{Artwork, Theme, clock, scrollbar};
+use ui::{Artwork, Scrollbar, Theme, clock};
 use workspace::Sidebar;
 
 use crate::cells;
@@ -31,6 +31,7 @@ pub(crate) struct SearchView {
     playback: Entity<Playback>,
     sidebar: Entity<Sidebar>,
     scroll: ScrollHandle,
+    scrollbar: Entity<Scrollbar>,
 }
 
 impl SearchView {
@@ -55,12 +56,16 @@ impl SearchView {
         let asked = input.read(cx).text().to_owned();
         search.update(cx, |search, cx| search.ask(&asked, cx));
 
+        let scroll = ScrollHandle::new();
+        let scrollbar = cx.new(|_| Scrollbar::new(scroll.clone()));
+
         Self {
             input,
             search,
             playback,
             sidebar,
-            scroll: ScrollHandle::new(),
+            scroll,
+            scrollbar,
         }
     }
 
@@ -431,7 +436,7 @@ impl Render for SearchView {
                             .when(asked, |this| this.child(columns)),
                     ),
             )
-            .children(scrollbar(&self.scroll, cx))
+            .child(self.scrollbar.clone())
     }
 }
 

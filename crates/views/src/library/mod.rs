@@ -7,7 +7,7 @@ use gpui::{App, Context, Entity, Pixels, Point, Render, ScrollHandle, Window, di
 use router::{Destination, LibraryTab, navigate};
 use spotify::Track;
 use state::{Library, LibraryState, Playback};
-use ui::{GridDelegate, GridEvent, GridState, Viewport, grid, scrollbar, scrolled};
+use ui::{GridDelegate, GridEvent, GridState, Scrollbar, Viewport, grid, scrolled};
 use workspace::Sidebar;
 
 use crate::cells;
@@ -82,6 +82,7 @@ pub struct LibraryView {
     section: Section,
     width: Pixels,
     scroll: ScrollHandle,
+    scrollbar: Entity<Scrollbar>,
     tracks: Entity<GridState<TrackSource>>,
     albums: Entity<GridState<AlbumSource>>,
     playlists: Entity<GridState<PlaylistSource>>,
@@ -145,13 +146,17 @@ impl LibraryView {
         })
         .detach();
 
+        let scroll = ScrollHandle::new();
+        let scrollbar = cx.new(|_| Scrollbar::new(scroll.clone()));
+
         Self {
             library,
             playback,
             sidebar,
             section: Section::Tracks,
             width,
-            scroll: ScrollHandle::new(),
+            scroll,
+            scrollbar,
             tracks,
             albums,
             playlists,
@@ -318,6 +323,6 @@ impl Render for LibraryView {
                     .track_scroll(&self.scroll)
                     .child(table),
             )
-            .children(scrollbar(&self.scroll, cx))
+            .child(self.scrollbar.clone())
     }
 }
