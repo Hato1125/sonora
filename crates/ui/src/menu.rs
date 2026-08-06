@@ -4,9 +4,9 @@ use std::time::Duration;
 
 use gpui::prelude::*;
 use gpui::{
-    AnyWindowHandle, App, Bounds, ClickEvent, Div, ElementId, Entity, Interactivity, MouseButton,
-    MouseDownEvent, Pixels, Point, SharedString, Size, Stateful, StyleRefinement, Window, anchored,
-    deferred, div, px, svg,
+    Anchor, AnyWindowHandle, App, Bounds, ClickEvent, Div, ElementId, Entity, Interactivity,
+    MouseButton, MouseDownEvent, Pixels, Point, SharedString, Size, Stateful, StyleRefinement,
+    Window, anchored, deferred, div, px, svg,
 };
 
 use crate::Artwork;
@@ -14,7 +14,10 @@ use crate::scrollbar::Scrollbar;
 use crate::theme::ActiveTheme as _;
 
 const SUBMENU_CLOSE_DELAY: Duration = Duration::from_millis(160);
+const SUBMENU_FALLBACK_WIDTH: Pixels = px(236.);
+const SUBMENU_TOP: Pixels = px(-14.);
 const SCROLLBAR_GUTTER: Pixels = px(8.);
+const WINDOW_MARGIN: Pixels = px(8.);
 
 type Press = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 type Dismiss = Box<dyn Fn(&MouseDownEvent, &mut Window, &mut App) + 'static>;
@@ -24,6 +27,7 @@ type Action = Rc<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 pub struct SubmenuState {
     open: Rc<Cell<bool>>,
     generation: Rc<Cell<u64>>,
+    parent_bounds: Rc<Cell<Option<Bounds<Pixels>>>>,
     safe_bounds: Rc<Cell<Option<Bounds<Pixels>>>>,
 }
 
@@ -77,6 +81,22 @@ impl SubmenuState {
         }));
     }
 
+    fn observe_parent(&self, bounds: Bounds<Pixels>) {
+        self.parent_bounds.set(Some(bounds));
+    }
+
+    fn should_flip(&self, viewport_width: Pixels) -> bool {
+        let Some(parent) = self.parent_bounds.get() else {
+            return false;
+        };
+        let submenu_width = self
+            .safe_bounds
+            .get()
+            .map(|bounds| bounds.size.width)
+            .unwrap_or(SUBMENU_FALLBACK_WIDTH);
+        parent.right() + submenu_width + WINDOW_MARGIN > viewport_width
+    }
+
     fn contains(&self, position: Point<Pixels>) -> bool {
         self.safe_bounds
             .get()
@@ -86,6 +106,7 @@ impl SubmenuState {
     pub fn reset(&self) {
         self.generation.set(self.generation.get().wrapping_add(1));
         self.open.set(false);
+        self.parent_bounds.set(None);
         self.safe_bounds.set(None);
     }
 }
@@ -259,7 +280,7 @@ impl InteractiveElement for Menu {
 impl StatefulInteractiveElement for Menu {}
 
 impl RenderOnce for Menu {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let Self {
             mut base,
             items,
@@ -284,6 +305,8 @@ impl RenderOnce for Menu {
             .iter()
             .filter_map(|item| item.submenu.as_ref().map(|submenu| submenu.state.clone()))
             .collect();
+        let bounds_guards = dismiss_guards.clone();
+        let viewport_width = window.viewport_size().width;
 
         let rows = items.into_iter().map(move |item| {
             let MenuItem {
@@ -383,41 +406,54 @@ impl RenderOnce for Menu {
                     let panel_state = submenu.state.clone();
                     let safe_state = submenu.state.clone();
                     let bounds_state = submenu.state.clone();
+                    let flip_left = submenu.state.should_flip(viewport_width);
                     this.child(
                         div()
                             .absolute()
-                            .top(px(-16.))
-                            .left_full()
+                            .top(SUBMENU_TOP)
+                            .when(flip_left, |this| this.right_full())
+                            .when(!flip_left, |this| this.left_full())
                             .when(!open, |this| this.invisible())
                             .child(
-                                anchored().snap_to_window_with_margin(px(8.)).child(
-                                    div()
-                                        .on_children_prepainted(move |bounds, _, _| {
-                                            if let Some(bounds) =
-                                                bounds.into_iter().reduce(|a, b| a.union(&b))
-                                            {
-                                                bounds_state.observe_panel(bounds);
-                                            }
-                                        })
-                                        .id("submenu-safe-area")
-                                        .occlude()
-                                        .pl_1()
-                                        .pt_3()
-                                        .pr_3()
-                                        .pb_3()
-                                        .on_hover(move |hovered, window, cx| {
-                                            safe_state.hover(*hovered, window.window_handle(), cx)
-                                        })
-                                        .child(submenu.menu.inline().relative().on_hover(
-                                            move |hovered, window, cx| {
-                                                panel_state.hover(
+                                anchored()
+                                    .anchor(if flip_left {
+                                        Anchor::TopRight
+                                    } else {
+                                        Anchor::TopLeft
+                                    })
+                                    .snap_to_window_with_margin(WINDOW_MARGIN)
+                                    .child(
+                                        div()
+                                            .on_children_prepainted(move |bounds, _, _| {
+                                                if let Some(bounds) =
+                                                    bounds.into_iter().reduce(|a, b| a.union(&b))
+                                                {
+                                                    bounds_state.observe_panel(bounds);
+                                                }
+                                            })
+                                            .id("submenu-safe-area")
+                                            .occlude()
+                                            .pt_3()
+                                            .pb_3()
+                                            .when(flip_left, |this| this.pl_3().pr_1())
+                                            .when(!flip_left, |this| this.pl_1().pr_3())
+                                            .on_hover(move |hovered, window, cx| {
+                                                safe_state.hover(
                                                     *hovered,
                                                     window.window_handle(),
                                                     cx,
                                                 )
-                                            },
-                                        )),
-                                ),
+                                            })
+                                            .child(submenu.menu.inline().relative().on_hover(
+                                                move |hovered, window, cx| {
+                                                    panel_state.hover(
+                                                        *hovered,
+                                                        window.window_handle(),
+                                                        cx,
+                                                    )
+                                                },
+                                            )),
+                                    ),
                             ),
                     )
                 })
@@ -438,7 +474,18 @@ impl RenderOnce for Menu {
                 .track_scroll(scrollbar.read(cx).scroll())
                 .children(rows)
                 .into_any_element(),
-            None => div().flex().flex_col().children(rows).into_any_element(),
+            None => div()
+                .flex()
+                .flex_col()
+                .on_children_prepainted(move |bounds, _, _| {
+                    if let Some(bounds) = bounds.into_iter().reduce(|a, b| a.union(&b)) {
+                        for guard in &bounds_guards {
+                            guard.observe_parent(bounds);
+                        }
+                    }
+                })
+                .children(rows)
+                .into_any_element(),
         };
         let body = match scrollbar {
             Some(scrollbar) => div()
@@ -454,7 +501,6 @@ impl RenderOnce for Menu {
                 .into_any_element(),
             None => content,
         };
-
         let mut menu = base
             .absolute()
             .flex()
