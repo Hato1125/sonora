@@ -93,6 +93,10 @@ pub trait GridSource: 'static {
         true
     }
 
+    fn playing(&self, _row: usize, _cx: &App) -> bool {
+        false
+    }
+
     fn is_loading(&self, _cx: &App) -> bool {
         false
     }
@@ -117,6 +121,7 @@ pub struct GridDelegate<S: GridSource> {
     columns: Vec<Resolved<S::Field>>,
     width: Pixels,
     hidden: Vec<String>,
+    selected: Option<usize>,
     sort: Option<(S::Field, Sort)>,
     filter: String,
     order: Vec<usize>,
@@ -130,6 +135,7 @@ impl<S: GridSource> GridDelegate<S> {
             columns,
             width,
             hidden: Vec::new(),
+            selected: None,
             sort: None,
             filter: String::new(),
             order: Vec::new(),
@@ -160,6 +166,10 @@ impl<S: GridSource> GridDelegate<S> {
 
     pub fn row(&self, display: usize) -> usize {
         self.order.get(display).copied().unwrap_or(display)
+    }
+
+    pub fn selected(&self) -> Option<usize> {
+        self.selected
     }
 
     pub fn row_count(&self) -> usize {
@@ -438,6 +448,8 @@ impl<S: GridSource> GridState<S> {
             .map(|display| {
                 let row = self.delegate.row(display);
                 let tail = display + 1 == count;
+                let selected = self.delegate.selected == Some(row);
+                let playing = self.delegate.source.playing(row, cx);
                 let cells: Vec<AnyElement> = (0..self.delegate.columns.len())
                     .map(|ix| {
                         let column = &self.delegate.columns[ix];
@@ -479,13 +491,19 @@ impl<S: GridSource> GridState<S> {
                     .when(!tail || bottom == Pixels::ZERO, |this| {
                         this.border_b_1().border_color(theme.table_row_border)
                     })
-                    .hover(move |style| style.bg(theme.table_hover))
+                    .when(playing, |this| this.bg(theme.muted))
+                    .when(selected, |this| this.bg(theme.table_active))
+                    .when(!selected, |this| {
+                        this.hover(move |style| style.bg(theme.table_hover))
+                    })
                     .on_mouse_down(
                         MouseButton::Left,
-                        cx.listener(move |_, event: &MouseDownEvent, _, cx| {
+                        cx.listener(move |this, event: &MouseDownEvent, _, cx| {
+                            this.delegate.selected = Some(row);
                             if event.click_count >= 2 {
                                 cx.emit(GridEvent::DoubleClicked(display));
                             }
+                            cx.notify();
                         }),
                     )
                     .children(cells)

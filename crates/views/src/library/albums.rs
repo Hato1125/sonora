@@ -132,6 +132,13 @@ impl GridSource for AlbumSource {
         })
     }
 
+    fn playing(&self, row: usize, cx: &App) -> bool {
+        self.albums(cx).get(row).is_some_and(|album| {
+            let origin = Origin::Album(album.id.clone());
+            self.playback.read(cx).playing_from(&origin).is_some()
+        })
+    }
+
     fn is_loading(&self, cx: &App) -> bool {
         self.library.read(cx).is_loading()
     }

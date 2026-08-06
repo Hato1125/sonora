@@ -245,6 +245,13 @@ impl GridSource for TrackSource {
         })
     }
 
+    fn playing(&self, row: usize, cx: &App) -> bool {
+        self.provider
+            .tracks(cx)
+            .get(row)
+            .is_some_and(|track| self.now_playing(track, cx).is_some())
+    }
+
     fn is_loading(&self, cx: &App) -> bool {
         self.provider.is_loading(cx)
     }
