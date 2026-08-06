@@ -1,8 +1,6 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use std::sync::{Condvar, Mutex};
-use std::thread::JoinHandle;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use cpal::traits::{DeviceTrait, HostTrait};
 use librespot_playback::audio_backend::{Sink, SinkError, SinkResult};
@@ -10,12 +8,12 @@ use librespot_playback::config::AudioFormat;
 use librespot_playback::convert::Converter;
 use librespot_playback::decoder::AudioPacket;
 use librespot_playback::{NUM_CHANNELS, SAMPLE_RATE};
-use rodio::{OutputStream, OutputStreamBuilder};
+use rodio::source::SeekError;
+use rodio::{OutputStream, OutputStreamBuilder, Source};
 
 const QUEUED_CHUNKS: usize = 26;
 const DRAIN_POLL: Duration = Duration::from_millis(10);
 const GAIN_RAMP_DURATION: Duration = Duration::from_millis(25);
-const GAIN_RAMP_TICK: Duration = Duration::from_millis(4);
 
 #[derive(Clone, Default)]
 pub struct Flush(Arc<AtomicBool>);
@@ -31,137 +29,119 @@ impl Flush {
 }
 
 #[derive(Clone)]
-pub struct Volume(Arc<VolumeControl>);
-
-struct VolumeControl {
-    target: AtomicU32,
-    changed: Mutex<()>,
-    wake: Condvar,
-}
+pub struct Volume(Arc<AtomicU32>);
 
 impl Volume {
     pub fn new(gain: f32) -> Self {
-        Self(Arc::new(VolumeControl {
-            target: AtomicU32::new(gain.to_bits()),
-            changed: Mutex::new(()),
-            wake: Condvar::new(),
-        }))
+        Self(Arc::new(AtomicU32::new(gain.to_bits())))
     }
 
     pub fn set(&self, gain: f32) {
-        let _changed = self
-            .0
-            .changed
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        self.0.target.store(gain.to_bits(), Ordering::Release);
-        self.0.wake.notify_all();
+        self.0.store(gain.to_bits(), Ordering::Relaxed);
     }
 
     fn get(&self) -> f32 {
-        f32::from_bits(self.0.target.load(Ordering::Acquire))
+        f32::from_bits(self.0.load(Ordering::Relaxed))
     }
 }
 
-struct GainRamp {
-    stop: Arc<AtomicBool>,
+struct SmoothGain<I> {
+    input: I,
     volume: Volume,
-    worker: Option<JoinHandle<()>>,
+
+    current: f32,
+    target: f32,
+    step: f32,
+
+    frames_left: u32,
+    ramp_frames: u32,
+
+    channel: u16,
+    channels: u16,
 }
 
-impl GainRamp {
-    fn start(sink: Arc<rodio::Sink>, volume: Volume, initial: f32) -> Self {
-        let stop = Arc::new(AtomicBool::new(false));
-        let worker_stop = stop.clone();
-        let worker_volume = volume.clone();
-        let worker = std::thread::spawn(move || {
-            let mut applied = initial;
-            let mut target = initial;
-            let mut from = initial;
-            let mut started = Instant::now();
-            let mut changed = worker_volume
-                .0
-                .changed
-                .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
-
-            loop {
-                if worker_stop.load(Ordering::Acquire) {
-                    break;
-                }
-
-                let requested = worker_volume.get();
-                let now = Instant::now();
-                if requested != target {
-                    from = applied;
-                    target = requested;
-                    started = now;
-                }
-
-                let next = gain_at(from, target, now.saturating_duration_since(started));
-                if next != applied {
-                    sink.set_volume(next);
-                    applied = next;
-                }
-
-                if applied == target {
-                    changed = worker_volume
-                        .0
-                        .wake
-                        .wait(changed)
-                        .unwrap_or_else(|poisoned| poisoned.into_inner());
-                } else {
-                    let waited = worker_volume
-                        .0
-                        .wake
-                        .wait_timeout(changed, GAIN_RAMP_TICK)
-                        .unwrap_or_else(|poisoned| poisoned.into_inner());
-                    changed = waited.0;
-                }
-            }
-        });
+impl<I: Source> SmoothGain<I> {
+    fn new(input: I, volume: Volume, initial: f32, duration: Duration) -> Self {
+        let channels = input.channels();
+        let ramp_frames = (duration.as_secs_f64() * input.sample_rate() as f64)
+            .round()
+            .max(1.0) as u32;
 
         Self {
-            stop,
+            input,
             volume,
-            worker: Some(worker),
+            current: initial,
+            target: initial,
+            step: 0.0,
+            frames_left: 0,
+            ramp_frames,
+            channel: 0,
+            channels,
         }
     }
 }
 
-impl Drop for GainRamp {
-    fn drop(&mut self) {
-        {
-            let _changed = self
-                .volume
-                .0
-                .changed
-                .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
-            self.stop.store(true, Ordering::Release);
-            self.volume.0.wake.notify_all();
+impl<I: Source> Iterator for SmoothGain<I> {
+    type Item = f32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let sample = self.input.next()?;
+
+        if self.channel == 0 {
+            let requested = self.volume.get().max(0.0);
+
+            if requested.to_bits() != self.target.to_bits() {
+                self.target = requested;
+                self.frames_left = self.ramp_frames;
+                self.step = (self.target - self.current) / self.ramp_frames as f32;
+            }
+
+            if self.frames_left > 0 {
+                self.current += self.step;
+                self.frames_left -= 1;
+
+                if self.frames_left == 0 {
+                    self.current = self.target;
+                }
+            }
         }
-        if self
-            .worker
-            .take()
-            .is_some_and(|worker| worker.join().is_err())
-        {
-            log::warn!("sink: volume ramp worker panicked");
+
+        let output = sample * self.current;
+
+        self.channel += 1;
+        if self.channel == self.channels {
+            self.channel = 0;
         }
+
+        Some(output)
     }
 }
 
-fn gain_at(from: f32, target: f32, elapsed: Duration) -> f32 {
-    if target == 0. || elapsed >= GAIN_RAMP_DURATION {
-        return target;
+impl<I: Source> Source for SmoothGain<I> {
+    fn current_span_len(&self) -> Option<usize> {
+        self.input.current_span_len()
     }
-    let progress = elapsed.as_secs_f32() / GAIN_RAMP_DURATION.as_secs_f32();
-    from + (target - from) * progress
+
+    fn channels(&self) -> u16 {
+        self.input.channels()
+    }
+
+    fn sample_rate(&self) -> u32 {
+        self.input.sample_rate()
+    }
+
+    fn total_duration(&self) -> Option<Duration> {
+        self.input.total_duration()
+    }
+
+    fn try_seek(&mut self, position: Duration) -> Result<(), SeekError> {
+        self.input.try_seek(position)
+    }
 }
 
 pub struct BlazingSink {
     sink: Arc<rodio::Sink>,
-    _gain_ramp: GainRamp,
+    _volume: Volume,
     _stream: OutputStream,
     flush: Flush,
 }
@@ -200,16 +180,23 @@ impl BlazingSink {
             .map_err(|error| SinkError::ConnectionRefused(error.to_string()))?;
         stream.log_on_drop(false);
 
-        let sink = Arc::new(rodio::Sink::connect_new(stream.mixer()));
-        sink.pause();
-
         let applied = volume.get();
-        sink.set_volume(applied);
-        let gain_ramp = GainRamp::start(sink.clone(), volume, applied);
+
+        let (sink, source) = rodio::Sink::new();
+
+        stream.mixer().add(SmoothGain::new(
+            source,
+            volume.clone(),
+            applied,
+            GAIN_RAMP_DURATION,
+        ));
+
+        let sink = Arc::new(sink);
+        sink.pause();
 
         Ok(Self {
             sink,
-            _gain_ramp: gain_ramp,
+            _volume: volume,
             _stream: stream,
             flush,
         })
@@ -276,23 +263,5 @@ fn sample_format(format: AudioFormat) -> cpal::SampleFormat {
         AudioFormat::S32 => cpal::SampleFormat::I32,
         AudioFormat::S24 | AudioFormat::S24_3 => cpal::SampleFormat::I24,
         AudioFormat::S16 => cpal::SampleFormat::I16,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn gain_ramp_uses_elapsed_time() {
-        assert_eq!(gain_at(0., 1., Duration::ZERO), 0.);
-        assert_eq!(gain_at(0., 1., Duration::from_micros(12_500)), 0.5);
-        assert_eq!(gain_at(0., 1., GAIN_RAMP_DURATION), 1.);
-        assert_eq!(gain_at(0., 1., Duration::from_secs(1)), 1.);
-    }
-
-    #[test]
-    fn gain_ramp_mutes_immediately() {
-        assert_eq!(gain_at(2., 0., Duration::ZERO), 0.);
     }
 }
