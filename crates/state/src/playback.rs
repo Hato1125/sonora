@@ -14,7 +14,7 @@ use crate::queue::Queue;
 use crate::{AppSettings, Io, Session, SessionEvent, join};
 
 const POSITION_INTERVAL: Duration = Duration::from_millis(500);
-const LOAD_DEBOUNCE: Duration = Duration::from_millis(250);
+const SKIP_DEBOUNCE: Duration = Duration::from_millis(250);
 const KEY_COOLDOWN: Duration = Duration::from_secs(6);
 const TAPER_DB: f32 = 60.;
 const CEILING_DB: f32 = 9.;
@@ -106,6 +106,10 @@ impl Playback {
     }
 
     pub fn play(&mut self, track: &Track, cx: &mut Context<Self>) {
+        self.load_after(track, Duration::ZERO, cx);
+    }
+
+    fn load_after(&mut self, track: &Track, debounce: Duration, cx: &mut Context<Self>) {
         if self.engine.is_none() {
             return;
         }
@@ -124,8 +128,8 @@ impl Playback {
         let wait = self
             .blocked_until
             .and_then(|until| until.checked_duration_since(Instant::now()))
-            .unwrap_or(LOAD_DEBOUNCE)
-            .max(LOAD_DEBOUNCE);
+            .unwrap_or_default()
+            .max(debounce);
 
         self.load = Some(cx.spawn(async move |this, cx| {
             cx.background_executor().timer(wait).await;
@@ -213,14 +217,14 @@ impl Playback {
         let Some(track) = self.queue.update(cx, |queue, cx| queue.next(cx)) else {
             return;
         };
-        self.play(&track, cx);
+        self.load_after(&track, SKIP_DEBOUNCE, cx);
     }
 
     pub fn previous(&mut self, cx: &mut Context<Self>) {
         let Some(track) = self.queue.update(cx, |queue, cx| queue.previous(cx)) else {
             return;
         };
-        self.play(&track, cx);
+        self.load_after(&track, SKIP_DEBOUNCE, cx);
     }
 
     pub fn resume(&mut self, cx: &mut Context<Self>) {
