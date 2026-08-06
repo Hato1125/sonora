@@ -1,16 +1,13 @@
 use std::time::Duration;
 
-use anyhow::{Context as _, Result, anyhow, bail};
-use bytes::Bytes;
-use http::{Method, Request, header};
-use librespot_core::{Session, spclient::CLIENT_TOKEN};
+use anyhow::{Context as _, Result, anyhow};
+use librespot_core::Session;
 use serde::Deserialize;
 
+use super::query;
 use crate::models::{Album, AlbumDetail, ArtistRef, ReleaseType, Track};
 
-const ENDPOINT: &str = "https://api-partner.spotify.com/pathfinder/v2/query";
-const TRACK_HASH: &str = "612585ae06ba435ad26369870deaae23b5c8800a256cd8a57e08eddc25a37294";
-const ALBUM_HASH: &str = "b9bfabef66ed756e5e13f68a942deb60bd4125ec1f1be8cc42769dc0259b4b10";
+const HASH: &str = "b9bfabef66ed756e5e13f68a942deb60bd4125ec1f1be8cc42769dc0259b4b10";
 const PAGE_LIMIT: usize = 50;
 const ALBUM_PREFIX: &str = "spotify:album:";
 const ARTIST_PREFIX: &str = "spotify:artist:";
@@ -18,32 +15,7 @@ const TRACK_PREFIX: &str = "spotify:track:";
 const UNKNOWN: &str = "Unknown";
 
 #[derive(Deserialize)]
-struct TrackResponse {
-    data: Option<TrackData>,
-    #[serde(default)]
-    errors: Vec<GraphqlError>,
-}
-
-#[derive(Deserialize)]
-struct TrackData {
-    #[serde(rename = "trackUnion")]
-    track: Option<TrackPlay>,
-}
-
-#[derive(Deserialize)]
-struct TrackPlay {
-    playcount: Option<String>,
-}
-
-#[derive(Deserialize)]
-struct AlbumResponse {
-    data: Option<AlbumData>,
-    #[serde(default)]
-    errors: Vec<GraphqlError>,
-}
-
-#[derive(Deserialize)]
-struct AlbumData {
+struct Data {
     #[serde(rename = "albumUnion")]
     album: Option<PathAlbum>,
 }
@@ -164,26 +136,14 @@ struct PathDuration {
     milliseconds: u64,
 }
 
-#[derive(Deserialize)]
-struct GraphqlError {
-    message: String,
-}
-
-struct AlbumPage {
+struct Page {
     album: Album,
     tracks: Vec<Track>,
     items: usize,
     total: usize,
 }
 
-pub async fn track(session: &Session, track_id: &str) -> Result<Option<u64>> {
-    let variables = serde_json::json!({ "uri": format!("spotify:track:{track_id}") });
-    let body = body("getTrack", variables, TRACK_HASH, "track")?;
-    let body = request(session, body, "track").await?;
-    decoded_track(&body)
-}
-
-pub async fn album(session: &Session, album_id: &str) -> Result<AlbumDetail> {
+pub(crate) async fn album(session: &Session, album_id: &str) -> Result<AlbumDetail> {
     let mut album = None;
     let mut tracks = Vec::new();
     let mut offset = 0;
@@ -195,15 +155,14 @@ pub async fn album(session: &Session, album_id: &str) -> Result<AlbumDetail> {
             "offset": offset,
             "limit": PAGE_LIMIT,
         });
-        let body = body("getAlbum", variables, ALBUM_HASH, "album")?;
-        let body = request(session, body, "album").await?;
-        let page = decoded_album(&body)?;
+        let data = query::<Data>(session, "getAlbum", HASH, variables).await?;
+        let page = page(data)?;
         album.get_or_insert(page.album);
         tracks.extend(page.tracks);
 
         let Some(next) = next_offset(offset, page.items, page.total) else {
             return Ok(AlbumDetail {
-                album: album.context("album play count response has no album")?,
+                album: album.context("album Pathfinder response has no album")?,
                 tracks,
             });
         };
@@ -211,75 +170,9 @@ pub async fn album(session: &Session, album_id: &str) -> Result<AlbumDetail> {
     }
 }
 
-fn body(
-    operation: &str,
-    variables: serde_json::Value,
-    hash: &str,
-    subject: &str,
-) -> Result<Vec<u8>> {
-    let extensions = serde_json::json!({
-        "persistedQuery": {
-            "version": 1,
-            "sha256Hash": hash,
-        }
-    });
-    serde_json::to_vec(&serde_json::json!({
-        "operationName": operation,
-        "variables": variables,
-        "extensions": extensions,
-    }))
-    .with_context(|| format!("cannot encode {subject} play count request"))
-}
-
-async fn request(session: &Session, body: Vec<u8>, subject: &str) -> Result<Bytes> {
-    let token = session
-        .login5()
-        .auth_token()
-        .await
-        .context("cannot obtain Spotify access token")?;
-    let client_token = session
-        .spclient()
-        .client_token()
-        .await
-        .context("cannot obtain Spotify client token")?;
-    let request = Request::builder()
-        .method(Method::POST)
-        .uri(ENDPOINT)
-        .header(header::ACCEPT, "application/json")
-        .header(header::CONTENT_TYPE, "application/json")
-        .header(
-            header::AUTHORIZATION,
-            format!("{} {}", token.token_type, token.access_token),
-        )
-        .header(CLIENT_TOKEN, client_token)
-        .body(Bytes::from(body))
-        .with_context(|| format!("cannot build {subject} play count request"))?;
-    session
-        .http_client()
-        .request_body(request)
-        .await
-        .with_context(|| format!("cannot request {subject} play count"))
-}
-
-fn decoded_track(bytes: &[u8]) -> Result<Option<u64>> {
-    let response: TrackResponse =
-        serde_json::from_slice(bytes).context("cannot decode track play count response")?;
-    rejected(response.errors, "track")?;
-    let Some(track) = response.data.and_then(|data| data.track) else {
-        return Err(anyhow!("track play count response has no track"));
-    };
-    track
-        .playcount
-        .map(|count| count.parse().context("invalid track play count"))
-        .transpose()
-}
-
-fn decoded_album(bytes: &[u8]) -> Result<AlbumPage> {
-    let response: AlbumResponse =
-        serde_json::from_slice(bytes).context("cannot decode album play count response")?;
-    rejected(response.errors, "album")?;
-    let Some(album) = response.data.and_then(|data| data.album) else {
-        return Err(anyhow!("album play count response has no album"));
+fn page(data: Data) -> Result<Page> {
+    let Some(album) = data.album else {
+        return Err(anyhow!("album Pathfinder response has no album"));
     };
     let items = album.tracks.items.len();
     let total = album.tracks.total_count;
@@ -290,7 +183,7 @@ fn decoded_album(bytes: &[u8]) -> Result<AlbumPage> {
         .into_iter()
         .map(|item| track_from(item.track, &header))
         .collect::<Result<_>>()?;
-    Ok(AlbumPage {
+    Ok(Page {
         album: header,
         tracks,
         items,
@@ -424,18 +317,6 @@ fn next_offset(offset: usize, items: usize, total: usize) -> Option<usize> {
     (items > 0 && loaded < total).then_some(loaded)
 }
 
-fn rejected(errors: Vec<GraphqlError>, subject: &str) -> Result<()> {
-    if errors.is_empty() {
-        return Ok(());
-    }
-    let messages = errors
-        .into_iter()
-        .map(|error| error.message)
-        .collect::<Vec<_>>()
-        .join("; ");
-    bail!("Spotify rejected {subject} play count query: {messages}")
-}
-
 fn non_empty(value: &str) -> Option<&str> {
     (!value.is_empty()).then_some(value)
 }
@@ -445,15 +326,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn decodes_track_playcount() {
-        let body = br#"{"data":{"trackUnion":{"playcount":"1234567"}}}"#;
-        assert_eq!(decoded_track(body).unwrap(), Some(1_234_567));
-    }
-
-    #[test]
     fn decodes_album_page() {
-        let body = br#"{"data":{"albumUnion":{"uri":"spotify:album:album1","name":"The Poison","label":"Label","type":"ALBUM","date":{"isoString":"2005-01-01T00:00:00Z","precision":"YEAR"},"artists":{"items":[{"profile":{"name":"Artist"},"uri":"spotify:artist:artist1"}]},"coverArt":{"sources":[{"height":64,"url":"small"},{"height":640,"url":"large"}]},"copyright":{"items":[{"text":"Copyright"}]},"tracksV2":{"items":[{"track":{"uri":"spotify:track:abc123","name":"Song","artists":{"items":[{"profile":{"name":"Artist"},"uri":"spotify:artist:artist1"}]},"playability":{"playable":true},"contentRating":{"label":"EXPLICIT"},"discNumber":1,"trackNumber":2,"duration":{"totalMilliseconds":141453},"playcount":"462537503"}}],"totalCount":2}}}}"#;
-        let page = decoded_album(body).unwrap();
+        let body = br#"{"albumUnion":{"uri":"spotify:album:album1","name":"The Poison","label":"Label","type":"ALBUM","date":{"isoString":"2005-01-01T00:00:00Z","precision":"YEAR"},"artists":{"items":[{"profile":{"name":"Artist"},"uri":"spotify:artist:artist1"}]},"coverArt":{"sources":[{"height":64,"url":"small"},{"height":640,"url":"large"}]},"copyright":{"items":[{"text":"Copyright"}]},"tracksV2":{"items":[{"track":{"uri":"spotify:track:abc123","name":"Song","artists":{"items":[{"profile":{"name":"Artist"},"uri":"spotify:artist:artist1"}]},"playability":{"playable":true},"contentRating":{"label":"EXPLICIT"},"discNumber":1,"trackNumber":2,"duration":{"totalMilliseconds":141453},"playcount":"462537503"}}],"totalCount":2}}}"#;
+        let data: Data = serde_json::from_slice(body).unwrap();
+        let page = page(data).unwrap();
         assert_eq!(page.album.id, "album1");
         assert_eq!(page.album.release_date, "2005");
         assert_eq!(page.album.cover.as_deref(), Some("small"));
@@ -504,16 +380,5 @@ mod tests {
         assert_eq!(next_offset(50, 50, 101), Some(100));
         assert_eq!(next_offset(100, 1, 101), None);
         assert_eq!(next_offset(50, 0, 101), None);
-    }
-
-    #[test]
-    fn reports_graphql_error() {
-        let body = br#"{"data":null,"errors":[{"message":"bad hash"}]}"#;
-        assert!(
-            decoded_track(body)
-                .unwrap_err()
-                .to_string()
-                .contains("bad hash")
-        );
     }
 }

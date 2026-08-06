@@ -7,7 +7,7 @@ use librespot_protocol::playlist4_external::SelectedListContent as RootList;
 use protobuf::Message as _;
 
 use crate::models::{Album, AlbumDetail, Artist, Playlist, Track, UserProfile};
-use crate::{albums, artists, collection, playlists, plays, profiles, radio, search, wire};
+use crate::{albums, artists, collection, pathfinder, playlists, profiles, radio, search, wire};
 
 #[async_trait]
 pub trait SpotifyApi: Send + Sync {
@@ -74,7 +74,7 @@ impl SpotifyApi for LibrespotClient {
     }
 
     async fn track_playcount(&self, track_id: &str) -> Result<Option<u64>> {
-        plays::track(&self.session, track_id).await
+        pathfinder::track(&self.session, track_id).await
     }
 
     async fn saved_albums(&self, limit: u32) -> Result<Vec<Album>> {
