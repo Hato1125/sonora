@@ -1,19 +1,13 @@
 use std::cmp::Ordering;
 use ui::ActiveTheme as _;
 
-use gpui::prelude::*;
-use gpui::{AnyElement, App, Entity, Hsla, TextAlign, div, svg};
+use gpui::{AnyElement, App, Entity, Hsla, TextAlign};
 use router::Destination;
 use spotify::Track;
 use state::{Playback, PlaybackState};
 use ui::{Cell, ColumnSpec, GridSource, Width, clock};
 
-use crate::cells::{self, ALWAYS, GLYPH, NUMBER, ROOMY, SNUG, TRAILING, WIDE};
-
-const PLAY: &str = "icons/play.svg";
-const PLAYING: &str = "icons/music-2.svg";
-const PAUSE: &str = "icons/pause.svg";
-const UNAVAILABLE: &str = "icons/play-off.svg";
+use crate::cells::{self, ALWAYS, NUMBER, ROOMY, SNUG, TRAILING, WIDE};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TrackField {
@@ -170,62 +164,19 @@ impl TrackSource {
     }
 
     fn index_cell(&self, cell: &Cell<TrackField>, track: &Track, cx: &App) -> AnyElement {
-        let theme = *cx.theme();
         let state = self.now_playing(track, cx);
-        let playing = matches!(state, Some(PlaybackState::Playing));
-
-        let resting = match &state {
-            Some(PlaybackState::Playing) => svg()
-                .path(PLAYING)
-                .size(GLYPH)
-                .text_color(theme.foreground)
-                .into_any_element(),
-            Some(_) => svg()
-                .path(PAUSE)
-                .size(GLYPH)
-                .text_color(theme.muted_foreground)
-                .into_any_element(),
-            None => {
-                let color = match track.playable {
-                    true => theme.muted_foreground,
-                    false => theme.muted_foreground.opacity(0.5),
-                };
-                div()
-                    .text_color(color)
-                    .child(format!("{}", cell.display + 1))
-                    .into_any_element()
-            }
-        };
-
-        let icon = match playing {
-            true => PAUSE,
-            false => match track.playable {
-                true => PLAY,
-                false => UNAVAILABLE,
-            },
-        };
-        let color = match track.playable {
-            true => theme.foreground,
-            false => theme.muted_foreground,
-        };
-
-        let press: Option<Box<dyn Fn(&mut App)>> = match track.playable {
+        let press = match track.playable {
             false => None,
             true => {
-                let playback = self.playback.clone();
                 let queued = self.provider.tracks(cx).to_vec();
                 let row = cell.row;
-                Some(Box::new(move |cx: &mut App| {
-                    playback.update(cx, |playback, cx| match state {
-                        Some(PlaybackState::Playing) => playback.pause(cx),
-                        Some(PlaybackState::Paused) => playback.resume(cx),
-                        _ => playback.start(queued.clone(), row, cx),
-                    });
-                }))
+                cells::toggle(&self.playback, state.clone(), move |playback, cx| {
+                    playback.start(queued.clone(), row, cx)
+                })
             }
         };
 
-        cells::transport(cell, resting, cells::Transport { icon, color, press })
+        cells::index(cell, state, track.playable, press, cx)
     }
 
     fn now_playing(&self, track: &Track, cx: &App) -> Option<PlaybackState> {

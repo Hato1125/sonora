@@ -3,7 +3,7 @@ use ui::ActiveTheme as _;
 
 use gpui::{AnyElement, App, Entity, TextAlign};
 use spotify::Playlist;
-use state::{Library, LibraryState};
+use state::{Library, LibraryState, Origin, Playback};
 use ui::{Cell, ColumnSpec, GridSource, Width};
 
 use crate::cells::{self, ALWAYS, NUMBER, ROOMY, SNUG, TRAILING};
@@ -72,11 +72,23 @@ pub(super) const COLUMNS: &[ColumnSpec<PlaylistField>] = &[
 
 pub(super) struct PlaylistSource {
     library: Entity<Library>,
+    playback: Entity<Playback>,
 }
 
 impl PlaylistSource {
-    pub(super) fn new(library: Entity<Library>) -> Self {
-        Self { library }
+    pub(super) fn new(library: Entity<Library>, playback: Entity<Playback>) -> Self {
+        Self { library, playback }
+    }
+
+    fn index_cell(&self, cell: &Cell<PlaylistField>, playlist: &Playlist, cx: &App) -> AnyElement {
+        let origin = Origin::Playlist(playlist.id.clone());
+        let state = self.playback.read(cx).playing_from(&origin);
+        let id = playlist.id.clone();
+        let press = cells::toggle(&self.playback, state.clone(), move |playback, cx| {
+            playback.play_playlist(&id, cx)
+        });
+
+        cells::index(cell, state, true, press, cx)
     }
 
     pub(super) fn at(&self, row: usize, cx: &App) -> Option<Playlist> {
@@ -116,13 +128,13 @@ impl GridSource for PlaylistSource {
     fn cell(&self, cell: Cell<PlaylistField>, cx: &mut App) -> AnyElement {
         let muted = cx.theme().muted_foreground;
 
-        if cell.field == PlaylistField::Index {
-            return cells::dim(&cell, format!("{}", cell.display + 1), muted);
-        }
-
         let Some(playlist) = self.playlists(cx).get(cell.row) else {
             return cells::blank(&cell);
         };
+
+        if cell.field == PlaylistField::Index {
+            return self.index_cell(&cell, playlist, cx);
+        }
 
         match cell.field {
             PlaylistField::Cover => cells::artwork(&cell, playlist.cover.clone()),

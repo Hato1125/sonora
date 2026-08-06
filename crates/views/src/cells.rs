@@ -1,12 +1,20 @@
 use gpui::prelude::*;
-use gpui::{AnyElement, App, Div, Hsla, MouseButton, Pixels, SharedString, Window, div, px, svg};
+use gpui::{
+    AnyElement, App, Context, Div, Entity, Hsla, MouseButton, Pixels, SharedString, Window, div,
+    px, svg,
+};
 use router::{Destination, Link as _};
+use state::{Playback, PlaybackState};
 use ui::{ActiveTheme as _, Artwork, Cell, ExplicitBadge, ROW_GROUP, Theme};
+
+const PLAY: &str = "icons/play.svg";
+const PLAYING: &str = "icons/music-2.svg";
+const PAUSE: &str = "icons/pause.svg";
+const UNAVAILABLE: &str = "icons/play-off.svg";
 
 pub(crate) const NUMBER: Pixels = px(44.);
 pub(crate) const TRAILING: Pixels = px(72.);
 pub(crate) const YEAR: Pixels = px(64.);
-pub(crate) const GLYPH: Pixels = px(11.);
 pub(crate) const HIT: Pixels = px(18.);
 
 pub(crate) const ALWAYS: Pixels = Pixels::ZERO;
@@ -44,6 +52,68 @@ impl RenderOnce for Thumb {
 
         Artwork::new(self.url).size(theme.metrics.thumb)
     }
+}
+
+pub(crate) fn index<F>(
+    cell: &Cell<F>,
+    state: Option<PlaybackState>,
+    playable: bool,
+    press: Option<Box<dyn Fn(&mut App)>>,
+    cx: &App,
+) -> AnyElement {
+    let theme = *cx.theme();
+    let faded = theme.muted_foreground.opacity(0.5);
+
+    let resting = match &state {
+        Some(PlaybackState::Playing) => Glyph {
+            icon: PLAYING,
+            color: theme.foreground,
+        }
+        .into_any_element(),
+        Some(_) => Glyph {
+            icon: PAUSE,
+            color: theme.muted_foreground,
+        }
+        .into_any_element(),
+        None => div()
+            .text_color(match playable {
+                true => theme.muted_foreground,
+                false => faded,
+            })
+            .child(format!("{}", cell.display + 1))
+            .into_any_element(),
+    };
+
+    let icon = match (matches!(state, Some(PlaybackState::Playing)), playable) {
+        (true, _) => PAUSE,
+        (false, true) => PLAY,
+        (false, false) => UNAVAILABLE,
+    };
+    let color = match playable {
+        true => theme.foreground,
+        false => theme.muted_foreground,
+    };
+
+    transport(cell, resting, Transport { icon, color, press })
+}
+
+pub(crate) fn toggle<F>(
+    playback: &Entity<Playback>,
+    state: Option<PlaybackState>,
+    start: F,
+) -> Option<Box<dyn Fn(&mut App)>>
+where
+    F: Fn(&mut Playback, &mut Context<Playback>) + 'static,
+{
+    let playback = playback.clone();
+
+    Some(Box::new(move |cx: &mut App| {
+        playback.update(cx, |playback, cx| match &state {
+            Some(PlaybackState::Playing) => playback.pause(cx),
+            Some(PlaybackState::Paused) => playback.resume(cx),
+            _ => start(playback, cx),
+        });
+    }))
 }
 
 pub(crate) struct Transport {

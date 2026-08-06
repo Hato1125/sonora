@@ -91,7 +91,7 @@ impl LibraryView {
             GridState::new(GridDelegate::new(source, width, cx))
         });
         let playlists = cx.new(|cx| {
-            let source = PlaylistSource::new(library.clone());
+            let source = PlaylistSource::new(library.clone(), playback.clone());
             GridState::new(GridDelegate::new(source, width, cx))
         });
 
@@ -105,6 +105,8 @@ impl LibraryView {
 
         cx.observe(&playback, |this, _, cx| {
             this.tracks.update(cx, |table, cx| table.refresh(cx));
+            this.albums.update(cx, |table, cx| table.refresh(cx));
+            this.playlists.update(cx, |table, cx| table.refresh(cx));
         })
         .detach();
 

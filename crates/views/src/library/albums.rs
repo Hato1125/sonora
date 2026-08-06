@@ -1,15 +1,12 @@
 use std::cmp::Ordering;
 use ui::ActiveTheme as _;
 
-use gpui::prelude::*;
-use gpui::{AnyElement, App, Entity, TextAlign, div};
+use gpui::{AnyElement, App, Entity, TextAlign};
 use spotify::Album;
-use state::{Library, LibraryState, Playback};
+use state::{Library, LibraryState, Origin, Playback};
 use ui::{Cell, ColumnSpec, GridSource, Width};
 
 use crate::cells::{self, ALWAYS, NUMBER, ROOMY, TRAILING, WIDE, YEAR};
-
-const PLAY: &str = "icons/play.svg";
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum AlbumField {
@@ -95,27 +92,18 @@ impl AlbumSource {
     }
 
     fn index_cell(&self, cell: &Cell<AlbumField>, album: &Album, cx: &App) -> AnyElement {
-        let theme = *cx.theme();
-        let resting = div()
-            .text_color(theme.muted_foreground)
-            .child(format!("{}", cell.display + 1))
-            .into_any_element();
-
-        let playback = self.playback.clone();
+        let origin = Origin::Album(album.id.clone());
+        let state = match cell.display {
+            1 => Some(state::PlaybackState::Playing),
+            2 => Some(state::PlaybackState::Paused),
+            _ => self.playback.read(cx).playing_from(&origin),
+        };
         let id = album.id.clone();
-        let press: Option<Box<dyn Fn(&mut App)>> = Some(Box::new(move |cx: &mut App| {
-            playback.update(cx, |playback, cx| playback.play_album(&id, cx));
-        }));
+        let press = cells::toggle(&self.playback, state.clone(), move |playback, cx| {
+            playback.play_album(&id, cx)
+        });
 
-        cells::transport(
-            cell,
-            resting,
-            cells::Transport {
-                icon: PLAY,
-                color: theme.foreground,
-                press,
-            },
-        )
+        cells::index(cell, state, true, press, cx)
     }
 
     pub(super) fn at(&self, row: usize, cx: &App) -> Option<Album> {
