@@ -5,9 +5,10 @@ use librespot_core::Session;
 use librespot_protocol::extended_metadata::{BatchedEntityRequest, EntityRequest, ExtensionQuery};
 use librespot_protocol::extension_kind::ExtensionKind;
 use librespot_protocol::metadata::Album as AlbumMessage;
+use librespot_protocol::metadata::album::Type as AlbumType;
 use protobuf::{EnumOrUnknown, Message as _};
 
-use crate::models::{Album, Track};
+use crate::models::{Album, AlbumDetail, ReleaseType, Track};
 use crate::{collection, collection2, wire};
 
 const ALBUM_PREFIX: &str = "spotify:album:";
@@ -24,7 +25,7 @@ pub async fn saved_albums(session: &Session, limit: u32) -> Result<Vec<Album>> {
     Ok(uris.iter().filter_map(|uri| known.remove(uri)).collect())
 }
 
-pub async fn album_tracks(session: &Session, album_id: &str) -> Result<Vec<Track>> {
+pub async fn album(session: &Session, album_id: &str) -> Result<AlbumDetail> {
     let uri = format!("{ALBUM_PREFIX}{album_id}");
     let request = batched(std::slice::from_ref(&uri));
     let response = session
@@ -33,22 +34,30 @@ pub async fn album_tracks(session: &Session, album_id: &str) -> Result<Vec<Track
         .await
         .context("cannot read album metadata")?;
 
-    let mut ids = Vec::new();
-    for array in response.extended_metadata {
-        for entity in array.extension_data {
-            let Ok(album) = AlbumMessage::parse_from_bytes(&entity.extension_data.value) else {
-                continue;
-            };
-            ids.extend(track_ids(&album));
+    let message = response
+        .extended_metadata
+        .into_iter()
+        .flat_map(|array| array.extension_data)
+        .find_map(|entity| AlbumMessage::parse_from_bytes(&entity.extension_data.value).ok())
+        .context("album metadata is missing")?;
+    let album = album_from(&uri, &message);
+    let uris: Vec<_> = track_ids(&message)
+        .into_iter()
+        .map(|id| format!("{TRACK_PREFIX}{id}"))
+        .collect();
+    let tracks = match uris.is_empty() {
+        true => Vec::new(),
+        false => {
+            let mut known = collection::metadata(session, &uris).await?;
+            uris.iter().filter_map(|uri| known.remove(uri)).collect()
         }
-    }
-    if ids.is_empty() {
-        return Ok(Vec::new());
-    }
+    };
 
-    let uris: Vec<String> = ids.iter().map(|id| format!("{TRACK_PREFIX}{id}")).collect();
-    let mut known = collection::metadata(session, &uris).await?;
-    Ok(uris.iter().filter_map(|uri| known.remove(uri)).collect())
+    Ok(AlbumDetail { album, tracks })
+}
+
+pub async fn album_tracks(session: &Session, album_id: &str) -> Result<Vec<Track>> {
+    Ok(album(session, album_id).await?.tracks)
 }
 
 fn track_ids(album: &AlbumMessage) -> Vec<String> {
@@ -83,7 +92,7 @@ fn batched(uris: &[String]) -> BatchedEntityRequest {
     }
 }
 
-async fn metadata(session: &Session, uris: &[String]) -> Result<HashMap<String, Album>> {
+pub(crate) async fn metadata(session: &Session, uris: &[String]) -> Result<HashMap<String, Album>> {
     let request = batched(uris);
 
     let response = session
@@ -106,27 +115,31 @@ async fn metadata(session: &Session, uris: &[String]) -> Result<HashMap<String, 
 }
 
 fn album_from(uri: &str, album: &AlbumMessage) -> Album {
-    let artists = album
-        .artist
-        .iter()
-        .filter_map(|artist| non_empty(artist.name.as_deref()))
-        .collect::<Vec<_>>()
-        .join(", ");
+    let (artists, artist_refs) = collection::artists_from(&album.artist);
 
     Album {
         id: uri.strip_prefix(ALBUM_PREFIX).unwrap_or(uri).to_owned(),
         name: non_empty(album.name.as_deref())
             .unwrap_or(UNKNOWN)
             .to_owned(),
-        artists: if artists.is_empty() {
-            UNKNOWN.to_owned()
-        } else {
-            artists
-        },
+        artists,
+        artist_refs,
         cover: cover(album),
         cover_large: cover_large(album),
+        release_type: release_type(album.type_()),
         year: album.date.as_ref().map(|date| date.year()).unwrap_or(0),
         track_count: track_ids(album).len() as u32,
+    }
+}
+
+fn release_type(kind: AlbumType) -> ReleaseType {
+    match kind {
+        AlbumType::ALBUM => ReleaseType::Album,
+        AlbumType::SINGLE => ReleaseType::Single,
+        AlbumType::COMPILATION => ReleaseType::Compilation,
+        AlbumType::EP => ReleaseType::Ep,
+        AlbumType::AUDIOBOOK => ReleaseType::Audiobook,
+        AlbumType::PODCAST => ReleaseType::Podcast,
     }
 }
 

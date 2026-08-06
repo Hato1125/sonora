@@ -3,6 +3,7 @@ mod button;
 mod controls;
 mod explicit;
 mod grid;
+mod inline_links;
 mod menu;
 mod metrics;
 mod row;
@@ -20,6 +21,7 @@ pub use grid::{
     Cell, ColumnSpec, Grid, GridDelegate, GridEvent, GridSource, GridState, ROW_GROUP, Viewport,
     Width, grid,
 };
+pub use inline_links::{InlineLink, InlineLinks};
 pub use menu::{Menu, MenuItem};
 pub use metrics::{Metrics, Rounding, Text, snapped};
 pub use row::Row;

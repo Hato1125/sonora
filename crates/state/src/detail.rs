@@ -1,5 +1,5 @@
 use gpui::{Context, Entity, Task};
-use spotify::{Album, Playlist, Track};
+use spotify::{Album, AlbumDetail, ArtistRef, Playlist, Track};
 
 use crate::{Io, Library, Session, SessionEvent, join};
 
@@ -9,9 +9,16 @@ enum Kind {
     Playlist,
 }
 
+enum Loaded {
+    Album(AlbumDetail),
+    Tracks(Vec<Track>),
+}
+
 pub struct Header {
     pub kind: &'static str,
     pub title: String,
+    pub artist: Option<String>,
+    pub artist_refs: Vec<ArtistRef>,
     pub meta: String,
     pub cover: Option<String>,
 }
@@ -104,8 +111,8 @@ impl Detail {
         self.task = Some(cx.spawn(async move |this, cx| {
             let loaded = join(io.spawn(async move {
                 match kind {
-                    Kind::Album => client.album_tracks(&id).await,
-                    Kind::Playlist => client.playlist_tracks(&id).await,
+                    Kind::Album => client.album(&id).await.map(Loaded::Album),
+                    Kind::Playlist => client.playlist_tracks(&id).await.map(Loaded::Tracks),
                 }
             }))
             .await;
@@ -113,7 +120,11 @@ impl Detail {
             this.update(cx, |this, cx| {
                 this.loading = false;
                 match loaded {
-                    Ok(tracks) => this.tracks = tracks,
+                    Ok(Loaded::Album(detail)) => {
+                        this.header = Some(album_header(&detail.album));
+                        this.tracks = detail.tracks;
+                    }
+                    Ok(Loaded::Tracks(tracks)) => this.tracks = tracks,
                     Err(error) => this.error = Some(format!("{error:#}")),
                 }
                 cx.notify();
@@ -138,7 +149,7 @@ impl Detail {
 }
 
 fn album_header(album: &Album) -> Header {
-    let mut parts = vec![album.artists.clone()];
+    let mut parts = Vec::new();
     if album.year > 0 {
         parts.push(format!("{}", album.year));
     }
@@ -149,6 +160,8 @@ fn album_header(album: &Album) -> Header {
     Header {
         kind: "ALBUM",
         title: album.name.clone(),
+        artist: Some(album.artists.clone()),
+        artist_refs: album.artist_refs.clone(),
         meta: parts.join(" • "),
         cover: album.cover_large.clone(),
     }
@@ -163,6 +176,8 @@ fn playlist_header(playlist: &Playlist) -> Header {
     Header {
         kind: "PLAYLIST",
         title: playlist.name.clone(),
+        artist: None,
+        artist_refs: Vec::new(),
         meta: parts.join(" • "),
         cover: playlist.cover.clone(),
     }

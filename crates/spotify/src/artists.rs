@@ -1,0 +1,128 @@
+use std::collections::{HashMap, HashSet};
+
+use anyhow::{Context as _, Result};
+use librespot_core::{Session, SpotifyUri};
+use librespot_protocol::metadata::image::Size as ImageSize;
+use librespot_protocol::metadata::{Artist as ArtistMessage, Image};
+use protobuf::Message as _;
+
+use crate::models::{Album, Artist, Track};
+use crate::{albums, collection, wire};
+
+const ARTIST_PREFIX: &str = "spotify:artist:";
+const ALBUM_PREFIX: &str = "spotify:album:";
+const TRACK_PREFIX: &str = "spotify:track:";
+const LARGE_PORTRAIT: i32 = 300;
+const RELEASES_PER_TYPE: usize = 8;
+
+pub async fn artist(session: &Session, artist_id: &str) -> Result<Artist> {
+    let uri = SpotifyUri::from_uri(&format!("{ARTIST_PREFIX}{artist_id}"))
+        .context("invalid artist ID")?;
+    let body = session
+        .spclient()
+        .get_artist_metadata(&uri)
+        .await
+        .context("cannot read artist metadata")?;
+    let message =
+        ArtistMessage::parse_from_bytes(&body).context("cannot decode artist metadata protobuf")?;
+
+    let track_uris = top_track_uris(&message, &session.country());
+    let release_uris = release_uris(&message);
+    let tracks = async {
+        match track_uris.is_empty() {
+            true => Ok(HashMap::<String, Track>::new()),
+            false => collection::metadata(session, &track_uris).await,
+        }
+    };
+    let releases = async {
+        match release_uris.is_empty() {
+            true => Ok(HashMap::<String, Album>::new()),
+            false => albums::metadata(session, &release_uris).await,
+        }
+    };
+    let (mut known_tracks, mut known_albums) = tokio::try_join!(tracks, releases)?;
+    let top_tracks = track_uris
+        .iter()
+        .filter_map(|uri| known_tracks.remove(uri))
+        .collect();
+    let releases = release_uris
+        .iter()
+        .filter_map(|uri| known_albums.remove(uri))
+        .collect();
+
+    Ok(artist_from(&message, top_tracks, releases))
+}
+
+fn artist_from(artist: &ArtistMessage, top_tracks: Vec<Track>, albums: Vec<Album>) -> Artist {
+    let portraits = portraits(artist);
+
+    Artist {
+        name: artist.name().to_owned(),
+        cover_large: portraits
+            .iter()
+            .filter(|image| image_width(image) >= LARGE_PORTRAIT)
+            .min_by_key(|image| image_width(image))
+            .or_else(|| portraits.iter().max_by_key(|image| image_width(image)))
+            .and_then(|image| wire::image_url(image.file_id())),
+        top_tracks,
+        albums,
+    }
+}
+
+fn top_track_uris(artist: &ArtistMessage, country: &str) -> Vec<String> {
+    artist
+        .top_track
+        .iter()
+        .find(|tracks| tracks.country() == country)
+        .or_else(|| {
+            artist
+                .top_track
+                .iter()
+                .find(|tracks| tracks.country().is_empty())
+        })
+        .into_iter()
+        .flat_map(|tracks| tracks.track.iter())
+        .filter_map(|track| collection::base62(track.gid()))
+        .map(|id| format!("{TRACK_PREFIX}{id}"))
+        .collect()
+}
+
+fn release_uris(artist: &ArtistMessage) -> Vec<String> {
+    let mut seen = HashSet::new();
+
+    artist
+        .album_group
+        .iter()
+        .take(RELEASES_PER_TYPE)
+        .chain(artist.single_group.iter().take(RELEASES_PER_TYPE))
+        .filter_map(|group| group.album.first())
+        .filter_map(|album| collection::base62(album.gid()))
+        .filter(|id| seen.insert(id.clone()))
+        .map(|id| format!("{ALBUM_PREFIX}{id}"))
+        .collect()
+}
+
+fn portraits(artist: &ArtistMessage) -> Vec<&Image> {
+    let mut portraits: Vec<_> = artist
+        .portrait_group
+        .as_ref()
+        .into_iter()
+        .flat_map(|group| group.image.iter())
+        .filter(|image| image.has_file_id())
+        .collect();
+    portraits.extend(artist.portrait.iter().filter(|image| image.has_file_id()));
+    portraits
+}
+
+fn image_width(image: &Image) -> i32 {
+    if image.width() > 0 {
+        return image.width();
+    }
+
+    match image.size() {
+        ImageSize::SMALL => 64,
+        ImageSize::DEFAULT => 300,
+        ImageSize::LARGE => 640,
+        ImageSize::XLARGE => 1_000,
+    }
+}

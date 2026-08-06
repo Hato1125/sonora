@@ -10,7 +10,7 @@ use ui::{GridDelegate, GridEvent, GridState, Scrollbar, Viewport, grid, scrolled
 use workspace::{Searchable, Sidebar};
 
 use crate::cells;
-use crate::tracks::{LIBRARY_COLUMNS, TrackSource, Tracks};
+use crate::tracks::{LIBRARY_COLUMNS, PlaybackStatus, TrackSource, Tracks, playback_status};
 use albums::AlbumSource;
 use playlists::PlaylistSource;
 
@@ -59,6 +59,7 @@ impl Tracks for LibraryTracks {
 pub struct LibraryView {
     library: Entity<Library>,
     playback: Entity<Playback>,
+    playback_status: PlaybackStatus,
     sidebar: Entity<Sidebar>,
     section: Section,
     width: Pixels,
@@ -103,7 +104,13 @@ impl LibraryView {
 
         cx.observe(&sidebar, |_, _, cx| cx.notify()).detach();
 
-        cx.observe(&playback, |this, _, cx| {
+        let current_playback = playback_status(&playback, cx);
+        cx.observe(&playback, |this, playback, cx| {
+            let current = playback_status(&playback, cx);
+            if this.playback_status == current {
+                return;
+            }
+            this.playback_status = current;
             this.tracks.update(cx, |table, cx| table.refresh(cx));
             this.albums.update(cx, |table, cx| table.refresh(cx));
             this.playlists.update(cx, |table, cx| table.refresh(cx));
@@ -133,6 +140,7 @@ impl LibraryView {
         Self {
             library,
             playback,
+            playback_status: current_playback,
             sidebar,
             section: Section::Tracks,
             width,

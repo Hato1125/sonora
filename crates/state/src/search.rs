@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use gpui::{Context, Entity, Task};
-use spotify::{Album, Track};
+use spotify::{Album, ArtistRef, Track};
 
 use crate::{Io, Library, LibraryState, Session, SessionEvent, join};
 
@@ -39,6 +39,7 @@ pub struct AlbumHit {
     pub id: String,
     pub name: String,
     pub artists: String,
+    pub artist_refs: Vec<ArtistRef>,
     pub cover: Option<String>,
 }
 
@@ -292,6 +293,7 @@ fn albums_of(albums: &[Album], library: &[Track], catalog: &[Track], query: &Que
             &album.id,
             &album.name,
             &album.artists,
+            &album.artist_refs,
             &album.cover,
             None,
             0,
@@ -303,6 +305,7 @@ fn albums_of(albums: &[Album], library: &[Track], catalog: &[Track], query: &Que
             id,
             &track.album,
             &track.artists,
+            &track.artist_refs,
             &track.cover,
             rank,
             track.popularity,
@@ -311,7 +314,7 @@ fn albums_of(albums: &[Album], library: &[Track], catalog: &[Track], query: &Que
 
     let mut scored: Vec<Scored> = Vec::new();
     let mut seen: Vec<&String> = Vec::new();
-    for (id, name, artists, cover, rank, popularity) in saved.chain(derived) {
+    for (id, name, artists, artist_refs, cover, rank, popularity) in saved.chain(derived) {
         let fields = [(TITLE, name.as_str()), (ARTIST, artists.as_str())];
         let Some(score) = fit(&fields, query).max(inherited(rank)) else {
             continue;
@@ -328,6 +331,7 @@ fn albums_of(albums: &[Album], library: &[Track], catalog: &[Track], query: &Que
                 id: id.clone(),
                 name: name.clone(),
                 artists: artists.clone(),
+                artist_refs: artist_refs.clone(),
                 cover: cover.clone(),
             }),
         });
@@ -339,46 +343,50 @@ fn albums_of(albums: &[Album], library: &[Track], catalog: &[Track], query: &Que
 fn artists(library: &[Track], catalog: &[Track], albums: &[Album], query: &Query) -> Vec<Scored> {
     let mut tallies: Vec<(u32, u32, ArtistHit)> = Vec::new();
 
-    let mut record = |name: &str, id, cover, score, popularity, mine| match tallies
-        .iter_mut()
-        .find(|(_, _, artist)| artist.name == name)
-    {
-        Some((best, top, artist)) => {
-            *best = (*best).max(score);
-            *top = (*top).max(popularity);
-            artist.saved += mine;
-            artist.id = artist.id.take().or(id);
-            artist.cover = artist.cover.take().or(cover);
+    let mut record = |artist: &ArtistRef, cover, score, popularity, mine| {
+        let name = &artist.name;
+        let id = artist.id.clone();
+        match tallies
+            .iter_mut()
+            .find(|(_, _, current)| match (&current.id, &id) {
+                (Some(current), Some(incoming)) => current == incoming,
+                (None, _) | (_, None) => current.name == *name,
+            }) {
+            Some((best, top, current)) => {
+                *best = (*best).max(score);
+                *top = (*top).max(popularity);
+                current.saved += mine;
+                current.id = current.id.take().or(id);
+                current.cover = current.cover.take().or(cover);
+            }
+            None => tallies.push((
+                score,
+                popularity,
+                ArtistHit {
+                    name: name.clone(),
+                    id,
+                    cover,
+                    saved: mine,
+                },
+            )),
         }
-        None => tallies.push((
-            score,
-            popularity,
-            ArtistHit {
-                name: name.to_owned(),
-                id,
-                cover,
-                saved: mine,
-            },
-        )),
     };
 
     for (track, rank) in sources(library, catalog) {
-        for name in track.artists.split(", ") {
-            let Some(score) = named(name, query).max(inherited(rank)) else {
+        for artist in &track.artist_refs {
+            let Some(score) = named(&artist.name, query).max(inherited(rank)) else {
                 continue;
             };
-            let primary = track.artists.starts_with(name);
-            let id = primary.then(|| track.artist_id.clone()).flatten();
             let mine = usize::from(rank.is_none());
-            record(name, id, track.cover.clone(), score, track.popularity, mine);
+            record(artist, track.cover.clone(), score, track.popularity, mine);
         }
     }
     for album in albums {
-        for name in album.artists.split(", ") {
-            let Some(score) = named(name, query) else {
+        for artist in &album.artist_refs {
+            let Some(score) = named(&artist.name, query) else {
                 continue;
             };
-            record(name, None, album.cover.clone(), score, 0, 0);
+            record(artist, album.cover.clone(), score, 0, 0);
         }
     }
 
@@ -492,7 +500,13 @@ mod tests {
             name: name.to_owned(),
             playable: true,
             artists: artists.to_owned(),
-            artist_id: None,
+            artist_refs: artists
+                .split(", ")
+                .map(|name| ArtistRef {
+                    name: name.to_owned(),
+                    id: None,
+                })
+                .collect(),
             album: album.to_owned(),
             album_id: Some(album.to_owned()),
             cover: None,
@@ -600,5 +614,25 @@ mod tests {
             panic!("expected an artist hit");
         };
         assert_eq!(artist.saved, 1);
+    }
+
+    #[test]
+    fn artists_with_the_same_name_keep_separate_ids() {
+        let mut first = track("One", "Echo", "First");
+        first.artist_refs[0].id = Some("artist-one".to_owned());
+        let mut second = track("Two", "Echo", "Second");
+        second.artist_refs[0].id = Some("artist-two".to_owned());
+
+        let hits = rank(&[], &[], &[first, second], "echo");
+        let ids: Vec<_> = hits
+            .iter()
+            .filter_map(|hit| match hit {
+                Hit::Artist(artist) => artist.id.as_deref(),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(ids.len(), 2);
+        assert!(ids.contains(&"artist-one"));
+        assert!(ids.contains(&"artist-two"));
     }
 }
