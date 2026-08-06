@@ -15,7 +15,6 @@ const ARTIST_PREFIX: &str = "spotify:artist:";
 const ALBUM_PREFIX: &str = "spotify:album:";
 const TRACK_PREFIX: &str = "spotify:track:";
 const LARGE_PORTRAIT: i32 = 300;
-const RELEASES_PER_TYPE: usize = 8;
 
 pub async fn artist(session: &Session, artist_id: &str) -> Result<Artist> {
     let uri = SpotifyUri::from_uri(&format!("{ARTIST_PREFIX}{artist_id}"))
@@ -142,8 +141,7 @@ fn release_uris(artist: &ArtistMessage) -> Vec<String> {
     artist
         .album_group
         .iter()
-        .take(RELEASES_PER_TYPE)
-        .chain(artist.single_group.iter().take(RELEASES_PER_TYPE))
+        .chain(artist.single_group.iter())
         .filter_map(|group| group.album.first())
         .filter_map(|album| collection::base62(album.gid()))
         .filter(|id| seen.insert(id.clone()))
