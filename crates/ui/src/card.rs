@@ -5,7 +5,7 @@ use gpui::{
 };
 
 use crate::ExplicitBadge;
-use crate::artwork::Artwork;
+use crate::artwork::{Artwork, Avatar};
 use crate::metrics::{Text, snapped};
 use crate::skeleton::Skeleton;
 use crate::theme::ActiveTheme as _;
@@ -199,10 +199,8 @@ impl RenderOnce for Card {
                 .size(art)
                 .when(circle, Skeleton::circle)
                 .into_any_element(),
-            false => Artwork::new(cover)
-                .size(art)
-                .when(circle, Artwork::circle)
-                .into_any_element(),
+            false if circle => Avatar::new(cover).size(art).into_any_element(),
+            false => Artwork::new(cover).size(art).into_any_element(),
         };
 
         let mut card = base
