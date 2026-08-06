@@ -709,10 +709,7 @@ mod tests {
         portrait.artist_refs[0].id = Some("artist-one".to_owned());
         portrait.cover = Some("https://album-cover".to_owned());
 
-        let portraits = HashMap::from([(
-            "artist-one".to_owned(),
-            "https://portrait".to_owned(),
-        )]);
+        let portraits = HashMap::from([("artist-one".to_owned(), "https://portrait".to_owned())]);
         let hits = super::rank(&[portrait], &[], &[], &portraits, "echo");
 
         let Some(Hit::Artist(artist)) = hits.iter().find(|hit| hit.kind() == Kind::Artist) else {

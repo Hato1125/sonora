@@ -11,9 +11,7 @@ use workspace::{Filter, Sidebar, Workspace};
 
 use crate::search::SearchView;
 use crate::tracks::{ALBUM_COLUMNS, LIBRARY_COLUMNS};
-use crate::{
-    ArtistView, ColumnPicker, DetailView, HomeView, LibraryView, LoginView, SettingsView,
-};
+use crate::{ArtistView, ColumnPicker, DetailView, HomeView, LibraryView, LoginView, SettingsView};
 
 struct Screens {
     home: Entity<HomeView>,

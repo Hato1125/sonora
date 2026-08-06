@@ -164,7 +164,12 @@ impl AppSettings {
             .unwrap_or_default()
     }
 
-    pub fn set_hidden_columns(&mut self, section: &str, hidden: Vec<String>, cx: &mut Context<Self>) {
+    pub fn set_hidden_columns(
+        &mut self,
+        section: &str,
+        hidden: Vec<String>,
+        cx: &mut Context<Self>,
+    ) {
         self.values
             .hidden_columns
             .insert(section.to_owned(), hidden);

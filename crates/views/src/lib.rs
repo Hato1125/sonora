@@ -13,9 +13,9 @@ mod settings;
 mod tracks;
 
 use artist::ArtistView;
+pub use columns::ColumnPicker;
 use detail::DetailView;
 use home::HomeView;
-pub use columns::ColumnPicker;
 pub use library::LibraryView;
 pub use login::LoginView;
 pub use root::Root;
