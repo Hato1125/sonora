@@ -1,6 +1,7 @@
 mod artwork;
 mod button;
 mod controls;
+mod explicit;
 mod grid;
 mod menu;
 mod metrics;
@@ -14,6 +15,7 @@ mod time;
 pub use artwork::Artwork;
 pub use button::Button;
 pub use controls::WindowControls;
+pub use explicit::ExplicitBadge;
 pub use grid::{
     Cell, ColumnSpec, Grid, GridDelegate, GridEvent, GridSource, GridState, ROW_GROUP, Viewport,
     Width, grid,

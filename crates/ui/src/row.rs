@@ -1,6 +1,7 @@
 use gpui::prelude::*;
 use gpui::{AnyElement, App, Hsla, SharedString, Window, div};
 
+use crate::ExplicitBadge;
 use crate::artwork::Artwork;
 use crate::metrics::{Text, snapped};
 use crate::theme::ActiveTheme as _;
@@ -13,6 +14,7 @@ pub struct Row {
     circle: bool,
     tint: Option<Hsla>,
     trailing: Option<AnyElement>,
+    explicit: bool,
 }
 
 impl Row {
@@ -24,6 +26,7 @@ impl Row {
             circle: false,
             tint: None,
             trailing: None,
+            explicit: false,
         }
     }
 
@@ -44,6 +47,11 @@ impl Row {
 
     pub fn meta(mut self, meta: impl Into<SharedString>) -> Self {
         self.meta = Some(meta.into());
+        self
+    }
+
+    pub fn explicit(mut self) -> Self {
+        self.explicit = true;
         self
     }
 
@@ -81,9 +89,15 @@ impl RenderOnce for Row {
                     .min_w_0()
                     .child(
                         div()
-                            .truncate()
+                            .flex()
+                            .items_center()
+                            .gap_1p5()
+                            .min_w_0()
                             .text_color(self.tint.unwrap_or(theme.foreground))
-                            .child(self.title),
+                            .child(div().min_w_0().truncate().child(self.title))
+                            .when(self.explicit, |this| {
+                                this.child(div().flex_none().child(ExplicitBadge::new()))
+                            }),
                     )
                     .children(self.meta.map(|meta| {
                         div()

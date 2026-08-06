@@ -279,10 +279,7 @@ impl GridSource for TrackSource {
 
         match cell.field {
             TrackField::Cover => cells::artwork(&cell, track.cover.clone()),
-            TrackField::Title => match title {
-                Some(color) => cells::dim(&cell, track.name.clone(), color),
-                None => cells::text(&cell, track.name.clone()),
-            },
+            TrackField::Title => cells::title(&cell, track.name.clone(), title, track.explicit),
             TrackField::Artists => cells::dim(&cell, track.artists.clone(), detail),
             TrackField::Album => self.album_cell(&cell, track, detail),
             TrackField::Duration => cells::dim(&cell, clock(track.duration), detail),

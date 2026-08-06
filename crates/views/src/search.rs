@@ -121,6 +121,7 @@ impl SearchView {
                         .cover(track.cover.clone())
                         .tint(tint)
                         .meta(meta)
+                        .when(track.explicit, |row| row.explicit())
                         .trailing(
                             div()
                                 .flex_none()
@@ -280,13 +281,11 @@ impl SearchView {
             .min_w_0()
             .min_h_0()
             .gap_1()
-            .child(
-                div().pl_3().child(heading(
-                    theme.text(Text::Small),
-                    theme.muted_foreground,
-                    title,
-                )),
-            )
+            .child(div().pl_3().child(heading(
+                theme.text(Text::Small),
+                theme.muted_foreground,
+                title,
+            )))
             .child(self.panel(id, bar, rows, cx))
             .into_any_element()
     }

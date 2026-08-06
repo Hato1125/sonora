@@ -1,7 +1,7 @@
 use gpui::prelude::*;
-use gpui::{AnyElement, App, Hsla, MouseButton, Pixels, SharedString, Window, div, px, svg};
+use gpui::{AnyElement, App, Div, Hsla, MouseButton, Pixels, SharedString, Window, div, px, svg};
 use router::{Destination, Link as _};
-use ui::{ActiveTheme as _, Artwork, Cell, ROW_GROUP, Theme};
+use ui::{ActiveTheme as _, Artwork, Cell, ExplicitBadge, ROW_GROUP, Theme};
 
 pub(crate) const NUMBER: Pixels = px(44.);
 pub(crate) const TRAILING: Pixels = px(72.);
@@ -118,14 +118,37 @@ pub(crate) fn link<F>(
         .into_any_element()
 }
 
+fn line<F>(cell: &Cell<F>, color: Option<Hsla>) -> Div {
+    cell.frame()
+        .when_some(color, |this, color| this.text_color(color))
+}
+
 pub(crate) fn text<F>(cell: &Cell<F>, value: impl Into<SharedString>) -> AnyElement {
-    cell.frame().child(value.into()).into_any_element()
+    line(cell, None).child(value.into()).into_any_element()
 }
 
 pub(crate) fn dim<F>(cell: &Cell<F>, value: impl Into<SharedString>, muted: Hsla) -> AnyElement {
-    cell.frame()
-        .text_color(muted)
+    line(cell, Some(muted))
         .child(value.into())
+        .into_any_element()
+}
+
+pub(crate) fn title<F>(
+    cell: &Cell<F>,
+    value: impl Into<SharedString>,
+    color: Option<Hsla>,
+    explicit: bool,
+) -> AnyElement {
+    if !explicit {
+        return line(cell, color).child(value.into()).into_any_element();
+    }
+
+    line(cell, color)
+        .flex()
+        .items_center()
+        .gap_1p5()
+        .child(div().min_w_0().truncate().child(value.into()))
+        .child(div().flex_none().child(ExplicitBadge::new()))
         .into_any_element()
 }
 
