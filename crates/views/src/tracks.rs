@@ -6,7 +6,7 @@ use gpui::{AnyElement, App, ClipboardItem, Entity, Hsla, Styled as _, TextAlign}
 use jiff::Timestamp;
 use router::Destination;
 use spotify::Track;
-use state::{LibraryState, Playback, PlaybackState, Spotty};
+use state::{LibraryState, Playback, PlaybackState, Sonora};
 use ui::{Cell, ColumnSpec, GridSource, Menu, MenuItem, Scrollbar, SubmenuState, Width, clock};
 
 use crate::cells::{self, ALWAYS, DATE, NUMBER, ROOMY, SNUG, TRAILING, WIDE};
@@ -151,12 +151,100 @@ pub(crate) trait Tracks: 'static {
     fn is_loading(&self, cx: &App) -> bool;
 }
 
+#[derive(Clone)]
+pub(crate) struct TrackMenu {
+    playlist_submenu: SubmenuState,
+    playlist_scrollbar: Entity<Scrollbar>,
+}
+
+impl TrackMenu {
+    pub(crate) fn new(playlist_scrollbar: Entity<Scrollbar>) -> Self {
+        Self {
+            playlist_submenu: SubmenuState::default(),
+            playlist_scrollbar,
+        }
+    }
+
+    pub(crate) fn reset(&self) {
+        self.playlist_submenu.reset();
+    }
+
+    pub(crate) fn for_track(&self, track: &Track, cx: &App) -> Menu {
+        let playlists = match Sonora::global(cx).library.read(cx).state() {
+            LibraryState::Ready { playlists, .. } => playlists.clone(),
+            _ => Vec::new(),
+        };
+        let playlist_menu = if playlists.is_empty() {
+            Menu::new("playlist-submenu")
+                .w(gpui::px(220.))
+                .item(MenuItem::new("no-playlists", "No playlists").disabled())
+        } else {
+            Menu::new("playlist-submenu")
+                .w(gpui::px(220.))
+                .max_h(gpui::px(360.))
+                .scrollbar(self.playlist_scrollbar.clone())
+                .item(
+                    MenuItem::new("new-playlist", "New playlist")
+                        .icon("icons/plus.svg")
+                        .disabled(),
+                )
+                .item(MenuItem::separator("playlist-separator"))
+                .items(playlists.into_iter().map(|playlist| {
+                    MenuItem::new(format!("playlist-{}", playlist.id), playlist.name)
+                        .artwork(playlist.cover)
+                        .disabled()
+                }))
+        };
+        let copy = match track.id.clone() {
+            Some(id) => MenuItem::new("copy-track-link", "Copy link")
+                .icon("icons/link.svg")
+                .on_click(move |_, _, cx| {
+                    cx.write_to_clipboard(ClipboardItem::new_string(format!(
+                        "https://open.spotify.com/track/{id}"
+                    )));
+                }),
+            None => MenuItem::new("copy-track-link", "Copy link")
+                .icon("icons/link.svg")
+                .disabled(),
+        };
+
+        Menu::new("track-context-menu")
+            .relative()
+            .w(gpui::px(210.))
+            .item(
+                MenuItem::new("add-to-playlist", "Add to playlist")
+                    .icon("icons/list-plus.svg")
+                    .submenu(playlist_menu, self.playlist_submenu.clone()),
+            )
+            .item(
+                MenuItem::new("toggle-library", "Add/Remove to Library")
+                    .icon("icons/heart.svg")
+                    .disabled(),
+            )
+            .item(
+                MenuItem::new("add-to-queue", "Add to queue")
+                    .icon("icons/list-end.svg")
+                    .disabled(),
+            )
+            .item(
+                MenuItem::new("song-radio", "Go to song radio")
+                    .icon("icons/radio.svg")
+                    .disabled(),
+            )
+            .item(
+                MenuItem::new("view-credits", "View credits")
+                    .icon("icons/info.svg")
+                    .disabled(),
+            )
+            .item(copy)
+    }
+}
+
 pub(crate) struct TrackSource {
     columns: &'static [ColumnSpec<TrackField>],
     provider: Rc<dyn Tracks>,
     playback: Entity<Playback>,
-    playlist_submenu: SubmenuState,
-    playlist_scrollbar: Entity<Scrollbar>,
+    menu: TrackMenu,
 }
 
 impl TrackSource {
@@ -170,8 +258,7 @@ impl TrackSource {
             columns,
             provider: Rc::new(provider),
             playback,
-            playlist_submenu: SubmenuState::default(),
-            playlist_scrollbar,
+            menu: TrackMenu::new(playlist_scrollbar),
         }
     }
 
@@ -298,79 +385,11 @@ impl GridSource for TrackSource {
 
     fn context_menu(&self, row: usize, cx: &App) -> Option<Menu> {
         let track = self.provider.tracks(cx).get(row)?;
-        let playlists = match Spotty::global(cx).library.read(cx).state() {
-            LibraryState::Ready { playlists, .. } => playlists.clone(),
-            _ => Vec::new(),
-        };
-        let playlist_menu = if playlists.is_empty() {
-            Menu::new("playlist-submenu")
-                .w(gpui::px(220.))
-                .item(MenuItem::new("no-playlists", "No playlists").disabled())
-        } else {
-            Menu::new("playlist-submenu")
-                .w(gpui::px(220.))
-                .max_h(gpui::px(360.))
-                .scrollbar(self.playlist_scrollbar.clone())
-                .item(
-                    MenuItem::new("new-playlist", "New playlist")
-                        .icon("icons/plus.svg")
-                        .disabled(),
-                )
-                .item(MenuItem::separator("playlist-separator"))
-                .items(playlists.into_iter().map(|playlist| {
-                    MenuItem::new(format!("playlist-{}", playlist.id), playlist.name)
-                        .artwork(playlist.cover)
-                        .disabled()
-                }))
-        };
-        let copy = match track.id.clone() {
-            Some(id) => MenuItem::new("copy-track-link", "Copy link")
-                .icon("icons/link.svg")
-                .on_click(move |_, _, cx| {
-                    cx.write_to_clipboard(ClipboardItem::new_string(format!(
-                        "https://open.spotify.com/track/{id}"
-                    )));
-                }),
-            None => MenuItem::new("copy-track-link", "Copy link")
-                .icon("icons/link.svg")
-                .disabled(),
-        };
-
-        Some(
-            Menu::new("track-context-menu")
-                .relative()
-                .w(gpui::px(210.))
-                .item(
-                    MenuItem::new("add-to-playlist", "Add to playlist")
-                        .icon("icons/list-plus.svg")
-                        .submenu(playlist_menu, self.playlist_submenu.clone()),
-                )
-                .item(
-                    MenuItem::new("toggle-library", "Add/Remove to Library")
-                        .icon("icons/heart.svg")
-                        .disabled(),
-                )
-                .item(
-                    MenuItem::new("add-to-queue", "Add to queue")
-                        .icon("icons/list-end.svg")
-                        .disabled(),
-                )
-                .item(
-                    MenuItem::new("song-radio", "Go to song radio")
-                        .icon("icons/radio.svg")
-                        .disabled(),
-                )
-                .item(
-                    MenuItem::new("view-credits", "View credits")
-                        .icon("icons/info.svg")
-                        .disabled(),
-                )
-                .item(copy),
-        )
+        Some(self.menu.for_track(track, cx))
     }
 
     fn context_menu_will_open(&self, _row: usize, _cx: &App) {
-        self.playlist_submenu.reset();
+        self.menu.reset();
     }
 
     fn compare(&self, field: TrackField, a: usize, b: usize, cx: &App) -> Ordering {

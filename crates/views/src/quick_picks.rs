@@ -1,7 +1,10 @@
 use std::rc::Rc;
 
 use gpui::prelude::*;
-use gpui::{App, ClickEvent, Entity, FontWeight, Pixels, SharedString, Window, div};
+use gpui::{
+    App, ClickEvent, Entity, FontWeight, MouseButton, MouseDownEvent, Pixels, SharedString, Window,
+    div,
+};
 use spotify::Track;
 use state::Playback;
 use ui::{ActiveTheme as _, Button, Card, Text, eyebrow, heading};
@@ -13,6 +16,7 @@ const MAX_COLUMNS: usize = 3;
 const MIN_COLUMN_WIDTH: Pixels = gpui::px(280.);
 
 type ClickHandler = Rc<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
+type ContextHandler = Rc<dyn Fn(usize, &MouseDownEvent, &mut Window, &mut App)>;
 
 pub(crate) fn column_count(width: Pixels) -> usize {
     ((width / MIN_COLUMN_WIDTH).floor().max(1.) as usize).min(MAX_COLUMNS)
@@ -33,6 +37,7 @@ pub(crate) struct QuickPicks {
     page: usize,
     on_previous: Option<ClickHandler>,
     on_next: Option<ClickHandler>,
+    on_context_menu: Option<ContextHandler>,
 }
 
 impl QuickPicks {
@@ -51,6 +56,7 @@ impl QuickPicks {
             page,
             on_previous: None,
             on_next: None,
+            on_context_menu: None,
         }
     }
 
@@ -69,6 +75,14 @@ impl QuickPicks {
         self.on_next = Some(Rc::new(handler));
         self
     }
+
+    pub(crate) fn on_context_menu(
+        mut self,
+        handler: impl Fn(usize, &MouseDownEvent, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.on_context_menu = Some(Rc::new(handler));
+        self
+    }
 }
 
 impl RenderOnce for QuickPicks {
@@ -84,6 +98,7 @@ impl RenderOnce for QuickPicks {
         let empty = tracks.is_empty();
         let on_previous = self.on_previous;
         let on_next = self.on_next;
+        let on_context_menu = self.on_context_menu;
 
         div()
             .w_full()
@@ -164,6 +179,7 @@ impl RenderOnce for QuickPicks {
                                         tracks.clone(),
                                         self.playback.clone(),
                                         self.active.as_deref(),
+                                        on_context_menu.clone(),
                                         cx,
                                     )
                                 }),
@@ -197,6 +213,7 @@ fn pick(
     tracks: Rc<Vec<Track>>,
     playback: Entity<Playback>,
     active: Option<&str>,
+    on_context_menu: Option<ContextHandler>,
     cx: &App,
 ) -> impl IntoElement {
     let theme = *cx.theme();
@@ -222,6 +239,12 @@ fn pick(
         )
         .text_size(theme.text(Text::Small)),
     )
+    .when_some(on_context_menu, |card, handler| {
+        card.on_mouse_down(MouseButton::Right, move |event, window, cx| {
+            window.prevent_default();
+            handler(place, event, window, cx);
+        })
+    })
     .press(move |_, _, cx| {
         playback.update(cx, |playback, cx| playback.play_radio(&tracks[place], cx));
     })
