@@ -2,9 +2,11 @@ use std::collections::{HashMap, HashSet};
 
 use anyhow::{Context as _, Result};
 use librespot_core::{Session, SpotifyUri};
+use librespot_protocol::extended_metadata::{BatchedEntityRequest, EntityRequest, ExtensionQuery};
+use librespot_protocol::extension_kind::ExtensionKind;
 use librespot_protocol::metadata::image::Size as ImageSize;
 use librespot_protocol::metadata::{Artist as ArtistMessage, Image};
-use protobuf::Message as _;
+use protobuf::{EnumOrUnknown, Message as _};
 
 use crate::models::{Album, Artist, Track};
 use crate::{albums, collection, wire};
@@ -51,6 +53,53 @@ pub async fn artist(session: &Session, artist_id: &str) -> Result<Artist> {
         .collect();
 
     Ok(artist_from(&message, top_tracks, releases))
+}
+
+pub async fn images(session: &Session, ids: &[String]) -> Result<HashMap<String, String>> {
+    if ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+
+    let request = BatchedEntityRequest {
+        entity_request: ids
+            .iter()
+            .map(|id| EntityRequest {
+                entity_uri: format!("{ARTIST_PREFIX}{id}"),
+                query: vec![ExtensionQuery {
+                    extension_kind: EnumOrUnknown::new(ExtensionKind::ARTIST_V4),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            })
+            .collect(),
+        ..Default::default()
+    };
+
+    let response = session
+        .spclient()
+        .get_extended_metadata(request)
+        .await
+        .context("cannot read artist portraits")?;
+
+    let mut found = HashMap::new();
+    for array in response.extended_metadata {
+        for entity in array.extension_data {
+            let Ok(message) = ArtistMessage::parse_from_bytes(&entity.extension_data.value) else {
+                continue;
+            };
+            let Some(id) = entity.entity_uri.strip_prefix(ARTIST_PREFIX) else {
+                continue;
+            };
+            let smallest = portraits(&message)
+                .into_iter()
+                .min_by_key(|image| image_width(image));
+            if let Some(url) = smallest.and_then(|image| wire::image_url(image.file_id())) {
+                found.insert(id.to_owned(), url);
+            }
+        }
+    }
+
+    Ok(found)
 }
 
 fn artist_from(artist: &ArtistMessage, top_tracks: Vec<Track>, albums: Vec<Album>) -> Artist {

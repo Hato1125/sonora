@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use anyhow::{Context as _, Result};
 use async_trait::async_trait;
 use librespot_core::Session;
@@ -11,6 +13,7 @@ use crate::{albums, artists, collection, playlists, profiles, search, wire};
 pub trait SpotifyApi: Send + Sync {
     async fn profile(&self) -> Result<UserProfile>;
     async fn artist(&self, artist_id: &str) -> Result<Artist>;
+    async fn artist_images(&self, ids: Vec<String>) -> Result<HashMap<String, String>>;
     async fn saved_tracks(&self, limit: u32) -> Result<Vec<Track>>;
     async fn playlists(&self, limit: u32) -> Result<Vec<Playlist>>;
     async fn saved_albums(&self, limit: u32) -> Result<Vec<Album>>;
@@ -53,6 +56,10 @@ impl SpotifyApi for LibrespotClient {
 
     async fn artist(&self, artist_id: &str) -> Result<Artist> {
         artists::artist(&self.session, artist_id).await
+    }
+
+    async fn artist_images(&self, ids: Vec<String>) -> Result<HashMap<String, String>> {
+        artists::images(&self.session, &ids).await
     }
 
     async fn saved_tracks(&self, limit: u32) -> Result<Vec<Track>> {

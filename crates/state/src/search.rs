@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::time::Duration;
 
 use gpui::{Context, Entity, Task};
@@ -85,6 +86,7 @@ pub struct Search {
     query: String,
     served: Option<String>,
     catalog: Vec<Track>,
+    portraits: HashMap<String, String>,
     hits: Vec<Hit>,
     loading: bool,
     error: Option<String>,
@@ -92,6 +94,7 @@ pub struct Search {
     library: Entity<Library>,
     io: Io,
     task: Option<Task<()>>,
+    faces: Option<Task<()>>,
 }
 
 impl Search {
@@ -107,6 +110,7 @@ impl Search {
                 this.query.clear();
                 this.served = None;
                 this.catalog.clear();
+                this.portraits.clear();
                 this.hits.clear();
                 this.loading = false;
                 cx.notify();
@@ -125,6 +129,7 @@ impl Search {
             query: String::new(),
             served: None,
             catalog: Vec::new(),
+            portraits: HashMap::new(),
             hits: Vec::new(),
             loading: false,
             error: None,
@@ -132,6 +137,7 @@ impl Search {
             library,
             io,
             task: None,
+            faces: None,
         }
     }
 
@@ -224,6 +230,44 @@ impl Search {
         }));
     }
 
+    fn fetch_portraits(&mut self, cx: &mut Context<Self>) {
+        let wanted: Vec<String> = self
+            .hits
+            .iter()
+            .filter_map(|hit| match hit {
+                Hit::Artist(artist) => artist.id.clone(),
+                _ => None,
+            })
+            .filter(|id| !self.portraits.contains_key(id))
+            .collect();
+
+        if wanted.is_empty() {
+            return;
+        }
+
+        let Some(client) = self.session.read(cx).client() else {
+            return;
+        };
+
+        let io = self.io.clone();
+        let asked = wanted.clone();
+        self.faces = Some(cx.spawn(async move |this, cx| {
+            let found = join(io.spawn(async move { client.artist_images(wanted).await })).await;
+
+            this.update(cx, |this, cx| {
+                let Ok(found) = found else {
+                    return;
+                };
+                for id in asked {
+                    this.portraits.entry(id).or_default();
+                }
+                this.portraits.extend(found);
+                this.rank(cx);
+            })
+            .ok();
+        }));
+    }
+
     fn rank(&mut self, cx: &mut Context<Self>) {
         let query = self.query.trim();
         if query.is_empty() {
@@ -240,20 +284,27 @@ impl Search {
                 }
                 _ => (&[][..], &[][..]),
             };
-            rank(tracks, albums, &self.catalog, query)
+            rank(tracks, albums, &self.catalog, &self.portraits, query)
         };
+        self.fetch_portraits(cx);
         cx.notify();
     }
 }
 
-fn rank(library: &[Track], albums: &[Album], catalog: &[Track], asked: &str) -> Vec<Hit> {
+fn rank(
+    library: &[Track],
+    albums: &[Album],
+    catalog: &[Track],
+    portraits: &HashMap<String, String>,
+    asked: &str,
+) -> Vec<Hit> {
     let query = Query::new(asked);
     if query.terms.is_empty() {
         return Vec::new();
     }
 
     let mut all = songs(library, catalog, &query);
-    all.extend(artists(library, catalog, albums, &query));
+    all.extend(artists(library, catalog, albums, portraits, &query));
     all.extend(albums_of(albums, library, catalog, &query));
     order(&mut all);
 
@@ -340,12 +391,23 @@ fn albums_of(albums: &[Album], library: &[Track], catalog: &[Track], query: &Que
     capped(scored)
 }
 
-fn artists(library: &[Track], catalog: &[Track], albums: &[Album], query: &Query) -> Vec<Scored> {
+fn artists(
+    library: &[Track],
+    catalog: &[Track],
+    albums: &[Album],
+    portraits: &HashMap<String, String>,
+    query: &Query,
+) -> Vec<Scored> {
     let mut tallies: Vec<(u32, u32, ArtistHit)> = Vec::new();
 
-    let mut record = |artist: &ArtistRef, cover, score, popularity, mine| {
+    let mut record = |artist: &ArtistRef, score, popularity, mine| {
         let name = &artist.name;
         let id = artist.id.clone();
+        let cover = id
+            .as_ref()
+            .and_then(|id| portraits.get(id))
+            .filter(|url| !url.is_empty())
+            .cloned();
         match tallies
             .iter_mut()
             .find(|(_, _, current)| match (&current.id, &id) {
@@ -378,7 +440,7 @@ fn artists(library: &[Track], catalog: &[Track], albums: &[Album], query: &Query
                 continue;
             };
             let mine = usize::from(rank.is_none());
-            record(artist, track.cover.clone(), score, track.popularity, mine);
+            record(artist, score, track.popularity, mine);
         }
     }
     for album in albums {
@@ -386,7 +448,7 @@ fn artists(library: &[Track], catalog: &[Track], albums: &[Album], query: &Query
             let Some(score) = named(&artist.name, query) else {
                 continue;
             };
-            record(artist, album.cover.clone(), score, 0, 0);
+            record(artist, score, 0, 0);
         }
     }
 
@@ -493,6 +555,10 @@ fn named(value: &str, query: &Query) -> Option<u32> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn rank(library: &[Track], albums: &[Album], catalog: &[Track], asked: &str) -> Vec<Hit> {
+        super::rank(library, albums, catalog, &HashMap::new(), asked)
+    }
 
     fn track(name: &str, artists: &str, album: &str) -> Track {
         Track {
@@ -634,5 +700,23 @@ mod tests {
         assert_eq!(ids.len(), 2);
         assert!(ids.contains(&"artist-one"));
         assert!(ids.contains(&"artist-two"));
+    }
+
+    #[test]
+    fn artist_pictures_come_from_portraits() {
+        let mut portrait = track("One", "Echo", "First");
+        portrait.artist_refs[0].id = Some("artist-one".to_owned());
+        portrait.cover = Some("https://album-cover".to_owned());
+
+        let portraits = HashMap::from([(
+            "artist-one".to_owned(),
+            "https://portrait".to_owned(),
+        )]);
+        let hits = super::rank(&[portrait], &[], &[], &portraits, "echo");
+
+        let Some(Hit::Artist(artist)) = hits.iter().find(|hit| hit.kind() == Kind::Artist) else {
+            panic!("expected an artist hit");
+        };
+        assert_eq!(artist.cover.as_deref(), Some("https://portrait"));
     }
 }
