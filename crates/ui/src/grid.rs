@@ -95,6 +95,8 @@ pub trait GridSource: 'static {
         None
     }
 
+    fn context_menu_will_open(&self, _row: usize, _cx: &App) {}
+
     fn compare(&self, _field: Self::Field, a: usize, b: usize, _cx: &App) -> Ordering {
         a.cmp(&b)
     }
@@ -607,6 +609,7 @@ impl<S: GridSource> GridState<S> {
                         MouseButton::Right,
                         cx.listener(move |this, event: &MouseDownEvent, window, cx| {
                             if this.delegate.source.context_menu(row, cx).is_some() {
+                                this.delegate.source.context_menu_will_open(row, cx);
                                 window.prevent_default();
                                 this.context_menu = Some((row, event.position));
                                 cx.notify();

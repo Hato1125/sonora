@@ -4,14 +4,17 @@ use std::time::Duration;
 
 use gpui::prelude::*;
 use gpui::{
-    App, ClickEvent, Div, ElementId, Interactivity, MouseButton, MouseDownEvent, SharedString,
-    Stateful, StyleRefinement, Window, deferred, div, px,
+    AnyWindowHandle, App, Bounds, ClickEvent, Div, ElementId, Entity, Interactivity, MouseButton,
+    MouseDownEvent, Pixels, Point, SharedString, Size, Stateful, StyleRefinement, Window, deferred,
+    div, px, svg,
 };
 
+use crate::scrollbar::Scrollbar;
 use crate::theme::ActiveTheme as _;
 
 const CHECK: &str = "✓";
-const SUBMENU_HANDOFF: Duration = Duration::from_millis(120);
+const SUBMENU_CLOSE_DELAY: Duration = Duration::from_millis(160);
+const SCROLLBAR_GUTTER: Pixels = px(8.);
 
 type Press = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 type Dismiss = Box<dyn Fn(&MouseDownEvent, &mut Window, &mut App) + 'static>;
@@ -21,6 +24,7 @@ type Action = Rc<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 pub struct SubmenuState {
     open: Rc<Cell<bool>>,
     generation: Rc<Cell<u64>>,
+    safe_bounds: Rc<Cell<Option<Bounds<Pixels>>>>,
 }
 
 impl SubmenuState {
@@ -28,7 +32,7 @@ impl SubmenuState {
         self.open.get()
     }
 
-    fn hover(&self, hovered: bool, cx: &mut App) {
+    fn hover(&self, hovered: bool, window: AnyWindowHandle, cx: &mut App) {
         let generation = self.generation.get().wrapping_add(1);
         self.generation.set(generation);
 
@@ -41,14 +45,48 @@ impl SubmenuState {
 
         let state = self.clone();
         cx.spawn(async move |cx| {
-            cx.background_executor().timer(SUBMENU_HANDOFF).await;
+            cx.background_executor().timer(SUBMENU_CLOSE_DELAY).await;
+            let inside = cx.update(|cx| {
+                cx.update_window(window, |_, window, _| {
+                    state
+                        .safe_bounds
+                        .get()
+                        .is_some_and(|bounds| bounds.contains(&window.mouse_position()))
+                })
+                .unwrap_or(false)
+            });
             cx.update(|cx| {
-                if state.generation.get() == generation && state.open.replace(false) {
+                if state.generation.get() == generation && !inside && state.open.replace(false) {
                     cx.refresh_windows();
                 }
             });
         })
         .detach();
+    }
+
+    fn observe_panel(&self, bounds: Bounds<Pixels>) {
+        self.safe_bounds.set(Some(Bounds {
+            origin: Point {
+                x: bounds.origin.x - px(4.),
+                y: bounds.origin.y - px(12.),
+            },
+            size: Size {
+                width: bounds.size.width + px(16.),
+                height: bounds.size.height + px(24.),
+            },
+        }));
+    }
+
+    fn contains(&self, position: Point<Pixels>) -> bool {
+        self.safe_bounds
+            .get()
+            .is_some_and(|bounds| bounds.contains(&position))
+    }
+
+    pub fn reset(&self) {
+        self.generation.set(self.generation.get().wrapping_add(1));
+        self.open.set(false);
+        self.safe_bounds.set(None);
     }
 }
 
@@ -62,6 +100,8 @@ pub struct MenuItem {
     label: SharedString,
     selected: bool,
     disabled: bool,
+    separator: bool,
+    icon: Option<&'static str>,
     press: Option<Press>,
     submenu: Option<Submenu>,
 }
@@ -73,6 +113,8 @@ impl MenuItem {
             label: label.into(),
             selected: false,
             disabled: false,
+            separator: false,
+            icon: None,
             press: None,
             submenu: None,
         }
@@ -83,8 +125,26 @@ impl MenuItem {
         self
     }
 
+    pub fn separator(id: impl Into<ElementId>) -> Self {
+        Self {
+            id: id.into(),
+            label: SharedString::default(),
+            selected: false,
+            disabled: true,
+            separator: true,
+            icon: None,
+            press: None,
+            submenu: None,
+        }
+    }
+
     pub fn disabled(mut self) -> Self {
         self.disabled = true;
+        self
+    }
+
+    pub fn icon(mut self, path: &'static str) -> Self {
+        self.icon = Some(path);
         self
     }
 
@@ -97,6 +157,8 @@ impl MenuItem {
     }
 
     pub fn submenu(mut self, menu: Menu, state: SubmenuState) -> Self {
+        let mut menu = menu;
+        menu.hover_guard = Some(state.clone());
         self.submenu = Some(Submenu {
             menu: Box::new(menu),
             state,
@@ -113,6 +175,8 @@ pub struct Menu {
     action: Option<Action>,
     priority: usize,
     deferred: bool,
+    scrollbar: Option<Entity<Scrollbar>>,
+    hover_guard: Option<SubmenuState>,
 }
 
 impl Menu {
@@ -125,6 +189,8 @@ impl Menu {
             action: None,
             priority: 1,
             deferred: true,
+            scrollbar: None,
+            hover_guard: None,
         }
     }
 
@@ -159,6 +225,11 @@ impl Menu {
         self
     }
 
+    pub fn scrollbar(mut self, scrollbar: Entity<Scrollbar>) -> Self {
+        self.scrollbar = Some(scrollbar);
+        self
+    }
+
     fn inline(mut self) -> Self {
         self.deferred = false;
         self
@@ -188,10 +259,23 @@ impl RenderOnce for Menu {
             action,
             priority,
             deferred: should_defer,
+            scrollbar,
+            hover_guard,
         } = self;
+
+        if let (Some(scrollbar), Some(guard)) = (scrollbar.as_ref(), hover_guard.clone()) {
+            scrollbar.update(cx, |scrollbar, _| {
+                scrollbar
+                    .set_hover_guard(move |hovered, window, cx| guard.hover(hovered, window, cx));
+            });
+        }
 
         let theme = *cx.theme();
         let overrides = std::mem::take(base.style());
+        let dismiss_guards: Vec<_> = items
+            .iter()
+            .filter_map(|item| item.submenu.as_ref().map(|submenu| submenu.state.clone()))
+            .collect();
 
         let rows = items.into_iter().map(move |item| {
             let MenuItem {
@@ -199,17 +283,33 @@ impl RenderOnce for Menu {
                 label,
                 selected,
                 disabled,
+                separator,
+                icon,
                 press,
                 submenu,
             } = item;
+
+            if separator {
+                return div()
+                    .id(id)
+                    .h(px(1.))
+                    .flex_none()
+                    .mx_2()
+                    .my_1()
+                    .bg(theme.border)
+                    .into_any_element();
+            }
             let action = action.clone();
             let press_action = action.clone();
             let submenu_state = submenu.as_ref().map(|submenu| submenu.state.clone());
+            let item_hover_guard = hover_guard.clone();
 
             div()
                 .id(id)
                 .relative()
                 .flex()
+                .w_full()
+                .min_w_0()
                 .items_center()
                 .justify_between()
                 .px_3()
@@ -224,11 +324,34 @@ impl RenderOnce for Menu {
                 .when(!disabled, |this| {
                     this.hover(move |this| this.bg(theme.secondary_hover))
                 })
-                .child(label)
+                .child(
+                    div()
+                        .flex()
+                        .min_w_0()
+                        .items_center()
+                        .gap_2()
+                        .when_some(icon, |this, icon| {
+                            this.child(svg().path(icon).size(px(14.)).flex_none().text_color(
+                                if disabled {
+                                    theme.muted_foreground
+                                } else {
+                                    theme.popover_foreground
+                                },
+                            ))
+                        })
+                        .child(div().truncate().child(label)),
+                )
                 .when(selected, |this| this.child(CHECK))
                 .when(submenu.is_some(), |this| this.child("›"))
                 .when_some(submenu_state, |this, state| {
-                    this.on_hover(move |hovered, _, cx| state.hover(*hovered, cx))
+                    this.on_hover(move |hovered, window, cx| {
+                        state.hover(*hovered, window.window_handle(), cx)
+                    })
+                })
+                .when_some(item_hover_guard, |this, state| {
+                    this.on_hover(move |hovered, window, cx| {
+                        state.hover(*hovered, window.window_handle(), cx)
+                    })
                 })
                 .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                 .when_some(press, |this, press| {
@@ -244,19 +367,70 @@ impl RenderOnce for Menu {
                         submenu.menu.action = action.clone();
                     }
                     let open = submenu.state.is_open();
-                    let state = submenu.state.clone();
+                    let panel_state = submenu.state.clone();
+                    let safe_state = submenu.state.clone();
+                    let bounds_state = submenu.state.clone();
                     this.child(
-                        submenu
-                            .menu
-                            .inline()
-                            .top(px(-4.))
+                        div()
+                            .on_children_prepainted(move |bounds, _, _| {
+                                if let Some(bounds) = bounds.into_iter().reduce(|a, b| a.union(&b))
+                                {
+                                    bounds_state.observe_panel(bounds);
+                                }
+                            })
+                            .id("submenu-safe-area")
+                            .occlude()
+                            .absolute()
+                            .top(px(-16.))
                             .left_full()
-                            .ml_1()
+                            .pl_1()
+                            .pt_3()
+                            .pr_3()
+                            .pb_3()
                             .when(!open, |this| this.invisible())
-                            .on_hover(move |hovered, _, cx| state.hover(*hovered, cx)),
+                            .on_hover(move |hovered, window, cx| {
+                                safe_state.hover(*hovered, window.window_handle(), cx)
+                            })
+                            .child(submenu.menu.inline().relative().on_hover(
+                                move |hovered, window, cx| {
+                                    panel_state.hover(*hovered, window.window_handle(), cx)
+                                },
+                            )),
                     )
                 })
+                .into_any_element()
         });
+
+        let content = match scrollbar.as_ref() {
+            Some(scrollbar) => div()
+                .id("menu-scroll-content")
+                .flex()
+                .flex_1()
+                .w_full()
+                .min_w_0()
+                .min_h_0()
+                .flex_col()
+                .pr(SCROLLBAR_GUTTER)
+                .overflow_y_scroll()
+                .track_scroll(scrollbar.read(cx).scroll())
+                .children(rows)
+                .into_any_element(),
+            None => div().flex().flex_col().children(rows).into_any_element(),
+        };
+        let body = match scrollbar {
+            Some(scrollbar) => div()
+                .relative()
+                .flex()
+                .flex_1()
+                .w_full()
+                .min_w_0()
+                .min_h_0()
+                .overflow_hidden()
+                .child(content)
+                .child(scrollbar)
+                .into_any_element(),
+            None => content,
+        };
 
         let mut menu = base
             .absolute()
@@ -271,9 +445,16 @@ impl RenderOnce for Menu {
             .text_color(theme.popover_foreground)
             .occlude()
             .when_some(dismiss, |this, dismiss| {
-                this.on_mouse_down_out(move |event, window, cx| dismiss(event, window, cx))
+                this.on_mouse_down_out(move |event, window, cx| {
+                    if !dismiss_guards
+                        .iter()
+                        .any(|guard| guard.contains(event.position))
+                    {
+                        dismiss(event, window, cx);
+                    }
+                })
             })
-            .children(rows);
+            .child(body);
 
         menu.style().refine(&overrides);
 

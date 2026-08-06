@@ -1,7 +1,7 @@
 use gpui::prelude::*;
 use gpui::{
     AnyElement, App, Context, Entity, FontWeight, Pixels, Render, ScrollHandle, SharedString,
-    Window, div,
+    Window, div, px,
 };
 
 use spotify::Track;
@@ -55,7 +55,17 @@ impl DetailView {
         let scroll = scrollbar.read(cx).scroll().clone();
 
         let table = cx.new(|cx| {
-            let source = TrackSource::new(columns, DetailTracks(detail.clone()), playback.clone());
+            let playlist_scrollbar = cx.new(|_| {
+                Scrollbar::new(ScrollHandle::new())
+                    .always_visible()
+                    .track_inset(px(4.))
+            });
+            let source = TrackSource::new(
+                columns,
+                DetailTracks(detail.clone()),
+                playback.clone(),
+                playlist_scrollbar,
+            );
             GridState::new(GridDelegate::new(source, width, cx), cx).follow(scroll)
         });
 

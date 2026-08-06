@@ -102,10 +102,16 @@ impl LibraryView {
         let scroll = scrollbar.read(cx).scroll().clone();
 
         let tracks = cx.new(|cx| {
+            let playlist_scrollbar = cx.new(|_| {
+                Scrollbar::new(ScrollHandle::new())
+                    .always_visible()
+                    .track_inset(px(4.))
+            });
             let source = TrackSource::new(
                 LIBRARY_COLUMNS,
                 LibraryTracks(library.clone()),
                 playback.clone(),
+                playlist_scrollbar,
             );
             let mut delegate = GridDelegate::new(source, width, cx).with_sort(
                 TrackField::AddedAt,
