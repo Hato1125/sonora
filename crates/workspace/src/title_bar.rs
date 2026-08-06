@@ -1,8 +1,8 @@
 use gpui::prelude::*;
 use gpui::{AnyView, Context, Entity, MouseButton, Pixels, Render};
 use gpui::{Window, div, px, svg};
-use ui::ActiveTheme as _;
 use ui::WindowControls;
+use ui::{ActiveTheme as _, Button};
 
 use router::Navigation;
 use state::{AppSettings, Spotty};
@@ -109,9 +109,6 @@ impl TitleBar {
 
     fn toggle(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let sidebar = self.sidebar.clone();
-        let hover = cx.theme().sidebar_accent;
-        let icon_color = cx.theme().foreground;
-        let radius = cx.theme().radius;
         let icon = if sidebar.read(cx).is_open() {
             "icons/panel-right-close.svg"
         } else {
@@ -125,16 +122,11 @@ impl TitleBar {
             .occlude()
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
             .child(
-                div()
-                    .id("sidebar-toggle")
+                Button::new("sidebar-toggle")
+                    .ghost()
                     .flex()
-                    .size_8()
-                    .items_center()
-                    .justify_center()
-                    .rounded(radius)
-                    .cursor_pointer()
-                    .hover(move |this| this.bg(hover))
-                    .child(svg().path(icon).size_4().text_color(icon_color))
+                    .small()
+                    .icon(icon)
                     .on_click(move |_, _, cx| {
                         sidebar.update(cx, |sidebar, cx| sidebar.toggle(cx));
                     }),
