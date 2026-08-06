@@ -3,10 +3,11 @@ use std::cmp::Ordering;
 use gpui::prelude::*;
 use gpui::{
     AbsoluteLength, AnyElement, App, Context, Corners, Div, Entity, EventEmitter, FocusHandle,
-    Focusable, Interactivity, MouseButton, MouseDownEvent, Pixels, ScrollHandle, StyleRefinement,
-    TextAlign, Window, actions, div, point, px, svg,
+    Focusable, Interactivity, MouseButton, MouseDownEvent, Pixels, Point, ScrollHandle,
+    StyleRefinement, TextAlign, Window, actions, anchored, div, point, px, svg,
 };
 
+use crate::menu::Menu;
 use crate::metrics::{Metrics, snapped};
 use crate::theme::ActiveTheme as _;
 
@@ -89,6 +90,10 @@ pub trait GridSource: 'static {
     fn columns(&self) -> &'static [ColumnSpec<Self::Field>];
     fn rows(&self, cx: &App) -> usize;
     fn cell(&self, cell: Cell<Self::Field>, cx: &mut App) -> AnyElement;
+
+    fn context_menu(&self, _row: usize, _cx: &App) -> Option<Menu> {
+        None
+    }
 
     fn compare(&self, _field: Self::Field, a: usize, b: usize, _cx: &App) -> Ordering {
         a.cmp(&b)
@@ -333,6 +338,7 @@ pub struct GridState<S: GridSource> {
     corners: Corners<Pixels>,
     focus: FocusHandle,
     scroll: Option<ScrollHandle>,
+    context_menu: Option<(usize, Point<Pixels>)>,
 }
 
 impl<S: GridSource> EventEmitter<GridEvent> for GridState<S> {}
@@ -351,6 +357,7 @@ impl<S: GridSource> GridState<S> {
             corners: Corners::default(),
             focus: cx.focus_handle(),
             scroll: None,
+            context_menu: None,
         }
     }
 
@@ -596,6 +603,16 @@ impl<S: GridSource> GridState<S> {
                             cx.notify();
                         }),
                     )
+                    .on_mouse_down(
+                        MouseButton::Right,
+                        cx.listener(move |this, event: &MouseDownEvent, window, cx| {
+                            if this.delegate.source.context_menu(row, cx).is_some() {
+                                window.prevent_default();
+                                this.context_menu = Some((row, event.position));
+                                cx.notify();
+                            }
+                        }),
+                    )
                     .children(cells)
                     .into_any_element()
             })
@@ -648,6 +665,23 @@ impl<S: GridSource> Render for GridState<S> {
         let height = self.height(head, row);
         let pinned = self.viewport.top.clamp(Pixels::ZERO, height - head);
         let top = unpinned(self.corners, pinned);
+        let context_menu = self.context_menu.and_then(|(row, position)| {
+            self.delegate.source.context_menu(row, cx).map(|menu| {
+                anchored()
+                    .position(position)
+                    .snap_to_window_with_margin(px(8.))
+                    .child(
+                        menu.on_action(cx.listener(|this, _, _, cx| {
+                            this.context_menu = None;
+                            cx.notify();
+                        }))
+                        .on_dismiss(cx.listener(|this, _, _, cx| {
+                            this.context_menu = None;
+                            cx.notify();
+                        })),
+                    )
+            })
+        });
 
         div()
             .key_context(GRID_CONTEXT)
@@ -678,6 +712,7 @@ impl<S: GridSource> Render for GridState<S> {
                     .rounded_tr(top.top_right)
                     .child(self.header(head, top, cx)),
             )
+            .when_some(context_menu, |this, menu| this.child(menu))
     }
 }
 

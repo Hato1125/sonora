@@ -27,7 +27,7 @@ pub use grid::{
 };
 pub use inline_links::{InlineLink, InlineLinks};
 pub use label::{eyebrow, heading};
-pub use menu::{Menu, MenuItem};
+pub use menu::{Menu, MenuItem, SubmenuState};
 pub use metrics::{Metrics, Rounding, Text, snapped};
 pub use palette::tint;
 pub use scrollbar::{Scrollbar, scrolled};
