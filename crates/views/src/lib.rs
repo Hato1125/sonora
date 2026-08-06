@@ -1,3 +1,4 @@
+mod adaptive;
 mod artist;
 mod cells;
 mod columns;
@@ -13,6 +14,7 @@ mod search;
 mod settings;
 mod tracks;
 
+use adaptive::Adaptive;
 use artist::ArtistView;
 pub use columns::ColumnPicker;
 use detail::DetailView;
