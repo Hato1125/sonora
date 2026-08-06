@@ -1,8 +1,14 @@
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use anyhow::Result;
 use audio::{AudioEvent, AudioEvents, Engine, EngineConfig};
 use gpui::{Context, Entity, EventEmitter, Task};
-use spotify::Track;
+use spotify::{SpotifyApi, Track};
+
+type Fetch = Pin<Box<dyn Future<Output = Result<Vec<Track>>> + Send>>;
 
 use crate::queue::Queue;
 use crate::{AppSettings, Io, Session, SessionEvent, join};
@@ -35,8 +41,15 @@ pub enum PlaybackEvent {
     EndedPlayback,
 }
 
+#[derive(Clone, PartialEq, Eq)]
+pub enum Origin {
+    Album(String),
+    Playlist(String),
+}
+
 pub struct Playback {
     state: PlaybackState,
+    origin: Option<Origin>,
     position: Duration,
     track: Option<Track>,
     engine: Option<Engine>,
@@ -76,6 +89,7 @@ impl Playback {
 
         Self {
             state: PlaybackState::Idle,
+            origin: None,
             position: Duration::ZERO,
             track: None,
             engine: None,
@@ -128,30 +142,67 @@ impl Playback {
     }
 
     pub fn start(&mut self, tracks: Vec<Track>, index: usize, cx: &mut Context<Self>) {
+        self.begin(tracks, index, None, cx);
+    }
+
+    pub fn play_album(&mut self, album: &str, cx: &mut Context<Self>) {
+        let origin = Origin::Album(album.to_owned());
+        let album = album.to_owned();
+        self.gather(origin, cx, move |client| {
+            Box::pin(async move { client.album_tracks(&album).await })
+        });
+    }
+
+    pub fn play_playlist(&mut self, playlist: &str, cx: &mut Context<Self>) {
+        let origin = Origin::Playlist(playlist.to_owned());
+        let playlist = playlist.to_owned();
+        self.gather(origin, cx, move |client| {
+            Box::pin(async move { client.playlist_tracks(&playlist).await })
+        });
+    }
+
+    pub fn origin(&self) -> Option<&Origin> {
+        self.origin.as_ref()
+    }
+
+    pub fn playing_from(&self, origin: &Origin) -> Option<PlaybackState> {
+        (self.origin.as_ref() == Some(origin)).then(|| self.state.clone())
+    }
+
+    fn begin(
+        &mut self,
+        tracks: Vec<Track>,
+        index: usize,
+        origin: Option<Origin>,
+        cx: &mut Context<Self>,
+    ) {
         let Some(track) = self
             .queue
             .update(cx, |queue, cx| queue.start(tracks, index, cx))
         else {
             return;
         };
+        self.origin = origin;
         self.play(&track, cx);
     }
 
-    pub fn play_album(&mut self, album: &str, cx: &mut Context<Self>) {
+    fn gather<F>(&mut self, origin: Origin, cx: &mut Context<Self>, tracks: F)
+    where
+        F: FnOnce(Arc<dyn SpotifyApi>) -> Fetch + Send + 'static,
+    {
         let Some(client) = self.session.read(cx).client() else {
             return;
         };
 
         let io = Io::global(cx);
-        let album = album.to_owned();
         self.state = PlaybackState::Loading;
         cx.notify();
 
         self.fetch = Some(cx.spawn(async move |this, cx| {
-            let loaded = join(io.spawn(async move { client.album_tracks(&album).await })).await;
+            let loaded = join(io.spawn(async move { tracks(client).await })).await;
 
             this.update(cx, |this, cx| match loaded {
-                Ok(tracks) => this.start(tracks, 0, cx),
+                Ok(tracks) => this.begin(tracks, 0, Some(origin), cx),
                 Err(error) => this.failed(format!("{error:#}"), cx),
             })
             .ok();
@@ -353,6 +404,7 @@ impl Playback {
         self.blocked_until = None;
         self.engine = None;
         self.track = None;
+        self.origin = None;
         self.state = PlaybackState::Idle;
         self.position = Duration::ZERO;
         cx.notify();
