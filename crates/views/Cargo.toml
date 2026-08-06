@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 gpui.workspace = true
+jiff.workspace = true
 spotify.workspace = true
 input.workspace = true
 router.workspace = true

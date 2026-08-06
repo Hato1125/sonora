@@ -140,6 +140,12 @@ impl<S: GridSource> GridDelegate<S> {
         &self.source
     }
 
+    pub fn with_sort(mut self, field: S::Field, direction: Sort, cx: &App) -> Self {
+        self.sort = Some((field, direction));
+        self.reorder(cx);
+        self
+    }
+
     pub fn set_width(&mut self, width: Pixels, cx: &App) {
         self.width = width;
         self.relayout(cx);

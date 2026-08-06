@@ -22,6 +22,7 @@ const HOVER_PRELOAD_DELAY: Duration = Duration::from_millis(200);
 
 pub(crate) const NUMBER: Pixels = px(44.);
 pub(crate) const TRAILING: Pixels = px(72.);
+pub(crate) const DATE: Pixels = px(112.);
 pub(crate) const YEAR: Pixels = px(64.);
 pub(crate) const HIT: Pixels = px(18.);
 

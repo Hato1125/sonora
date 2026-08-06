@@ -3,12 +3,13 @@ use std::rc::Rc;
 use ui::ActiveTheme as _;
 
 use gpui::{AnyElement, App, Entity, Hsla, TextAlign};
+use jiff::Timestamp;
 use router::Destination;
 use spotify::Track;
 use state::{Playback, PlaybackState};
 use ui::{Cell, ColumnSpec, GridSource, Width, clock};
 
-use crate::cells::{self, ALWAYS, NUMBER, ROOMY, SNUG, TRAILING, WIDE};
+use crate::cells::{self, ALWAYS, DATE, NUMBER, ROOMY, SNUG, TRAILING, WIDE};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TrackField {
@@ -17,6 +18,7 @@ pub(crate) enum TrackField {
     Title,
     Artists,
     Album,
+    AddedAt,
     Duration,
 }
 
@@ -67,6 +69,16 @@ pub(crate) const LIBRARY_COLUMNS: &[ColumnSpec<TrackField>] = &[
         header: "Album",
         align: TextAlign::Left,
         width: Width::Fill(0.29),
+        flush: false,
+        sortable: true,
+        hide_below: WIDE,
+    },
+    ColumnSpec {
+        field: TrackField::AddedAt,
+        key: "added-at",
+        header: "Date added",
+        align: TextAlign::Left,
+        width: Width::Fixed(DATE),
         flush: false,
         sortable: true,
         hide_below: WIDE,
@@ -258,6 +270,15 @@ impl GridSource for TrackSource {
             TrackField::Title => cells::title(&cell, track.name.clone(), title, track.explicit),
             TrackField::Artists => self.artist_cell(&cell, track, detail),
             TrackField::Album => self.album_cell(&cell, track, detail),
+            TrackField::AddedAt => cells::dim(
+                &cell,
+                track
+                    .added_at
+                    .and_then(|seconds| Timestamp::new(seconds, 0).ok())
+                    .map(|timestamp| timestamp.strftime("%b %-d, %Y").to_string())
+                    .unwrap_or_default(),
+                detail,
+            ),
             TrackField::Duration => cells::dim(&cell, clock(track.duration), detail),
             TrackField::Index => cells::blank(&cell),
         }
@@ -278,6 +299,10 @@ impl GridSource for TrackSource {
                 text(a, |track| &track.artists).cmp(&text(b, |track| &track.artists))
             }
             TrackField::Album => text(a, |track| &track.album).cmp(&text(b, |track| &track.album)),
+            TrackField::AddedAt => tracks
+                .get(a)
+                .and_then(|track| track.added_at)
+                .cmp(&tracks.get(b).and_then(|track| track.added_at)),
             TrackField::Duration => tracks
                 .get(a)
                 .map(|track| track.duration)
