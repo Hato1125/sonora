@@ -112,8 +112,7 @@ impl DetailView {
     fn rebuild(&mut self, cx: &mut Context<Self>) {
         self.table.update(cx, |table, cx| {
             table.delegate_mut().clear_selection();
-            table.delegate_mut().rebuild(cx);
-            table.refresh(cx);
+            table.rebuild(cx);
         });
     }
 

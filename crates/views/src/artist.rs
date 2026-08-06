@@ -137,8 +137,7 @@ impl ArtistView {
 
     fn rebuild(&mut self, cx: &mut Context<Self>) {
         self.table.update(cx, |table, cx| {
-            table.delegate_mut().rebuild(cx);
-            table.refresh(cx);
+            table.rebuild(cx);
         });
     }
 

@@ -171,7 +171,7 @@ impl<S: GridSource> GridDelegate<S> {
         self.relayout(cx);
     }
 
-    pub fn rebuild(&mut self, cx: &App) {
+    fn rebuild(&mut self, cx: &App) {
         self.relayout(cx);
         self.reorder(cx);
     }
@@ -446,6 +446,12 @@ impl<S: GridSource> GridState<S> {
     }
 
     pub fn refresh(&mut self, cx: &mut Context<Self>) {
+        cx.notify();
+    }
+
+    pub fn rebuild(&mut self, cx: &mut Context<Self>) {
+        self.context_menu = None;
+        self.delegate.rebuild(cx);
         cx.notify();
     }
 

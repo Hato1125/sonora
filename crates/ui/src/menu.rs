@@ -5,8 +5,8 @@ use std::time::Duration;
 use gpui::prelude::*;
 use gpui::{
     AnyWindowHandle, App, Bounds, ClickEvent, Div, ElementId, Entity, Interactivity, MouseButton,
-    MouseDownEvent, Pixels, Point, SharedString, Size, Stateful, StyleRefinement, Window, deferred,
-    div, px, svg,
+    MouseDownEvent, Pixels, Point, SharedString, Size, Stateful, StyleRefinement, Window, anchored,
+    deferred, div, px, svg,
 };
 
 use crate::Artwork;
@@ -385,30 +385,40 @@ impl RenderOnce for Menu {
                     let bounds_state = submenu.state.clone();
                     this.child(
                         div()
-                            .on_children_prepainted(move |bounds, _, _| {
-                                if let Some(bounds) = bounds.into_iter().reduce(|a, b| a.union(&b))
-                                {
-                                    bounds_state.observe_panel(bounds);
-                                }
-                            })
-                            .id("submenu-safe-area")
-                            .occlude()
                             .absolute()
                             .top(px(-16.))
                             .left_full()
-                            .pl_1()
-                            .pt_3()
-                            .pr_3()
-                            .pb_3()
                             .when(!open, |this| this.invisible())
-                            .on_hover(move |hovered, window, cx| {
-                                safe_state.hover(*hovered, window.window_handle(), cx)
-                            })
-                            .child(submenu.menu.inline().relative().on_hover(
-                                move |hovered, window, cx| {
-                                    panel_state.hover(*hovered, window.window_handle(), cx)
-                                },
-                            )),
+                            .child(
+                                anchored().snap_to_window_with_margin(px(8.)).child(
+                                    div()
+                                        .on_children_prepainted(move |bounds, _, _| {
+                                            if let Some(bounds) =
+                                                bounds.into_iter().reduce(|a, b| a.union(&b))
+                                            {
+                                                bounds_state.observe_panel(bounds);
+                                            }
+                                        })
+                                        .id("submenu-safe-area")
+                                        .occlude()
+                                        .pl_1()
+                                        .pt_3()
+                                        .pr_3()
+                                        .pb_3()
+                                        .on_hover(move |hovered, window, cx| {
+                                            safe_state.hover(*hovered, window.window_handle(), cx)
+                                        })
+                                        .child(submenu.menu.inline().relative().on_hover(
+                                            move |hovered, window, cx| {
+                                                panel_state.hover(
+                                                    *hovered,
+                                                    window.window_handle(),
+                                                    cx,
+                                                )
+                                            },
+                                        )),
+                                ),
+                            ),
                     )
                 })
                 .into_any_element()

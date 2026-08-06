@@ -340,16 +340,13 @@ impl LibraryView {
 
     fn rebuild(&mut self, cx: &mut Context<Self>) {
         self.tracks.update(cx, |table, cx| {
-            table.delegate_mut().rebuild(cx);
-            table.refresh(cx);
+            table.rebuild(cx);
         });
         self.albums.update(cx, |table, cx| {
-            table.delegate_mut().rebuild(cx);
-            table.refresh(cx);
+            table.rebuild(cx);
         });
         self.playlists.update(cx, |table, cx| {
-            table.delegate_mut().rebuild(cx);
-            table.refresh(cx);
+            table.rebuild(cx);
         });
     }
 }
