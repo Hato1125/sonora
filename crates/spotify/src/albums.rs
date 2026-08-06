@@ -26,6 +26,15 @@ pub async fn saved_albums(session: &Session, limit: u32) -> Result<Vec<Album>> {
 }
 
 pub async fn album(session: &Session, album_id: &str) -> Result<AlbumDetail> {
+    match plays::album(session, album_id).await {
+        Ok(album) => return Ok(album),
+        Err(error) => log::warn!("albums: cannot load Pathfinder album: {error:#}"),
+    }
+
+    legacy_album(session, album_id).await
+}
+
+async fn legacy_album(session: &Session, album_id: &str) -> Result<AlbumDetail> {
     let uri = format!("{ALBUM_PREFIX}{album_id}");
     let request = batched(std::slice::from_ref(&uri));
     let response = session
@@ -45,22 +54,13 @@ pub async fn album(session: &Session, album_id: &str) -> Result<AlbumDetail> {
         .into_iter()
         .map(|id| format!("{TRACK_PREFIX}{id}"))
         .collect();
-    let mut tracks = match uris.is_empty() {
+    let tracks = match uris.is_empty() {
         true => Vec::new(),
         false => {
             let mut known = collection::metadata(session, &uris).await?;
             uris.iter().filter_map(|uri| known.remove(uri)).collect()
         }
     };
-    match plays::album(session, album_id).await {
-        Ok(plays) => {
-            for track in &mut tracks {
-                track.playcount = track.id.as_ref().and_then(|id| plays.get(id).copied());
-            }
-        }
-        Err(error) => log::warn!("albums: cannot load play counts: {error:#}"),
-    }
-
     Ok(AlbumDetail { album, tracks })
 }
 
