@@ -29,6 +29,8 @@ struct Appearance {
     theme: String,
     rounding: String,
     font_size: f32,
+    window_controls: bool,
+    controls_on_left: bool,
     theme_overrides: ThemeOverrides,
 }
 
@@ -52,6 +54,8 @@ impl Default for Appearance {
             theme: "dark".to_owned(),
             rounding: "subtle".to_owned(),
             font_size: DEFAULT_FONT_SIZE,
+            window_controls: true,
+            controls_on_left: false,
             theme_overrides: ThemeOverrides::default(),
         }
     }
@@ -113,6 +117,14 @@ impl AppSettings {
         &self.values.appearance.rounding
     }
 
+    pub fn window_controls(&self) -> bool {
+        self.values.appearance.window_controls
+    }
+
+    pub fn controls_on_left(&self) -> bool {
+        self.values.appearance.controls_on_left
+    }
+
     pub fn font_size(&self) -> f32 {
         self.values
             .appearance
@@ -159,6 +171,16 @@ impl AppSettings {
 
     pub fn set_rounding(&mut self, rounding: impl Into<String>, cx: &mut Context<Self>) {
         self.values.appearance.rounding = rounding.into();
+        self.schedule_save(cx);
+    }
+
+    pub fn set_window_controls(&mut self, shown: bool, cx: &mut Context<Self>) {
+        self.values.appearance.window_controls = shown;
+        self.schedule_save(cx);
+    }
+
+    pub fn set_controls_on_left(&mut self, left: bool, cx: &mut Context<Self>) {
+        self.values.appearance.controls_on_left = left;
         self.schedule_save(cx);
     }
 

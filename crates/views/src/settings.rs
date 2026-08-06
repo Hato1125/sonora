@@ -1,12 +1,12 @@
 use std::path::Path;
 use std::process::Command;
 
-use gpui::prelude::*;
 use gpui::{
     AnyElement, Context, Entity, FontWeight, Pixels, Render, SharedString, Window, div, px,
 };
+use gpui::{ScrollHandle, prelude::*};
 use state::{AppSettings, Playback, Session, SessionState, Spotty};
-use ui::ActiveTheme as _;
+use ui::{ActiveTheme as _, Scrollbar};
 use ui::{
     Button, Initials, Look, MAX_FONT, MIN_FONT, Menu, MenuItem, Rounding, Skeleton, Text, Theme,
     ThemeKind,
@@ -36,6 +36,7 @@ pub struct SettingsView {
     playback: Entity<Playback>,
     settings: Entity<AppSettings>,
     tab: Tab,
+    scrollbar: Entity<Scrollbar>,
     themes_open: bool,
     corners_open: bool,
 }
@@ -55,6 +56,7 @@ impl SettingsView {
             playback,
             settings,
             tab: Tab::Appearance,
+            scrollbar: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
             themes_open: false,
             corners_open: false,
         }
@@ -83,7 +85,11 @@ impl SettingsView {
                 self.corners_row(cx).into_any_element(),
                 self.font_row(cx).into_any_element(),
                 self.auto_hide_row(cx).into_any_element(),
-            ],
+            ]
+            .into_iter()
+            .chain(decorated().then(|| self.decorations_row(cx).into_any_element()))
+            .chain(decorated().then(|| self.side_row(cx).into_any_element()))
+            .collect(),
             Tab::Playback => vec![self.playback_row(cx).into_any_element()],
             Tab::Account => vec![self.account_row(cx).into_any_element()],
         };
@@ -207,6 +213,55 @@ impl SettingsView {
             muted,
             small,
             actions.into_any_element(),
+        )
+    }
+
+    fn decorations_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+        let muted = theme.muted_foreground;
+        let small = theme.text(Text::Small);
+        let on = self.settings.read(cx).window_controls();
+
+        self.row(
+            "Window controls",
+            "Draw minimise, maximise and close in the title bar",
+            muted,
+            small,
+            Button::new("window-controls")
+                .label(if on { "On" } else { "Off" })
+                .small()
+                .outline()
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.settings
+                        .update(cx, |settings, cx| settings.set_window_controls(!on, cx));
+                }))
+                .into_any_element(),
+        )
+    }
+
+    fn side_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+        let muted = theme.muted_foreground;
+        let small = theme.text(Text::Small);
+        let settings = self.settings.read(cx);
+        let left = settings.controls_on_left();
+        let shown = settings.window_controls();
+
+        self.row(
+            "Controls side",
+            "Which end of the title bar the controls sit on",
+            muted,
+            small,
+            Button::new("controls-side")
+                .label(if left { "Left" } else { "Right" })
+                .small()
+                .outline()
+                .disabled(!shown)
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.settings
+                        .update(cx, |settings, cx| settings.set_controls_on_left(!left, cx));
+                }))
+                .into_any_element(),
         )
     }
 
@@ -417,6 +472,10 @@ impl SettingsView {
     }
 }
 
+fn decorated() -> bool {
+    cfg!(not(target_os = "macos"))
+}
+
 fn open_settings_file(path: &Path) -> std::io::Result<()> {
     #[cfg(target_os = "windows")]
     Command::new("cmd")
@@ -436,25 +495,34 @@ fn open_settings_file(path: &Path) -> std::io::Result<()> {
 impl Render for SettingsView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let border = cx.theme().border;
+        let scroll = self.scrollbar.read(cx).scroll().clone();
 
         div()
-            .flex()
-            .flex_col()
-            .items_center()
+            .relative()
             .size_full()
-            .overflow_hidden()
             .child(
                 div()
+                    .id("settings")
                     .flex()
                     .flex_col()
-                    .gap_6()
-                    .w_full()
-                    .max_w(px(640.))
-                    .p_6()
-                    .child(self.profile(cx))
-                    .child(div().h(px(1.)).w_full().bg(border))
-                    .child(self.tabs(cx))
-                    .child(self.panel(cx)),
+                    .items_center()
+                    .size_full()
+                    .overflow_y_scroll()
+                    .track_scroll(&scroll)
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .gap_6()
+                            .w_full()
+                            .max_w(px(640.))
+                            .p_6()
+                            .child(self.profile(cx))
+                            .child(div().h(px(1.)).w_full().bg(border))
+                            .child(self.tabs(cx))
+                            .child(self.panel(cx)),
+                    ),
             )
+            .child(self.scrollbar.clone())
     }
 }

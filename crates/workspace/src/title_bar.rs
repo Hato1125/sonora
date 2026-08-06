@@ -2,8 +2,10 @@ use gpui::prelude::*;
 use gpui::{AnyView, Context, Entity, MouseButton, Pixels, Render};
 use gpui::{Window, div, px, svg};
 use ui::ActiveTheme as _;
+use ui::WindowControls;
 
 use router::Navigation;
+use state::{AppSettings, Spotty};
 
 use crate::Sidebar;
 
@@ -15,18 +17,22 @@ const TITLE_BAR_LEFT_INSET: f32 = 12.;
 pub struct TitleBar {
     sidebar: Entity<Sidebar>,
     navigation: Entity<Navigation>,
+    settings: Entity<AppSettings>,
     content: Option<AnyView>,
 }
 
 impl TitleBar {
     pub fn new(sidebar: Entity<Sidebar>, cx: &mut Context<Self>) -> Self {
         let navigation = router::trail(cx);
+        let settings = Spotty::global(cx).settings.clone();
 
         cx.observe(&sidebar, |_, _, cx| cx.notify()).detach();
         cx.observe(&navigation, |_, _, cx| cx.notify()).detach();
+        cx.observe(&settings, |_, _, cx| cx.notify()).detach();
         Self {
             sidebar,
             navigation,
+            settings,
             content: None,
         }
     }
@@ -141,6 +147,9 @@ impl Render for TitleBar {
         let theme = cx.theme();
         let height = ui::snapped(theme.metrics.title_bar, window);
         let offset = self.sidebar.read(cx).occupied_width();
+        let settings = self.settings.read(cx);
+        let decorated = cfg!(not(target_os = "macos")) && settings.window_controls();
+        let leading = decorated && settings.controls_on_left();
 
         div()
             .flex()
@@ -155,12 +164,15 @@ impl Render for TitleBar {
             .on_mouse_down(MouseButton::Left, |_, window, _| {
                 window.start_window_move();
             })
+            .when(leading, |this| {
+                this.child(div().flex_none().pl_2().child(WindowControls::new(true)))
+            })
             .child(
                 div()
                     .flex()
                     .flex_none()
                     .items_center()
-                    .pl(px(TITLE_BAR_LEFT_INSET))
+                    .when(!leading, |this| this.pl(px(TITLE_BAR_LEFT_INSET)))
                     .pr_3()
                     .gap_1()
                     .when(offset > Pixels::ZERO, |this| this.w(offset))
@@ -177,5 +189,8 @@ impl Render for TitleBar {
                     .children(self.content.clone())
                     .pr_3(),
             )
+            .when(decorated && !leading, |this| {
+                this.child(div().flex_none().pr_2().child(WindowControls::new(false)))
+            })
     }
 }

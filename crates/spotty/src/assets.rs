@@ -33,6 +33,10 @@ const ICONS: &[(&str, &[u8])] = icons![
     "volume-1",
     "volume-2",
     "volume-x",
+    "window-close",
+    "window-maximize",
+    "window-minimize",
+    "window-restore",
     "x",
 ];
 

@@ -123,6 +123,7 @@ impl Render for Scrollbar {
                     .id("scrollbar-thumb")
                     .absolute()
                     .top(travel * progress)
+                    .right_1()
                     .w(BAR)
                     .h(thumb)
                     .rounded_full()
