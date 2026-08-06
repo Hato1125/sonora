@@ -120,6 +120,7 @@ mod tests {
             album_id: None,
             cover: None,
             duration: Duration::from_secs(180),
+            added_at: None,
             popularity: 0,
             explicit: false,
         }
