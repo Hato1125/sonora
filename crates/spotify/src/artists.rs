@@ -112,8 +112,70 @@ fn artist_from(artist: &ArtistMessage, top_tracks: Vec<Track>, albums: Vec<Album
             .min_by_key(|image| image_width(image))
             .or_else(|| portraits.iter().max_by_key(|image| image_width(image)))
             .and_then(|image| wire::image_url(image.file_id())),
+        biography: artist.biography.iter().find_map(|bio| {
+            bio.text
+                .as_deref()
+                .filter(|text| !text.is_empty())
+                .map(plain_text)
+                .filter(|text| !text.is_empty())
+        }),
         top_tracks,
         albums,
+    }
+}
+
+fn plain_text(html: &str) -> String {
+    let mut text = String::with_capacity(html.len());
+    let mut tag = String::new();
+    let mut inside_tag = false;
+
+    for character in html.chars() {
+        match character {
+            '<' if !inside_tag => {
+                inside_tag = true;
+                tag.clear();
+            }
+            '>' if inside_tag => {
+                inside_tag = false;
+                let tag = tag.trim().to_ascii_lowercase();
+                if (tag.starts_with("br")
+                    || tag.starts_with("/p")
+                    || tag.starts_with("/li")
+                    || tag.starts_with("/div"))
+                    && !text.ends_with(char::is_whitespace)
+                {
+                    text.push(' ');
+                }
+            }
+            _ if inside_tag => tag.push(character),
+            _ => text.push(character),
+        }
+    }
+
+    let decoded = text
+        .replace("&nbsp;", " ")
+        .replace("&amp;", "&")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&apos;", "'")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">");
+
+    decoded.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::plain_text;
+
+    #[test]
+    fn biography_html_becomes_readable_text() {
+        assert_eq!(
+            plain_text(
+                "Formed by <a href=\"spotify:artist:abc\">Alice &amp; Bob</a>.<br>Based in Paris."
+            ),
+            "Formed by Alice & Bob. Based in Paris."
+        );
     }
 }
 

@@ -291,18 +291,24 @@ pub(crate) fn title<F>(
     value: impl Into<SharedString>,
     color: Option<Hsla>,
     explicit: bool,
+    song_id: Option<String>,
 ) -> AnyElement {
-    if !explicit {
-        return line(cell, color).child(value.into()).into_any_element();
-    }
-
-    line(cell, color)
+    let content = line(cell, color)
         .flex()
         .items_center()
         .gap_1p5()
         .child(div().min_w_0().truncate().child(value.into()))
-        .child(div().flex_none().child(ExplicitBadge::new()))
-        .into_any_element()
+        .when(explicit, |this| {
+            this.child(div().flex_none().child(ExplicitBadge::new()))
+        });
+    match song_id {
+        Some(id) => content
+            .id(("song", cell.row))
+            .hover(|style| style.underline())
+            .link(Destination::Song(id.into()))
+            .into_any_element(),
+        None => content.into_any_element(),
+    }
 }
 
 pub(crate) fn artwork<F>(cell: &Cell<F>, url: Option<String>) -> AnyElement {

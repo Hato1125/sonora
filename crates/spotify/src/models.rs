@@ -13,6 +13,12 @@ pub struct ArtistRef {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Credit {
+    pub name: String,
+    pub role: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Track {
     pub id: Option<String>,
     pub name: String,
@@ -26,6 +32,11 @@ pub struct Track {
     pub added_at: Option<i64>,
     pub popularity: u32,
     pub explicit: bool,
+    pub track_number: u32,
+    pub disc_number: u32,
+    pub tags: Vec<String>,
+    pub languages: Vec<String>,
+    pub credits: Vec<Credit>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -71,6 +82,9 @@ pub struct Album {
     pub release_type: ReleaseType,
     pub year: i32,
     pub track_count: u32,
+    pub release_date: String,
+    pub label: String,
+    pub copyrights: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -83,6 +97,7 @@ pub struct AlbumDetail {
 pub struct Artist {
     pub name: String,
     pub cover_large: Option<String>,
+    pub biography: Option<String>,
     pub top_tracks: Vec<Track>,
     pub albums: Vec<Album>,
 }

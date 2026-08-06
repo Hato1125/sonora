@@ -15,6 +15,7 @@ pub trait SpotifyApi: Send + Sync {
     async fn artist(&self, artist_id: &str) -> Result<Artist>;
     async fn artist_images(&self, ids: Vec<String>) -> Result<HashMap<String, String>>;
     async fn saved_tracks(&self, limit: u32) -> Result<Vec<Track>>;
+    async fn track(&self, track_id: &str) -> Result<Track>;
     async fn playlists(&self, limit: u32) -> Result<Vec<Playlist>>;
     async fn saved_albums(&self, limit: u32) -> Result<Vec<Album>>;
     async fn album(&self, album_id: &str) -> Result<AlbumDetail>;
@@ -65,6 +66,10 @@ impl SpotifyApi for LibrespotClient {
 
     async fn saved_tracks(&self, limit: u32) -> Result<Vec<Track>> {
         collection::saved_tracks(&self.session, limit).await
+    }
+
+    async fn track(&self, track_id: &str) -> Result<Track> {
+        collection::track(&self.session, track_id).await
     }
 
     async fn saved_albums(&self, limit: u32) -> Result<Vec<Album>> {
