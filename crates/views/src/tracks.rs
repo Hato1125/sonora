@@ -131,11 +131,11 @@ pub(crate) const ALBUM_COLUMNS: &[ColumnSpec<TrackField>] = &[
         field: TrackField::Plays,
         key: "plays",
         header: "Plays",
-        align: TextAlign::Right,
+        align: TextAlign::Left,
         width: Width::Fixed(DATE),
         flush: false,
         sortable: true,
-        hide_below: ROOMY,
+        hide_below: WIDE,
     },
     ColumnSpec {
         field: TrackField::Duration,
