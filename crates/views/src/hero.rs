@@ -184,6 +184,7 @@ impl RenderOnce for PageHero {
         Card::new(self.id, self.title)
             .art(theme.metrics.cover)
             .art_radius(theme.radius * 1.5)
+            .match_art_height()
             .cover(self.cover)
             .size(Text::Display)
             .weight(FontWeight::BOLD)
