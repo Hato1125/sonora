@@ -11,7 +11,7 @@ use rodio::{OutputStream, OutputStreamBuilder};
 
 const QUEUED_CHUNKS: usize = 26;
 const DRAIN_POLL: std::time::Duration = std::time::Duration::from_millis(10);
-const GAIN_STEP: f32 = 0.04;
+const GAIN_STEP: f32 = 0.20;
 
 #[derive(Clone, Default)]
 pub struct Flush(Arc<AtomicBool>);
