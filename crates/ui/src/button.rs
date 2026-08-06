@@ -26,6 +26,7 @@ pub struct Button {
     selected: bool,
     hovered: Option<StyleRefinement>,
     pressed: Option<StyleRefinement>,
+    tint: Option<Hsla>,
     on_click: Option<Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>>,
 }
 
@@ -42,6 +43,7 @@ impl Button {
             selected: false,
             hovered: None,
             pressed: None,
+            tint: None,
             on_click: None,
         }
     }
@@ -83,6 +85,11 @@ impl Button {
 
     pub fn disabled(mut self, disabled: bool) -> Self {
         self.disabled = disabled;
+        self
+    }
+
+    pub fn tint(mut self, tint: Hsla) -> Self {
+        self.tint = Some(tint);
         self
     }
 
@@ -144,6 +151,7 @@ impl RenderOnce for Button {
             selected,
             hovered,
             pressed,
+            tint,
             on_click,
         } = self;
 
@@ -200,7 +208,7 @@ impl RenderOnce for Button {
             .h(height)
             .px(padding)
             .rounded(radius)
-            .text_color(palette.foreground)
+            .text_color(tint.unwrap_or(palette.foreground))
             .when(small, |this| this.text_size(theme.text(Text::Label)))
             .when(disabled, |this| this.opacity(0.4))
             .when_some(palette.background, |this, background| this.bg(background))
@@ -217,7 +225,7 @@ impl RenderOnce for Button {
                         .path(path)
                         .size(px(16.))
                         .flex_none()
-                        .text_color(palette.foreground),
+                        .text_color(tint.unwrap_or(palette.foreground)),
                 )
             })
             .when_some(label, |this, label| this.child(label))

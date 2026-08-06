@@ -5,6 +5,7 @@ mod detail;
 mod home;
 mod library;
 mod login;
+mod page;
 mod quick_picks;
 mod release_card;
 mod root;

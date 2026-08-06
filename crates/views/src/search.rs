@@ -8,7 +8,7 @@ use router::{Destination, navigate};
 
 use state::{Hit, Kind, Playback, Search};
 use ui::ActiveTheme as _;
-use ui::{Artwork, Row, Scrollbar, Text, Theme, clock};
+use ui::{Card, Scrollbar, Scroller, Text, Theme, clock, eyebrow};
 use workspace::Sidebar;
 
 use crate::cells;
@@ -92,23 +92,16 @@ impl SearchView {
             .update(cx, |playback, cx| playback.start(queued, index, cx));
     }
 
-    fn press(
+    fn pressed(
         &self,
-        id: impl Into<ElementId>,
         target: Press,
-        child: impl IntoElement,
         cx: &Context<Self>,
-    ) -> AnyElement {
-        div()
-            .id(id)
-            .cursor_pointer()
-            .on_click(cx.listener(move |this, _, _, cx| match &target {
-                Press::Song(index) => this.play(*index, cx),
-                Press::Artist(id) => navigate(Destination::Artist(id.clone().into()), cx),
-                Press::Album(id) => navigate(Destination::Album(id.clone().into()), cx),
-            }))
-            .child(child)
-            .into_any_element()
+    ) -> impl Fn(&gpui::ClickEvent, &mut Window, &mut App) + 'static {
+        cx.listener(move |this, _, _, cx| match &target {
+            Press::Song(index) => this.play(*index, cx),
+            Press::Artist(id) => navigate(Destination::Artist(id.clone().into()), cx),
+            Press::Album(id) => navigate(Destination::Album(id.clone().into()), cx),
+        })
     }
 
     fn subtitle(&self, hit: &Hit, place: usize, compact: bool, theme: &Theme) -> AnyElement {
@@ -133,6 +126,7 @@ impl SearchView {
 
     fn row(&self, hit: &Hit, place: usize, compact: bool, cx: &Context<Self>) -> AnyElement {
         let theme = *cx.theme();
+        let meta = self.subtitle(hit, place, compact, &theme);
 
         match hit {
             Hit::Song(track) => {
@@ -140,42 +134,39 @@ impl SearchView {
                     true => theme.primary,
                     false => theme.foreground,
                 };
-                self.press(
-                    ("song", place),
-                    Press::Song(place),
-                    Row::new(track.name.clone())
-                        .cover(track.cover.clone())
-                        .tint(tint)
-                        .meta(self.subtitle(hit, place, compact, &theme))
-                        .when(track.explicit, |row| row.explicit())
-                        .trailing(
-                            div()
-                                .flex_none()
-                                .text_size(theme.text(Text::Small))
-                                .text_color(theme.muted_foreground)
-                                .child(clock(track.duration)),
-                        ),
-                    cx,
-                )
+                Card::new(("song", place), track.name.clone())
+                    .cover(track.cover.clone())
+                    .tint(tint)
+                    .meta(meta)
+                    .when(track.explicit, |card| card.explicit())
+                    .trailing(
+                        div()
+                            .flex_none()
+                            .text_size(theme.text(Text::Small))
+                            .text_color(theme.muted_foreground)
+                            .child(clock(track.duration)),
+                    )
+                    .press(self.pressed(Press::Song(place), cx))
+                    .into_any_element()
             }
             Hit::Artist(artist) => {
-                let row = Row::new(artist.name.clone())
+                let card = Card::new(("artist", place), artist.name.clone())
                     .cover(artist.cover.clone())
                     .circle()
-                    .meta(self.subtitle(hit, place, compact, &theme));
+                    .meta(meta);
                 match &artist.id {
-                    Some(id) => self.press(("artist", place), Press::Artist(id.clone()), row, cx),
-                    None => row.into_any_element(),
+                    Some(id) => card.press(self.pressed(Press::Artist(id.clone()), cx)),
+                    None => card,
                 }
+                .into_any_element()
             }
-            Hit::Album(album) => self.press(
-                ElementId::Name(album.id.clone().into()),
-                Press::Album(album.id.clone()),
-                Row::new(album.name.clone())
+            Hit::Album(album) => {
+                Card::new(ElementId::Name(album.id.clone().into()), album.name.clone())
                     .cover(album.cover.clone())
-                    .meta(self.subtitle(hit, place, compact, &theme)),
-                cx,
-            ),
+                    .meta(meta)
+                    .press(self.pressed(Press::Album(album.id.clone()), cx))
+                    .into_any_element()
+            }
         }
     }
 
@@ -203,52 +194,28 @@ impl SearchView {
             ),
         };
 
-        let card = div()
-            .flex()
-            .items_center()
+        let card = Card::new("best", title)
+            .art(theme.metrics.cover * 0.45)
+            .cover(cover(hit).clone())
+            .when(matches!(kind, Kind::Artist), Card::circle)
+            .eyebrow(noun(kind).to_uppercase())
+            .size(Text::Title)
+            .weight(FontWeight::BOLD)
+            .bare_meta(
+                cells::artist_links(
+                    "best-artist-link",
+                    artists,
+                    meta(hit, false),
+                    theme.muted_foreground,
+                )
+                .text_size(theme.text(Text::Small)),
+            )
+            .flat()
             .gap_4()
             .p_3()
-            .rounded(theme.radius)
             .bg(theme.secondary)
-            .child(
-                Artwork::new(cover(hit))
-                    .size(theme.metrics.cover * 0.45)
-                    .when(matches!(kind, Kind::Artist), Artwork::circle),
-            )
-            .child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .min_w_0()
-                    .child(
-                        div()
-                            .text_size(theme.text(Text::Small))
-                            .text_color(theme.muted_foreground)
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .child(noun(kind).to_uppercase()),
-                    )
-                    .child(
-                        div()
-                            .text_size(theme.text(Text::Title))
-                            .font_weight(FontWeight::BOLD)
-                            .truncate()
-                            .child(title),
-                    )
-                    .child(
-                        cells::artist_links(
-                            "best-artist-link",
-                            artists,
-                            meta(hit, false),
-                            theme.muted_foreground,
-                        )
-                        .text_size(theme.text(Text::Small)),
-                    ),
-            );
-
-        let card = match target {
-            Some(target) => self.press("best", target, card, cx),
-            None => card.into_any_element(),
-        };
+            .when_some(target, |card, target| card.press(self.pressed(target, cx)))
+            .into_any_element();
 
         Some(
             div()
@@ -256,11 +223,7 @@ impl SearchView {
                 .flex_col()
                 .flex_none()
                 .gap_2()
-                .child(heading(
-                    theme.text(Text::Small),
-                    theme.muted_foreground,
-                    "Best match",
-                ))
+                .child(eyebrow("Best match".to_uppercase(), cx).pb_1())
                 .child(card)
                 .into_any_element(),
         )
@@ -294,18 +257,12 @@ impl SearchView {
         }
 
         div()
-            .relative()
             .flex_1()
             .min_h_0()
             .child(
-                div()
-                    .id(id)
-                    .size_full()
-                    .overflow_y_scroll()
-                    .track_scroll(bar.read(cx).scroll())
+                Scroller::new(id, bar)
                     .child(div().flex().flex_col().gap_1().pl_3().pr_3().children(rows)),
             )
-            .child(bar.clone())
             .into_any_element()
     }
 
@@ -317,8 +274,6 @@ impl SearchView {
         rows: Vec<AnyElement>,
         cx: &Context<Self>,
     ) -> AnyElement {
-        let theme = *cx.theme();
-
         div()
             .flex()
             .flex_col()
@@ -326,11 +281,7 @@ impl SearchView {
             .min_w_0()
             .min_h_0()
             .gap_1()
-            .child(div().pl_3().child(heading(
-                theme.text(Text::Small),
-                theme.muted_foreground,
-                title,
-            )))
+            .child(div().pl_3().child(eyebrow(title.to_uppercase(), cx).pb_1()))
             .child(self.panel(id, bar, rows, cx))
             .into_any_element()
     }
@@ -416,17 +367,6 @@ fn noun(kind: Kind) -> &'static str {
         Kind::Artist => "Artist",
         Kind::Album => "Album",
     }
-}
-
-fn heading(size: Pixels, color: Hsla, label: &'static str) -> AnyElement {
-    div()
-        .flex_none()
-        .pb_1()
-        .text_size(size)
-        .font_weight(FontWeight::SEMIBOLD)
-        .text_color(color)
-        .child(label.to_uppercase())
-        .into_any_element()
 }
 
 fn divider(color: Hsla) -> impl IntoElement {

@@ -8,20 +8,13 @@ use spotify::{ReleaseType, Track};
 use state::{ArtistDetail, Playback};
 use ui::ActiveTheme as _;
 use ui::{
-    Artwork, Button, ColumnSpec, GridDelegate, GridEvent, GridState, Scrollbar, Text, Viewport,
-    grid, scrolled,
+    Button, Card, ColumnSpec, GridDelegate, GridEvent, GridState, Scrollbar, Scroller, Text, grid,
 };
 use workspace::Sidebar;
 
-use crate::cells;
+use crate::page;
 use crate::release_card::ReleaseCard;
 use crate::tracks::{PlaybackStatus, TrackField, TrackSource, Tracks, playback_status};
-
-const FRAME: Pixels = px(1.);
-
-fn reserved(inset: Pixels) -> Pixels {
-    inset * 2. + px(2.)
-}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ReleaseFilter {
@@ -116,7 +109,7 @@ impl ArtistView {
         .detach();
         cx.subscribe(&table, |this, _, event, cx| {
             let GridEvent::DoubleClicked(display) = event;
-            this.play(*display, cx);
+            page::play(&this.table, &this.playback, *display, cx);
         })
         .detach();
 
@@ -129,47 +122,6 @@ impl ArtistView {
             width,
             scrollbar,
             table,
-        }
-    }
-
-    fn play(&mut self, display: usize, cx: &mut Context<Self>) {
-        let queued = {
-            let state = self.table.read(cx);
-            let delegate = state.delegate();
-            (0..delegate.row_count())
-                .filter_map(|row| delegate.source().at(delegate.row(row), cx))
-                .collect::<Vec<_>>()
-        };
-        self.playback
-            .update(cx, |playback, cx| playback.start(queued, display, cx));
-    }
-
-    fn resize(&mut self, inset: Pixels, window: &Window, cx: &mut Context<Self>) {
-        let sidebar = self.sidebar.read(cx).occupied_width();
-        let width = cells::content_width(window, sidebar, reserved(inset));
-        if (width - self.width).abs() < px(0.5) {
-            return;
-        }
-        self.width = width;
-        self.table.update(cx, |table, cx| {
-            table.delegate_mut().set_width(width, cx);
-            table.refresh(cx);
-        });
-    }
-
-    fn viewport(scroll: &ScrollHandle, inset: Pixels, window: &Window) -> Viewport {
-        let hero = scroll
-            .bounds_for_item(0)
-            .map(|bounds| bounds.size.height)
-            .unwrap_or_default();
-        let visible = scroll.bounds().size.height;
-
-        Viewport {
-            top: (scrolled(scroll) - inset - hero - FRAME).max(Pixels::ZERO),
-            height: match visible > Pixels::ZERO {
-                true => visible,
-                false => window.viewport_size().height,
-            },
         }
     }
 
@@ -187,38 +139,20 @@ impl ArtistView {
             .map(|artist| SharedString::from(artist.name.clone()))
             .unwrap_or_default();
 
-        div()
-            .flex()
+        Card::new("artist-hero", title)
+            .art(theme.metrics.cover)
+            .cover(artist.and_then(|artist| artist.cover_large.clone()))
+            .circle()
+            .eyebrow("ARTIST")
+            .size(Text::Display)
+            .weight(FontWeight::BOLD)
+            .spacing(theme.metrics.pad)
+            .flat()
             .flex_none()
             .items_end()
             .gap_5()
+            .px_0()
             .pb_6()
-            .child(
-                Artwork::new(artist.and_then(|artist| artist.cover_large.clone()))
-                    .size(theme.metrics.cover)
-                    .circle(),
-            )
-            .child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .min_w_0()
-                    .gap_2()
-                    .child(
-                        div()
-                            .text_size(theme.text(Text::Small))
-                            .text_color(theme.muted_foreground)
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .child("ARTIST"),
-                    )
-                    .child(
-                        div()
-                            .text_size(theme.text(Text::Display))
-                            .font_weight(FontWeight::BOLD)
-                            .truncate()
-                            .child(title),
-                    ),
-            )
             .into_any_element()
     }
 
@@ -292,44 +226,42 @@ impl Render for ArtistView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
         let inset = theme.metrics.inset;
-        self.resize(inset, window, cx);
+        page::resize(
+            &self.table,
+            &self.sidebar,
+            &mut self.width,
+            inset,
+            window,
+            cx,
+        );
 
         let scroll = self.scrollbar.read(cx).scroll().clone();
-        let viewport = Self::viewport(&scroll, inset, window);
+        let viewport = page::viewport(&scroll, inset, window);
         self.table
             .update(cx, |table, _| table.set_viewport(viewport));
 
-        div()
-            .size_full()
+        Scroller::new("artist-page", &self.scrollbar)
+            .px(inset)
+            .pt(inset)
+            .pb(inset)
             .child(
                 div()
-                    .id("artist-page")
-                    .size_full()
-                    .overflow_y_scroll()
-                    .track_scroll(&scroll)
-                    .px(inset)
-                    .pt(inset)
-                    .pb(inset)
+                    .child(self.header(cx))
+                    .children(self.failure(cx))
                     .child(
                         div()
-                            .child(self.header(cx))
-                            .children(self.failure(cx))
-                            .child(
-                                div()
-                                    .pb_3()
-                                    .text_size(theme.text(Text::Title))
-                                    .font_weight(FontWeight::BOLD)
-                                    .child("Popular"),
-                            ),
-                    )
-                    .child(
-                        grid(&self.table)
-                            .rounded(theme.radius)
-                            .border_1()
-                            .border_color(theme.border),
-                    )
-                    .children(self.releases(cx)),
+                            .pb_3()
+                            .text_size(theme.text(Text::Title))
+                            .font_weight(FontWeight::BOLD)
+                            .child("Popular"),
+                    ),
             )
-            .child(self.scrollbar.clone())
+            .child(
+                grid(&self.table)
+                    .rounded(theme.radius)
+                    .border_1()
+                    .border_color(theme.border),
+            )
+            .children(self.releases(cx))
     }
 }

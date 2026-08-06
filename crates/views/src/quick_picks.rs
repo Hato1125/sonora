@@ -4,7 +4,7 @@ use gpui::prelude::*;
 use gpui::{App, ClickEvent, Entity, FontWeight, Pixels, SharedString, Window, div};
 use spotify::Track;
 use state::Playback;
-use ui::{ActiveTheme as _, Artwork, Button, ExplicitBadge, Skeleton, Text, snapped};
+use ui::{ActiveTheme as _, Button, Card, Text, eyebrow, heading};
 
 use crate::cells;
 
@@ -72,7 +72,7 @@ impl QuickPicks {
 }
 
 impl RenderOnce for QuickPicks {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = *cx.theme();
         let columns = column_count(self.width);
         let page_size = columns * ROWS_PER_COLUMN;
@@ -108,19 +108,8 @@ impl RenderOnce for QuickPicks {
                             .flex()
                             .flex_col()
                             .gap_0p5()
-                            .child(
-                                div()
-                                    .text_xs()
-                                    .font_weight(FontWeight::SEMIBOLD)
-                                    .text_color(theme.muted_foreground)
-                                    .child("START FROM A SONG"),
-                            )
-                            .child(
-                                div()
-                                    .text_size(theme.text(Text::Title))
-                                    .font_weight(FontWeight::BOLD)
-                                    .child("Quick picks"),
-                            ),
+                            .child(eyebrow("START FROM A SONG", cx))
+                            .child(heading("Quick picks", cx)),
                     )
                     .child(
                         div()
@@ -157,8 +146,10 @@ impl RenderOnce for QuickPicks {
                 empty,
                 |this| {
                     this.children((0..columns).map(|column| {
-                        column_shell(column, theme.border)
-                            .children((0..ROWS_PER_COLUMN).map(|_| skeleton(window, cx)))
+                        column_shell(column, theme.border).children(
+                            (0..ROWS_PER_COLUMN)
+                                .map(|row| skeleton(column * ROWS_PER_COLUMN + row)),
+                        )
                     }))
                 },
                 |this| {
@@ -173,7 +164,6 @@ impl RenderOnce for QuickPicks {
                                         tracks.clone(),
                                         self.playback.clone(),
                                         self.active.as_deref(),
-                                        window,
                                         cx,
                                     )
                                 }),
@@ -197,26 +187,8 @@ fn column_shell(column: usize, border: gpui::Hsla) -> gpui::Div {
         })
 }
 
-fn skeleton(window: &Window, cx: &App) -> impl IntoElement {
-    let theme = cx.theme();
-    let height = snapped(theme.metrics.list_row, window);
-    let artwork = height - theme.metrics.pad * 2.;
-
-    div()
-        .flex()
-        .items_center()
-        .h(height)
-        .gap_3()
-        .px_2()
-        .child(Skeleton::new().size(artwork))
-        .child(
-            div()
-                .flex()
-                .flex_col()
-                .gap_2()
-                .child(Skeleton::new().w(gpui::px(140.)).h(gpui::px(11.)))
-                .child(Skeleton::new().w(gpui::px(90.)).h(gpui::px(9.))),
-        )
+fn skeleton(place: usize) -> impl IntoElement {
+    Card::new(("quick-pick-skeleton", place), "").loading()
 }
 
 fn pick(
@@ -225,66 +197,35 @@ fn pick(
     tracks: Rc<Vec<Track>>,
     playback: Entity<Playback>,
     active: Option<&str>,
-    window: &Window,
     cx: &App,
 ) -> impl IntoElement {
     let theme = *cx.theme();
-    let height = snapped(theme.metrics.list_row, window);
-    let artwork = height - theme.metrics.pad * 2.;
     let tint = match track.id.as_deref() == active {
         true => theme.primary,
         false => theme.foreground,
     };
 
-    div()
-        .id(("quick-pick", place))
-        .flex()
-        .items_center()
-        .min_w_0()
-        .h(height)
-        .gap_3()
-        .px_2()
-        .rounded(theme.radius)
-        .cursor_pointer()
-        .hover(move |style| style.bg(theme.table_hover))
-        .on_click(move |_, _, cx| {
-            playback.update(cx, |playback, cx| playback.play_radio(&tracks[place], cx));
-        })
-        .child(Artwork::new(track.cover.clone()).size(artwork))
-        .child(
-            div()
-                .flex()
-                .flex_1()
-                .min_w_0()
-                .flex_col()
-                .child(
-                    div()
-                        .flex()
-                        .items_center()
-                        .gap_1p5()
-                        .min_w_0()
-                        .text_color(tint)
-                        .child(
-                            div()
-                                .min_w_0()
-                                .truncate()
-                                .font_weight(FontWeight::SEMIBOLD)
-                                .child(SharedString::from(track.name.clone())),
-                        )
-                        .when(track.explicit, |this| {
-                            this.child(div().flex_none().child(ExplicitBadge::new()))
-                        }),
-                )
-                .child(
-                    cells::artist_links(
-                        SharedString::from(format!("quick-pick-artist-{place}")),
-                        track.artist_refs.clone(),
-                        track.artists.clone(),
-                        theme.muted_foreground,
-                    )
-                    .text_size(theme.text(Text::Small)),
-                ),
+    Card::new(
+        ("quick-pick", place),
+        SharedString::from(track.name.clone()),
+    )
+    .cover(track.cover.clone())
+    .weight(FontWeight::SEMIBOLD)
+    .tint(tint)
+    .when(track.explicit, |card| card.explicit())
+    .bare_meta(
+        cells::artist_links(
+            SharedString::from(format!("quick-pick-artist-{place}")),
+            track.artist_refs.clone(),
+            track.artists.clone(),
+            theme.muted_foreground,
         )
+        .text_size(theme.text(Text::Small)),
+    )
+    .press(move |_, _, cx| {
+        playback.update(cx, |playback, cx| playback.play_radio(&tracks[place], cx));
+    })
+    .min_w_0()
 }
 
 #[cfg(test)]

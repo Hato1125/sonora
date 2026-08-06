@@ -1,13 +1,15 @@
 mod artwork;
 mod button;
+mod card;
 mod controls;
 mod explicit;
 mod grid;
 mod inline_links;
+mod label;
 mod menu;
 mod metrics;
-mod row;
 mod scrollbar;
+mod scroller;
 mod scrubber;
 mod skeleton;
 mod theme;
@@ -15,6 +17,7 @@ mod time;
 
 pub use artwork::Artwork;
 pub use button::Button;
+pub use card::Card;
 pub use controls::WindowControls;
 pub use explicit::ExplicitBadge;
 pub use grid::{
@@ -22,10 +25,11 @@ pub use grid::{
     ROW_GROUP, SelectNext, SelectPrevious, Sort, Toggle, Viewport, Width, grid,
 };
 pub use inline_links::{InlineLink, InlineLinks};
+pub use label::{eyebrow, heading};
 pub use menu::{Menu, MenuItem};
 pub use metrics::{Metrics, Rounding, Text, snapped};
-pub use row::Row;
 pub use scrollbar::{Scrollbar, scrolled};
+pub use scroller::Scroller;
 pub use scrubber::{Scrubber, ScrubberState};
 pub use skeleton::{Initials, Skeleton};
 pub use theme::{ActiveTheme, Look, MAX_FONT, MIN_FONT, Theme, ThemeKind, ThemeOverrides};
