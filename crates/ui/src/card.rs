@@ -30,6 +30,7 @@ pub struct Card {
     cover: Option<String>,
     art: Option<Pixels>,
     art_radius: Option<Pixels>,
+    match_art_height: bool,
     circle: bool,
     tint: Option<Hsla>,
     spacing: Option<Pixels>,
@@ -57,6 +58,7 @@ impl Card {
             cover: None,
             art: None,
             art_radius: None,
+            match_art_height: false,
             circle: false,
             tint: None,
             spacing: None,
@@ -81,6 +83,11 @@ impl Card {
 
     pub fn art_radius(mut self, radius: Pixels) -> Self {
         self.art_radius = Some(radius);
+        self
+    }
+
+    pub fn match_art_height(mut self) -> Self {
+        self.match_art_height = true;
         self
     }
 
@@ -196,6 +203,7 @@ impl RenderOnce for Card {
             cover,
             art,
             art_radius,
+            match_art_height,
             circle,
             tint,
             spacing,
@@ -249,6 +257,7 @@ impl RenderOnce for Card {
                     .flex_col()
                     .flex_1()
                     .min_w_0()
+                    .when(match_art_height, |this| this.h(art))
                     .when(listed, |this| this.min_w(TITLE))
                     .when_some(spacing, |this, spacing| this.gap(spacing))
                     .when_else(
@@ -297,7 +306,12 @@ impl RenderOnce for Card {
                                         .child(meta),
                                 }
                             }))
-                            .children(footer.map(|footer| div().pt_1().child(footer)))
+                            .children(footer.map(|footer| {
+                                div()
+                                    .pt_1()
+                                    .when(match_art_height, |this| this.mt_auto())
+                                    .child(footer)
+                            }))
                         },
                     ),
             )
