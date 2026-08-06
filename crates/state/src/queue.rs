@@ -49,12 +49,6 @@ fn select_upcoming<T>(
     true
 }
 
-/// Converts a gap between tracks into an insertion index for [`move_item`].
-///
-/// Gaps are numbered from 0 to `len`: gap 0 is before the first track, gap
-/// `len` is after the last one. When moving down, the removal of the dragged
-/// track shifts the target back by one. The gaps right around the dragged
-/// track map to its current index, keeping it in place.
 fn gap_target(from: usize, gap: usize, len: usize) -> usize {
     let gap = gap.min(len);
     if gap > from { gap - 1 } else { gap }
@@ -156,11 +150,6 @@ impl Queue {
         }
     }
 
-    /// Moves the upcoming track at `from` to the gap between tracks at `gap`.
-    ///
-    /// Gap 0 places the track at the front of the upcoming list, gap `len`
-    /// at the back. Dropping on the gaps directly around the dragged track
-    /// leaves it in place.
     pub fn move_upcoming_to_gap(&mut self, from: usize, gap: usize, cx: &mut Context<Self>) {
         let to = gap_target(from, gap, self.upcoming.len());
         self.move_upcoming(from, to, cx);
@@ -305,16 +294,12 @@ mod tests {
 
     #[test]
     fn converts_gaps_to_insertion_indices() {
-        // Moving down shifts the target back after removal.
         assert_eq!(gap_target(0, 3, 4), 2);
         assert_eq!(gap_target(0, 4, 4), 3);
-        // Moving up inserts at the gap as is.
         assert_eq!(gap_target(3, 1, 4), 1);
         assert_eq!(gap_target(2, 0, 4), 0);
-        // Gaps right around the dragged item keep it in place.
         assert_eq!(gap_target(1, 1, 4), 1);
         assert_eq!(gap_target(1, 2, 4), 1);
-        // Gaps past the end clamp to the last valid index.
         assert_eq!(gap_target(0, 10, 4), 3);
     }
 
@@ -322,17 +307,14 @@ mod tests {
     fn gap_moves_match_visual_positions() {
         let mut items = VecDeque::from([1, 2, 3, 4]);
 
-        // Drag the first track below the third one.
         let to = gap_target(0, 3, items.len());
         assert!(move_item(&mut items, 0, to));
         assert_eq!(items, [2, 3, 1, 4]);
 
-        // Drag the last track to the very front.
         let to = gap_target(3, 0, items.len());
         assert!(move_item(&mut items, 3, to));
         assert_eq!(items, [4, 2, 3, 1]);
 
-        // Drop the track right where it already sits: no change.
         let to = gap_target(1, 2, items.len());
         assert!(!move_item(&mut items, 1, to));
         assert_eq!(items, [4, 2, 3, 1]);
