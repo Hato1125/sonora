@@ -11,7 +11,7 @@ use librespot_protocol::metadata::{
 };
 use protobuf::{EnumOrUnknown, Message as _};
 
-use crate::models::{ArtistRef, Track};
+use crate::models::{ArtistRef, Credit, Track};
 use crate::{collection2, wire};
 
 const TRACK_PREFIX: &str = "spotify:track:";
@@ -33,6 +33,14 @@ pub async fn saved_tracks(session: &Session, limit: u32) -> Result<Vec<Track>> {
             Some(track)
         })
         .collect())
+}
+
+pub async fn track(session: &Session, track_id: &str) -> Result<Track> {
+    let uri = format!("{TRACK_PREFIX}{track_id}");
+    metadata(session, std::slice::from_ref(&uri))
+        .await?
+        .remove(&uri)
+        .context("track metadata is missing")
 }
 
 pub(crate) async fn metadata(session: &Session, uris: &[String]) -> Result<HashMap<String, Track>> {
@@ -93,6 +101,31 @@ fn track_from(uri: &str, track: &TrackMessage) -> Track {
         added_at: None,
         popularity: track.popularity.unwrap_or_default().clamp(0, 100) as u32,
         explicit: track.explicit.unwrap_or_default(),
+        track_number: track.number.unwrap_or_default().max(0) as u32,
+        disc_number: track.disc_number.unwrap_or_default().max(0) as u32,
+        tags: track.tags.clone(),
+        languages: track.language_of_performance.clone(),
+        credits: track
+            .artist_with_role
+            .iter()
+            .filter_map(|credit| {
+                let name = non_empty(credit.artist_name.as_deref())?.to_owned();
+                let role = match credit.role.map(|role| role.value()) {
+                    Some(1) => "Main artist",
+                    Some(2) => "Featured artist",
+                    Some(3) => "Remixer",
+                    Some(4) => "Actor",
+                    Some(5) => "Composer",
+                    Some(6) => "Conductor",
+                    Some(7) => "Orchestra",
+                    _ => "Performer",
+                };
+                Some(Credit {
+                    name,
+                    role: role.to_owned(),
+                })
+            })
+            .collect(),
     }
 }
 

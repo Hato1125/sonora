@@ -123,6 +123,11 @@ mod tests {
             added_at: None,
             popularity: 0,
             explicit: false,
+            track_number: 0,
+            disc_number: 0,
+            tags: Vec::new(),
+            languages: Vec::new(),
+            credits: Vec::new(),
         }
     }
 

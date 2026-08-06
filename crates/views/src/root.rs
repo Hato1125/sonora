@@ -5,6 +5,7 @@ use input::{OpenFilter, OpenSearch, OpenSettings};
 use router::{Destination, NavigationEvent, back, forward, navigate};
 use state::{
     ArtistDetail, Detail, Home, Io, Library, Playback, Queue, Search, Session, SessionState,
+    SongDetail,
 };
 use ui::ActiveTheme as _;
 use workspace::{Filter, Sidebar, Workspace};
@@ -13,6 +14,7 @@ use crate::search::SearchView;
 use crate::tracks::{ALBUM_COLUMNS, LIBRARY_COLUMNS};
 use crate::{
     Adaptive, ArtistView, ColumnPicker, DetailView, HomeView, LibraryView, LoginView, SettingsView,
+    SongView,
 };
 
 struct Screens {
@@ -23,6 +25,8 @@ struct Screens {
     artist_detail: Option<Entity<ArtistDetail>>,
     album: Entity<DetailView>,
     album_detail: Entity<Detail>,
+    song: Entity<SongView>,
+    song_detail: Entity<SongDetail>,
     playlist: Entity<DetailView>,
     playlist_detail: Entity<Detail>,
     search: Entity<SearchView>,
@@ -116,6 +120,9 @@ impl Root {
 
         let settings = cx.new(|cx| SettingsView::new(session.clone(), playback.clone(), cx));
 
+        let song_detail = cx.new(|cx| SongDetail::new(session.clone(), io.clone(), cx));
+        let song = cx.new(|cx| SongView::new(song_detail.clone(), playback.clone(), cx));
+
         let filter = cx.new(Filter::new);
         let start = navigation.read(cx).current();
         let workspace = cx.new(|cx| {
@@ -147,6 +154,8 @@ impl Root {
                 artist_detail: None,
                 album,
                 album_detail,
+                song,
+                song_detail,
                 playlist,
                 playlist_detail,
                 search,
@@ -232,6 +241,12 @@ impl Root {
                 let album = self.screens.album.clone();
                 self.filter.update(cx, |filter, cx| filter.bind(&album, cx));
                 album.into()
+            }
+            Destination::Song(id) => {
+                self.screens
+                    .song_detail
+                    .update(cx, |detail, cx| detail.open(&id, cx));
+                self.screens.song.clone().into()
             }
             Destination::Playlist(id) => {
                 self.screens

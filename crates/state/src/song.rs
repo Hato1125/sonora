@@ -1,0 +1,126 @@
+use gpui::{Context, Entity, Task};
+use spotify::{AlbumDetail, Artist, Track};
+use tokio::task::AbortHandle;
+
+use crate::{Io, Session, SessionEvent, join};
+
+pub struct SongDetail {
+    id: Option<String>,
+    track: Option<Track>,
+    album: Option<AlbumDetail>,
+    artist: Option<Artist>,
+    loading: bool,
+    error: Option<String>,
+    session: Entity<Session>,
+    io: Io,
+    task: Option<Task<()>>,
+    request: Option<AbortHandle>,
+}
+
+impl SongDetail {
+    pub fn new(session: Entity<Session>, io: Io, cx: &mut Context<Self>) -> Self {
+        cx.subscribe(&session, |this, _, event, cx| {
+            if matches!(event, SessionEvent::SignedOut) {
+                this.clear();
+                cx.notify();
+            }
+        })
+        .detach();
+        Self {
+            id: None,
+            track: None,
+            album: None,
+            artist: None,
+            loading: false,
+            error: None,
+            session,
+            io,
+            task: None,
+            request: None,
+        }
+    }
+
+    pub fn track(&self) -> Option<&Track> {
+        self.track.as_ref()
+    }
+    pub fn album(&self) -> Option<&AlbumDetail> {
+        self.album.as_ref()
+    }
+    pub fn artist(&self) -> Option<&Artist> {
+        self.artist.as_ref()
+    }
+    pub fn is_loading(&self) -> bool {
+        self.loading
+    }
+    pub fn error(&self) -> Option<&str> {
+        self.error.as_deref()
+    }
+
+    pub fn open(&mut self, id: &str, cx: &mut Context<Self>) {
+        if self.id.as_deref() == Some(id) && (self.loading || self.track.is_some()) {
+            return;
+        }
+        self.clear();
+        self.id = Some(id.to_owned());
+        let Some(client) = self.session.read(cx).client() else {
+            cx.notify();
+            return;
+        };
+        self.loading = true;
+        cx.notify();
+        let id = id.to_owned();
+        let request = self.io.spawn({
+            let id = id.clone();
+            async move {
+                let track = client.track(&id).await?;
+                let album = match track.album_id.as_deref() {
+                    Some(album_id) => client.album(album_id).await.ok(),
+                    None => None,
+                };
+                let artist = match track
+                    .artist_refs
+                    .first()
+                    .and_then(|artist| artist.id.as_deref())
+                {
+                    Some(artist_id) => client.artist(artist_id).await.ok(),
+                    None => None,
+                };
+                anyhow::Ok((track, album, artist))
+            }
+        });
+        self.request = Some(request.abort_handle());
+        self.task = Some(cx.spawn(async move |this, cx| {
+            let loaded = join(request).await;
+            this.update(cx, |this, cx| {
+                if this.id.as_deref() != Some(id.as_str()) {
+                    return;
+                }
+                this.loading = false;
+                this.request = None;
+                match loaded {
+                    Ok((track, album, artist)) => {
+                        this.track = Some(track);
+                        this.album = album;
+                        this.artist = artist;
+                    }
+                    Err(error) => this.error = Some(format!("{error:#}")),
+                }
+                cx.notify();
+            })
+            .ok();
+        }));
+    }
+
+    fn clear(&mut self) {
+        self.task = None;
+        if let Some(request) = self.request.take() {
+            request.abort();
+        }
+        self.id = None;
+        self.track = None;
+        self.album = None;
+        self.artist = None;
+        self.loading = false;
+        self.error = None;
+    }
+}

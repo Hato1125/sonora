@@ -7,6 +7,7 @@ mod queue;
 mod search;
 mod session;
 mod settings;
+mod song;
 
 pub use artist::ArtistDetail;
 pub use detail::{Detail, Header};
@@ -17,6 +18,7 @@ pub use queue::Queue;
 pub use search::{AlbumHit, ArtistHit, Hit, Kind, Search};
 pub use session::{Session, SessionEvent, SessionState};
 pub use settings::AppSettings;
+pub use song::SongDetail;
 
 use std::future::Future;
 use std::sync::Arc;
