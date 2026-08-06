@@ -41,14 +41,7 @@ fn main() {
             router::init(Destination::Home, cx);
             let (look, overrides) = {
                 let settings = Sonora::global(cx).settings.read(cx);
-                (
-                    ui::Look {
-                        kind: ui::ThemeKind::from_id(settings.theme()),
-                        rounding: ui::Rounding::from_id(settings.rounding()),
-                        font: settings.font_size(),
-                    },
-                    settings.theme_overrides().clone(),
-                )
+                (settings.look(), settings.theme_overrides().clone())
             };
             ui::Theme::init(look, &overrides, cx);
 

@@ -11,7 +11,9 @@ use workspace::{Filter, Sidebar, Workspace};
 
 use crate::search::SearchView;
 use crate::tracks::{ALBUM_COLUMNS, LIBRARY_COLUMNS};
-use crate::{ArtistView, ColumnPicker, DetailView, HomeView, LibraryView, LoginView, SettingsView};
+use crate::{
+    Adaptive, ArtistView, ColumnPicker, DetailView, HomeView, LibraryView, LoginView, SettingsView,
+};
 
 struct Screens {
     home: Entity<HomeView>,
@@ -42,6 +44,7 @@ pub struct Root {
     filter: Entity<Filter>,
     pending: Option<Focus>,
     screens: Screens,
+    _adaptive: Entity<Adaptive>,
 }
 
 impl Root {
@@ -125,6 +128,8 @@ impl Root {
             )
         });
 
+        let adaptive = cx.new(|cx| Adaptive::new(playback.clone(), cx));
+
         let mut root = Self {
             session,
             playback,
@@ -147,6 +152,7 @@ impl Root {
                 search,
                 settings,
             },
+            _adaptive: adaptive,
         };
         root.show(start, cx);
         root

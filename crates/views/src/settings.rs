@@ -81,6 +81,7 @@ impl SettingsView {
         let rows: Vec<AnyElement> = match self.tab {
             Tab::Appearance => vec![
                 self.theme_row(cx).into_any_element(),
+                self.adaptive_row(cx).into_any_element(),
                 self.corners_row(cx).into_any_element(),
                 self.font_row(cx).into_any_element(),
                 self.auto_hide_row(cx).into_any_element(),
@@ -104,12 +105,9 @@ impl SettingsView {
     }
 
     fn look(&self, cx: &Context<Self>) -> Look {
-        let settings = self.settings.read(cx);
-
         Look {
-            kind: ThemeKind::from_id(settings.theme()),
-            rounding: Rounding::from_id(settings.rounding()),
-            font: settings.font_size(),
+            tint: cx.theme().tint,
+            ..self.settings.read(cx).look()
         }
     }
 
@@ -364,7 +362,7 @@ impl SettingsView {
                                         settings.set_theme(kind.id(), cx);
                                     });
                                     this.themes_open = false;
-                                    Theme::set(Look { kind, ..look }, &overrides, cx);
+                                    Theme::fade(Look { kind, ..look }, &overrides, cx);
                                     cx.notify();
                                 }))
                         })),
@@ -396,6 +394,29 @@ impl SettingsView {
             muted,
             small,
             actions.into_any_element(),
+        )
+    }
+
+    fn adaptive_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+        let muted = theme.muted_foreground;
+        let small = theme.text(Text::Small);
+        let on = self.settings.read(cx).adaptive_theme();
+
+        self.row(
+            "Adaptive theme",
+            "Tint the palette with the artwork of the playing album",
+            muted,
+            small,
+            Button::new("adaptive-theme")
+                .label(if on { "On" } else { "Off" })
+                .small()
+                .outline()
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.settings
+                        .update(cx, |settings, cx| settings.set_adaptive_theme(!on, cx));
+                }))
+                .into_any_element(),
         )
     }
 

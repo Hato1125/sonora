@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use gpui::{Context, Task};
 use serde::{Deserialize, Serialize};
-use ui::ThemeOverrides;
+use ui::{Look, Rounding, ThemeKind, ThemeOverrides};
 
 const SAVE_DELAY: Duration = Duration::from_millis(300);
 const DEFAULT_VOLUME: f32 = 0.7;
@@ -29,6 +29,7 @@ struct Values {
 struct Appearance {
     auto_hide_sidebar: bool,
     theme: String,
+    adaptive_theme: bool,
     rounding: String,
     font_size: f32,
     window_controls: bool,
@@ -55,6 +56,7 @@ impl Default for Appearance {
         Self {
             auto_hide_sidebar: true,
             theme: "dark".to_owned(),
+            adaptive_theme: false,
             rounding: "subtle".to_owned(),
             font_size: DEFAULT_FONT_SIZE,
             window_controls: true,
@@ -116,8 +118,21 @@ impl AppSettings {
         &self.values.appearance.theme
     }
 
+    pub fn adaptive_theme(&self) -> bool {
+        self.values.appearance.adaptive_theme
+    }
+
     pub fn rounding(&self) -> &str {
         &self.values.appearance.rounding
+    }
+
+    pub fn look(&self) -> Look {
+        Look {
+            kind: ThemeKind::from_id(self.theme()),
+            rounding: Rounding::from_id(self.rounding()),
+            font: self.font_size(),
+            tint: None,
+        }
     }
 
     pub fn window_controls(&self) -> bool {
@@ -189,6 +204,11 @@ impl AppSettings {
 
     pub fn set_theme(&mut self, theme: impl Into<String>, cx: &mut Context<Self>) {
         self.values.appearance.theme = theme.into();
+        self.schedule_save(cx);
+    }
+
+    pub fn set_adaptive_theme(&mut self, adaptive: bool, cx: &mut Context<Self>) {
+        self.values.appearance.adaptive_theme = adaptive;
         self.schedule_save(cx);
     }
 
