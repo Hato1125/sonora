@@ -12,6 +12,7 @@ pub struct SongDetail {
     album: Option<AlbumDetail>,
     artist: Option<Artist>,
     portraits: HashMap<String, String>,
+    playcount: Option<u64>,
     loading: bool,
     error: Option<String>,
     session: Entity<Session>,
@@ -35,6 +36,7 @@ impl SongDetail {
             album: None,
             artist: None,
             portraits: HashMap::new(),
+            playcount: None,
             loading: false,
             error: None,
             session,
@@ -55,6 +57,9 @@ impl SongDetail {
     }
     pub fn portraits(&self) -> &HashMap<String, String> {
         &self.portraits
+    }
+    pub fn playcount(&self) -> Option<u64> {
+        self.playcount
     }
     pub fn is_loading(&self) -> bool {
         self.loading
@@ -116,8 +121,21 @@ impl SongDetail {
                         false => client.artist_images(credit_ids).await.unwrap_or_default(),
                     }
                 };
-                let (album, artist, portraits) = tokio::join!(album, artist, portraits);
-                anyhow::Ok((track, album, artist, portraits))
+                let playcount = async {
+                    match track.id.as_deref() {
+                        Some(track_id) => match client.track_playcount(track_id).await {
+                            Ok(playcount) => playcount,
+                            Err(error) => {
+                                log::warn!("song: cannot read track play count: {error:#}");
+                                None
+                            }
+                        },
+                        None => None,
+                    }
+                };
+                let (album, artist, portraits, playcount) =
+                    tokio::join!(album, artist, portraits, playcount);
+                anyhow::Ok((track, album, artist, portraits, playcount))
             }
         });
         self.request = Some(request.abort_handle());
@@ -130,11 +148,12 @@ impl SongDetail {
                 this.loading = false;
                 this.request = None;
                 match loaded {
-                    Ok((track, album, artist, portraits)) => {
+                    Ok((track, album, artist, portraits, playcount)) => {
                         this.track = Some(track);
                         this.album = album;
                         this.artist = artist;
                         this.portraits = portraits;
+                        this.playcount = playcount;
                     }
                     Err(error) => this.error = Some(format!("{error:#}")),
                 }
@@ -154,6 +173,7 @@ impl SongDetail {
         self.album = None;
         self.artist = None;
         self.portraits.clear();
+        self.playcount = None;
         self.loading = false;
         self.error = None;
     }

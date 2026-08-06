@@ -189,6 +189,12 @@ impl SongView {
             (_, number) if number > 0 => format!("Track {number}"),
             _ => "Not provided".to_owned(),
         };
+        let streams = self
+            .detail
+            .read(cx)
+            .playcount()
+            .map(count)
+            .unwrap_or_else(|| "Not available".to_owned());
         self.card(
             "ABOUT THIS SONG",
             div()
@@ -196,7 +202,7 @@ impl SongView {
                 .flex_col()
                 .child(Self::fact("Album", album_name, cx))
                 .child(Self::fact("Released", release, cx))
-                .child(Self::fact("Duration", clock(track.duration), cx))
+                .child(Self::fact("Streams", streams, cx))
                 .child(Self::fact("Position", number, cx))
                 .child(Self::fact("Label", label, cx))
                 .child(
@@ -314,19 +320,26 @@ impl SongView {
                     tags.is_empty(),
                     |this| this.child(Self::fact("Genres", "Not available", cx)),
                     |this| {
-                        this.child(div().flex().flex_wrap().gap_2().py_1().children(
-                            tags.into_iter().map(|tag| {
-                                div()
-                                    .px_3()
-                                    .py_1()
-                                    .rounded_full()
-                                    .bg(theme.secondary)
-                                    .border_1()
-                                    .border_color(theme.border)
-                                    .text_size(theme.text(Text::Small))
-                                    .child(tag)
-                            }),
-                        ))
+                        this.child(
+                            div()
+                                .flex()
+                                .flex_wrap()
+                                .justify_end()
+                                .w_full()
+                                .gap_2()
+                                .py_1()
+                                .children(tags.into_iter().map(|tag| {
+                                    div()
+                                        .px_3()
+                                        .py_1()
+                                        .rounded_full()
+                                        .bg(theme.secondary)
+                                        .border_1()
+                                        .border_color(theme.border)
+                                        .text_size(theme.text(Text::Small))
+                                        .child(tag)
+                                })),
+                        )
                     },
                 ))
                 .child(Self::fact("Language", languages, cx))
@@ -491,5 +504,31 @@ impl Render for SongView {
                     }),
             )
             .child(self.scrollbar.clone())
+    }
+}
+
+fn count(value: u64) -> String {
+    let digits = value.to_string();
+    let first = match digits.len() % 3 {
+        0 => 3,
+        remainder => remainder,
+    };
+    let mut grouped = digits[..first].to_owned();
+    for chunk in digits.as_bytes()[first..].chunks(3) {
+        grouped.push(',');
+        grouped.push_str(std::str::from_utf8(chunk).unwrap_or_default());
+    }
+    grouped
+}
+
+#[cfg(test)]
+mod tests {
+    use super::count;
+
+    #[test]
+    fn groups_playcount() {
+        assert_eq!(count(999), "999");
+        assert_eq!(count(1_234), "1,234");
+        assert_eq!(count(12_345_678), "12,345,678");
     }
 }

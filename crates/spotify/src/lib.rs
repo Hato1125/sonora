@@ -8,6 +8,7 @@ mod collection2;
 mod models;
 mod pb;
 mod playlists;
+mod plays;
 mod profiles;
 mod radio;
 mod search;
