@@ -217,8 +217,6 @@ impl Root {
             Destination::Artist(id) => {
                 let (artist, detail) = self.artist(cx);
                 detail.update(cx, |artist, cx| artist.open(&id, cx));
-                self.filter
-                    .update(cx, |filter, cx| filter.bind(&artist, cx));
                 artist.into()
             }
             Destination::Search => self.screens.search.clone().into(),

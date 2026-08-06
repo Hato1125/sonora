@@ -11,7 +11,7 @@ use ui::{
     Artwork, Button, ColumnSpec, GridDelegate, GridEvent, GridState, Scrollbar, Text, Viewport,
     grid, scrolled,
 };
-use workspace::{Searchable, Sidebar};
+use workspace::Sidebar;
 
 use crate::cells;
 use crate::release_card::ReleaseCard;
@@ -263,7 +263,7 @@ impl ArtistView {
                         })),
                 )
                 .child(
-                    div().flex().flex_wrap().gap_4().children(
+                    div().flex().flex_wrap().gap_8().children(
                         albums
                             .iter()
                             .filter(|album| self.release_filter.matches(album.release_type))
@@ -331,19 +331,5 @@ impl Render for ArtistView {
                     .children(self.releases(cx)),
             )
             .child(self.scrollbar.clone())
-    }
-}
-
-impl Searchable for ArtistView {
-    fn search(&mut self, query: &str, cx: &mut Context<Self>) {
-        self.table.update(cx, |table, cx| {
-            table.delegate_mut().set_filter(query, cx);
-            table.refresh(cx);
-        });
-        cx.notify();
-    }
-
-    fn hint() -> &'static str {
-        "Filter popular tracks"
     }
 }
