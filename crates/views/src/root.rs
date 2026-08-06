@@ -1,8 +1,8 @@
 use gpui::prelude::*;
-use gpui::{AnyView, Context, Entity, Render};
+use gpui::{AnyView, Context, Entity, MouseButton, NavigationDirection, Render};
 use gpui::{Window, div};
 use input::{OpenFilter, OpenSearch, OpenSettings};
-use router::{Destination, NavigationEvent, navigate};
+use router::{Destination, NavigationEvent, back, forward, navigate};
 use state::{
     ArtistDetail, Detail, Home, Io, Library, Playback, Queue, Search, Session, SessionState,
 };
@@ -277,6 +277,14 @@ impl Render for Root {
             .size_full()
             .bg(theme.background)
             .text_color(theme.foreground)
+            .on_mouse_down(
+                MouseButton::Navigate(NavigationDirection::Back),
+                |_, _, cx| back(cx),
+            )
+            .on_mouse_down(
+                MouseButton::Navigate(NavigationDirection::Forward),
+                |_, _, cx| forward(cx),
+            )
             .on_action(cx.listener(|this, _: &OpenFilter, window, cx| this.open_filter(window, cx)))
             .on_action(cx.listener(|this, _: &OpenSearch, _, cx| this.open_search(cx)))
             .on_action(cx.listener(|this, _: &OpenSettings, _, cx| this.open_settings(cx)))
