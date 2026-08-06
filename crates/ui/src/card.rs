@@ -24,14 +24,18 @@ pub struct Card {
     size: Option<Text>,
     weight: Option<FontWeight>,
     meta: Option<AnyElement>,
+    footer: Option<AnyElement>,
     bare: bool,
     trailing: Option<AnyElement>,
     cover: Option<String>,
     art: Option<Pixels>,
+    art_radius: Option<Pixels>,
+    match_art_height: bool,
     circle: bool,
     tint: Option<Hsla>,
     spacing: Option<Pixels>,
     explicit: bool,
+    explicit_gap: Option<Pixels>,
     fill: bool,
     hovered: Option<StyleRefinement>,
     press: Option<Press>,
@@ -48,14 +52,18 @@ impl Card {
             size: None,
             weight: None,
             meta: None,
+            footer: None,
             bare: false,
             trailing: None,
             cover: None,
             art: None,
+            art_radius: None,
+            match_art_height: false,
             circle: false,
             tint: None,
             spacing: None,
             explicit: false,
+            explicit_gap: None,
             fill: true,
             hovered: None,
             press: None,
@@ -70,6 +78,16 @@ impl Card {
 
     pub fn art(mut self, art: Pixels) -> Self {
         self.art = Some(art);
+        self
+    }
+
+    pub fn art_radius(mut self, radius: Pixels) -> Self {
+        self.art_radius = Some(radius);
+        self
+    }
+
+    pub fn match_art_height(mut self) -> Self {
+        self.match_art_height = true;
         self
     }
 
@@ -114,8 +132,18 @@ impl Card {
         self
     }
 
+    pub fn footer(mut self, footer: impl IntoElement) -> Self {
+        self.footer = Some(footer.into_any_element());
+        self
+    }
+
     pub fn explicit(mut self) -> Self {
         self.explicit = true;
+        self
+    }
+
+    pub fn explicit_gap(mut self, gap: Pixels) -> Self {
+        self.explicit_gap = Some(gap);
         self
     }
 
@@ -169,14 +197,18 @@ impl RenderOnce for Card {
             size,
             weight,
             meta,
+            footer,
             bare,
             trailing,
             cover,
             art,
+            art_radius,
+            match_art_height,
             circle,
             tint,
             spacing,
             explicit,
+            explicit_gap,
             fill,
             hovered,
             press,
@@ -200,7 +232,10 @@ impl RenderOnce for Card {
                 .when(circle, Skeleton::circle)
                 .into_any_element(),
             false if circle => Avatar::new(cover).size(art).into_any_element(),
-            false => Artwork::new(cover).size(art).into_any_element(),
+            false => Artwork::new(cover)
+                .size(art)
+                .when_some(art_radius, Artwork::corner_radius)
+                .into_any_element(),
         };
 
         let mut card = base
@@ -222,6 +257,7 @@ impl RenderOnce for Card {
                     .flex_col()
                     .flex_1()
                     .min_w_0()
+                    .when(match_art_height, |this| this.h(art))
                     .when(listed, |this| this.min_w(TITLE))
                     .when_some(spacing, |this, spacing| this.gap(spacing))
                     .when_else(
@@ -243,7 +279,7 @@ impl RenderOnce for Card {
                                 div()
                                     .flex()
                                     .items_center()
-                                    .gap_1p5()
+                                    .gap(explicit_gap.unwrap_or(px(6.)))
                                     .min_w_0()
                                     .text_color(tint.unwrap_or(theme.foreground))
                                     .when_some(size, |this, size| this.text_size(theme.text(size)))
@@ -269,6 +305,12 @@ impl RenderOnce for Card {
                                         .text_color(theme.muted_foreground)
                                         .child(meta),
                                 }
+                            }))
+                            .children(footer.map(|footer| {
+                                div()
+                                    .pt_1()
+                                    .when(match_art_height, |this| this.mt_auto())
+                                    .child(footer)
                             }))
                         },
                     ),

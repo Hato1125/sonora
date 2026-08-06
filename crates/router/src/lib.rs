@@ -18,6 +18,7 @@ pub enum Destination {
     Home,
     Library(LibraryTab),
     Album(SharedString),
+    Song(SharedString),
     Playlist(SharedString),
     Artist(SharedString),
     Search,

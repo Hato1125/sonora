@@ -1,14 +1,14 @@
 use gpui::prelude::*;
 use gpui::{
-    AnyElement, App, Context, Entity, FontWeight, Pixels, Render, ScrollHandle, SharedString,
-    Window, div,
+    AnyElement, App, Context, Entity, Pixels, Render, ScrollHandle, SharedString, Window, px,
 };
 
 use spotify::Track;
 use state::{Detail, Playback};
 use ui::ActiveTheme as _;
-use ui::{Card, ColumnSpec, GridDelegate, GridEvent, GridState, Scrollbar, Scroller, Text, grid};
+use ui::{ColumnSpec, GridDelegate, GridEvent, GridState, Scrollbar, Scroller, clock, grid};
 
+use crate::hero::{HeroMetaStrip, HeroPlayButton, PageHero, release_date_label};
 use crate::tracks::{PlaybackStatus, TrackField, TrackSource, Tracks, playback_status};
 use crate::{cells, page};
 use workspace::{Searchable, Sidebar};
@@ -55,7 +55,17 @@ impl DetailView {
         let scroll = scrollbar.read(cx).scroll().clone();
 
         let table = cx.new(|cx| {
-            let source = TrackSource::new(columns, DetailTracks(detail.clone()), playback.clone());
+            let playlist_scrollbar = cx.new(|_| {
+                Scrollbar::new(ScrollHandle::new())
+                    .always_visible()
+                    .track_inset(px(4.))
+            });
+            let source = TrackSource::new(
+                columns,
+                DetailTracks(detail.clone()),
+                playback.clone(),
+                playlist_scrollbar,
+            );
             GridState::new(GridDelegate::new(source, width, cx), cx).follow(scroll)
         });
 
@@ -102,8 +112,7 @@ impl DetailView {
     fn rebuild(&mut self, cx: &mut Context<Self>) {
         self.table.update(cx, |table, cx| {
             table.delegate_mut().clear_selection();
-            table.delegate_mut().rebuild(cx);
-            table.refresh(cx);
+            table.rebuild(cx);
         });
     }
 
@@ -119,46 +128,44 @@ impl DetailView {
         let artist_refs = header
             .map(|header| header.artist_refs.clone())
             .unwrap_or_default();
-        let meta = header
-            .map(|header| header.meta.clone())
-            .filter(|meta| !meta.is_empty());
-        let has_artist = artist.is_some();
+        let release_date = header.and_then(|header| header.release_date.as_deref());
+        let meta = header.map(|header| header.meta.clone()).unwrap_or_default();
+        let queued = self.detail.read(cx).tracks().to_vec();
+        let duration: std::time::Duration = queued.iter().map(|track| track.duration).sum();
+        let label = match kind {
+            "PLAYLIST" => "Play playlist",
+            _ => "Play album",
+        };
 
-        Card::new("detail-hero", title)
-            .art(theme.metrics.cover)
+        let mut strip = HeroMetaStrip::new();
+        if let Some(artist) = artist {
+            strip = strip.item(cells::artist_links(
+                "detail-artist",
+                artist_refs,
+                artist,
+                muted,
+            ));
+        }
+        if let Some(release_date) = release_date {
+            strip = strip.text(release_date_label(release_date));
+        }
+        for item in meta {
+            strip = strip.text(item);
+        }
+        if !duration.is_zero() {
+            strip = strip.text(clock(duration));
+        }
+
+        PageHero::new("detail-hero", title)
             .cover(header.and_then(|header| header.cover.clone()))
             .eyebrow(kind)
-            .size(Text::Display)
-            .weight(FontWeight::BOLD)
-            .bare_meta(
-                div()
-                    .flex()
-                    .min_w_0()
-                    .text_color(muted)
-                    .truncate()
-                    .when_some(artist, |this, artist| {
-                        this.child(cells::artist_links(
-                            "detail-artist",
-                            artist_refs,
-                            artist,
-                            muted,
-                        ))
-                    })
-                    .when_some(meta, |this, meta| {
-                        let meta = match has_artist {
-                            true => format!(" • {meta}"),
-                            false => meta,
-                        };
-                        this.child(div().flex_none().child(meta))
-                    }),
-            )
-            .spacing(theme.metrics.pad)
-            .flat()
-            .flex_none()
-            .items_end()
-            .gap_5()
-            .px_0()
-            .pb_6()
+            .meta(strip)
+            .actions(HeroPlayButton::new(
+                "play-detail",
+                label,
+                queued,
+                self.playback.clone(),
+            ))
             .into_any_element()
     }
 }

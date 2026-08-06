@@ -97,6 +97,7 @@ pub struct Artwork {
     url: Option<SharedString>,
     size: Pixels,
     circle: bool,
+    radius: Option<Pixels>,
     interactivity: Interactivity,
 }
 
@@ -107,6 +108,7 @@ impl Artwork {
             url: url.map(Into::into),
             size: px(28.),
             circle: false,
+            radius: None,
             interactivity: Interactivity::new(),
         }
     }
@@ -118,6 +120,11 @@ impl Artwork {
 
     pub fn circle(mut self) -> Self {
         self.circle = true;
+        self
+    }
+
+    pub fn corner_radius(mut self, radius: Pixels) -> Self {
+        self.radius = Some(radius);
         self
     }
 }
@@ -140,12 +147,14 @@ impl RenderOnce for Artwork {
             url,
             size,
             circle,
+            radius,
             interactivity,
         } = self;
         let muted = cx.theme().muted_foreground;
-        let rounded = match circle {
-            true => size / 2.,
-            false => cx.theme().radius.min(ROUNDED),
+        let rounded = match (circle, radius) {
+            (true, _) => size / 2.,
+            (false, Some(radius)) => radius,
+            (false, None) => cx.theme().radius.min(ROUNDED),
         };
         let placeholder = move || blank(size, rounded, muted).into_any_element();
 

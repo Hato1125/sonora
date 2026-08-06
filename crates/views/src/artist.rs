@@ -7,11 +7,10 @@ use gpui::{
 use spotify::{ReleaseType, Track};
 use state::{ArtistDetail, Playback};
 use ui::ActiveTheme as _;
-use ui::{
-    Button, Card, ColumnSpec, GridDelegate, GridEvent, GridState, Scrollbar, Scroller, Text, grid,
-};
+use ui::{Button, ColumnSpec, GridDelegate, GridEvent, GridState, Scrollbar, Scroller, Text, grid};
 use workspace::Sidebar;
 
+use crate::hero::{HeroPlayButton, PageHero};
 use crate::page;
 use crate::release_card::ReleaseCard;
 use crate::tracks::{PlaybackStatus, TrackField, TrackSource, Tracks, playback_status};
@@ -82,7 +81,17 @@ impl ArtistView {
         let scrollbar = cx.new(|_| Scrollbar::new(ScrollHandle::new()));
         let scroll = scrollbar.read(cx).scroll().clone();
         let table = cx.new(|cx| {
-            let source = TrackSource::new(columns, ArtistTracks(detail.clone()), playback.clone());
+            let playlist_scrollbar = cx.new(|_| {
+                Scrollbar::new(ScrollHandle::new())
+                    .always_visible()
+                    .track_inset(px(4.))
+            });
+            let source = TrackSource::new(
+                columns,
+                ArtistTracks(detail.clone()),
+                playback.clone(),
+                playlist_scrollbar,
+            );
             GridState::new(GridDelegate::new(source, width, cx), cx).follow(scroll)
         });
 
@@ -127,32 +136,26 @@ impl ArtistView {
 
     fn rebuild(&mut self, cx: &mut Context<Self>) {
         self.table.update(cx, |table, cx| {
-            table.delegate_mut().rebuild(cx);
-            table.refresh(cx);
+            table.rebuild(cx);
         });
     }
 
     fn header(&self, cx: &Context<Self>) -> AnyElement {
-        let theme = cx.theme();
         let artist = self.detail.read(cx).artist();
         let title = artist
             .map(|artist| SharedString::from(artist.name.clone()))
             .unwrap_or_default();
 
-        Card::new("artist-hero", title)
-            .art(theme.metrics.cover)
+        PageHero::new("artist-hero", title)
             .cover(artist.and_then(|artist| artist.cover_large.clone()))
-            .circle()
             .eyebrow("ARTIST")
-            .size(Text::Display)
-            .weight(FontWeight::BOLD)
-            .spacing(theme.metrics.pad)
-            .flat()
-            .flex_none()
-            .items_end()
-            .gap_5()
-            .px_0()
-            .pb_6()
+            .actions(HeroPlayButton::new(
+                "play-artist",
+                "Play now",
+                self.detail.read(cx).tracks().to_vec(),
+                self.playback.clone(),
+            ))
+            .circle()
             .into_any_element()
     }
 

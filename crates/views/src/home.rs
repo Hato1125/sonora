@@ -1,11 +1,11 @@
 use gpui::prelude::*;
-use gpui::{Context, Entity, Render, ScrollHandle, Window, div};
+use gpui::{Context, Entity, Pixels, Point, Render, ScrollHandle, Window, anchored, div, px};
 use state::{Home, Playback};
 use ui::{ActiveTheme as _, Scrollbar, Scroller};
 use workspace::Sidebar;
 
 use crate::quick_picks::{QuickPicks, column_count, page_count};
-use crate::tracks::{PlaybackStatus, playback_status};
+use crate::tracks::{PlaybackStatus, TrackMenu, playback_status};
 
 pub(crate) struct HomeView {
     home: Entity<Home>,
@@ -15,6 +15,8 @@ pub(crate) struct HomeView {
     quick_picks_page: usize,
     sidebar: Entity<Sidebar>,
     scrollbar: Entity<Scrollbar>,
+    track_menu: TrackMenu,
+    context_menu: Option<(usize, Point<Pixels>)>,
 }
 
 impl HomeView {
@@ -24,8 +26,17 @@ impl HomeView {
         sidebar: Entity<Sidebar>,
         cx: &mut Context<Self>,
     ) -> Self {
+        let playlist_scrollbar = cx.new(|_| {
+            Scrollbar::new(ScrollHandle::new())
+                .always_visible()
+                .track_inset(px(4.))
+        });
+        let track_menu = TrackMenu::new(playlist_scrollbar);
+
         cx.observe(&home, |this, _, cx| {
             this.quick_picks_page = 0;
+            this.track_menu.reset();
+            this.context_menu = None;
             cx.notify();
         })
         .detach();
@@ -49,6 +60,8 @@ impl HomeView {
             quick_picks_page: 0,
             sidebar,
             scrollbar: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
+            track_menu,
+            context_menu: None,
         }
     }
 }
@@ -69,6 +82,27 @@ impl Render for HomeView {
         let pages = page_count(tracks.len(), available);
         self.quick_picks_page = self.quick_picks_page.min(pages.saturating_sub(1));
         let page = self.quick_picks_page;
+        let home = cx.entity().downgrade();
+        let selected = self.context_menu.and_then(|(place, position)| {
+            tracks.get(place).cloned().map(|track| (track, position))
+        });
+        let context_menu = selected.map(|(track, position)| {
+            anchored()
+                .position(position)
+                .snap_to_window_with_margin(px(8.))
+                .child(
+                    self.track_menu
+                        .for_track(&track, cx)
+                        .on_action(cx.listener(|this, _, _, cx| {
+                            this.context_menu = None;
+                            cx.notify();
+                        }))
+                        .on_dismiss(cx.listener(|this, _, _, cx| {
+                            this.context_menu = None;
+                            cx.notify();
+                        })),
+                )
+        });
 
         Scroller::new("home-page", &self.scrollbar)
             .p(theme.metrics.inset)
@@ -83,14 +117,27 @@ impl Render for HomeView {
                     )
                     .on_previous(cx.listener(|this, _, _, cx| {
                         this.quick_picks_page = this.quick_picks_page.saturating_sub(1);
+                        this.context_menu = None;
                         cx.notify();
                     }))
                     .on_next(cx.listener(move |this, _, _, cx| {
                         this.quick_picks_page =
                             (this.quick_picks_page + 1).min(pages.saturating_sub(1));
+                        this.context_menu = None;
                         cx.notify();
-                    })),
+                    }))
+                    .on_context_menu(move |place, event, _, cx| {
+                        let Some(home) = home.upgrade() else {
+                            return;
+                        };
+                        home.update(cx, |this, cx| {
+                            this.track_menu.reset();
+                            this.context_menu = Some((place, event.position));
+                            cx.notify();
+                        });
+                    }),
                 ),
             )
+            .when_some(context_menu, |this, menu| this.child(menu))
     }
 }

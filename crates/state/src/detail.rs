@@ -19,7 +19,8 @@ pub struct Header {
     pub title: String,
     pub artist: Option<String>,
     pub artist_refs: Vec<ArtistRef>,
-    pub meta: String,
+    pub release_date: Option<String>,
+    pub meta: Vec<String>,
     pub cover: Option<String>,
 }
 
@@ -150,9 +151,6 @@ impl Detail {
 
 fn album_header(album: &Album) -> Header {
     let mut parts = Vec::new();
-    if album.year > 0 {
-        parts.push(format!("{}", album.year));
-    }
     if album.track_count > 0 {
         parts.push(format!("{} songs", album.track_count));
     }
@@ -162,7 +160,11 @@ fn album_header(album: &Album) -> Header {
         title: album.name.clone(),
         artist: Some(album.artists.clone()),
         artist_refs: album.artist_refs.clone(),
-        meta: parts.join(" • "),
+        release_date: match album.release_date.is_empty() {
+            true => (album.year > 0).then(|| album.year.to_string()),
+            false => Some(album.release_date.clone()),
+        },
+        meta: parts,
         cover: album.cover_large.clone(),
     }
 }
@@ -178,7 +180,8 @@ fn playlist_header(playlist: &Playlist) -> Header {
         title: playlist.name.clone(),
         artist: None,
         artist_refs: Vec::new(),
-        meta: parts.join(" • "),
+        release_date: None,
+        meta: parts,
         cover: playlist.cover.clone(),
     }
 }
