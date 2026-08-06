@@ -3,8 +3,8 @@ use std::time::Duration;
 
 use gpui::prelude::*;
 use gpui::{
-    Context, DragMoveEvent, Empty, MouseButton, MouseDownEvent, Pixels, Render, ScrollHandle, Task,
-    Window, div, point, px,
+    Context, DragMoveEvent, Empty, EntityId, MouseButton, MouseDownEvent, Pixels, Render,
+    ScrollHandle, Task, Window, div, point, px,
 };
 
 use crate::theme::ActiveTheme as _;
@@ -18,6 +18,7 @@ const ACTIVE: f32 = 0.55;
 
 #[derive(Clone)]
 struct Grab {
+    owner: EntityId,
     start: Slot<Pixels>,
     offset: Slot<Pixels>,
 }
@@ -96,6 +97,7 @@ impl Render for Scrollbar {
 
         let jump = self.scroll.clone();
         let drag = self.scroll.clone();
+        let owner = cx.entity_id();
 
         div()
             .id("scrollbar")
@@ -139,6 +141,7 @@ impl Render for Scrollbar {
                     )
                     .on_drag(
                         Grab {
+                            owner,
                             start: Slot::new(Pixels::ZERO),
                             offset: Slot::new(offset),
                         },
@@ -151,6 +154,9 @@ impl Render for Scrollbar {
                         cx.listener(move |this, event: &DragMoveEvent<Grab>, _, cx| {
                             let (start, base) = {
                                 let grab = event.drag(cx);
+                                if grab.owner != owner {
+                                    return;
+                                }
                                 (grab.start.get(), grab.offset.get())
                             };
                             let moved = event.event.position.y - start;
