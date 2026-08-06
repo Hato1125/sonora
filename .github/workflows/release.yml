@@ -1,0 +1,113 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_PROFILE_RELEASE_STRIP: symbols
+  RUST_BACKTRACE: 1
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-22.04
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-22.04-arm
+          - target: aarch64-apple-darwin
+            os: macos-15
+          - target: x86_64-apple-darwin
+            os: macos-15-intel
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: name the artifact
+        id: meta
+        shell: bash
+        run: |
+          case "$GITHUB_REF" in
+            refs/tags/*) version="$GITHUB_REF_NAME" ;;
+            *) version="$(git rev-parse --short HEAD)" ;;
+          esac
+          echo "name=sonora-$version-${{ matrix.target }}" >> "$GITHUB_OUTPUT"
+
+      - name: system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config mold \
+            libasound2-dev libfontconfig-1-dev libfreetype-dev \
+            libx11-dev libxcb1-dev libxcursor-dev libxi-dev \
+            libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libvulkan-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: build
+        run: cargo build --release --locked --package sonora --target ${{ matrix.target }}
+
+      - name: package
+        if: runner.os != 'Windows'
+        shell: bash
+        env:
+          NAME: ${{ steps.meta.outputs.name }}
+        run: |
+          mkdir -p dist
+          tar czf "dist/$NAME.tar.gz" -C "target/${{ matrix.target }}/release" sonora
+          cd dist && shasum -a 256 "$NAME.tar.gz" > "$NAME.tar.gz.sha256"
+
+      - name: package
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          NAME: ${{ steps.meta.outputs.name }}
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Compress-Archive -Path "target/${{ matrix.target }}/release/sonora.exe" -DestinationPath "dist/$env:NAME.zip"
+          $hash = (Get-FileHash "dist/$env:NAME.zip" -Algorithm SHA256).Hash.ToLower()
+          "$hash  $env:NAME.zip" | Out-File -Encoding ascii "dist/$env:NAME.zip.sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.meta.outputs.name }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          fail_on_unmatched_files: true
