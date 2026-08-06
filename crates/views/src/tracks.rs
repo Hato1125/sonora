@@ -4,7 +4,7 @@ use ui::ActiveTheme as _;
 
 use gpui::{AnyElement, App, ClipboardItem, Entity, Hsla, Styled as _, TextAlign};
 use jiff::Timestamp;
-use router::Destination;
+use router::{Destination, navigate};
 use spotify::Track;
 use state::{LibraryState, Playback, PlaybackState, Sonora};
 use ui::{Cell, ColumnSpec, GridSource, Menu, MenuItem, Scrollbar, SubmenuState, Width, clock};
@@ -207,6 +207,28 @@ impl TrackMenu {
                 .icon("icons/link.svg")
                 .disabled(),
         };
+        let queue = match track.playable {
+            true => {
+                let track = track.clone();
+                MenuItem::new("add-to-queue", "Add to queue")
+                    .icon("icons/list-end.svg")
+                    .on_click(move |_, _, cx| {
+                        let queue = Sonora::global(cx).queue.clone();
+                        queue.update(cx, |queue, cx| queue.append(track.clone(), cx));
+                    })
+            }
+            false => MenuItem::new("add-to-queue", "Add to queue")
+                .icon("icons/list-end.svg")
+                .disabled(),
+        };
+        let details = match track.id.clone() {
+            Some(id) => MenuItem::new("view-details", "View details")
+                .icon("icons/info.svg")
+                .on_click(move |_, _, cx| navigate(Destination::Song(id.clone().into()), cx)),
+            None => MenuItem::new("view-details", "View details")
+                .icon("icons/info.svg")
+                .disabled(),
+        };
 
         Menu::new("track-context-menu")
             .relative()
@@ -221,21 +243,13 @@ impl TrackMenu {
                     .icon("icons/heart.svg")
                     .disabled(),
             )
-            .item(
-                MenuItem::new("add-to-queue", "Add to queue")
-                    .icon("icons/list-end.svg")
-                    .disabled(),
-            )
+            .item(queue)
             .item(
                 MenuItem::new("song-radio", "Go to song radio")
                     .icon("icons/radio.svg")
                     .disabled(),
             )
-            .item(
-                MenuItem::new("view-credits", "View credits")
-                    .icon("icons/info.svg")
-                    .disabled(),
-            )
+            .item(details)
             .item(copy)
     }
 }
