@@ -1,7 +1,7 @@
 use gpui::prelude::*;
 use gpui::{AnyView, Context, Entity, Render};
 use gpui::{Window, div};
-use input::{OpenSearch, OpenSettings};
+use input::{OpenFilter, OpenSearch, OpenSettings};
 use router::{Destination, NavigationEvent, navigate};
 use state::{ArtistDetail, Detail, Io, Library, Playback, Queue, Search, Session, SessionState};
 use ui::ActiveTheme as _;
@@ -167,6 +167,11 @@ impl Root {
         cx.notify();
     }
 
+    fn open_filter(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.filter
+            .update(cx, |filter, cx| filter.focus(window, cx));
+    }
+
     fn open_settings(&mut self, cx: &mut Context<Self>) {
         navigate(Destination::Settings, cx);
         self.pending = Some(Focus::Workspace);
@@ -266,6 +271,7 @@ impl Render for Root {
             .size_full()
             .bg(theme.background)
             .text_color(theme.foreground)
+            .on_action(cx.listener(|this, _: &OpenFilter, window, cx| this.open_filter(window, cx)))
             .on_action(cx.listener(|this, _: &OpenSearch, _, cx| this.open_search(cx)))
             .on_action(cx.listener(|this, _: &OpenSettings, _, cx| this.open_settings(cx)))
             .when_else(
