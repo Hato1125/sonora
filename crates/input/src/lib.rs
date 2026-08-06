@@ -3,6 +3,7 @@ mod text;
 pub use text::Input;
 
 use gpui::{KeyBinding, actions};
+use ui::{Deselect, GRID_CONTEXT, SelectNext, SelectPrevious};
 
 actions!(
     spotty,
@@ -51,8 +52,12 @@ pub const INPUT_CONTEXT: &str = "Input";
 pub fn bindings() -> Vec<KeyBinding> {
     let editing = Some(INPUT_CONTEXT);
     let away_from_text = format!("{WORKSPACE_CONTEXT} && !{INPUT_CONTEXT}");
+    let table = Some(GRID_CONTEXT);
 
     vec![
+        KeyBinding::new("down", SelectNext, table),
+        KeyBinding::new("up", SelectPrevious, table),
+        KeyBinding::new("escape", Deselect, table),
         KeyBinding::new("cmd-q", Quit, None),
         KeyBinding::new("ctrl-q", Quit, None),
         KeyBinding::new("cmd-r", RefreshLibrary, None),

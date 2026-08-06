@@ -2,12 +2,17 @@ use std::cmp::Ordering;
 
 use gpui::prelude::*;
 use gpui::{
-    AbsoluteLength, AnyElement, App, Context, Corners, Div, Entity, EventEmitter, Interactivity,
-    MouseButton, MouseDownEvent, Pixels, StyleRefinement, TextAlign, Window, div, px, svg,
+    AbsoluteLength, AnyElement, App, Context, Corners, Div, Entity, EventEmitter, FocusHandle,
+    Focusable, Interactivity, MouseButton, MouseDownEvent, Pixels, ScrollHandle, StyleRefinement,
+    TextAlign, Window, actions, div, point, px, svg,
 };
 
 use crate::metrics::{Metrics, snapped};
 use crate::theme::ActiveTheme as _;
+
+actions!(grid, [SelectNext, SelectPrevious, Deselect]);
+
+pub const GRID_CONTEXT: &str = "Grid";
 
 const PADDING: Pixels = px(8.);
 const TRAIL: Pixels = px(4.);
@@ -172,6 +177,14 @@ impl<S: GridSource> GridDelegate<S> {
         self.selected
     }
 
+    pub fn clear_selection(&mut self) {
+        self.selected = None;
+    }
+
+    fn display_of(&self, row: usize) -> Option<usize> {
+        self.order.iter().position(|&candidate| candidate == row)
+    }
+
     pub fn row_count(&self) -> usize {
         self.order.len()
     }
@@ -318,21 +331,97 @@ pub struct GridState<S: GridSource> {
     delegate: GridDelegate<S>,
     viewport: Viewport,
     corners: Corners<Pixels>,
+    focus: FocusHandle,
+    scroll: Option<ScrollHandle>,
 }
 
 impl<S: GridSource> EventEmitter<GridEvent> for GridState<S> {}
 
+impl<S: GridSource> Focusable for GridState<S> {
+    fn focus_handle(&self, _: &App) -> FocusHandle {
+        self.focus.clone()
+    }
+}
+
 impl<S: GridSource> GridState<S> {
-    pub fn new(delegate: GridDelegate<S>) -> Self {
+    pub fn new(delegate: GridDelegate<S>, cx: &mut Context<Self>) -> Self {
         Self {
             delegate,
             viewport: Viewport::default(),
             corners: Corners::default(),
+            focus: cx.focus_handle(),
+            scroll: None,
         }
+    }
+
+    pub fn follow(mut self, scroll: ScrollHandle) -> Self {
+        self.scroll = Some(scroll);
+        self
     }
 
     pub fn set_viewport(&mut self, viewport: Viewport) {
         self.viewport = viewport;
+    }
+
+    fn select_next(&mut self, _: &SelectNext, window: &mut Window, cx: &mut Context<Self>) {
+        self.step(1, window, cx);
+    }
+
+    fn select_previous(&mut self, _: &SelectPrevious, window: &mut Window, cx: &mut Context<Self>) {
+        self.step(-1, window, cx);
+    }
+
+    fn deselect(&mut self, _: &Deselect, _: &mut Window, cx: &mut Context<Self>) {
+        if self.delegate.selected.is_none() {
+            return;
+        }
+        self.delegate.selected = None;
+        cx.notify();
+    }
+
+    fn step(&mut self, delta: isize, window: &mut Window, cx: &mut Context<Self>) {
+        let count = self.delegate.row_count();
+        if count == 0 {
+            return;
+        }
+
+        let display = match self
+            .delegate
+            .selected
+            .and_then(|row| self.delegate.display_of(row))
+        {
+            Some(current) => current.saturating_add_signed(delta).min(count - 1),
+            None if delta < 0 => count - 1,
+            None => 0,
+        };
+
+        self.delegate.selected = Some(self.delegate.row(display));
+        self.reveal(display, window, cx);
+        cx.notify();
+    }
+
+    fn reveal(&self, display: usize, window: &Window, cx: &App) {
+        let Some(scroll) = &self.scroll else {
+            return;
+        };
+
+        let metrics = cx.theme().metrics;
+        let row = snapped(metrics.row, window);
+        let head = snapped(metrics.header, window);
+        let top = head + row * display as f32;
+        let above = self.viewport.top + head;
+        let below = self.viewport.top + self.viewport.height;
+
+        let delta = if top < above {
+            top - above
+        } else if top + row > below {
+            top + row - below
+        } else {
+            return;
+        };
+
+        let offset = scroll.offset();
+        scroll.set_offset(point(offset.x, offset.y - delta));
     }
 
     fn height(&self, head: Pixels, row: Pixels) -> Pixels {
@@ -498,7 +587,8 @@ impl<S: GridSource> GridState<S> {
                     })
                     .on_mouse_down(
                         MouseButton::Left,
-                        cx.listener(move |this, event: &MouseDownEvent, _, cx| {
+                        cx.listener(move |this, event: &MouseDownEvent, window, cx| {
+                            window.focus(&this.focus.clone(), cx);
                             this.delegate.selected = Some(row);
                             if event.click_count >= 2 {
                                 cx.emit(GridEvent::DoubleClicked(display));
@@ -560,6 +650,18 @@ impl<S: GridSource> Render for GridState<S> {
         let top = unpinned(self.corners, pinned);
 
         div()
+            .key_context(GRID_CONTEXT)
+            .track_focus(&self.focus)
+            .on_action(cx.listener(Self::select_next))
+            .on_action(cx.listener(Self::select_previous))
+            .on_action(cx.listener(Self::deselect))
+            .on_mouse_down_out(cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                if this.delegate.selected.is_none() {
+                    return;
+                }
+                this.delegate.selected = None;
+                cx.notify();
+            }))
             .relative()
             .w_full()
             .h(height)

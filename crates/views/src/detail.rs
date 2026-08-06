@@ -57,9 +57,12 @@ impl DetailView {
         let width =
             cells::content_width(window, sidebar.read(cx).occupied_width(), reserved(inset));
 
+        let scrollbar = cx.new(|_| Scrollbar::new(ScrollHandle::new()));
+        let scroll = scrollbar.read(cx).scroll().clone();
+
         let table = cx.new(|cx| {
             let source = TrackSource::new(columns, DetailTracks(detail.clone()), playback.clone());
-            GridState::new(GridDelegate::new(source, width, cx))
+            GridState::new(GridDelegate::new(source, width, cx), cx).follow(scroll)
         });
 
         cx.observe(&detail, |this, _, cx| {
@@ -90,8 +93,6 @@ impl DetailView {
             this.play(*display, cx);
         })
         .detach();
-
-        let scrollbar = cx.new(|_| Scrollbar::new(ScrollHandle::new()));
 
         Self {
             detail,
@@ -218,7 +219,7 @@ impl DetailView {
                                     true => format!(" • {meta}"),
                                     false => meta,
                                 };
-                                this.child(meta)
+                                this.child(div().flex_none().child(meta))
                             }),
                     ),
             )

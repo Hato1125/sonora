@@ -96,6 +96,9 @@ impl LibraryView {
         let settings = Spotty::global(cx).settings.clone();
         let saved = |section: Section, cx: &App| settings.read(cx).hidden_columns(section.key());
 
+        let scrollbar = cx.new(|_| Scrollbar::new(ScrollHandle::new()));
+        let scroll = scrollbar.read(cx).scroll().clone();
+
         let tracks = cx.new(|cx| {
             let source = TrackSource::new(
                 LIBRARY_COLUMNS,
@@ -108,19 +111,19 @@ impl LibraryView {
                 cx,
             );
             delegate.set_hidden(saved(Section::Tracks, cx), cx);
-            GridState::new(delegate)
+            GridState::new(delegate, cx).follow(scroll.clone())
         });
         let albums = cx.new(|cx| {
             let source = AlbumSource::new(library.clone(), playback.clone());
             let mut delegate = GridDelegate::new(source, width, cx);
             delegate.set_hidden(saved(Section::Albums, cx), cx);
-            GridState::new(delegate)
+            GridState::new(delegate, cx).follow(scroll.clone())
         });
         let playlists = cx.new(|cx| {
             let source = PlaylistSource::new(library.clone(), playback.clone());
             let mut delegate = GridDelegate::new(source, width, cx);
             delegate.set_hidden(saved(Section::Playlists, cx), cx);
-            GridState::new(delegate)
+            GridState::new(delegate, cx).follow(scroll)
         });
 
         cx.observe(&library, |this, _, cx| {
@@ -161,8 +164,6 @@ impl LibraryView {
             this.open_playlist(*display, cx);
         })
         .detach();
-
-        let scrollbar = cx.new(|_| Scrollbar::new(ScrollHandle::new()));
 
         Self {
             library,
