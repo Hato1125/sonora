@@ -65,6 +65,10 @@ impl Filter {
     }
 
     pub fn focus(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.apply.is_none() {
+            return;
+        }
+
         self.open = true;
         self.input.update(cx, |input, cx| input.focus(window, cx));
         cx.notify();

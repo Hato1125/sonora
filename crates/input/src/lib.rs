@@ -11,6 +11,7 @@ actions!(
         SignOut,
         RefreshLibrary,
         TogglePlayback,
+        OpenFilter,
         OpenSearch,
         OpenSettings
     ]
@@ -56,8 +57,10 @@ pub fn bindings() -> Vec<KeyBinding> {
         KeyBinding::new("ctrl-q", Quit, None),
         KeyBinding::new("cmd-r", RefreshLibrary, None),
         KeyBinding::new("ctrl-r", RefreshLibrary, None),
-        KeyBinding::new("cmd-f", OpenSearch, None),
-        KeyBinding::new("ctrl-f", OpenSearch, None),
+        KeyBinding::new("cmd-f", OpenFilter, None),
+        KeyBinding::new("ctrl-f", OpenFilter, None),
+        KeyBinding::new("shift-cmd-f", OpenSearch, None),
+        KeyBinding::new("shift-ctrl-f", OpenSearch, None),
         KeyBinding::new("ctrl-,", OpenSettings, None),
         KeyBinding::new("cmd-,", OpenSettings, None),
         KeyBinding::new("space", TogglePlayback, Some(&away_from_text)),
