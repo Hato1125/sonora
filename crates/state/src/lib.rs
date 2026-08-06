@@ -58,7 +58,7 @@ pub(crate) async fn join<T>(handle: JoinHandle<Result<T>>) -> Result<T> {
     handle.await?
 }
 
-pub struct Spotty {
+pub struct Sonora {
     pub session: Entity<Session>,
     pub library: Entity<Library>,
     pub playback: Entity<Playback>,
@@ -66,9 +66,9 @@ pub struct Spotty {
     pub settings: Entity<AppSettings>,
 }
 
-impl Global for Spotty {}
+impl Global for Sonora {}
 
-impl Spotty {
+impl Sonora {
     pub fn global(cx: &App) -> &Self {
         cx.global()
     }
@@ -83,7 +83,7 @@ pub fn init(cx: &mut App, io: Io) {
     let queue = cx.new(|_| Queue::new());
     let playback = cx.new(|cx| Playback::new(session.clone(), queue.clone(), settings.clone(), cx));
 
-    cx.set_global(Spotty {
+    cx.set_global(Sonora {
         session,
         library,
         playback,

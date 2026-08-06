@@ -6424,6 +6424,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "sonora"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "env_logger",
+ "gpui",
+ "gpui_platform",
+ "input",
+ "log",
+ "reqwest",
+ "router",
+ "state",
+ "tokio",
+ "ui",
+ "views",
+ "workspace",
+]
+
+[[package]]
 name = "spin"
 version = "0.9.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6486,25 +6505,6 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
-]
-
-[[package]]
-name = "spotty"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "env_logger",
- "gpui",
- "gpui_platform",
- "input",
- "log",
- "reqwest",
- "router",
- "state",
- "tokio",
- "ui",
- "views",
- "workspace",
 ]
 
 [[package]]

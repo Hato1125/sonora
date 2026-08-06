@@ -7,7 +7,7 @@ use gpui::http_client::http::HeaderValue;
 use gpui::http_client::{AsyncBody, HttpClient, Inner, Request, Response, Url};
 use tokio::runtime::Handle;
 
-const USER_AGENT: &str = "spotty";
+const USER_AGENT: &str = "sonora";
 
 type Sent = Pin<Box<dyn Future<Output = Result<Response<AsyncBody>>> + Send>>;
 

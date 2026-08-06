@@ -48,7 +48,7 @@ impl Render for LoginView {
             .size_full()
             .child(
                 div()
-                    .child("spotty")
+                    .child("sonora")
                     .text_size(theme.text(Text::Display))
                     .font_weight(FontWeight::BOLD),
             )

@@ -5,7 +5,7 @@ use ui::WindowControls;
 use ui::{ActiveTheme as _, Button};
 
 use router::Navigation;
-use state::{AppSettings, Spotty};
+use state::{AppSettings, Sonora};
 
 use crate::Sidebar;
 
@@ -24,7 +24,7 @@ pub struct TitleBar {
 impl TitleBar {
     pub fn new(sidebar: Entity<Sidebar>, cx: &mut Context<Self>) -> Self {
         let navigation = router::trail(cx);
-        let settings = Spotty::global(cx).settings.clone();
+        let settings = Sonora::global(cx).settings.clone();
 
         cx.observe(&sidebar, |_, _, cx| cx.notify()).detach();
         cx.observe(&navigation, |_, _, cx| cx.notify()).detach();

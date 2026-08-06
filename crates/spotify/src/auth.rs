@@ -42,7 +42,7 @@ impl Default for AuthConfig {
 impl AuthConfig {
     pub fn from_env() -> Self {
         let mut config = Self::default();
-        if let Ok(redirect_uri) = std::env::var("SPOTTY_REDIRECT_URI") {
+        if let Ok(redirect_uri) = std::env::var("SONORA_REDIRECT_URI") {
             config.redirect_uri = redirect_uri;
         }
         config
@@ -52,7 +52,7 @@ impl AuthConfig {
 fn default_cache_dir() -> PathBuf {
     dirs::cache_dir()
         .unwrap_or_else(std::env::temp_dir)
-        .join("spotty")
+        .join("sonora")
 }
 
 pub async fn restore(config: &AuthConfig) -> Result<Option<Session>> {

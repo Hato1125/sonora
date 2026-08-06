@@ -6,7 +6,7 @@ use gpui::{KeyBinding, actions};
 use ui::{Deselect, GRID_CONTEXT, SelectNext, SelectPrevious};
 
 actions!(
-    spotty,
+    sonora,
     [
         Quit,
         SignOut,

@@ -1,5 +1,5 @@
 {
-  description = "spotty - a minimal native Spotify client";
+  description = "sonora - a minimal native Spotify client";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -32,8 +32,8 @@
             alsa-lib
           ];
 
-          spotty = pkgs.rustPlatform.buildRustPackage {
-            pname = "spotty";
+          sonora = pkgs.rustPlatform.buildRustPackage {
+            pname = "sonora";
             version = "0.1.0";
 
             src = ./.;
@@ -51,19 +51,19 @@
             postFixup = ''
               patchelf \
                 --add-rpath "${pkgs.lib.makeLibraryPath runtimeLibraries}" \
-                "$out/bin/spotty"
+                "$out/bin/sonora"
             '';
 
             meta = {
               description = "A minimal native Spotify client built with GPUI";
-              mainProgram = "spotty";
+              mainProgram = "sonora";
               platforms = pkgs.lib.platforms.linux;
             };
           };
         in
         {
-          inherit spotty;
-          default = spotty;
+          inherit sonora;
+          default = sonora;
         }
       );
 

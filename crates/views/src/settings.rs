@@ -5,7 +5,7 @@ use gpui::{
     AnyElement, Context, Entity, FontWeight, Pixels, Render, SharedString, Window, div, px,
 };
 use gpui::{ScrollHandle, prelude::*};
-use state::{AppSettings, Playback, Session, SessionState, Spotty};
+use state::{AppSettings, Playback, Session, SessionState, Sonora};
 use ui::{ActiveTheme as _, Scrollbar, Scroller};
 use ui::{
     Button, Initials, Look, MAX_FONT, MIN_FONT, Menu, MenuItem, Rounding, Skeleton, Text, Theme,
@@ -47,7 +47,7 @@ impl SettingsView {
         playback: Entity<Playback>,
         cx: &mut Context<Self>,
     ) -> Self {
-        let settings = Spotty::global(cx).settings.clone();
+        let settings = Sonora::global(cx).settings.clone();
         cx.observe(&session, |_, _, cx| cx.notify()).detach();
         cx.observe(&settings, |_, _, cx| cx.notify()).detach();
         Self {
@@ -384,7 +384,7 @@ impl SettingsView {
                     .on_click(move |_, _, cx| {
                         let path = settings.update(cx, |settings, _| settings.ensure_file());
                         if let Err(error) = open_settings_file(&path) {
-                            eprintln!("spotty: cannot open {}: {error}", path.display());
+                            eprintln!("sonora: cannot open {}: {error}", path.display());
                         }
                     }),
             )

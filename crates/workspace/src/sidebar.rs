@@ -5,7 +5,7 @@ use gpui::prelude::*;
 use gpui::{AnyElement, Context, DragMoveEvent, ElementId, Empty, Entity, Hsla, Pixels, Render};
 use gpui::{Window, div, px};
 use router::{Destination, LibraryTab, Navigation, navigate};
-use state::{AppSettings, Spotty};
+use state::{AppSettings, Sonora};
 
 const NAV: [(&str, &str, Option<Destination>); 4] = [
     ("Home", "icons/house.svg", Some(Destination::Home)),
@@ -49,7 +49,7 @@ pub struct Sidebar {
 
 impl Sidebar {
     pub fn new(cx: &mut Context<Self>) -> Self {
-        let settings = Spotty::global(cx).settings.clone();
+        let settings = Sonora::global(cx).settings.clone();
         let width = px(settings.read(cx).sidebar_width()).clamp(MIN_WIDTH, MAX_WIDTH);
         let open = settings.read(cx).sidebar_open();
         let trail = router::trail(cx);

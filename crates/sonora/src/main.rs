@@ -9,7 +9,7 @@ use gpui::{
     size,
 };
 use router::Destination;
-use state::{Library, Playback, Queue, Session, Spotty};
+use state::{Library, Playback, Queue, Session, Sonora};
 use ui::ActiveTheme as _;
 use views::Root;
 
@@ -24,7 +24,7 @@ fn main() {
     let io = match state::Io::new() {
         Ok(io) => io,
         Err(error) => {
-            eprintln!("spotty: cannot start runtime: {error:#}");
+            eprintln!("sonora: cannot start runtime: {error:#}");
             return;
         }
     };
@@ -34,13 +34,13 @@ fn main() {
         .with_http_client(Arc::new(http::Client::new(io.handle())))
         .run(move |cx: &mut App| {
             if let Err(error) = assets::Assets.load_fonts(cx) {
-                log::error!("spotty: cannot load bundled fonts: {error:#}");
+                log::error!("sonora: cannot load bundled fonts: {error:#}");
             }
 
             state::init(cx, io);
             router::init(Destination::Home, cx);
             let (look, overrides) = {
-                let settings = Spotty::global(cx).settings.read(cx);
+                let settings = Sonora::global(cx).settings.read(cx);
                 (
                     ui::Look {
                         kind: ui::ThemeKind::from_id(settings.theme()),
@@ -54,13 +54,13 @@ fn main() {
 
             actions::register(cx);
 
-            let Spotty {
+            let Sonora {
                 session,
                 library,
                 playback,
                 queue,
                 settings: _,
-            } = Spotty::global(cx);
+            } = Sonora::global(cx);
             let (session, library, playback, queue) = (
                 session.clone(),
                 library.clone(),
@@ -87,7 +87,7 @@ fn open_window(
         WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(bounds)),
             titlebar: Some(TitlebarOptions {
-                title: Some("spotty".into()),
+                title: Some("sonora".into()),
                 appears_transparent: true,
                 traffic_light_position: Some(point(
                     px(9.),
@@ -96,7 +96,7 @@ fn open_window(
             }),
             is_movable: true,
             is_resizable: true,
-            app_id: Some("spotty".into()),
+            app_id: Some("sonora".into()),
             window_min_size: Some(size(px(480.), px(400.))),
             ..Default::default()
         },

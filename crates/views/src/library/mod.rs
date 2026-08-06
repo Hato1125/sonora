@@ -5,7 +5,7 @@ use gpui::prelude::*;
 use gpui::{App, Context, Entity, Pixels, Point, Render, ScrollHandle, Window, px};
 use router::{Destination, LibraryTab, navigate};
 use spotify::Track;
-use state::{AppSettings, Library, LibraryState, Playback, Spotty};
+use state::{AppSettings, Library, LibraryState, Playback, Sonora};
 use ui::{
     GridDelegate, GridEvent, GridState, Scrollbar, Scroller, Sort, Toggle, Viewport, grid, scrolled,
 };
@@ -95,7 +95,7 @@ impl LibraryView {
         cx: &mut Context<Self>,
     ) -> Self {
         let width = cells::content_width(window, sidebar.read(cx).occupied_width(), Pixels::ZERO);
-        let settings = Spotty::global(cx).settings.clone();
+        let settings = Sonora::global(cx).settings.clone();
         let saved = |section: Section, cx: &App| settings.read(cx).hidden_columns(section.key());
 
         let scrollbar = cx.new(|_| Scrollbar::new(ScrollHandle::new()));

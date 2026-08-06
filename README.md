@@ -1,4 +1,4 @@
-# spotty
+# sonora
 
 A minimal native Spotify client built with Rust and GPUI.
 
@@ -18,14 +18,14 @@ You also need a Vulkan driver for your GPU, such as `vulkan-radeon`,
 Build and run:
 
 ```sh
-cargo run --locked --package spotty
+cargo run --locked --package sonora
 ```
 
 For an optimized build:
 
 ```sh
-cargo build --release --locked --package spotty
-./target/release/spotty
+cargo build --release --locked --package sonora
+./target/release/sonora
 ```
 
 The first build downloads and compiles GPUI and the other Rust dependencies,

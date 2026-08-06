@@ -245,6 +245,6 @@ impl AppSettings {
 fn settings_path() -> PathBuf {
     dirs::config_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join("spotty")
+        .join("sonora")
         .join("settings.json")
 }
