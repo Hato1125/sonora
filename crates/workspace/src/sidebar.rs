@@ -143,12 +143,13 @@ impl Render for Sidebar {
                         .hover(move |style| style.bg(sidebar_accent))
                         .child(svg().path(icon).size_4().flex_none().text_color(text))
                         .child(div().text_color(text).child(label))
-                        .on_click(cx.listener(|this, _, _, cx| {
-                            this.library_open = !this.library_open;
-
-                            cx.notify();
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            if inside {
+                                this.library_open = !this.library_open;
+                                cx.notify();
+                            }
                         }))
-                        .link(Destination::Library(LibraryTab::Songs))
+                        .link(link_destination.unwrap_or(current.clone()))
                         .into_any_element(),
                 );
 
