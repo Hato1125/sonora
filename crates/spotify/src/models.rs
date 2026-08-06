@@ -16,6 +16,7 @@ pub struct ArtistRef {
 pub struct Credit {
     pub name: String,
     pub role: String,
+    pub id: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

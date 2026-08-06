@@ -123,6 +123,7 @@ fn track_from(uri: &str, track: &TrackMessage) -> Track {
                 Some(Credit {
                     name,
                     role: role.to_owned(),
+                    id: base62(credit.artist_gid()),
                 })
             })
             .collect(),

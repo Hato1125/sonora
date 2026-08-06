@@ -1,3 +1,5 @@
+use std::collections::{HashMap, HashSet};
+
 use gpui::{Context, Entity, Task};
 use spotify::{AlbumDetail, Artist, Track};
 use tokio::task::AbortHandle;
@@ -9,6 +11,7 @@ pub struct SongDetail {
     track: Option<Track>,
     album: Option<AlbumDetail>,
     artist: Option<Artist>,
+    portraits: HashMap<String, String>,
     loading: bool,
     error: Option<String>,
     session: Entity<Session>,
@@ -31,6 +34,7 @@ impl SongDetail {
             track: None,
             album: None,
             artist: None,
+            portraits: HashMap::new(),
             loading: false,
             error: None,
             session,
@@ -48,6 +52,9 @@ impl SongDetail {
     }
     pub fn artist(&self) -> Option<&Artist> {
         self.artist.as_ref()
+    }
+    pub fn portraits(&self) -> &HashMap<String, String> {
+        &self.portraits
     }
     pub fn is_loading(&self) -> bool {
         self.loading
@@ -73,19 +80,44 @@ impl SongDetail {
             let id = id.clone();
             async move {
                 let track = client.track(&id).await?;
-                let album = match track.album_id.as_deref() {
-                    Some(album_id) => client.album(album_id).await.ok(),
-                    None => None,
-                };
-                let artist = match track
+                let album_id = track.album_id.clone();
+                let artist_id = track
                     .artist_refs
                     .first()
-                    .and_then(|artist| artist.id.as_deref())
-                {
-                    Some(artist_id) => client.artist(artist_id).await.ok(),
-                    None => None,
+                    .and_then(|artist| artist.id.clone());
+                let credit_ids = track
+                    .credits
+                    .iter()
+                    .filter_map(|credit| credit.id.clone())
+                    .chain(
+                        track
+                            .artist_refs
+                            .iter()
+                            .filter_map(|artist| artist.id.clone()),
+                    )
+                    .collect::<HashSet<_>>()
+                    .into_iter()
+                    .collect::<Vec<_>>();
+                let album = async {
+                    match album_id {
+                        Some(album_id) => client.album(&album_id).await.ok(),
+                        None => None,
+                    }
                 };
-                anyhow::Ok((track, album, artist))
+                let artist = async {
+                    match artist_id {
+                        Some(artist_id) => client.artist(&artist_id).await.ok(),
+                        None => None,
+                    }
+                };
+                let portraits = async {
+                    match credit_ids.is_empty() {
+                        true => HashMap::new(),
+                        false => client.artist_images(credit_ids).await.unwrap_or_default(),
+                    }
+                };
+                let (album, artist, portraits) = tokio::join!(album, artist, portraits);
+                anyhow::Ok((track, album, artist, portraits))
             }
         });
         self.request = Some(request.abort_handle());
@@ -98,10 +130,11 @@ impl SongDetail {
                 this.loading = false;
                 this.request = None;
                 match loaded {
-                    Ok((track, album, artist)) => {
+                    Ok((track, album, artist, portraits)) => {
                         this.track = Some(track);
                         this.album = album;
                         this.artist = artist;
+                        this.portraits = portraits;
                     }
                     Err(error) => this.error = Some(format!("{error:#}")),
                 }
@@ -120,6 +153,7 @@ impl SongDetail {
         self.track = None;
         self.album = None;
         self.artist = None;
+        self.portraits.clear();
         self.loading = false;
         self.error = None;
     }

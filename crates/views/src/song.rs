@@ -3,9 +3,9 @@ use gpui::{
     AnyElement, Context, Entity, FontWeight, Render, SharedString, Window, div, px, relative,
 };
 use router::{Destination, Link as _};
-use spotify::Track;
+use spotify::{Credit, Track};
 use state::{Playback, SongDetail};
-use ui::{ActiveTheme as _, Artwork, Button, Scrollbar, Text, clock};
+use ui::{ActiveTheme as _, Artwork, Avatar, Button, Initials, Scrollbar, Text, clock};
 
 use crate::cells;
 use crate::hero::{HeroMetaStrip, HeroPlayButton, PageHero, release_date_label};
@@ -236,59 +236,55 @@ impl SongView {
             track
                 .artist_refs
                 .iter()
-                .map(|artist| (artist.name.clone(), "Performed by".to_owned()))
+                .map(|artist| Credit {
+                    name: artist.name.clone(),
+                    role: "Performed by".to_owned(),
+                    id: artist.id.clone(),
+                })
                 .collect()
         } else {
-            track
-                .credits
-                .iter()
-                .map(|credit| (credit.name.clone(), credit.role.clone()))
-                .collect()
+            track.credits.clone()
         };
+        let portraits = self.detail.read(cx).portraits().clone();
         self.card(
             "CREDITS",
             div()
                 .flex()
                 .flex_col()
                 .gap_3()
-                .children(rows.into_iter().map(|(name, role)| {
-                    let initial = name
-                        .chars()
-                        .next()
-                        .map(|letter| letter.to_uppercase().to_string())
-                        .unwrap_or_else(|| "•".to_owned());
-                    div()
-                        .flex()
-                        .items_center()
-                        .gap_3()
-                        .child(
-                            div()
-                                .flex_none()
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .size(px(32.))
-                                .rounded_full()
-                                .bg(theme.secondary)
-                                .border_1()
-                                .border_color(theme.border)
-                                .text_size(theme.text(Text::Small))
-                                .font_weight(FontWeight::SEMIBOLD)
-                                .child(initial),
-                        )
-                        .child(
-                            div()
-                                .flex()
-                                .flex_col()
-                                .gap_0p5()
-                                .child(div().font_weight(FontWeight::MEDIUM).child(name))
-                                .child(
-                                    div()
-                                        .text_size(theme.text(Text::Small))
-                                        .text_color(theme.muted_foreground)
-                                        .child(role),
-                                ),
-                        )
+                .children(rows.into_iter().enumerate().map(|(index, credit)| {
+                    let portrait = credit.id.as_ref().and_then(|id| portraits.get(id)).cloned();
+                    let avatar = match portrait {
+                        Some(portrait) => Avatar::new(Some(portrait))
+                            .size(theme.metrics.thumb)
+                            .into_any_element(),
+                        None => Initials::new(credit.name.clone(), theme.metrics.thumb)
+                            .into_any_element(),
+                    };
+                    let row = div().flex().items_center().gap_3().child(avatar).child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .gap_0p5()
+                            .child(div().font_weight(FontWeight::MEDIUM).child(credit.name))
+                            .child(
+                                div()
+                                    .text_size(theme.text(Text::Small))
+                                    .text_color(theme.muted_foreground)
+                                    .child(credit.role),
+                            ),
+                    );
+
+                    match credit.id {
+                        Some(id) => row
+                            .id(("song-credit", index))
+                            .cursor_pointer()
+                            .hover(|style| style.bg(theme.secondary_hover))
+                            .rounded(theme.radius)
+                            .link(Destination::Artist(id.into()))
+                            .into_any_element(),
+                        None => row.into_any_element(),
+                    }
                 })),
             false,
             cx,
