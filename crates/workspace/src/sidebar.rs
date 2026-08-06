@@ -128,6 +128,7 @@ impl Render for Sidebar {
             if matches!(destination, Some(Destination::Library(_))) {
                 let inside = matches!(current, Destination::Library(_));
                 let text = if inside { foreground } else { muted };
+                let link_destination = if inside { None } else { destination };
 
                 rows.push(
                     div()
@@ -144,8 +145,10 @@ impl Render for Sidebar {
                         .child(div().text_color(text).child(label))
                         .on_click(cx.listener(|this, _, _, cx| {
                             this.library_open = !this.library_open;
+
                             cx.notify();
                         }))
+                        .link(Destination::Library(LibraryTab::Songs))
                         .into_any_element(),
                 );
 
