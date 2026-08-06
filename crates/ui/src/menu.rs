@@ -13,7 +13,6 @@ use crate::Artwork;
 use crate::scrollbar::Scrollbar;
 use crate::theme::ActiveTheme as _;
 
-const CHECK: &str = "✓";
 const SUBMENU_CLOSE_DELAY: Duration = Duration::from_millis(160);
 const SCROLLBAR_GUTTER: Pixels = px(8.);
 
@@ -355,7 +354,7 @@ impl RenderOnce for Menu {
                         })
                         .child(div().truncate().child(label)),
                 )
-                .when(selected, |this| this.child(CHECK))
+                .when(selected, |this| this.child("✓"))
                 .when(submenu.is_some(), |this| this.child("›"))
                 .when_some(submenu_state, |this, state| {
                     this.on_hover(move |hovered, window, cx| {
