@@ -9,6 +9,7 @@ use gpui::{
     div, px, svg,
 };
 
+use crate::Artwork;
 use crate::scrollbar::Scrollbar;
 use crate::theme::ActiveTheme as _;
 
@@ -102,6 +103,7 @@ pub struct MenuItem {
     disabled: bool,
     separator: bool,
     icon: Option<&'static str>,
+    artwork: Option<Option<SharedString>>,
     press: Option<Press>,
     submenu: Option<Submenu>,
 }
@@ -115,6 +117,7 @@ impl MenuItem {
             disabled: false,
             separator: false,
             icon: None,
+            artwork: None,
             press: None,
             submenu: None,
         }
@@ -133,6 +136,7 @@ impl MenuItem {
             disabled: true,
             separator: true,
             icon: None,
+            artwork: None,
             press: None,
             submenu: None,
         }
@@ -145,6 +149,11 @@ impl MenuItem {
 
     pub fn icon(mut self, path: &'static str) -> Self {
         self.icon = Some(path);
+        self
+    }
+
+    pub fn artwork(mut self, url: Option<impl Into<SharedString>>) -> Self {
+        self.artwork = Some(url.map(Into::into));
         self
     }
 
@@ -285,6 +294,7 @@ impl RenderOnce for Menu {
                 disabled,
                 separator,
                 icon,
+                artwork,
                 press,
                 submenu,
             } = item;
@@ -303,6 +313,7 @@ impl RenderOnce for Menu {
             let press_action = action.clone();
             let submenu_state = submenu.as_ref().map(|submenu| submenu.state.clone());
             let item_hover_guard = hover_guard.clone();
+            let has_artwork = artwork.is_some();
 
             div()
                 .id(id)
@@ -330,7 +341,10 @@ impl RenderOnce for Menu {
                         .min_w_0()
                         .items_center()
                         .gap_2()
-                        .when_some(icon, |this, icon| {
+                        .when_some(artwork, |this, artwork| {
+                            this.child(Artwork::new(artwork).size(px(20.)).flex_none())
+                        })
+                        .when_some(icon.filter(|_| !has_artwork), |this, icon| {
                             this.child(svg().path(icon).size(px(14.)).flex_none().text_color(
                                 if disabled {
                                     theme.muted_foreground

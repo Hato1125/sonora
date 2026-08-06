@@ -318,7 +318,9 @@ impl GridSource for TrackSource {
                 )
                 .item(MenuItem::separator("playlist-separator"))
                 .items(playlists.into_iter().map(|playlist| {
-                    MenuItem::new(format!("playlist-{}", playlist.id), playlist.name).disabled()
+                    MenuItem::new(format!("playlist-{}", playlist.id), playlist.name)
+                        .artwork(playlist.cover)
+                        .disabled()
                 }))
         };
         let copy = match track.id.clone() {
