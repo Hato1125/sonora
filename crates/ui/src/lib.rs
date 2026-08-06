@@ -16,7 +16,7 @@ mod skeleton;
 mod theme;
 mod time;
 
-pub use artwork::Artwork;
+pub use artwork::{Artwork, Avatar};
 pub use button::Button;
 pub use card::Card;
 pub use controls::WindowControls;
