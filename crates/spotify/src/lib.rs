@@ -1,6 +1,7 @@
 pub mod auth;
 
 mod albums;
+mod artists;
 mod client;
 mod collection;
 mod collection2;
@@ -13,4 +14,6 @@ mod wire;
 
 pub use auth::AuthConfig;
 pub use client::{LibrespotClient, SpotifyApi};
-pub use models::{Album, Playlist, Track, UserProfile};
+pub use models::{
+    Album, AlbumDetail, Artist, ArtistRef, Playlist, ReleaseType, Track, UserProfile,
+};

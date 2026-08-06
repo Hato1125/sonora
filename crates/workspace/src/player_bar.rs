@@ -1,4 +1,4 @@
-use router::{Destination, Link};
+use router::{Destination, Link, navigate};
 use std::time::Duration;
 use ui::ActiveTheme as _;
 
@@ -7,7 +7,7 @@ use gpui::{Context, Entity, MouseMoveEvent, MouseUpEvent, Render, SharedString, 
 use gpui::{Window, div, px};
 use state::{Playback, PlaybackState, Queue};
 
-use ui::{Artwork, Button, Scrubber, ScrubberState, clock};
+use ui::{Artwork, Button, InlineLink, InlineLinks, Scrubber, ScrubberState, clock};
 
 const SEEK_MAX: f32 = 560.;
 const VOLUME_WIDTH: f32 = 110.;
@@ -163,12 +163,18 @@ impl PlayerBar {
                         })
                         .when_some(track, |this, track| {
                             this.child(
-                                div()
-                                    .child(SharedString::from(track.artists))
-                                    .w_full()
-                                    .text_color(muted)
-                                    .text_size(artists)
-                                    .truncate(),
+                                InlineLinks::new(
+                                    "now-playing-artist",
+                                    track.artist_refs.into_iter().map(|artist| {
+                                        InlineLink::new(artist.name, artist.id.map(Into::into))
+                                    }),
+                                    track.artists,
+                                    muted,
+                                )
+                                .text_size(artists)
+                                .on_click(|id, cx| {
+                                    navigate(Destination::Artist(id), cx);
+                                }),
                             )
                         }),
                 )

@@ -49,7 +49,6 @@ impl SettingsView {
     ) -> Self {
         let settings = Spotty::global(cx).settings.clone();
         cx.observe(&session, |_, _, cx| cx.notify()).detach();
-        cx.observe(&playback, |_, _, cx| cx.notify()).detach();
         cx.observe(&settings, |_, _, cx| cx.notify()).detach();
         Self {
             session,

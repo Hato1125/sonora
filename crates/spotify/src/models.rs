@@ -7,12 +7,18 @@ pub struct UserProfile {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ArtistRef {
+    pub name: String,
+    pub id: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Track {
     pub id: Option<String>,
     pub name: String,
     pub playable: bool,
     pub artists: String,
-    pub artist_id: Option<String>,
+    pub artist_refs: Vec<ArtistRef>,
     pub album: String,
     pub album_id: Option<String>,
     pub cover: Option<String>,
@@ -30,13 +36,52 @@ pub struct Playlist {
     pub track_count: u32,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReleaseType {
+    Album,
+    Single,
+    Compilation,
+    Ep,
+    Audiobook,
+    Podcast,
+}
+
+impl ReleaseType {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Album => "Album",
+            Self::Single => "Single",
+            Self::Compilation => "Compilation",
+            Self::Ep => "EP",
+            Self::Audiobook => "Audiobook",
+            Self::Podcast => "Podcast",
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Album {
     pub id: String,
     pub name: String,
     pub artists: String,
+    pub artist_refs: Vec<ArtistRef>,
     pub cover: Option<String>,
     pub cover_large: Option<String>,
+    pub release_type: ReleaseType,
     pub year: i32,
     pub track_count: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AlbumDetail {
+    pub album: Album,
+    pub tracks: Vec<Track>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Artist {
+    pub name: String,
+    pub cover_large: Option<String>,
+    pub top_tracks: Vec<Track>,
+    pub albums: Vec<Album>,
 }

@@ -3,16 +3,18 @@ use gpui::{AnyView, Context, Entity, Render};
 use gpui::{Window, div};
 use input::{OpenSearch, OpenSettings};
 use router::{Destination, NavigationEvent, navigate};
-use state::{Detail, Io, Library, Playback, Queue, Search, Session, SessionState};
+use state::{ArtistDetail, Detail, Io, Library, Playback, Queue, Search, Session, SessionState};
 use ui::ActiveTheme as _;
 use workspace::{Filter, Sidebar, Workspace};
 
 use crate::search::SearchView;
 use crate::tracks::{ALBUM_COLUMNS, LIBRARY_COLUMNS};
-use crate::{DetailView, LibraryView, LoginView, SettingsView};
+use crate::{ArtistView, DetailView, LibraryView, LoginView, SettingsView};
 
 struct Screens {
     library: Entity<LibraryView>,
+    artist: Option<Entity<ArtistView>>,
+    artist_detail: Option<Entity<ArtistDetail>>,
     album: Entity<DetailView>,
     album_detail: Entity<Detail>,
     playlist: Entity<DetailView>,
@@ -28,6 +30,9 @@ enum Focus {
 
 pub struct Root {
     session: Entity<Session>,
+    playback: Entity<Playback>,
+    sidebar: Entity<Sidebar>,
+    io: Io,
     login: Entity<LoginView>,
     workspace: Entity<Workspace>,
     filter: Entity<Filter>,
@@ -101,17 +106,29 @@ impl Root {
 
         let filter = cx.new(Filter::new);
         let start = navigation.read(cx).current();
-        let workspace =
-            cx.new(|cx| Workspace::new(sidebar, playback, queue, library_view.clone().into(), cx));
+        let workspace = cx.new(|cx| {
+            Workspace::new(
+                sidebar.clone(),
+                playback.clone(),
+                queue,
+                library_view.clone().into(),
+                cx,
+            )
+        });
 
         let mut root = Self {
             session,
+            playback,
+            sidebar,
+            io,
             login,
             workspace,
             filter,
             pending: None,
             screens: Screens {
                 library: library_view,
+                artist: None,
+                artist_detail: None,
                 album,
                 album_detail,
                 playlist,
@@ -122,6 +139,26 @@ impl Root {
         };
         root.show(start, cx);
         root
+    }
+
+    fn artist(&mut self, cx: &mut Context<Self>) -> (Entity<ArtistView>, Entity<ArtistDetail>) {
+        if let (Some(view), Some(detail)) = (&self.screens.artist, &self.screens.artist_detail) {
+            return (view.clone(), detail.clone());
+        }
+
+        let detail = cx.new(|cx| ArtistDetail::new(self.session.clone(), self.io.clone(), cx));
+        let view = cx.new(|cx| {
+            ArtistView::new(
+                detail.clone(),
+                self.playback.clone(),
+                self.sidebar.clone(),
+                LIBRARY_COLUMNS,
+                cx,
+            )
+        });
+        self.screens.artist = Some(view.clone());
+        self.screens.artist_detail = Some(detail.clone());
+        (view, detail)
     }
 
     fn open_search(&mut self, cx: &mut Context<Self>) {
@@ -144,7 +181,10 @@ impl Root {
 
         let searchable = matches!(
             destination,
-            Destination::Library(_) | Destination::Album(_) | Destination::Playlist(_)
+            Destination::Library(_)
+                | Destination::Artist(_)
+                | Destination::Album(_)
+                | Destination::Playlist(_)
         );
 
         let content: AnyView = match destination {
@@ -173,6 +213,13 @@ impl Root {
                 self.filter
                     .update(cx, |filter, cx| filter.bind(&playlist, cx));
                 playlist.into()
+            }
+            Destination::Artist(id) => {
+                let (artist, detail) = self.artist(cx);
+                detail.update(cx, |artist, cx| artist.open(&id, cx));
+                self.filter
+                    .update(cx, |filter, cx| filter.bind(&artist, cx));
+                artist.into()
             }
             Destination::Search => self.screens.search.clone().into(),
             Destination::Settings => self.screens.settings.clone().into(),

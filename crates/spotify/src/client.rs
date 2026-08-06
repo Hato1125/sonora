@@ -4,15 +4,17 @@ use librespot_core::Session;
 use librespot_protocol::playlist4_external::SelectedListContent as RootList;
 use protobuf::Message as _;
 
-use crate::models::{Album, Playlist, Track, UserProfile};
-use crate::{albums, collection, playlists, profiles, search, wire};
+use crate::models::{Album, AlbumDetail, Artist, Playlist, Track, UserProfile};
+use crate::{albums, artists, collection, playlists, profiles, search, wire};
 
 #[async_trait]
 pub trait SpotifyApi: Send + Sync {
     async fn profile(&self) -> Result<UserProfile>;
+    async fn artist(&self, artist_id: &str) -> Result<Artist>;
     async fn saved_tracks(&self, limit: u32) -> Result<Vec<Track>>;
     async fn playlists(&self, limit: u32) -> Result<Vec<Playlist>>;
     async fn saved_albums(&self, limit: u32) -> Result<Vec<Album>>;
+    async fn album(&self, album_id: &str) -> Result<AlbumDetail>;
     async fn album_tracks(&self, album_id: &str) -> Result<Vec<Track>>;
     async fn playlist_tracks(&self, playlist_id: &str) -> Result<Vec<Track>>;
     async fn search(&self, query: &str) -> Result<Vec<Track>>;
@@ -49,12 +51,20 @@ impl SpotifyApi for LibrespotClient {
         })
     }
 
+    async fn artist(&self, artist_id: &str) -> Result<Artist> {
+        artists::artist(&self.session, artist_id).await
+    }
+
     async fn saved_tracks(&self, limit: u32) -> Result<Vec<Track>> {
         collection::saved_tracks(&self.session, limit).await
     }
 
     async fn saved_albums(&self, limit: u32) -> Result<Vec<Album>> {
         albums::saved_albums(&self.session, limit).await
+    }
+
+    async fn album(&self, album_id: &str) -> Result<AlbumDetail> {
+        albums::album(&self.session, album_id).await
     }
 
     async fn album_tracks(&self, album_id: &str) -> Result<Vec<Track>> {

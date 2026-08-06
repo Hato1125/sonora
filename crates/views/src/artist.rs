@@ -4,17 +4,18 @@ use gpui::{
     Window, div, px,
 };
 
-use spotify::Track;
-use state::{Detail, Playback};
+use spotify::{ReleaseType, Track};
+use state::{ArtistDetail, Playback};
 use ui::ActiveTheme as _;
 use ui::{
-    Artwork, ColumnSpec, GridDelegate, GridEvent, GridState, Scrollbar, Text, Viewport, grid,
-    scrolled,
+    Artwork, Button, ColumnSpec, GridDelegate, GridEvent, GridState, Scrollbar, Text, Viewport,
+    grid, scrolled,
 };
+use workspace::{Searchable, Sidebar};
 
 use crate::cells;
+use crate::release_card::ReleaseCard;
 use crate::tracks::{PlaybackStatus, TrackField, TrackSource, Tracks, playback_status};
-use workspace::{Searchable, Sidebar};
 
 const FRAME: Pixels = px(1.);
 
@@ -22,9 +23,40 @@ fn reserved(inset: Pixels) -> Pixels {
     inset * 2. + px(2.)
 }
 
-struct DetailTracks(Entity<Detail>);
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ReleaseFilter {
+    All,
+    Albums,
+    Singles,
+    Eps,
+}
 
-impl Tracks for DetailTracks {
+impl ReleaseFilter {
+    const ALL: [Self; 4] = [Self::All, Self::Singles, Self::Albums, Self::Eps];
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::All => "All",
+            Self::Albums => "Albums",
+            Self::Singles => "Singles",
+            Self::Eps => "EPs",
+        }
+    }
+
+    fn matches(self, kind: ReleaseType) -> bool {
+        self == Self::All
+            || matches!(
+                (self, kind),
+                (Self::Albums, ReleaseType::Album)
+                    | (Self::Singles, ReleaseType::Single)
+                    | (Self::Eps, ReleaseType::Ep)
+            )
+    }
+}
+
+struct ArtistTracks(Entity<ArtistDetail>);
+
+impl Tracks for ArtistTracks {
     fn tracks<'a>(&self, cx: &'a App) -> &'a [Track] {
         self.0.read(cx).tracks()
     }
@@ -34,35 +66,33 @@ impl Tracks for DetailTracks {
     }
 }
 
-pub(crate) struct DetailView {
-    detail: Entity<Detail>,
+pub(crate) struct ArtistView {
+    detail: Entity<ArtistDetail>,
     playback: Entity<Playback>,
     playback_status: PlaybackStatus,
+    release_filter: ReleaseFilter,
     sidebar: Entity<Sidebar>,
     width: Pixels,
     scrollbar: Entity<Scrollbar>,
     table: Entity<GridState<TrackSource>>,
 }
 
-impl DetailView {
+impl ArtistView {
     pub(crate) fn new(
-        detail: Entity<Detail>,
+        detail: Entity<ArtistDetail>,
         playback: Entity<Playback>,
         sidebar: Entity<Sidebar>,
         columns: &'static [ColumnSpec<TrackField>],
-        window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let inset = cx.theme().metrics.inset;
-        let width =
-            cells::content_width(window, sidebar.read(cx).occupied_width(), reserved(inset));
-
+        let width = px(200.);
         let table = cx.new(|cx| {
-            let source = TrackSource::new(columns, DetailTracks(detail.clone()), playback.clone());
+            let source = TrackSource::new(columns, ArtistTracks(detail.clone()), playback.clone());
             GridState::new(GridDelegate::new(source, width, cx))
         });
 
         cx.observe(&detail, |this, _, cx| {
+            this.release_filter = ReleaseFilter::All;
             this.scrollbar
                 .read(cx)
                 .scroll()
@@ -71,9 +101,7 @@ impl DetailView {
             cx.notify();
         })
         .detach();
-
         cx.observe(&sidebar, |_, _, cx| cx.notify()).detach();
-
         let current_playback = playback_status(&playback, cx);
         cx.observe(&playback, |this, playback, cx| {
             let current = playback_status(&playback, cx);
@@ -84,7 +112,6 @@ impl DetailView {
             this.table.update(cx, |table, cx| table.refresh(cx));
         })
         .detach();
-
         cx.subscribe(&table, |this, _, event, cx| {
             let GridEvent::DoubleClicked(display) = event;
             this.play(*display, cx);
@@ -97,6 +124,7 @@ impl DetailView {
             detail,
             playback,
             playback_status: current_playback,
+            release_filter: ReleaseFilter::All,
             sidebar,
             width,
             scrollbar,
@@ -154,20 +182,10 @@ impl DetailView {
 
     fn header(&self, cx: &Context<Self>) -> AnyElement {
         let theme = cx.theme();
-        let muted = theme.muted_foreground;
-        let header = self.detail.read(cx).header();
-        let kind = header.map(|header| header.kind).unwrap_or_default();
-        let title = header
-            .map(|header| SharedString::from(header.title.clone()))
+        let artist = self.detail.read(cx).artist();
+        let title = artist
+            .map(|artist| SharedString::from(artist.name.clone()))
             .unwrap_or_default();
-        let artist = header.and_then(|header| header.artist.clone());
-        let artist_refs = header
-            .map(|header| header.artist_refs.clone())
-            .unwrap_or_default();
-        let meta = header
-            .map(|header| header.meta.clone())
-            .filter(|meta| !meta.is_empty());
-        let has_artist = artist.is_some();
 
         div()
             .flex()
@@ -176,8 +194,9 @@ impl DetailView {
             .gap_5()
             .pb_6()
             .child(
-                Artwork::new(header.and_then(|header| header.cover.clone()))
-                    .size(theme.metrics.cover),
+                Artwork::new(artist.and_then(|artist| artist.cover_large.clone()))
+                    .size(theme.metrics.cover)
+                    .circle(),
             )
             .child(
                 div()
@@ -188,9 +207,9 @@ impl DetailView {
                     .child(
                         div()
                             .text_size(theme.text(Text::Small))
-                            .text_color(muted)
+                            .text_color(theme.muted_foreground)
                             .font_weight(FontWeight::SEMIBOLD)
-                            .child(kind),
+                            .child("ARTIST"),
                     )
                     .child(
                         div()
@@ -198,35 +217,78 @@ impl DetailView {
                             .font_weight(FontWeight::BOLD)
                             .truncate()
                             .child(title),
-                    )
-                    .child(
-                        div()
-                            .flex()
-                            .min_w_0()
-                            .text_color(muted)
-                            .truncate()
-                            .when_some(artist, |this, artist| {
-                                this.child(cells::artist_links(
-                                    "detail-artist",
-                                    artist_refs,
-                                    artist,
-                                    muted,
-                                ))
-                            })
-                            .when_some(meta, |this, meta| {
-                                let meta = match has_artist {
-                                    true => format!(" • {meta}"),
-                                    false => meta,
-                                };
-                                this.child(meta)
-                            }),
                     ),
             )
             .into_any_element()
     }
+
+    fn releases(&self, cx: &Context<Self>) -> Option<AnyElement> {
+        let theme = *cx.theme();
+        let albums = self.detail.read(cx).albums();
+        if albums.is_empty() {
+            return None;
+        }
+
+        Some(
+            div()
+                .flex()
+                .flex_col()
+                .gap_3()
+                .pt_6()
+                .child(
+                    div()
+                        .text_size(theme.text(Text::Title))
+                        .font_weight(FontWeight::BOLD)
+                        .child("Releases"),
+                )
+                .child(
+                    div()
+                        .flex()
+                        .gap_1()
+                        .children(ReleaseFilter::ALL.map(|filter| {
+                            Button::new(SharedString::from(format!(
+                                "release-filter-{}",
+                                filter.label().to_lowercase()
+                            )))
+                            .label(filter.label())
+                            .small()
+                            .outline()
+                            .selected(self.release_filter == filter)
+                            .on_click(cx.listener(
+                                move |this, _, _, cx| {
+                                    this.release_filter = filter;
+                                    cx.notify();
+                                },
+                            ))
+                        })),
+                )
+                .child(
+                    div().flex().flex_wrap().gap_4().children(
+                        albums
+                            .iter()
+                            .filter(|album| self.release_filter.matches(album.release_type))
+                            .cloned()
+                            .enumerate()
+                            .map(|(index, album)| ReleaseCard::new(index, album)),
+                    ),
+                )
+                .into_any_element(),
+        )
+    }
+
+    fn failure(&self, cx: &Context<Self>) -> Option<AnyElement> {
+        let error = self.detail.read(cx).error()?.to_owned();
+        Some(
+            div()
+                .pb_4()
+                .text_color(cx.theme().danger)
+                .child(error)
+                .into_any_element(),
+        )
+    }
 }
 
-impl Render for DetailView {
+impl Render for ArtistView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
         let inset = theme.metrics.inset;
@@ -241,26 +303,38 @@ impl Render for DetailView {
             .size_full()
             .child(
                 div()
-                    .id("detail-page")
+                    .id("artist-page")
                     .size_full()
                     .overflow_y_scroll()
                     .track_scroll(&scroll)
                     .px(inset)
                     .pt(inset)
                     .pb(inset)
-                    .child(self.header(cx))
+                    .child(
+                        div()
+                            .child(self.header(cx))
+                            .children(self.failure(cx))
+                            .child(
+                                div()
+                                    .pb_3()
+                                    .text_size(theme.text(Text::Title))
+                                    .font_weight(FontWeight::BOLD)
+                                    .child("Popular"),
+                            ),
+                    )
                     .child(
                         grid(&self.table)
                             .rounded(theme.radius)
                             .border_1()
                             .border_color(theme.border),
-                    ),
+                    )
+                    .children(self.releases(cx)),
             )
             .child(self.scrollbar.clone())
     }
 }
 
-impl Searchable for DetailView {
+impl Searchable for ArtistView {
     fn search(&mut self, query: &str, cx: &mut Context<Self>) {
         self.table.update(cx, |table, cx| {
             table.delegate_mut().set_filter(query, cx);
@@ -270,6 +344,6 @@ impl Searchable for DetailView {
     }
 
     fn hint() -> &'static str {
-        "Filter album tracks"
+        "Filter popular tracks"
     }
 }

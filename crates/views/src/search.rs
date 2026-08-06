@@ -5,18 +5,21 @@ use gpui::{
 };
 use input::Input;
 use router::{Destination, navigate};
+
 use state::{Hit, Kind, Playback, Search};
 use ui::ActiveTheme as _;
 use ui::{Artwork, Row, Scrollbar, Text, clock};
 use workspace::Sidebar;
 
 use crate::cells;
+use crate::tracks::{PlaybackStatus, playback_status};
 
 const READABLE: Pixels = px(1180.);
 const COLUMNS: Pixels = px(720.);
 
 enum Press {
     Song(usize),
+    Artist(String),
     Album(String),
 }
 
@@ -24,6 +27,7 @@ pub(crate) struct SearchView {
     input: Entity<Input>,
     search: Entity<Search>,
     playback: Entity<Playback>,
+    playback_status: PlaybackStatus,
     sidebar: Entity<Sidebar>,
     songs: Entity<Scrollbar>,
     artists: Entity<Scrollbar>,
@@ -49,7 +53,15 @@ impl SearchView {
 
         cx.observe(&search, |_, _, cx| cx.notify()).detach();
         cx.observe(&sidebar, |_, _, cx| cx.notify()).detach();
-        cx.observe(&playback, |_, _, cx| cx.notify()).detach();
+        let current_playback = playback_status(&playback, cx);
+        cx.observe(&playback, |this, playback, cx| {
+            let current = playback_status(&playback, cx);
+            if this.playback_status != current {
+                this.playback_status = current;
+                cx.notify();
+            }
+        })
+        .detach();
 
         let asked = input.read(cx).text().to_owned();
         search.update(cx, |search, cx| search.ask(&asked, cx));
@@ -58,6 +70,7 @@ impl SearchView {
             input,
             search,
             playback,
+            playback_status: current_playback,
             sidebar,
             songs: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
             artists: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
@@ -91,26 +104,19 @@ impl SearchView {
             .cursor_pointer()
             .on_click(cx.listener(move |this, _, _, cx| match &target {
                 Press::Song(index) => this.play(*index, cx),
+                Press::Artist(id) => navigate(Destination::Artist(id.clone().into()), cx),
                 Press::Album(id) => navigate(Destination::Album(id.clone().into()), cx),
             }))
             .child(child)
             .into_any_element()
     }
 
-    fn playing(&self, cx: &Context<Self>) -> Option<String> {
-        self.playback
-            .read(cx)
-            .track()
-            .and_then(|current| current.id.clone())
-    }
-
     fn row(&self, hit: &Hit, place: usize, compact: bool, cx: &Context<Self>) -> AnyElement {
         let theme = *cx.theme();
-        let meta = meta(hit, compact);
 
         match hit {
             Hit::Song(track) => {
-                let tint = match track.id.is_some() && track.id == self.playing(cx) {
+                let tint = match track.id.is_some() && track.id == self.playback_status.0 {
                     true => theme.primary,
                     false => theme.foreground,
                 };
@@ -120,29 +126,59 @@ impl SearchView {
                     Row::new(track.name.clone())
                         .cover(track.cover.clone())
                         .tint(tint)
-                        .meta(meta)
+                        .meta(meta(hit, compact))
                         .when(track.explicit, |row| row.explicit())
                         .trailing(
                             div()
+                                .flex()
                                 .flex_none()
-                                .text_size(theme.text(Text::Small))
-                                .text_color(theme.muted_foreground)
-                                .child(clock(track.duration)),
+                                .items_center()
+                                .gap_3()
+                                .child(
+                                    cells::artist_links(
+                                        format!("song-artist-{place}"),
+                                        track.artist_refs.clone(),
+                                        track.artists.clone(),
+                                        theme.muted_foreground,
+                                    )
+                                    .text_size(theme.text(Text::Small)),
+                                )
+                                .child(
+                                    div()
+                                        .flex_none()
+                                        .text_size(theme.text(Text::Small))
+                                        .text_color(theme.muted_foreground)
+                                        .child(clock(track.duration)),
+                                ),
                         ),
                     cx,
                 )
             }
-            Hit::Artist(artist) => Row::new(artist.name.clone())
-                .cover(artist.cover.clone())
-                .circle()
-                .meta(meta)
-                .into_any_element(),
+            Hit::Artist(artist) => {
+                let row = Row::new(artist.name.clone())
+                    .cover(artist.cover.clone())
+                    .circle()
+                    .meta(meta(hit, compact));
+                match &artist.id {
+                    Some(id) => self.press(("artist", place), Press::Artist(id.clone()), row, cx),
+                    None => row.into_any_element(),
+                }
+            }
             Hit::Album(album) => self.press(
                 ElementId::Name(album.id.clone().into()),
                 Press::Album(album.id.clone()),
                 Row::new(album.name.clone())
                     .cover(album.cover.clone())
-                    .meta(meta),
+                    .meta(meta(hit, compact))
+                    .trailing(
+                        cells::artist_links(
+                            format!("album-artist-{place}"),
+                            album.artist_refs.clone(),
+                            album.artists.clone(),
+                            theme.muted_foreground,
+                        )
+                        .text_size(theme.text(Text::Small)),
+                    ),
                 cx,
             ),
         }
@@ -151,12 +187,23 @@ impl SearchView {
     fn best(&self, cx: &Context<Self>) -> Option<AnyElement> {
         let theme = *cx.theme();
         let hit = self.search.read(cx).best()?;
-        let (kind, title, target) = match hit {
-            Hit::Song(track) => (Kind::Song, track.name.clone(), Some(Press::Song(0))),
-            Hit::Artist(artist) => (Kind::Artist, artist.name.clone(), None),
+        let (kind, title, artists, target) = match hit {
+            Hit::Song(track) => (
+                Kind::Song,
+                track.name.clone(),
+                track.artist_refs.clone(),
+                Some(Press::Song(0)),
+            ),
+            Hit::Artist(artist) => (
+                Kind::Artist,
+                artist.name.clone(),
+                Vec::new(),
+                artist.id.clone().map(Press::Artist),
+            ),
             Hit::Album(album) => (
                 Kind::Album,
                 album.name.clone(),
+                album.artist_refs.clone(),
                 Some(Press::Album(album.id.clone())),
             ),
         };
@@ -193,10 +240,13 @@ impl SearchView {
                             .child(title),
                     )
                     .child(
-                        div()
-                            .text_color(theme.muted_foreground)
-                            .truncate()
-                            .child(meta(hit, false)),
+                        cells::artist_links(
+                            "best-artist-link",
+                            artists,
+                            meta(hit, false),
+                            theme.muted_foreground,
+                        )
+                        .text_size(theme.text(Text::Small)),
                     ),
             );
 
@@ -309,18 +359,21 @@ impl SearchView {
     }
 
     fn everything(&self, cx: &Context<Self>) -> AnyElement {
-        let mut place = 0;
+        let mut places = [0; 3];
         let rows = self
             .search
             .read(cx)
             .hits()
             .iter()
             .map(|hit| {
-                let at = place;
-                if matches!(hit, Hit::Song(_)) {
-                    place += 1;
-                }
-                self.row(hit, at, true, cx)
+                let slot = match hit {
+                    Hit::Song(_) => 0,
+                    Hit::Artist(_) => 1,
+                    Hit::Album(_) => 2,
+                };
+                let place = places[slot];
+                places[slot] += 1;
+                self.row(hit, place, true, cx)
             })
             .collect();
 

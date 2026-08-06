@@ -6,10 +6,12 @@ use librespot_core::Session;
 use librespot_protocol::extended_metadata::{BatchedEntityRequest, EntityRequest, ExtensionQuery};
 use librespot_protocol::extension_kind::ExtensionKind;
 use librespot_protocol::metadata::image::Size as ImageSize;
-use librespot_protocol::metadata::{Album as AlbumMessage, Track as TrackMessage};
+use librespot_protocol::metadata::{
+    Album as AlbumMessage, Artist as ArtistMessage, Track as TrackMessage,
+};
 use protobuf::{EnumOrUnknown, Message as _};
 
-use crate::models::Track;
+use crate::models::{ArtistRef, Track};
 use crate::wire;
 
 const LIKED_SONGS: &str = "spotify:collection:tracks";
@@ -80,12 +82,7 @@ pub(crate) async fn metadata(session: &Session, uris: &[String]) -> Result<HashM
 }
 
 fn track_from(uri: &str, track: &TrackMessage) -> Track {
-    let artists = track
-        .artist
-        .iter()
-        .filter_map(|artist| non_empty(artist.name.as_deref()))
-        .collect::<Vec<_>>()
-        .join(", ");
+    let (artists, artist_refs) = artists_from(&track.artist);
 
     Track {
         id: uri.strip_prefix(TRACK_PREFIX).map(str::to_owned),
@@ -93,12 +90,8 @@ fn track_from(uri: &str, track: &TrackMessage) -> Track {
         name: non_empty(track.name.as_deref())
             .unwrap_or(UNKNOWN)
             .to_owned(),
-        artists: if artists.is_empty() {
-            UNKNOWN.to_owned()
-        } else {
-            artists
-        },
-        artist_id: track.artist.first().and_then(|artist| base62(artist.gid())),
+        artists,
+        artist_refs,
         album: track
             .album
             .as_ref()
@@ -113,7 +106,29 @@ fn track_from(uri: &str, track: &TrackMessage) -> Track {
     }
 }
 
-fn base62(gid: &[u8]) -> Option<String> {
+pub(crate) fn artists_from(artists: &[ArtistMessage]) -> (String, Vec<ArtistRef>) {
+    let refs: Vec<_> = artists
+        .iter()
+        .filter_map(|artist| {
+            let name = non_empty(artist.name.as_deref())?.to_owned();
+            Some(ArtistRef {
+                name,
+                id: base62(artist.gid()),
+            })
+        })
+        .collect();
+    let names = match refs.is_empty() {
+        true => UNKNOWN.to_owned(),
+        false => refs
+            .iter()
+            .map(|artist| artist.name.as_str())
+            .collect::<Vec<_>>()
+            .join(", "),
+    };
+    (names, refs)
+}
+
+pub(crate) fn base62(gid: &[u8]) -> Option<String> {
     librespot_core::SpotifyId::from_raw(gid)
         .ok()?
         .to_base62()

@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::rc::Rc;
 use ui::ActiveTheme as _;
 
 use gpui::{AnyElement, App, Entity, Hsla, TextAlign};
@@ -125,6 +126,14 @@ pub(crate) const ALBUM_COLUMNS: &[ColumnSpec<TrackField>] = &[
     },
 ];
 
+pub(crate) type PlaybackStatus = (Option<String>, PlaybackState);
+
+pub(crate) fn playback_status(playback: &Entity<Playback>, cx: &App) -> PlaybackStatus {
+    let playback = playback.read(cx);
+    let track = playback.track().and_then(|track| track.id.clone());
+    (track, playback.state().clone())
+}
+
 pub(crate) trait Tracks: 'static {
     fn tracks<'a>(&self, cx: &'a App) -> &'a [Track];
     fn is_loading(&self, cx: &App) -> bool;
@@ -132,7 +141,7 @@ pub(crate) trait Tracks: 'static {
 
 pub(crate) struct TrackSource {
     columns: &'static [ColumnSpec<TrackField>],
-    provider: Box<dyn Tracks>,
+    provider: Rc<dyn Tracks>,
     playback: Entity<Playback>,
 }
 
@@ -144,9 +153,18 @@ impl TrackSource {
     ) -> Self {
         Self {
             columns,
-            provider: Box::new(provider),
+            provider: Rc::new(provider),
             playback,
         }
+    }
+
+    fn artist_cell(&self, cell: &Cell<TrackField>, track: &Track, color: Hsla) -> AnyElement {
+        cells::artists(
+            cell,
+            track.artist_refs.clone(),
+            track.artists.clone(),
+            color,
+        )
     }
 
     fn album_cell(&self, cell: &Cell<TrackField>, track: &Track, color: Hsla) -> AnyElement {
@@ -168,10 +186,11 @@ impl TrackSource {
         let press = match track.playable {
             false => None,
             true => {
-                let queued = self.provider.tracks(cx).to_vec();
+                let provider = self.provider.clone();
                 let row = cell.row;
                 cells::toggle(&self.playback, state.clone(), move |playback, cx| {
-                    playback.start(queued.clone(), row, cx)
+                    let queued = provider.tracks(cx).to_vec();
+                    playback.start(queued, row, cx)
                 })
             }
         };
@@ -231,7 +250,7 @@ impl GridSource for TrackSource {
         match cell.field {
             TrackField::Cover => cells::artwork(&cell, track.cover.clone()),
             TrackField::Title => cells::title(&cell, track.name.clone(), title, track.explicit),
-            TrackField::Artists => cells::dim(&cell, track.artists.clone(), detail),
+            TrackField::Artists => self.artist_cell(&cell, track, detail),
             TrackField::Album => self.album_cell(&cell, track, detail),
             TrackField::Duration => cells::dim(&cell, clock(track.duration), detail),
             TrackField::Index => cells::blank(&cell),

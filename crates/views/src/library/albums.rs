@@ -154,7 +154,12 @@ impl GridSource for AlbumSource {
         match cell.field {
             AlbumField::Cover => cells::artwork(&cell, album.cover.clone()),
             AlbumField::Name => cells::text(&cell, album.name.clone()),
-            AlbumField::Artists => cells::dim(&cell, album.artists.clone(), muted),
+            AlbumField::Artists => cells::artists(
+                &cell,
+                album.artist_refs.clone(),
+                album.artists.clone(),
+                muted,
+            ),
             AlbumField::Year => cells::dim(&cell, year(album), muted),
             AlbumField::TrackCount => cells::dim(&cell, format!("{}", album.track_count), muted),
             AlbumField::Index => cells::blank(&cell),

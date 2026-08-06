@@ -3,9 +3,12 @@ use gpui::{
     AnyElement, App, Context, Div, Entity, Hsla, MouseButton, Pixels, SharedString, Window, div,
     px, svg,
 };
-use router::{Destination, Link as _};
+use router::{Destination, Link as _, navigate};
+use spotify::ArtistRef;
 use state::{Playback, PlaybackState};
-use ui::{ActiveTheme as _, Artwork, Cell, ExplicitBadge, ROW_GROUP, Theme};
+use ui::{
+    ActiveTheme as _, Artwork, Cell, ExplicitBadge, InlineLink, InlineLinks, ROW_GROUP, Theme,
+};
 
 const PLAY: &str = "icons/play.svg";
 const PLAYING: &str = "icons/music-2.svg";
@@ -185,6 +188,39 @@ pub(crate) fn link<F>(
         .hover(|style| style.underline())
         .link(to)
         .child(value.into())
+        .into_any_element()
+}
+
+pub(crate) fn artist_links(
+    id: impl Into<SharedString>,
+    artists: Vec<ArtistRef>,
+    fallback: impl Into<SharedString>,
+    color: Hsla,
+) -> InlineLinks {
+    InlineLinks::new(
+        id,
+        artists
+            .into_iter()
+            .map(|artist| InlineLink::new(artist.name, artist.id.map(Into::into))),
+        fallback,
+        color,
+    )
+    .on_click(|id, cx| navigate(Destination::Artist(id), cx))
+}
+
+pub(crate) fn artists<F>(
+    cell: &Cell<F>,
+    artists: Vec<ArtistRef>,
+    fallback: impl Into<SharedString>,
+    color: Hsla,
+) -> AnyElement {
+    cell.frame()
+        .child(artist_links(
+            SharedString::from(format!("artist-{}", cell.row)),
+            artists,
+            fallback,
+            color,
+        ))
         .into_any_element()
 }
 

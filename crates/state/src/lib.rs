@@ -1,3 +1,4 @@
+mod artist;
 mod detail;
 mod library;
 mod playback;
@@ -6,6 +7,7 @@ mod search;
 mod session;
 mod settings;
 
+pub use artist::ArtistDetail;
 pub use detail::{Detail, Header};
 pub use library::{Library, LibraryState};
 pub use playback::{Origin, Playback, PlaybackState};
