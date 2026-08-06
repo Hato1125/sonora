@@ -45,6 +45,7 @@ pub enum PlaybackEvent {
 pub enum Origin {
     Album(String),
     Playlist(String),
+    Radio(String),
 }
 
 pub struct Playback {
@@ -162,7 +163,29 @@ impl Playback {
     }
 
     pub fn start(&mut self, tracks: Vec<Track>, index: usize, cx: &mut Context<Self>) {
+        self.fetch = None;
         self.begin(tracks, index, None, cx);
+    }
+
+    pub fn play_radio(&mut self, seed: &Track, cx: &mut Context<Self>) {
+        let Some(id) = seed.id.clone() else {
+            return self.failed(format!("{} has no track id", seed.name), cx);
+        };
+        if !seed.playable {
+            return self.failed(format!("{} is not available to stream", seed.name), cx);
+        }
+
+        let origin = Origin::Radio(id.clone());
+        let seed = seed.clone();
+        self.gather(origin, cx, move |client| {
+            Box::pin(async move {
+                let mut tracks = client.track_radio(&id).await?;
+                tracks.retain(|track| track.id != seed.id && track.playable);
+                fastrand::shuffle(&mut tracks);
+                tracks.insert(0, seed);
+                Ok(tracks)
+            })
+        });
     }
 
     pub fn play_album(&mut self, album: &str, cx: &mut Context<Self>) {
@@ -215,14 +238,19 @@ impl Playback {
         };
 
         let io = Io::global(cx);
-        self.state = PlaybackState::Loading;
-        cx.notify();
+        if !self.has_active_playback() {
+            self.state = PlaybackState::Loading;
+            cx.notify();
+        }
 
         self.fetch = Some(cx.spawn(async move |this, cx| {
             let loaded = join(io.spawn(async move { tracks(client).await })).await;
 
             this.update(cx, |this, cx| match loaded {
                 Ok(tracks) => this.begin(tracks, 0, Some(origin), cx),
+                Err(error) if this.has_active_playback() => {
+                    log::error!("playback: cannot load context: {error:#}");
+                }
                 Err(error) => this.failed(format!("{error:#}"), cx),
             })
             .ok();
@@ -230,6 +258,7 @@ impl Playback {
     }
 
     pub fn next(&mut self, cx: &mut Context<Self>) {
+        self.fetch = None;
         let Some(track) = self.queue.update(cx, |queue, cx| queue.next(cx)) else {
             return;
         };
@@ -237,6 +266,7 @@ impl Playback {
     }
 
     pub fn previous(&mut self, cx: &mut Context<Self>) {
+        self.fetch = None;
         let Some(track) = self.queue.update(cx, |queue, cx| queue.previous(cx)) else {
             return;
         };
@@ -311,6 +341,14 @@ impl Playback {
 
     pub fn is_loading(&self) -> bool {
         matches!(self.state, PlaybackState::Loading)
+    }
+
+    fn has_active_playback(&self) -> bool {
+        self.track.is_some()
+            && matches!(
+                self.state,
+                PlaybackState::Playing | PlaybackState::Paused | PlaybackState::Loading
+            )
     }
 
     pub fn volume(&self) -> f32 {

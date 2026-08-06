@@ -1,8 +1,10 @@
 mod artist;
 mod cells;
 mod detail;
+mod home;
 mod library;
 mod login;
+mod quick_picks;
 mod release_card;
 mod root;
 mod search;
@@ -11,6 +13,7 @@ mod tracks;
 
 use artist::ArtistView;
 use detail::DetailView;
+use home::HomeView;
 pub use library::LibraryView;
 pub use login::LoginView;
 pub use root::Root;

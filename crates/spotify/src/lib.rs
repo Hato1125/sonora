@@ -9,6 +9,7 @@ mod models;
 mod pb;
 mod playlists;
 mod profiles;
+mod radio;
 mod search;
 mod wire;
 

@@ -15,6 +15,7 @@ pub enum LibraryTab {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Destination {
+    Home,
     Library(LibraryTab),
     Album(SharedString),
     Playlist(SharedString),

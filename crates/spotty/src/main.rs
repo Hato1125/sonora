@@ -8,7 +8,7 @@ use gpui::{
     App, AppContext as _, Bounds, Entity, TitlebarOptions, WindowBounds, WindowOptions, point, px,
     size,
 };
-use router::{Destination, LibraryTab};
+use router::Destination;
 use state::{Library, Playback, Queue, Session, Spotty};
 use ui::ActiveTheme as _;
 use views::Root;
@@ -34,7 +34,7 @@ fn main() {
         .with_http_client(Arc::new(http::Client::new(io.handle())))
         .run(move |cx: &mut App| {
             state::init(cx, io);
-            router::init(Destination::Library(LibraryTab::Songs), cx);
+            router::init(Destination::Home, cx);
             let (look, overrides) = {
                 let settings = Spotty::global(cx).settings.read(cx);
                 (
