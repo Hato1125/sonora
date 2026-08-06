@@ -6,11 +6,13 @@ use gpui::{App, Context, Entity, Pixels, Point, Render, ScrollHandle, Window, di
 use router::{Destination, LibraryTab, navigate};
 use spotify::Track;
 use state::{Library, LibraryState, Playback};
-use ui::{GridDelegate, GridEvent, GridState, Scrollbar, Viewport, grid, scrolled};
+use ui::{GridDelegate, GridEvent, GridState, Scrollbar, Sort, Viewport, grid, scrolled};
 use workspace::{Searchable, Sidebar};
 
 use crate::cells;
-use crate::tracks::{LIBRARY_COLUMNS, PlaybackStatus, TrackSource, Tracks, playback_status};
+use crate::tracks::{
+    LIBRARY_COLUMNS, PlaybackStatus, TrackField, TrackSource, Tracks, playback_status,
+};
 use albums::AlbumSource;
 use playlists::PlaylistSource;
 
@@ -85,7 +87,12 @@ impl LibraryView {
                 LibraryTracks(library.clone()),
                 playback.clone(),
             );
-            GridState::new(GridDelegate::new(source, width, cx))
+            let delegate = GridDelegate::new(source, width, cx).with_sort(
+                TrackField::AddedAt,
+                Sort::Descending,
+                cx,
+            );
+            GridState::new(delegate)
         });
         let albums = cx.new(|cx| {
             let source = AlbumSource::new(library.clone(), playback.clone());

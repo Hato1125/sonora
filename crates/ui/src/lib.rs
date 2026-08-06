@@ -18,8 +18,8 @@ pub use button::Button;
 pub use controls::WindowControls;
 pub use explicit::ExplicitBadge;
 pub use grid::{
-    Cell, ColumnSpec, Grid, GridDelegate, GridEvent, GridSource, GridState, ROW_GROUP, Viewport,
-    Width, grid,
+    Cell, ColumnSpec, Grid, GridDelegate, GridEvent, GridSource, GridState, ROW_GROUP, Sort,
+    Viewport, Width, grid,
 };
 pub use inline_links::{InlineLink, InlineLinks};
 pub use menu::{Menu, MenuItem};

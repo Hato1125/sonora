@@ -19,14 +19,32 @@ const RESPONSE_ITEMS: u32 = 1;
 const RESPONSE_TOKEN: u32 = 2;
 
 const ITEM_URI: u32 = 1;
+const ITEM_ADDED_AT: u32 = 2;
 const ITEM_REMOVED: u32 = 3;
 
 struct Page {
-    uris: Vec<String>,
+    items: Vec<SavedItem>,
     next: String,
 }
 
+pub(crate) struct SavedItem {
+    pub(crate) uri: String,
+    pub(crate) added_at: Option<i64>,
+}
+
 pub async fn saved_uris(session: &Session, prefix: &str, limit: usize) -> Result<Vec<String>> {
+    Ok(saved_items(session, prefix, limit)
+        .await?
+        .into_iter()
+        .map(|item| item.uri)
+        .collect())
+}
+
+pub(crate) async fn saved_items(
+    session: &Session,
+    prefix: &str,
+    limit: usize,
+) -> Result<Vec<SavedItem>> {
     let mut headers = HeaderMap::new();
     headers.insert(CONTENT_TYPE, HeaderValue::from_static(CONTENT));
     headers.insert(ACCEPT, HeaderValue::from_static(CONTENT));
@@ -45,7 +63,11 @@ pub async fn saved_uris(session: &Session, prefix: &str, limit: usize) -> Result
 
         let page = response(&raw).context("cannot decode the collection page")?;
 
-        found.extend(page.uris.into_iter().filter(|uri| uri.starts_with(prefix)));
+        found.extend(
+            page.items
+                .into_iter()
+                .filter(|item| item.uri.starts_with(prefix)),
+        );
 
         token = page.next;
         if found.len() >= limit || token.is_empty() {
@@ -68,14 +90,14 @@ fn request(username: &str, token: &str) -> Vec<u8> {
 
 fn response(bytes: &[u8]) -> Result<Page> {
     let mut page = Page {
-        uris: Vec::new(),
+        items: Vec::new(),
         next: String::new(),
     };
     let mut reader = Reader::new(bytes);
 
     while let Some((field, value)) = reader.field()? {
         match (field, value) {
-            (RESPONSE_ITEMS, Value::Bytes(item)) => page.uris.extend(kept(item)?),
+            (RESPONSE_ITEMS, Value::Bytes(item)) => page.items.extend(kept(item)?),
             (RESPONSE_TOKEN, Value::Bytes(token)) => page.next = text(token)?,
             _ => (),
         }
@@ -84,18 +106,50 @@ fn response(bytes: &[u8]) -> Result<Page> {
     Ok(page)
 }
 
-fn kept(bytes: &[u8]) -> Result<Option<String>> {
+fn kept(bytes: &[u8]) -> Result<Option<SavedItem>> {
     let mut uri = None;
+    let mut added_at = None;
     let mut removed = false;
     let mut reader = Reader::new(bytes);
 
     while let Some((field, value)) = reader.field()? {
         match (field, value) {
             (ITEM_URI, Value::Bytes(raw)) => uri = Some(text(raw)?),
+            (ITEM_ADDED_AT, Value::Varint(raw)) => {
+                added_at = Some(raw as u32 as i32 as i64);
+            }
             (ITEM_REMOVED, Value::Varint(flag)) => removed = flag != 0,
             _ => (),
         }
     }
 
-    Ok(uri.filter(|_| !removed))
+    Ok(uri
+        .filter(|_| !removed)
+        .map(|uri| SavedItem { uri, added_at }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_saved_item_with_date() {
+        let mut writer = Writer::default();
+        writer.string(ITEM_URI, "spotify:track:abc");
+        writer.int32(ITEM_ADDED_AT, 1_725_552_000);
+
+        let item = kept(&writer.finish()).unwrap().unwrap();
+
+        assert_eq!(item.uri, "spotify:track:abc");
+        assert_eq!(item.added_at, Some(1_725_552_000));
+    }
+
+    #[test]
+    fn drops_removed_item() {
+        let mut writer = Writer::default();
+        writer.string(ITEM_URI, "spotify:track:abc");
+        writer.int32(ITEM_REMOVED, 1);
+
+        assert!(kept(&writer.finish()).unwrap().is_none());
+    }
 }

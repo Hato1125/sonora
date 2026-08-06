@@ -577,6 +577,7 @@ mod tests {
             album_id: Some(album.to_owned()),
             cover: None,
             duration: Duration::ZERO,
+            added_at: None,
             popularity: 0,
             explicit: false,
         }

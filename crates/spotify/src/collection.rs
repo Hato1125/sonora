@@ -12,37 +12,26 @@ use librespot_protocol::metadata::{
 use protobuf::{EnumOrUnknown, Message as _};
 
 use crate::models::{ArtistRef, Track};
-use crate::wire;
+use crate::{collection2, wire};
 
-const LIKED_SONGS: &str = "spotify:collection:tracks";
 const TRACK_PREFIX: &str = "spotify:track:";
 const UNKNOWN: &str = "Unknown";
 
 pub async fn saved_tracks(session: &Session, limit: u32) -> Result<Vec<Track>> {
-    let uris = liked_uris(session, limit as usize).await?;
-    if uris.is_empty() {
+    let items = collection2::saved_items(session, TRACK_PREFIX, limit as usize).await?;
+    if items.is_empty() {
         return Ok(Vec::new());
     }
 
+    let uris: Vec<_> = items.iter().map(|item| item.uri.clone()).collect();
     let mut known = metadata(session, &uris).await?;
-    Ok(uris.iter().filter_map(|uri| known.remove(uri)).collect())
-}
-
-async fn liked_uris(session: &Session, limit: usize) -> Result<Vec<String>> {
-    let context = session
-        .spclient()
-        .get_context(LIKED_SONGS)
-        .await
-        .context("cannot resolve the liked songs context")?;
-
-    Ok(context
-        .pages
-        .iter()
-        .flat_map(|page| page.tracks.iter())
-        .filter_map(|track| track.uri.as_deref())
-        .filter(|uri| uri.starts_with(TRACK_PREFIX))
-        .take(limit)
-        .map(str::to_owned)
+    Ok(items
+        .into_iter()
+        .filter_map(|item| {
+            let mut track = known.remove(&item.uri)?;
+            track.added_at = item.added_at;
+            Some(track)
+        })
         .collect())
 }
 
@@ -101,6 +90,7 @@ fn track_from(uri: &str, track: &TrackMessage) -> Track {
         album_id: track.album.as_ref().and_then(|album| base62(album.gid())),
         cover: track.album.as_ref().and_then(cover_url),
         duration: Duration::from_millis(track.duration.unwrap_or_default().max(0) as u64),
+        added_at: None,
         popularity: track.popularity.unwrap_or_default().clamp(0, 100) as u32,
         explicit: track.explicit.unwrap_or_default(),
     }
