@@ -4,7 +4,6 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-fastrand.workspace = true
 gpui.workspace = true
 spotify.workspace = true
 input.workspace = true

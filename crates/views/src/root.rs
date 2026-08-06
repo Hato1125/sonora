@@ -3,7 +3,9 @@ use gpui::{AnyView, Context, Entity, Render};
 use gpui::{Window, div};
 use input::{OpenFilter, OpenSearch, OpenSettings};
 use router::{Destination, NavigationEvent, navigate};
-use state::{ArtistDetail, Detail, Io, Library, Playback, Queue, Search, Session, SessionState};
+use state::{
+    ArtistDetail, Detail, Home, Io, Library, Playback, Queue, Search, Session, SessionState,
+};
 use ui::ActiveTheme as _;
 use workspace::{Filter, Sidebar, Workspace};
 
@@ -73,8 +75,8 @@ impl Root {
             )
         });
 
-        let home =
-            cx.new(|cx| HomeView::new(library.clone(), playback.clone(), sidebar.clone(), cx));
+        let home_state = cx.new(|cx| Home::new(library.clone(), cx));
+        let home = cx.new(|cx| HomeView::new(home_state, playback.clone(), sidebar.clone(), cx));
 
         let io = Io::global(cx);
         let search_library = library.clone();

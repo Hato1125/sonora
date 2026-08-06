@@ -1,5 +1,6 @@
 mod artist;
 mod detail;
+mod home;
 mod library;
 mod playback;
 mod queue;
@@ -9,6 +10,7 @@ mod settings;
 
 pub use artist::ArtistDetail;
 pub use detail::{Detail, Header};
+pub use home::Home;
 pub use library::{Library, LibraryState};
 pub use playback::{Origin, Playback, PlaybackState};
 pub use queue::Queue;
