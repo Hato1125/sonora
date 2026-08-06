@@ -2,7 +2,6 @@ use gpui::{App, Entity, Pixels, ScrollHandle, Window, px};
 
 use state::Playback;
 use ui::{GridState, Viewport, scrolled};
-use workspace::Sidebar;
 
 use crate::cells;
 use crate::tracks::TrackSource;
@@ -31,14 +30,12 @@ pub(crate) fn play(
 
 pub(crate) fn resize(
     table: &Entity<GridState<TrackSource>>,
-    sidebar: &Entity<Sidebar>,
     width: &mut Pixels,
     inset: Pixels,
     window: &Window,
     cx: &mut App,
 ) {
-    let occupied = sidebar.read(cx).occupied_width();
-    let next = cells::content_width(window, occupied, reserved(inset));
+    let next = cells::content_width(window, reserved(inset), cx);
     if (next - *width).abs() < px(0.5) {
         return;
     }

@@ -2,8 +2,9 @@ use gpui::prelude::*;
 use gpui::{Context, Entity, Pixels, Point, Render, ScrollHandle, Window, anchored, div, px};
 use state::{Home, Playback};
 use ui::{ActiveTheme as _, Scrollbar, Scroller};
-use workspace::Sidebar;
+use workspace::Chrome;
 
+use crate::cells;
 use crate::quick_picks::{QuickPicks, column_count, page_count};
 use crate::tracks::{PlaybackStatus, TrackMenu, playback_status};
 
@@ -13,7 +14,6 @@ pub(crate) struct HomeView {
     playback_status: PlaybackStatus,
     quick_picks_columns: usize,
     quick_picks_page: usize,
-    sidebar: Entity<Sidebar>,
     scrollbar: Entity<Scrollbar>,
     track_menu: TrackMenu,
     context_menu: Option<(usize, Point<Pixels>)>,
@@ -23,7 +23,6 @@ impl HomeView {
     pub(crate) fn new(
         home: Entity<Home>,
         playback: Entity<Playback>,
-        sidebar: Entity<Sidebar>,
         cx: &mut Context<Self>,
     ) -> Self {
         let playlist_scrollbar = cx.new(|_| {
@@ -40,7 +39,8 @@ impl HomeView {
             cx.notify();
         })
         .detach();
-        cx.observe(&sidebar, |_, _, cx| cx.notify()).detach();
+        let chrome = Chrome::entity(cx);
+        cx.observe(&chrome, |_, _, cx| cx.notify()).detach();
 
         let current_playback = playback_status(&playback, cx);
         cx.observe(&playback, |this, playback, cx| {
@@ -58,7 +58,6 @@ impl HomeView {
             playback_status: current_playback,
             quick_picks_columns: 0,
             quick_picks_page: 0,
-            sidebar,
             scrollbar: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
             track_menu,
             context_menu: None,
@@ -69,9 +68,7 @@ impl HomeView {
 impl Render for HomeView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
-        let available = window.viewport_size().width
-            - self.sidebar.read(cx).occupied_width()
-            - theme.metrics.inset * 2.;
+        let available = cells::content_width(window, theme.metrics.inset * 2., cx);
         let columns = column_count(available);
         if self.quick_picks_columns != columns {
             self.quick_picks_columns = columns;

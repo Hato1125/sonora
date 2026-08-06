@@ -8,14 +8,11 @@ use router::{Destination, navigate};
 
 use state::{Hit, Kind, Playback, Search};
 use ui::ActiveTheme as _;
-use ui::{Card, Scrollbar, Scroller, Text, Theme, clock, eyebrow};
-use workspace::Sidebar;
+use ui::{Card, Room, Scrollbar, Scroller, Text, Theme, VAST, clock, eyebrow};
+use workspace::Chrome;
 
 use crate::cells;
 use crate::tracks::{PlaybackStatus, playback_status};
-
-const READABLE: Pixels = px(1180.);
-const COLUMNS: Pixels = px(720.);
 
 enum Press {
     Song(usize),
@@ -28,7 +25,6 @@ pub(crate) struct SearchView {
     search: Entity<Search>,
     playback: Entity<Playback>,
     playback_status: PlaybackStatus,
-    sidebar: Entity<Sidebar>,
     songs: Entity<Scrollbar>,
     artists: Entity<Scrollbar>,
     albums: Entity<Scrollbar>,
@@ -39,7 +35,6 @@ impl SearchView {
     pub(crate) fn new(
         search: Entity<Search>,
         playback: Entity<Playback>,
-        sidebar: Entity<Sidebar>,
         cx: &mut Context<Self>,
     ) -> Self {
         let input =
@@ -52,7 +47,8 @@ impl SearchView {
         .detach();
 
         cx.observe(&search, |_, _, cx| cx.notify()).detach();
-        cx.observe(&sidebar, |_, _, cx| cx.notify()).detach();
+        let chrome = Chrome::entity(cx);
+        cx.observe(&chrome, |_, _, cx| cx.notify()).detach();
         let current_playback = playback_status(&playback, cx);
         cx.observe(&playback, |this, playback, cx| {
             let current = playback_status(&playback, cx);
@@ -71,7 +67,6 @@ impl SearchView {
             search,
             playback,
             playback_status: current_playback,
-            sidebar,
             songs: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
             artists: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
             albums: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
@@ -377,11 +372,10 @@ impl Render for SearchView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
         let pad = theme.metrics.inset;
-        let sidebar = self.sidebar.read(cx).occupied_width();
-        let room = cells::content_width(window, sidebar, pad * 2.);
-        let stacked = room < COLUMNS;
-        let inset = match room > READABLE {
-            true => (room - READABLE) / 2.,
+        let room = cells::content_width(window, pad * 2., cx);
+        let stacked = !Room::of(room).fits(Room::Wide);
+        let inset = match room > VAST {
+            true => (room - VAST) / 2.,
             false => Pixels::ZERO,
         };
         let asked = !self.search.read(cx).query().trim().is_empty();

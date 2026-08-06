@@ -27,6 +27,7 @@ pub struct InlineLinks {
     fallback: SharedString,
     color: Hsla,
     text_size: Option<Pixels>,
+    clip: bool,
     on_click: Option<ClickHandler>,
 }
 
@@ -43,12 +44,18 @@ impl InlineLinks {
             fallback: fallback.into(),
             color,
             text_size: None,
+            clip: false,
             on_click: None,
         }
     }
 
     pub fn text_size(mut self, text_size: Pixels) -> Self {
         self.text_size = Some(text_size);
+        self
+    }
+
+    pub fn truncate(mut self) -> Self {
+        self.clip = true;
         self
     }
 
@@ -66,6 +73,7 @@ impl RenderOnce for InlineLinks {
             fallback,
             color,
             text_size,
+            clip,
             on_click,
         } = self;
         let empty = items.is_empty();
@@ -77,11 +85,18 @@ impl RenderOnce for InlineLinks {
             .overflow_hidden()
             .text_color(color)
             .when_some(text_size, |this, text_size| this.text_size(text_size))
-            .when(empty, |this| this.child(fallback))
+            .when(clip, |this| this.whitespace_nowrap())
+            .when(empty, |this| match clip {
+                true => this.child(div().min_w_0().truncate().child(fallback)),
+                false => this.child(fallback),
+            })
             .when(!empty, |this| {
                 this.children(items.into_iter().enumerate().map(|(index, item)| {
                     let InlineLink { label, value } = item;
-                    let item = div().id(SharedString::from(format!("{id}-{index}")));
+                    let item = div()
+                        .id(SharedString::from(format!("{id}-{index}")))
+                        .min_w_0()
+                        .when(clip, |this| this.truncate());
                     let item = match value {
                         Some(value) => {
                             let handler = on_click.clone();
@@ -98,9 +113,9 @@ impl RenderOnce for InlineLinks {
 
                     div()
                         .flex()
-                        .flex_none()
                         .min_w_0()
-                        .when(index > 0, |this| this.child(", "))
+                        .when(!clip, |this| this.flex_none())
+                        .when(index > 0, |this| this.child(div().flex_none().child(", ")))
                         .child(item)
                 }))
             })

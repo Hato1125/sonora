@@ -41,7 +41,6 @@ enum Focus {
 pub struct Root {
     session: Entity<Session>,
     playback: Entity<Playback>,
-    sidebar: Entity<Sidebar>,
     io: Io,
     login: Entity<LoginView>,
     workspace: Entity<Workspace>,
@@ -73,20 +72,13 @@ impl Root {
         })
         .detach();
 
-        let library_view = cx.new(|cx| {
-            LibraryView::new(
-                library.clone(),
-                playback.clone(),
-                sidebar.clone(),
-                window,
-                cx,
-            )
-        });
+        let library_view =
+            cx.new(|cx| LibraryView::new(library.clone(), playback.clone(), window, cx));
 
         let picker = cx.new(|cx| ColumnPicker::new(library_view.clone(), cx));
 
         let home_state = cx.new(|cx| Home::new(library.clone(), cx));
-        let home = cx.new(|cx| HomeView::new(home_state, playback.clone(), sidebar.clone(), cx));
+        let home = cx.new(|cx| HomeView::new(home_state, playback.clone(), cx));
 
         let io = Io::global(cx);
         let search_library = library.clone();
@@ -96,7 +88,6 @@ impl Root {
             DetailView::new(
                 album_detail.clone(),
                 playback.clone(),
-                sidebar.clone(),
                 ALBUM_COLUMNS,
                 window,
                 cx,
@@ -108,7 +99,6 @@ impl Root {
             DetailView::new(
                 playlist_detail.clone(),
                 playback.clone(),
-                sidebar.clone(),
                 LIBRARY_COLUMNS,
                 window,
                 cx,
@@ -116,7 +106,7 @@ impl Root {
         });
 
         let queries = cx.new(|cx| Search::new(session.clone(), search_library, io.clone(), cx));
-        let search = cx.new(|cx| SearchView::new(queries, playback.clone(), sidebar.clone(), cx));
+        let search = cx.new(|cx| SearchView::new(queries, playback.clone(), cx));
 
         let settings = cx.new(|cx| SettingsView::new(session.clone(), playback.clone(), cx));
 
@@ -140,7 +130,6 @@ impl Root {
         let mut root = Self {
             session,
             playback,
-            sidebar,
             io,
             login,
             workspace,
@@ -173,15 +162,8 @@ impl Root {
         }
 
         let detail = cx.new(|cx| ArtistDetail::new(self.session.clone(), self.io.clone(), cx));
-        let view = cx.new(|cx| {
-            ArtistView::new(
-                detail.clone(),
-                self.playback.clone(),
-                self.sidebar.clone(),
-                LIBRARY_COLUMNS,
-                cx,
-            )
-        });
+        let view = cx
+            .new(|cx| ArtistView::new(detail.clone(), self.playback.clone(), LIBRARY_COLUMNS, cx));
         self.screens.artist = Some(view.clone());
         self.screens.artist_detail = Some(detail.clone());
         (view, detail)

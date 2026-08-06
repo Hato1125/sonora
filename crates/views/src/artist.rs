@@ -8,7 +8,7 @@ use spotify::{ReleaseType, Track};
 use state::{ArtistDetail, Playback};
 use ui::ActiveTheme as _;
 use ui::{Button, ColumnSpec, GridDelegate, GridEvent, GridState, Scrollbar, Scroller, Text, grid};
-use workspace::Sidebar;
+use workspace::Chrome;
 
 use crate::hero::{HeroPlayButton, PageHero};
 use crate::page;
@@ -63,7 +63,6 @@ pub(crate) struct ArtistView {
     playback: Entity<Playback>,
     playback_status: PlaybackStatus,
     release_filter: ReleaseFilter,
-    sidebar: Entity<Sidebar>,
     width: Pixels,
     scrollbar: Entity<Scrollbar>,
     table: Entity<GridState<TrackSource>>,
@@ -73,7 +72,6 @@ impl ArtistView {
     pub(crate) fn new(
         detail: Entity<ArtistDetail>,
         playback: Entity<Playback>,
-        sidebar: Entity<Sidebar>,
         columns: &'static [ColumnSpec<TrackField>],
         cx: &mut Context<Self>,
     ) -> Self {
@@ -105,7 +103,8 @@ impl ArtistView {
             cx.notify();
         })
         .detach();
-        cx.observe(&sidebar, |_, _, cx| cx.notify()).detach();
+        let chrome = Chrome::entity(cx);
+        cx.observe(&chrome, |_, _, cx| cx.notify()).detach();
         let current_playback = playback_status(&playback, cx);
         cx.observe(&playback, |this, playback, cx| {
             let current = playback_status(&playback, cx);
@@ -127,7 +126,6 @@ impl ArtistView {
             playback,
             playback_status: current_playback,
             release_filter: ReleaseFilter::All,
-            sidebar,
             width,
             scrollbar,
             table,
@@ -229,14 +227,7 @@ impl Render for ArtistView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
         let inset = theme.metrics.inset;
-        page::resize(
-            &self.table,
-            &self.sidebar,
-            &mut self.width,
-            inset,
-            window,
-            cx,
-        );
+        page::resize(&self.table, &mut self.width, inset, window, cx);
 
         let scroll = self.scrollbar.read(cx).scroll().clone();
         let viewport = page::viewport(&scroll, inset, window);
