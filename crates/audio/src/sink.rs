@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::time::Duration;
 
 use cpal::traits::{DeviceTrait, HostTrait};
 use librespot_playback::audio_backend::{Sink, SinkError, SinkResult};
@@ -7,11 +8,12 @@ use librespot_playback::config::AudioFormat;
 use librespot_playback::convert::Converter;
 use librespot_playback::decoder::AudioPacket;
 use librespot_playback::{NUM_CHANNELS, SAMPLE_RATE};
-use rodio::{OutputStream, OutputStreamBuilder};
+use rodio::source::SeekError;
+use rodio::{OutputStream, OutputStreamBuilder, Source};
 
 const QUEUED_CHUNKS: usize = 26;
-const DRAIN_POLL: std::time::Duration = std::time::Duration::from_millis(10);
-const GAIN_STEP: f32 = 0.20;
+const DRAIN_POLL: Duration = Duration::from_millis(10);
+const GAIN_RAMP_DURATION: Duration = Duration::from_millis(25);
 
 #[derive(Clone, Default)]
 pub struct Flush(Arc<AtomicBool>);
@@ -43,12 +45,105 @@ impl Volume {
     }
 }
 
+struct SmoothGain<I> {
+    input: I,
+    volume: Volume,
+
+    current: f32,
+    target: f32,
+    step: f32,
+
+    frames_left: u32,
+    ramp_frames: u32,
+
+    channel: u16,
+    channels: u16,
+}
+
+impl<I: Source> SmoothGain<I> {
+    fn new(input: I, volume: Volume, initial: f32, duration: Duration) -> Self {
+        let channels = input.channels();
+        let ramp_frames = (duration.as_secs_f64() * input.sample_rate() as f64)
+            .round()
+            .max(1.0) as u32;
+
+        Self {
+            input,
+            volume,
+            current: initial,
+            target: initial,
+            step: 0.0,
+            frames_left: 0,
+            ramp_frames,
+            channel: 0,
+            channels,
+        }
+    }
+}
+
+impl<I: Source> Iterator for SmoothGain<I> {
+    type Item = f32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let sample = self.input.next()?;
+
+        if self.channel == 0 {
+            let requested = self.volume.get().max(0.0);
+
+            if requested.to_bits() != self.target.to_bits() {
+                self.target = requested;
+                self.frames_left = self.ramp_frames;
+                self.step = (self.target - self.current) / self.ramp_frames as f32;
+            }
+
+            if self.frames_left > 0 {
+                self.current += self.step;
+                self.frames_left -= 1;
+
+                if self.frames_left == 0 {
+                    self.current = self.target;
+                }
+            }
+        }
+
+        let output = sample * self.current;
+
+        self.channel += 1;
+        if self.channel == self.channels {
+            self.channel = 0;
+        }
+
+        Some(output)
+    }
+}
+
+impl<I: Source> Source for SmoothGain<I> {
+    fn current_span_len(&self) -> Option<usize> {
+        self.input.current_span_len()
+    }
+
+    fn channels(&self) -> u16 {
+        self.input.channels()
+    }
+
+    fn sample_rate(&self) -> u32 {
+        self.input.sample_rate()
+    }
+
+    fn total_duration(&self) -> Option<Duration> {
+        self.input.total_duration()
+    }
+
+    fn try_seek(&mut self, position: Duration) -> Result<(), SeekError> {
+        self.input.try_seek(position)
+    }
+}
+
 pub struct BlazingSink {
-    sink: rodio::Sink,
+    sink: Arc<rodio::Sink>,
+    _volume: Volume,
     _stream: OutputStream,
     flush: Flush,
-    volume: Volume,
-    applied: f32,
 }
 
 impl BlazingSink {
@@ -85,34 +180,26 @@ impl BlazingSink {
             .map_err(|error| SinkError::ConnectionRefused(error.to_string()))?;
         stream.log_on_drop(false);
 
-        let sink = rodio::Sink::connect_new(stream.mixer());
-        sink.pause();
-
         let applied = volume.get();
-        sink.set_volume(applied);
+
+        let (sink, source) = rodio::Sink::new();
+
+        stream.mixer().add(SmoothGain::new(
+            source,
+            volume.clone(),
+            applied,
+            GAIN_RAMP_DURATION,
+        ));
+
+        let sink = Arc::new(sink);
+        sink.pause();
 
         Ok(Self {
             sink,
+            _volume: volume,
             _stream: stream,
             flush,
-            volume,
-            applied,
         })
-    }
-
-    fn approach_gain(&mut self) {
-        let target = self.volume.get();
-        if target == self.applied {
-            return;
-        }
-
-        let delta = target - self.applied;
-        self.applied = if delta.abs() <= GAIN_STEP {
-            target
-        } else {
-            self.applied + delta.signum() * GAIN_STEP
-        };
-        self.sink.set_volume(self.applied);
     }
 
     pub fn boxed(format: AudioFormat, flush: Flush, volume: Volume) -> Box<dyn Sink> {
@@ -142,8 +229,6 @@ impl Sink for BlazingSink {
             self.sink.clear();
             self.sink.play();
         }
-
-        self.approach_gain();
 
         let samples = packet
             .samples()
