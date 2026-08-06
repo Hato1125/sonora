@@ -1,6 +1,6 @@
-use gpui::prelude::*;
 use gpui::{AnyView, Context, Entity, MouseButton, NavigationDirection, Render};
 use gpui::{Window, div};
+use gpui::{font, prelude::*};
 use input::{OpenFilter, OpenSearch, OpenSettings};
 use router::{Destination, NavigationEvent, back, forward, navigate};
 use state::{
@@ -287,6 +287,7 @@ impl Render for Root {
 
         div()
             .flex()
+            .font(font("Inter"))
             .flex_col()
             .size_full()
             .bg(theme.background)

@@ -33,6 +33,10 @@ fn main() {
         .with_assets(assets::Assets)
         .with_http_client(Arc::new(http::Client::new(io.handle())))
         .run(move |cx: &mut App| {
+            if let Err(error) = assets::Assets.load_fonts(cx) {
+                log::error!("spotty: cannot load bundled fonts: {error:#}");
+            }
+
             state::init(cx, io);
             router::init(Destination::Home, cx);
             let (look, overrides) = {
