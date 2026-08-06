@@ -77,11 +77,15 @@ impl Engine {
     }
 
     pub fn load(&self, track_id: &str) -> Result<()> {
-        let uri = SpotifyUri::from_uri(&format!("{TRACK_PREFIX}{track_id}"))
-            .with_context(|| format!("{track_id} is not a track id"))?;
+        let uri = track_uri(track_id)?;
 
         self.flush.request();
         self.player.load(uri, true, 0);
+        Ok(())
+    }
+
+    pub fn preload(&self, track_id: &str) -> Result<()> {
+        self.player.preload(track_uri(track_id)?);
         Ok(())
     }
 
@@ -105,6 +109,11 @@ impl Engine {
     pub fn is_broken(&self) -> bool {
         self.player.is_invalid()
     }
+}
+
+fn track_uri(track_id: &str) -> Result<SpotifyUri> {
+    SpotifyUri::from_uri(&format!("{TRACK_PREFIX}{track_id}"))
+        .with_context(|| format!("{track_id} is not a track id"))
 }
 
 fn translate(event: PlayerEvent) -> Option<AudioEvent> {

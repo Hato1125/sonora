@@ -109,6 +109,22 @@ impl Playback {
         self.load_after(track, Duration::ZERO, cx);
     }
 
+    pub fn preload(&self, track: &Track) {
+        let Some(engine) = self.engine.as_ref() else {
+            return;
+        };
+        let Some(id) = track.id.as_deref() else {
+            return;
+        };
+        if !track.playable || self.track.as_ref().and_then(|track| track.id.as_deref()) == Some(id)
+        {
+            return;
+        }
+        if let Err(error) = engine.preload(id) {
+            log::warn!("playback: cannot preload {}: {error:#}", track.name);
+        }
+    }
+
     fn load_after(&mut self, track: &Track, debounce: Duration, cx: &mut Context<Self>) {
         if self.engine.is_none() {
             return;
