@@ -41,6 +41,14 @@ pub enum PlaybackEvent {
     EndedPlayback,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Repeat {
+    #[default]
+    Off,
+    All,
+    One,
+}
+
 #[derive(Clone, PartialEq, Eq)]
 pub enum Origin {
     Album(String),
@@ -59,6 +67,8 @@ pub struct Playback {
     settings: Entity<AppSettings>,
     level: f32,
     normalisation: bool,
+    shuffle: bool,
+    repeat: Repeat,
     task: Option<Task<()>>,
     load: Option<Task<()>>,
     fetch: Option<Task<()>>,
@@ -99,6 +109,8 @@ impl Playback {
             settings,
             level,
             normalisation,
+            shuffle: false,
+            repeat: Repeat::Off,
             task: None,
             load: None,
             fetch: None,
@@ -259,10 +271,52 @@ impl Playback {
 
     pub fn next(&mut self, cx: &mut Context<Self>) {
         self.fetch = None;
-        let Some(track) = self.queue.update(cx, |queue, cx| queue.next(cx)) else {
+        let shuffle = self.shuffle;
+        let Some(track) = self.queue.update(cx, |queue, cx| match shuffle {
+            true => queue.next_random(cx),
+            false => queue.next(cx),
+        }) else {
             return;
         };
         self.load_after(&track, SKIP_DEBOUNCE, cx);
+    }
+
+    pub fn shuffle(&self) -> bool {
+        self.shuffle
+    }
+
+    pub fn toggle_shuffle(&mut self, cx: &mut Context<Self>) {
+        self.shuffle = !self.shuffle;
+        cx.notify();
+    }
+
+    pub fn repeat(&self) -> Repeat {
+        self.repeat
+    }
+
+    pub fn cycle_repeat(&mut self, cx: &mut Context<Self>) {
+        self.repeat = match self.repeat {
+            Repeat::Off => Repeat::All,
+            Repeat::All => Repeat::One,
+            Repeat::One => Repeat::Off,
+        };
+        cx.notify();
+    }
+
+    fn advance(&mut self, ended: Option<Track>, cx: &mut Context<Self>) {
+        match self.repeat {
+            Repeat::One => match ended {
+                Some(track) => self.load_after(&track, Duration::ZERO, cx),
+                None => self.next(cx),
+            },
+            Repeat::All if !self.queue.read(cx).has_next() => {
+                self.fetch = None;
+                if let Some(track) = self.queue.update(cx, |queue, cx| queue.rewind(cx)) {
+                    self.load_after(&track, SKIP_DEBOUNCE, cx);
+                }
+            }
+            _ => self.next(cx),
+        }
     }
 
     pub fn previous(&mut self, cx: &mut Context<Self>) {
@@ -432,11 +486,11 @@ impl Playback {
             }
             AudioEvent::Position(position) => self.position = position,
             AudioEvent::Ended => {
+                let ended = self.track.take();
                 self.state = PlaybackState::Idle;
                 self.position = Duration::ZERO;
-                self.track = None;
                 cx.emit(PlaybackEvent::EndedPlayback);
-                self.next(cx);
+                self.advance(ended, cx);
             }
             AudioEvent::Unavailable => {
                 let name = self.track.as_ref().map(|track| track.name.as_str());

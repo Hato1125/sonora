@@ -87,6 +87,28 @@ impl Queue {
         self.current.clone()
     }
 
+    pub fn next_random(&mut self, cx: &mut Context<Self>) -> Option<Track> {
+        if self.upcoming.is_empty() {
+            return None;
+        }
+
+        let next = self
+            .upcoming
+            .remove(fastrand::usize(..self.upcoming.len()))?;
+        if let Some(played) = self.current.replace(next) {
+            self.past.push(played);
+        }
+        cx.notify();
+        self.current.clone()
+    }
+
+    pub fn rewind(&mut self, cx: &mut Context<Self>) -> Option<Track> {
+        let mut tracks = std::mem::take(&mut self.past);
+        tracks.extend(self.current.take());
+        tracks.extend(self.upcoming.drain(..));
+        self.start(tracks, 0, cx)
+    }
+
     pub fn previous(&mut self, cx: &mut Context<Self>) -> Option<Track> {
         let previous = self.past.pop()?;
         if let Some(playing) = self.current.replace(previous) {

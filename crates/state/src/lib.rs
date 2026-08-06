@@ -12,7 +12,7 @@ pub use artist::ArtistDetail;
 pub use detail::{Detail, Header};
 pub use home::Home;
 pub use library::{Library, LibraryState};
-pub use playback::{Origin, Playback, PlaybackState};
+pub use playback::{Origin, Playback, PlaybackState, Repeat};
 pub use queue::Queue;
 pub use search::{AlbumHit, ArtistHit, Hit, Kind, Search};
 pub use session::{Session, SessionEvent, SessionState};
