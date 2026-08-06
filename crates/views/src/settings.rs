@@ -6,7 +6,7 @@ use gpui::{
 };
 use gpui::{ScrollHandle, prelude::*};
 use state::{AppSettings, Playback, Session, SessionState, Spotty};
-use ui::{ActiveTheme as _, Scrollbar};
+use ui::{ActiveTheme as _, Scrollbar, Scroller};
 use ui::{
     Button, Initials, Look, MAX_FONT, MIN_FONT, Menu, MenuItem, Rounding, Skeleton, Text, Theme,
     ThemeKind,
@@ -494,34 +494,23 @@ fn open_settings_file(path: &Path) -> std::io::Result<()> {
 impl Render for SettingsView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let border = cx.theme().border;
-        let scroll = self.scrollbar.read(cx).scroll().clone();
 
-        div()
-            .relative()
-            .size_full()
+        Scroller::new("settings", &self.scrollbar)
+            .flex()
+            .flex_col()
+            .items_center()
             .child(
                 div()
-                    .id("settings")
                     .flex()
                     .flex_col()
-                    .items_center()
-                    .size_full()
-                    .overflow_y_scroll()
-                    .track_scroll(&scroll)
-                    .child(
-                        div()
-                            .flex()
-                            .flex_col()
-                            .gap_6()
-                            .w_full()
-                            .max_w(px(640.))
-                            .p_6()
-                            .child(self.profile(cx))
-                            .child(div().h(px(1.)).w_full().bg(border))
-                            .child(self.tabs(cx))
-                            .child(self.panel(cx)),
-                    ),
+                    .gap_6()
+                    .w_full()
+                    .max_w(px(640.))
+                    .p_6()
+                    .child(self.profile(cx))
+                    .child(div().h(px(1.)).w_full().bg(border))
+                    .child(self.tabs(cx))
+                    .child(self.panel(cx)),
             )
-            .child(self.scrollbar.clone())
     }
 }

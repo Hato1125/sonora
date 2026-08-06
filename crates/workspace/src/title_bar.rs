@@ -1,6 +1,6 @@
 use gpui::prelude::*;
 use gpui::{AnyView, Context, Entity, MouseButton, Pixels, Render};
-use gpui::{Window, div, px, svg};
+use gpui::{Window, div, px};
 use ui::WindowControls;
 use ui::{ActiveTheme as _, Button};
 
@@ -42,39 +42,9 @@ impl TitleBar {
         cx.notify();
     }
 
-    fn chrome(
-        id: &'static str,
-        icon: &'static str,
-        enabled: bool,
-        hover: gpui::Hsla,
-        muted: gpui::Hsla,
-        radius: Pixels,
-        on_click: impl Fn(&mut Window, &mut gpui::App) + 'static,
-    ) -> impl IntoElement {
-        div()
-            .id(id)
-            .flex()
-            .size_8()
-            .items_center()
-            .justify_center()
-            .rounded(radius)
-            .when(enabled, |this| {
-                this.cursor_pointer().hover(move |this| this.bg(hover))
-            })
-            .child(svg().path(icon).size_4().text_color(if enabled {
-                muted
-            } else {
-                muted.opacity(0.4)
-            }))
-            .when(enabled, |this| {
-                this.on_click(move |_, window, cx| on_click(window, cx))
-            })
-    }
-
     fn history(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let hover = cx.theme().sidebar_accent;
         let muted = cx.theme().muted_foreground;
-        let radius = cx.theme().radius;
         let navigation = self.navigation.read(cx);
         let (can_back, can_forward) = (navigation.can_go_back(), navigation.can_go_forward());
         let back = self.navigation.clone();
@@ -87,24 +57,40 @@ impl TitleBar {
             .gap_1()
             .occlude()
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-            .child(Self::chrome(
-                "history-back",
-                "icons/chevron-left.svg",
-                can_back,
-                hover,
-                muted,
-                radius,
-                move |_, cx| back.update(cx, |navigation, cx| navigation.back(cx)),
-            ))
-            .child(Self::chrome(
-                "history-forward",
-                "icons/chevron-right.svg",
-                can_forward,
-                hover,
-                muted,
-                radius,
-                move |_, cx| forward.update(cx, |navigation, cx| navigation.forward(cx)),
-            ))
+            .child(
+                Button::new("history-back")
+                    .ghost()
+                    .icon("icons/chevron-left.svg")
+                    .tint(muted)
+                    .disabled(!can_back)
+                    .size_8()
+                    .px_0()
+                    .when(can_back, |button| {
+                        button
+                            .hover(move |style| style.bg(hover))
+                            .active(move |style| style.bg(hover))
+                    })
+                    .on_click(move |_, _, cx| {
+                        back.update(cx, |navigation, cx| navigation.back(cx))
+                    }),
+            )
+            .child(
+                Button::new("history-forward")
+                    .ghost()
+                    .icon("icons/chevron-right.svg")
+                    .tint(muted)
+                    .disabled(!can_forward)
+                    .size_8()
+                    .px_0()
+                    .when(can_forward, |button| {
+                        button
+                            .hover(move |style| style.bg(hover))
+                            .active(move |style| style.bg(hover))
+                    })
+                    .on_click(move |_, _, cx| {
+                        forward.update(cx, |navigation, cx| navigation.forward(cx))
+                    }),
+            )
     }
 
     fn toggle(&self, cx: &mut Context<Self>) -> impl IntoElement {

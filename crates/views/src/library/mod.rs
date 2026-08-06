@@ -2,11 +2,13 @@ mod albums;
 mod playlists;
 
 use gpui::prelude::*;
-use gpui::{App, Context, Entity, Pixels, Point, Render, ScrollHandle, Window, div, px};
+use gpui::{App, Context, Entity, Pixels, Point, Render, ScrollHandle, Window, px};
 use router::{Destination, LibraryTab, navigate};
 use spotify::Track;
 use state::{AppSettings, Library, LibraryState, Playback, Spotty};
-use ui::{GridDelegate, GridEvent, GridState, Scrollbar, Sort, Toggle, Viewport, grid, scrolled};
+use ui::{
+    GridDelegate, GridEvent, GridState, Scrollbar, Scroller, Sort, Toggle, Viewport, grid, scrolled,
+};
 use workspace::{Searchable, Sidebar};
 
 use crate::cells;
@@ -371,18 +373,7 @@ impl Render for LibraryView {
             }
         };
 
-        div()
-            .relative()
-            .size_full()
-            .child(
-                div()
-                    .id("library-page")
-                    .size_full()
-                    .overflow_y_scroll()
-                    .track_scroll(&scroll)
-                    .child(table),
-            )
-            .child(self.scrollbar.clone())
+        Scroller::new("library-page", &self.scrollbar).child(table)
     }
 }
 

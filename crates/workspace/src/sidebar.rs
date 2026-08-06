@@ -1,10 +1,10 @@
 use std::cell::Cell;
-use ui::ActiveTheme as _;
+use ui::{ActiveTheme as _, Button};
 
 use gpui::prelude::*;
-use gpui::{AnyElement, Context, DragMoveEvent, Empty, Entity, Pixels, Render};
-use gpui::{Window, div, px, svg};
-use router::{Destination, LibraryTab, Link as _, Navigation};
+use gpui::{AnyElement, Context, DragMoveEvent, ElementId, Empty, Entity, Hsla, Pixels, Render};
+use gpui::{Window, div, px};
+use router::{Destination, LibraryTab, Navigation, navigate};
 use state::{AppSettings, Spotty};
 
 const NAV: [(&str, &str, Option<Destination>); 4] = [
@@ -119,7 +119,6 @@ impl Render for Sidebar {
         let sidebar_bg = theme.sidebar;
         let sidebar_border = theme.sidebar_border;
         let nav = theme.metrics.control;
-        let radius = theme.radius;
         let current = self.trail.read(cx).current();
         self.adapt(window, cx);
 
@@ -129,27 +128,18 @@ impl Render for Sidebar {
                 let inside = matches!(current, Destination::Library(_));
                 let text = if inside { foreground } else { muted };
                 let link_destination = if inside { None } else { destination };
+                let target = link_destination.unwrap_or(current.clone());
 
                 rows.push(
-                    div()
-                        .id(index)
-                        .flex()
-                        .items_center()
-                        .gap_2p5()
-                        .h(nav)
-                        .px_3()
-                        .rounded(radius)
-                        .cursor_pointer()
-                        .hover(move |style| style.bg(sidebar_accent))
-                        .child(svg().path(icon).size_4().flex_none().text_color(text))
-                        .child(div().text_color(text).child(label))
-                        .on_click(cx.listener(move |this, _, _, cx| {
-                            if inside {
+                    nav_row(index, label, text, sidebar_accent)
+                        .icon(icon)
+                        .on_click(cx.listener(move |this, _, _, cx| match inside {
+                            true => {
                                 this.library_open = !this.library_open;
                                 cx.notify();
                             }
+                            false => navigate(target.clone(), cx),
                         }))
-                        .link(link_destination.unwrap_or(current.clone()))
                         .into_any_element(),
                 );
 
@@ -191,19 +181,12 @@ impl Render for Sidebar {
                                             .bg(sidebar_border),
                                     )
                                     .child(
-                                        div()
-                                            .id(name)
-                                            .flex()
+                                        nav_row(name, name, tint, sidebar_accent)
                                             .flex_1()
-                                            .items_center()
-                                            .h(nav)
-                                            .px_3()
-                                            .rounded(radius)
-                                            .cursor_pointer()
-                                            .when(chosen, |this| this.bg(sidebar_accent))
-                                            .hover(move |style| style.bg(sidebar_accent))
-                                            .child(div().text_color(tint).child(name))
-                                            .link(Destination::Library(tab)),
+                                            .when(chosen, |button| button.bg(sidebar_accent))
+                                            .on_click(move |_, _, cx| {
+                                                navigate(Destination::Library(tab), cx)
+                                            }),
                                     )
                             }))
                             .into_any_element(),
@@ -218,20 +201,12 @@ impl Render for Sidebar {
             let text = if active { foreground } else { muted };
 
             rows.push(
-                div()
-                    .id(index)
-                    .flex()
-                    .items_center()
-                    .gap_2p5()
-                    .h(nav)
-                    .px_3()
-                    .rounded(radius)
-                    .cursor_pointer()
-                    .when(active, |this| this.bg(sidebar_accent))
-                    .hover(move |style| style.bg(sidebar_accent))
-                    .child(svg().path(icon).size_4().flex_none().text_color(text))
-                    .child(div().text_color(text).child(label))
-                    .when_some(destination, |this, destination| this.link(destination))
+                nav_row(index, label, text, sidebar_accent)
+                    .icon(icon)
+                    .when(active, |button| button.bg(sidebar_accent))
+                    .when_some(destination, |button, destination| {
+                        button.on_click(move |_, _, cx| navigate(destination.clone(), cx))
+                    })
                     .into_any_element(),
             );
         }
@@ -280,4 +255,15 @@ impl Render for Sidebar {
                     ),
             )
     }
+}
+
+fn nav_row(id: impl Into<ElementId>, label: &'static str, tint: Hsla, accent: Hsla) -> Button {
+    Button::new(id)
+        .ghost()
+        .label(label)
+        .tint(tint)
+        .gap_2p5()
+        .justify_start()
+        .hover(move |style| style.bg(accent))
+        .active(move |style| style.bg(accent))
 }

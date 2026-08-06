@@ -73,7 +73,6 @@ impl RenderOnce for InlineLinks {
 
         div()
             .flex()
-            .w_full()
             .min_w_0()
             .overflow_hidden()
             .text_color(color)

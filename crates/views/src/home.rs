@@ -1,7 +1,7 @@
 use gpui::prelude::*;
-use gpui::{Context, Entity, Render, Window, div};
+use gpui::{Context, Entity, Render, ScrollHandle, Window, div};
 use state::{Home, Playback};
-use ui::ActiveTheme as _;
+use ui::{ActiveTheme as _, Scrollbar, Scroller};
 use workspace::Sidebar;
 
 use crate::quick_picks::{QuickPicks, column_count, page_count};
@@ -14,6 +14,7 @@ pub(crate) struct HomeView {
     quick_picks_columns: usize,
     quick_picks_page: usize,
     sidebar: Entity<Sidebar>,
+    scrollbar: Entity<Scrollbar>,
 }
 
 impl HomeView {
@@ -47,6 +48,7 @@ impl HomeView {
             quick_picks_columns: 0,
             quick_picks_page: 0,
             sidebar,
+            scrollbar: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
         }
     }
 }
@@ -68,10 +70,7 @@ impl Render for HomeView {
         self.quick_picks_page = self.quick_picks_page.min(pages.saturating_sub(1));
         let page = self.quick_picks_page;
 
-        div()
-            .id("home-page")
-            .size_full()
-            .overflow_y_scroll()
+        Scroller::new("home-page", &self.scrollbar)
             .p(theme.metrics.inset)
             .child(
                 div().flex().flex_col().gap_6().child(
