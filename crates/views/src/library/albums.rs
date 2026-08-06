@@ -93,11 +93,7 @@ impl AlbumSource {
 
     fn index_cell(&self, cell: &Cell<AlbumField>, album: &Album, cx: &App) -> AnyElement {
         let origin = Origin::Album(album.id.clone());
-        let state = match cell.display {
-            1 => Some(state::PlaybackState::Playing),
-            2 => Some(state::PlaybackState::Paused),
-            _ => self.playback.read(cx).playing_from(&origin),
-        };
+        let state = self.playback.read(cx).playing_from(&origin);
         let id = album.id.clone();
         let press = cells::toggle(&self.playback, state.clone(), move |playback, cx| {
             playback.play_album(&id, cx)
