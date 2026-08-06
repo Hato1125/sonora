@@ -8,7 +8,7 @@ use router::{Destination, navigate};
 
 use state::{Hit, Kind, Playback, Search};
 use ui::ActiveTheme as _;
-use ui::{Artwork, Row, Scrollbar, Text, clock};
+use ui::{Artwork, Row, Scrollbar, Text, Theme, clock};
 use workspace::Sidebar;
 
 use crate::cells;
@@ -111,6 +111,26 @@ impl SearchView {
             .into_any_element()
     }
 
+    fn subtitle(&self, hit: &Hit, place: usize, compact: bool, theme: &Theme) -> AnyElement {
+        let links = |id: String, artists, fallback| {
+            cells::artist_links(id, artists, fallback, theme.muted_foreground).into_any_element()
+        };
+
+        match (compact, hit) {
+            (false, Hit::Song(track)) => links(
+                format!("song-artist-{place}"),
+                track.artist_refs.clone(),
+                track.artists.clone(),
+            ),
+            (false, Hit::Album(album)) => links(
+                format!("album-artist-{place}"),
+                album.artist_refs.clone(),
+                album.artists.clone(),
+            ),
+            _ => meta(hit, compact).into_any_element(),
+        }
+    }
+
     fn row(&self, hit: &Hit, place: usize, compact: bool, cx: &Context<Self>) -> AnyElement {
         let theme = *cx.theme();
 
@@ -126,30 +146,14 @@ impl SearchView {
                     Row::new(track.name.clone())
                         .cover(track.cover.clone())
                         .tint(tint)
-                        .meta(meta(hit, compact))
+                        .meta(self.subtitle(hit, place, compact, &theme))
                         .when(track.explicit, |row| row.explicit())
                         .trailing(
                             div()
-                                .flex()
                                 .flex_none()
-                                .items_center()
-                                .gap_3()
-                                .child(
-                                    cells::artist_links(
-                                        format!("song-artist-{place}"),
-                                        track.artist_refs.clone(),
-                                        track.artists.clone(),
-                                        theme.muted_foreground,
-                                    )
-                                    .text_size(theme.text(Text::Small)),
-                                )
-                                .child(
-                                    div()
-                                        .flex_none()
-                                        .text_size(theme.text(Text::Small))
-                                        .text_color(theme.muted_foreground)
-                                        .child(clock(track.duration)),
-                                ),
+                                .text_size(theme.text(Text::Small))
+                                .text_color(theme.muted_foreground)
+                                .child(clock(track.duration)),
                         ),
                     cx,
                 )
@@ -158,7 +162,7 @@ impl SearchView {
                 let row = Row::new(artist.name.clone())
                     .cover(artist.cover.clone())
                     .circle()
-                    .meta(meta(hit, compact));
+                    .meta(self.subtitle(hit, place, compact, &theme));
                 match &artist.id {
                     Some(id) => self.press(("artist", place), Press::Artist(id.clone()), row, cx),
                     None => row.into_any_element(),
@@ -169,16 +173,7 @@ impl SearchView {
                 Press::Album(album.id.clone()),
                 Row::new(album.name.clone())
                     .cover(album.cover.clone())
-                    .meta(meta(hit, compact))
-                    .trailing(
-                        cells::artist_links(
-                            format!("album-artist-{place}"),
-                            album.artist_refs.clone(),
-                            album.artists.clone(),
-                            theme.muted_foreground,
-                        )
-                        .text_size(theme.text(Text::Small)),
-                    ),
+                    .meta(self.subtitle(hit, place, compact, &theme)),
                 cx,
             ),
         }

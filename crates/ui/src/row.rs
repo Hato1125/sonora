@@ -11,7 +11,7 @@ const TITLE: Pixels = px(120.);
 #[derive(IntoElement)]
 pub struct Row {
     title: SharedString,
-    meta: Option<SharedString>,
+    meta: Option<AnyElement>,
     cover: Option<String>,
     circle: bool,
     tint: Option<Hsla>,
@@ -47,8 +47,8 @@ impl Row {
         self
     }
 
-    pub fn meta(mut self, meta: impl Into<SharedString>) -> Self {
-        self.meta = Some(meta.into());
+    pub fn meta(mut self, meta: impl IntoElement) -> Self {
+        self.meta = Some(meta.into_any_element());
         self
     }
 
