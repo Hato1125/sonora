@@ -6,11 +6,19 @@ use crate::metrics::{Metrics, Rounding, Text};
 pub const MIN_FONT: f32 = 10.;
 pub const MAX_FONT: f32 = 24.;
 
+const SURFACE_TINT: f32 = 0.5;
+const BORDER_TINT: f32 = 0.4;
+const TEXT_TINT: f32 = 0.12;
+const MAX_WASH_SATURATION: f32 = 0.5;
+const MIN_ACCENT_SATURATION: f32 = 0.4;
+const MAX_ACCENT_SATURATION: f32 = 0.85;
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Look {
     pub kind: ThemeKind,
     pub rounding: Rounding,
     pub font: f32,
+    pub tint: Option<Hsla>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -144,6 +152,7 @@ pub struct Theme {
     pub radius: Pixels,
     pub font_size: Pixels,
     pub metrics: Metrics,
+    pub tint: Option<Hsla>,
 }
 
 impl Global for Theme {}
@@ -182,6 +191,7 @@ impl Theme {
             radius: px(6.),
             font_size: px(14.),
             metrics: Metrics::default(),
+            tint: None,
         }
     }
 
@@ -218,6 +228,7 @@ impl Theme {
             radius: px(6.),
             font_size: px(14.),
             metrics: Metrics::default(),
+            tint: None,
         }
     }
 
@@ -254,6 +265,7 @@ impl Theme {
             radius: px(6.),
             font_size: px(14.),
             metrics: Metrics::default(),
+            tint: None,
         }
     }
 
@@ -290,6 +302,7 @@ impl Theme {
             radius: px(6.),
             font_size: px(14.),
             metrics: Metrics::default(),
+            tint: None,
         }
     }
 
@@ -418,6 +431,67 @@ impl Theme {
         }
     }
 
+    pub fn tinted(mut self, tint: Hsla) -> Self {
+        let dark = self.background.l < 0.5;
+
+        macro_rules! wash {
+            ($strength:expr, $($field:ident),+ $(,)?) => {
+                $(self.$field = wash(self.$field, tint, $strength);)+
+            };
+        }
+
+        wash!(
+            SURFACE_TINT,
+            background,
+            secondary,
+            secondary_hover,
+            secondary_active,
+            muted,
+            popover,
+            sidebar,
+            sidebar_accent,
+            table_head,
+            table_hover,
+        );
+        wash!(
+            BORDER_TINT,
+            border,
+            sidebar_border,
+            title_bar_border,
+            table_row_border,
+        );
+        wash!(
+            TEXT_TINT,
+            foreground,
+            popover_foreground,
+            muted_foreground,
+            table_head_foreground,
+        );
+
+        let accent = |lightness| Hsla {
+            h: tint.h,
+            s: tint.s.clamp(MIN_ACCENT_SATURATION, MAX_ACCENT_SATURATION),
+            l: lightness,
+            a: 1.,
+        };
+
+        self.primary = accent(if dark { 0.72 } else { 0.42 });
+        self.primary_hover = accent(if dark { 0.82 } else { 0.34 });
+        self.primary_foreground = Hsla {
+            s: tint.s.min(0.25),
+            l: if dark { 0.08 } else { 0.98 },
+            ..self.primary
+        };
+        self.progress_bar = self.primary;
+        self.selection = accent(if dark { 0.44 } else { 0.5 });
+        self.table_active = Hsla {
+            a: 0.22,
+            ..self.selection
+        };
+        self.table_active_border = self.primary;
+        self
+    }
+
     pub fn with_overrides(mut self, overrides: &ThemeOverrides) -> Self {
         macro_rules! apply_color {
             ($field:ident) => {
@@ -472,10 +546,14 @@ impl Theme {
             .clamp(MIN_FONT, MAX_FONT));
         let mut theme = Self::for_kind(look.kind);
 
+        if let Some(tint) = look.tint {
+            theme = theme.tinted(tint);
+        }
         theme.radius = look.rounding.radius();
         theme = theme.with_overrides(overrides);
         theme.font_size = base;
         theme.metrics = Metrics::new(base);
+        theme.tint = look.tint;
         theme
     }
 
@@ -490,6 +568,15 @@ impl Theme {
     pub fn set(look: Look, overrides: &ThemeOverrides, cx: &mut App) {
         cx.set_global(Self::for_look(look, overrides));
         cx.refresh_windows();
+    }
+}
+
+fn wash(base: Hsla, tint: Hsla, strength: f32) -> Hsla {
+    Hsla {
+        h: tint.h,
+        s: (base.s + tint.s * strength).min(MAX_WASH_SATURATION),
+        l: base.l,
+        a: base.a,
     }
 }
 
@@ -510,5 +597,58 @@ pub trait ActiveTheme {
 impl ActiveTheme for App {
     fn theme(&self) -> &Theme {
         self.global::<Theme>()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const TINT: Hsla = Hsla {
+        h: 0.55,
+        s: 0.7,
+        l: 0.5,
+        a: 1.,
+    };
+
+    #[test]
+    fn tinting_keeps_surface_contrast() {
+        let base = Theme::dark();
+        let tinted = base.tinted(TINT);
+
+        assert_eq!(tinted.background.l, base.background.l);
+        assert_eq!(tinted.secondary.l, base.secondary.l);
+        assert_eq!(tinted.background.h, TINT.h);
+        assert!(tinted.background.s > base.background.s);
+    }
+
+    #[test]
+    fn tinting_recolours_accents_per_polarity() {
+        let dark = Theme::dark().tinted(TINT);
+        let light = Theme::light().tinted(TINT);
+
+        assert_eq!(dark.primary.h, TINT.h);
+        assert_eq!(dark.progress_bar, dark.primary);
+        assert!(dark.primary.l > dark.background.l);
+        assert!(light.primary.l < light.background.l);
+    }
+
+    #[test]
+    fn overrides_win_over_the_tint() {
+        let look = Look {
+            kind: ThemeKind::Dark,
+            rounding: Rounding::Subtle,
+            font: 14.,
+            tint: Some(TINT),
+        };
+        let overrides = ThemeOverrides {
+            background: Some("#101010".to_owned()),
+            ..ThemeOverrides::default()
+        };
+
+        let theme = Theme::for_look(look, &overrides);
+
+        assert_eq!(theme.background, rgb(0x101010).into());
+        assert_eq!(theme.tint, Some(TINT));
     }
 }

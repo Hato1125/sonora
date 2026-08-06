@@ -104,12 +104,9 @@ impl SettingsView {
     }
 
     fn look(&self, cx: &Context<Self>) -> Look {
-        let settings = self.settings.read(cx);
-
         Look {
-            kind: ThemeKind::from_id(settings.theme()),
-            rounding: Rounding::from_id(settings.rounding()),
-            font: settings.font_size(),
+            tint: cx.theme().tint,
+            ..self.settings.read(cx).look()
         }
     }
 

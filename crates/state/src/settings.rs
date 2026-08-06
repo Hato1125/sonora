@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use gpui::{Context, Task};
 use serde::{Deserialize, Serialize};
-use ui::ThemeOverrides;
+use ui::{Look, Rounding, ThemeKind, ThemeOverrides};
 
 const SAVE_DELAY: Duration = Duration::from_millis(300);
 const DEFAULT_VOLUME: f32 = 0.7;
@@ -118,6 +118,15 @@ impl AppSettings {
 
     pub fn rounding(&self) -> &str {
         &self.values.appearance.rounding
+    }
+
+    pub fn look(&self) -> Look {
+        Look {
+            kind: ThemeKind::from_id(self.theme()),
+            rounding: Rounding::from_id(self.rounding()),
+            font: self.font_size(),
+            tint: None,
+        }
     }
 
     pub fn window_controls(&self) -> bool {
