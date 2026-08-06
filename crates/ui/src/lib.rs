@@ -4,6 +4,7 @@ mod controls;
 mod grid;
 mod menu;
 mod metrics;
+mod row;
 mod scrollbar;
 mod scrubber;
 mod skeleton;
@@ -19,6 +20,7 @@ pub use grid::{
 };
 pub use menu::{Menu, MenuItem};
 pub use metrics::{Metrics, Rounding, Text, snapped};
+pub use row::Row;
 pub use scrollbar::{Scrollbar, scrolled};
 pub use scrubber::{Scrubber, ScrubberState};
 pub use skeleton::{Initials, Skeleton};
