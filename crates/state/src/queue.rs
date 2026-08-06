@@ -3,10 +3,62 @@ use std::collections::VecDeque;
 use gpui::Context;
 use spotify::Track;
 
+fn move_item<T>(items: &mut VecDeque<T>, from: usize, to: usize) -> bool {
+    if from >= items.len() || to >= items.len() || from == to {
+        return false;
+    }
+    let Some(item) = items.remove(from) else {
+        return false;
+    };
+    items.insert(to, item);
+    true
+}
+
+fn select_past<T>(
+    past: &mut Vec<T>,
+    current: &mut Option<T>,
+    upcoming: &mut VecDeque<T>,
+    index: usize,
+) -> bool {
+    if index >= past.len() {
+        return false;
+    }
+
+    let mut replay = VecDeque::from(past.split_off(index));
+    let selected = replay.pop_front().expect("past index was checked");
+    if let Some(playing) = current.replace(selected) {
+        replay.push_back(playing);
+    }
+    replay.append(upcoming);
+    *upcoming = replay;
+    true
+}
+
+fn select_upcoming<T>(
+    past: &mut Vec<T>,
+    current: &mut Option<T>,
+    upcoming: &mut VecDeque<T>,
+    index: usize,
+) -> bool {
+    let Some(selected) = upcoming.remove(index) else {
+        return false;
+    };
+
+    past.extend(current.replace(selected));
+    past.extend(upcoming.drain(..index));
+    true
+}
+
+fn gap_target(from: usize, gap: usize, len: usize) -> usize {
+    let gap = gap.min(len);
+    if gap > from { gap - 1 } else { gap }
+}
+
 pub struct Queue {
     past: Vec<Track>,
     current: Option<Track>,
     upcoming: VecDeque<Track>,
+    revision: u64,
 }
 
 impl Default for Queue {
@@ -21,7 +73,21 @@ impl Queue {
             past: Vec::new(),
             current: None,
             upcoming: VecDeque::new(),
+            revision: 0,
         }
+    }
+
+    fn changed(&mut self, cx: &mut Context<Self>) {
+        self.revision = self.revision.wrapping_add(1);
+        cx.notify();
+    }
+
+    pub fn revision(&self) -> u64 {
+        self.revision
+    }
+
+    pub fn past(&self) -> impl ExactSizeIterator<Item = &Track> {
+        self.past.iter()
     }
 
     pub fn current(&self) -> Option<&Track> {
@@ -52,7 +118,7 @@ impl Queue {
         self.past.clear();
         self.current = None;
         self.upcoming.clear();
-        cx.notify();
+        self.changed(cx);
     }
 
     pub fn start(
@@ -69,13 +135,30 @@ impl Queue {
         self.upcoming = past.split_off(index + 1).into();
         self.current = past.pop();
         self.past = past;
-        cx.notify();
+        self.changed(cx);
         self.current.clone()
     }
 
     pub fn append(&mut self, track: Track, cx: &mut Context<Self>) {
         self.upcoming.push_back(track);
-        cx.notify();
+        self.changed(cx);
+    }
+
+    pub fn move_upcoming(&mut self, from: usize, to: usize, cx: &mut Context<Self>) {
+        if move_item(&mut self.upcoming, from, to) {
+            self.changed(cx);
+        }
+    }
+
+    pub fn move_upcoming_to_gap(&mut self, from: usize, gap: usize, cx: &mut Context<Self>) {
+        let to = gap_target(from, gap, self.upcoming.len());
+        self.move_upcoming(from, to, cx);
+    }
+
+    pub fn remove_upcoming(&mut self, index: usize, cx: &mut Context<Self>) {
+        if self.upcoming.remove(index).is_some() {
+            self.changed(cx);
+        }
     }
 
     pub fn next(&mut self, cx: &mut Context<Self>) -> Option<Track> {
@@ -83,7 +166,7 @@ impl Queue {
         if let Some(played) = self.current.replace(next) {
             self.past.push(played);
         }
-        cx.notify();
+        self.changed(cx);
         self.current.clone()
     }
 
@@ -98,7 +181,7 @@ impl Queue {
         if let Some(played) = self.current.replace(next) {
             self.past.push(played);
         }
-        cx.notify();
+        self.changed(cx);
         self.current.clone()
     }
 
@@ -114,7 +197,126 @@ impl Queue {
         if let Some(playing) = self.current.replace(previous) {
             self.upcoming.push_front(playing);
         }
-        cx.notify();
+        self.changed(cx);
         self.current.clone()
+    }
+
+    pub fn play_past(&mut self, index: usize, cx: &mut Context<Self>) -> Option<Track> {
+        if !select_past(&mut self.past, &mut self.current, &mut self.upcoming, index) {
+            return None;
+        }
+        self.changed(cx);
+        self.current.clone()
+    }
+
+    pub fn play_upcoming(&mut self, index: usize, cx: &mut Context<Self>) -> Option<Track> {
+        if !select_upcoming(&mut self.past, &mut self.current, &mut self.upcoming, index) {
+            return None;
+        }
+        self.changed(cx);
+        self.current.clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::VecDeque;
+
+    use super::{gap_target, move_item, select_past, select_upcoming};
+
+    #[test]
+    fn moves_items_in_both_directions() {
+        let mut items = VecDeque::from([1, 2, 3, 4]);
+
+        assert!(move_item(&mut items, 0, 2));
+        assert_eq!(items, [2, 3, 1, 4]);
+        assert!(move_item(&mut items, 3, 1));
+        assert_eq!(items, [2, 4, 3, 1]);
+    }
+
+    #[test]
+    fn ignores_invalid_moves() {
+        let mut items = VecDeque::from([1, 2, 3]);
+
+        assert!(!move_item(&mut items, 1, 1));
+        assert!(!move_item(&mut items, 3, 0));
+        assert!(!move_item(&mut items, 0, 3));
+        assert_eq!(items, [1, 2, 3]);
+    }
+
+    #[test]
+    fn selecting_past_rebuilds_the_queue_from_that_track() {
+        let mut past = vec![1, 2, 3];
+        let mut current = Some(4);
+        let mut upcoming = VecDeque::from([5, 6]);
+
+        assert!(select_past(&mut past, &mut current, &mut upcoming, 1));
+        assert_eq!(past, [1]);
+        assert_eq!(current, Some(2));
+        assert_eq!(upcoming, [3, 4, 5, 6]);
+    }
+
+    #[test]
+    fn selecting_invalid_past_track_keeps_the_queue() {
+        let mut past = vec![1, 2];
+        let mut current = Some(3);
+        let mut upcoming = VecDeque::from([4, 5]);
+
+        assert!(!select_past(&mut past, &mut current, &mut upcoming, 2));
+        assert_eq!(past, [1, 2]);
+        assert_eq!(current, Some(3));
+        assert_eq!(upcoming, [4, 5]);
+    }
+
+    #[test]
+    fn selecting_upcoming_moves_skipped_tracks_to_the_past() {
+        let mut past = vec![1];
+        let mut current = Some(2);
+        let mut upcoming = VecDeque::from([3, 4, 5]);
+
+        assert!(select_upcoming(&mut past, &mut current, &mut upcoming, 1));
+        assert_eq!(past, [1, 2, 3]);
+        assert_eq!(current, Some(4));
+        assert_eq!(upcoming, [5]);
+    }
+
+    #[test]
+    fn selecting_invalid_upcoming_track_keeps_the_queue() {
+        let mut past = vec![1];
+        let mut current = Some(2);
+        let mut upcoming = VecDeque::from([3, 4]);
+
+        assert!(!select_upcoming(&mut past, &mut current, &mut upcoming, 2));
+        assert_eq!(past, [1]);
+        assert_eq!(current, Some(2));
+        assert_eq!(upcoming, [3, 4]);
+    }
+
+    #[test]
+    fn converts_gaps_to_insertion_indices() {
+        assert_eq!(gap_target(0, 3, 4), 2);
+        assert_eq!(gap_target(0, 4, 4), 3);
+        assert_eq!(gap_target(3, 1, 4), 1);
+        assert_eq!(gap_target(2, 0, 4), 0);
+        assert_eq!(gap_target(1, 1, 4), 1);
+        assert_eq!(gap_target(1, 2, 4), 1);
+        assert_eq!(gap_target(0, 10, 4), 3);
+    }
+
+    #[test]
+    fn gap_moves_match_visual_positions() {
+        let mut items = VecDeque::from([1, 2, 3, 4]);
+
+        let to = gap_target(0, 3, items.len());
+        assert!(move_item(&mut items, 0, to));
+        assert_eq!(items, [2, 3, 1, 4]);
+
+        let to = gap_target(3, 0, items.len());
+        assert!(move_item(&mut items, 3, to));
+        assert_eq!(items, [4, 2, 3, 1]);
+
+        let to = gap_target(1, 2, items.len());
+        assert!(!move_item(&mut items, 1, to));
+        assert_eq!(items, [4, 2, 3, 1]);
     }
 }

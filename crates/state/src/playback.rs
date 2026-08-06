@@ -327,6 +327,28 @@ impl Playback {
         self.load_after(&track, SKIP_DEBOUNCE, cx);
     }
 
+    pub fn play_past(&mut self, index: usize, cx: &mut Context<Self>) {
+        self.fetch = None;
+        let Some(track) = self
+            .queue
+            .update(cx, |queue, cx| queue.play_past(index, cx))
+        else {
+            return;
+        };
+        self.load_after(&track, SKIP_DEBOUNCE, cx);
+    }
+
+    pub fn play_upcoming(&mut self, index: usize, cx: &mut Context<Self>) {
+        self.fetch = None;
+        let Some(track) = self
+            .queue
+            .update(cx, |queue, cx| queue.play_upcoming(index, cx))
+        else {
+            return;
+        };
+        self.load_after(&track, SKIP_DEBOUNCE, cx);
+    }
+
     pub fn resume(&mut self, cx: &mut Context<Self>) {
         if let Some(engine) = self.engine.as_ref() {
             engine.play();

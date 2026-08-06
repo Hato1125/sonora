@@ -9,6 +9,8 @@ use state::{Playback, PlaybackState, Queue, Repeat};
 
 use ui::{Artwork, Button, InlineLink, InlineLinks, Scrubber, ScrubberState, clock};
 
+use crate::queue_panel::QueuePanel;
+
 const SEEK_MAX: f32 = 560.;
 const VOLUME_WIDTH: f32 = 110.;
 const VOLUME_TIGHT: f32 = 72.;
@@ -20,6 +22,7 @@ const STEP: f32 = 0.004;
 pub struct PlayerBar {
     playback: Entity<Playback>,
     queue: Entity<Queue>,
+    queue_panel: Option<Entity<QueuePanel>>,
     seek: ScrubberState,
     volume: ScrubberState,
     pending: Option<f32>,
@@ -30,12 +33,34 @@ pub struct PlayerBar {
 
 impl PlayerBar {
     pub fn new(playback: Entity<Playback>, queue: Entity<Queue>, cx: &mut Context<Self>) -> Self {
+        Self::build(playback, queue, None, cx)
+    }
+
+    pub(crate) fn with_queue_panel(
+        playback: Entity<Playback>,
+        queue: Entity<Queue>,
+        queue_panel: Entity<QueuePanel>,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        Self::build(playback, queue, Some(queue_panel), cx)
+    }
+
+    fn build(
+        playback: Entity<Playback>,
+        queue: Entity<Queue>,
+        queue_panel: Option<Entity<QueuePanel>>,
+        cx: &mut Context<Self>,
+    ) -> Self {
         cx.observe(&playback, |_, _, cx| cx.notify()).detach();
         cx.observe(&queue, |_, _, cx| cx.notify()).detach();
+        if let Some(queue_panel) = &queue_panel {
+            cx.observe(queue_panel, |_, _, cx| cx.notify()).detach();
+        }
 
         Self {
             playback,
             queue,
+            queue_panel,
             seek: ScrubberState::new("seek"),
             volume: ScrubberState::new("volume"),
             pending: None,
@@ -187,6 +212,24 @@ impl PlayerBar {
             .on_click(cx.listener(|this, _, _, cx| {
                 this.playback.update(cx, |playback, cx| playback.next(cx));
             }))
+    }
+
+    fn queue_button(&self, cx: &mut Context<Self>) -> Option<Button> {
+        let queue_panel = self.queue_panel.as_ref()?;
+        let open = queue_panel.read(cx).is_open();
+
+        Some(
+            Button::new("toggle-queue")
+                .ghost()
+                .small()
+                .icon("icons/list.svg")
+                .selected(open)
+                .on_click(cx.listener(|this, _, _, cx| {
+                    if let Some(queue_panel) = &this.queue_panel {
+                        queue_panel.update(cx, |panel, cx| panel.toggle(cx));
+                    }
+                })),
+        )
     }
 
     fn toggle(&self, cx: &mut Context<Self>) -> Button {
@@ -388,7 +431,8 @@ impl Render for PlayerBar {
                         .gap_3()
                         .w_full()
                         .child(div().flex_1().min_w_0().child(seek))
-                        .child(self.sound(px(VOLUME_TIGHT), cx)),
+                        .child(self.sound(px(VOLUME_TIGHT), cx))
+                        .when_some(self.queue_button(cx), |this, button| this.child(button)),
                 ),
             false => base
                 .items_center()
@@ -411,9 +455,11 @@ impl Render for PlayerBar {
                         .flex()
                         .items_center()
                         .justify_end()
+                        .gap_2()
                         .flex_1()
                         .min_w_0()
-                        .child(self.sound(px(VOLUME_WIDTH), cx)),
+                        .child(self.sound(px(VOLUME_WIDTH), cx))
+                        .when_some(self.queue_button(cx), |this, button| this.child(button)),
                 ),
         }
     }
