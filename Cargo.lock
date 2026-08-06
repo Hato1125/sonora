@@ -8728,6 +8728,7 @@ dependencies = [
  "gpui",
  "input",
  "router",
+ "spotify",
  "state",
  "ui",
 ]

@@ -44,6 +44,7 @@ const ICONS: &[(&str, &[u8])] = icons![
     "chevron-up",
     "house",
     "library-big",
+    "list",
     "log-out",
     "music",
     "music-2",

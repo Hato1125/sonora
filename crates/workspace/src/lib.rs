@@ -1,4 +1,5 @@
 mod player_bar;
+mod queue_panel;
 mod searchable;
 mod sidebar;
 mod title_bar;
@@ -11,13 +12,15 @@ pub use title_bar::TitleBar;
 use gpui::prelude::*;
 use gpui::{AnyView, App, Context, Entity, FocusHandle, Render};
 use gpui::{Window, div};
-use input::WORKSPACE_CONTEXT;
+use input::{Dismiss, WORKSPACE_CONTEXT};
+use queue_panel::QueuePanel;
 use state::{Playback, Queue};
 
 pub struct Workspace {
     title_bar: Entity<TitleBar>,
     sidebar: Entity<Sidebar>,
     player_bar: Entity<PlayerBar>,
+    queue_panel: Entity<QueuePanel>,
     content: AnyView,
     focus: FocusHandle,
 }
@@ -31,12 +34,16 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) -> Self {
         let title_bar = cx.new(|cx| TitleBar::new(sidebar.clone(), cx));
-        let player_bar = cx.new(|cx| PlayerBar::new(playback, queue, cx));
+        let queue_panel =
+            cx.new(|cx| QueuePanel::new(queue.clone(), playback.clone(), sidebar.clone(), cx));
+        let player_bar =
+            cx.new(|cx| PlayerBar::with_queue_panel(playback, queue, queue_panel.clone(), cx));
 
         Self {
             title_bar,
             sidebar,
             player_bar,
+            queue_panel,
             content,
             focus: cx.focus_handle(),
         }
@@ -63,6 +70,12 @@ impl Workspace {
     pub fn player_bar(&self) -> &Entity<PlayerBar> {
         &self.player_bar
     }
+
+    fn close_queue(&mut self, cx: &mut Context<Self>) {
+        if self.queue_panel.read(cx).is_open() {
+            self.queue_panel.update(cx, |panel, cx| panel.close(cx));
+        }
+    }
 }
 
 impl Render for Workspace {
@@ -76,6 +89,7 @@ impl Render for Workspace {
             .size_full()
             .key_context(WORKSPACE_CONTEXT)
             .track_focus(&self.focus)
+            .on_action(cx.listener(|this, _: &Dismiss, _, cx| this.close_queue(cx)))
             .child(self.title_bar.clone())
             .child(
                 div()
@@ -85,11 +99,13 @@ impl Render for Workspace {
                     .child(self.sidebar.clone())
                     .child(
                         div()
+                            .relative()
                             .flex()
                             .flex_col()
                             .flex_1()
                             .min_w_0()
-                            .child(self.content.clone()),
+                            .child(self.content.clone())
+                            .child(self.queue_panel.clone()),
                     ),
             )
             .child(self.player_bar.clone())
