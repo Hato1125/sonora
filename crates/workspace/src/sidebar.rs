@@ -8,7 +8,7 @@ use router::{Destination, LibraryTab, Link as _, Navigation};
 use state::{AppSettings, Spotty};
 
 const NAV: [(&str, &str, Option<Destination>); 4] = [
-    ("Home", "icons/house.svg", None),
+    ("Home", "icons/house.svg", Some(Destination::Home)),
     ("Search", "icons/search.svg", Some(Destination::Search)),
     (
         "Your Library",

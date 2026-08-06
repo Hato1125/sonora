@@ -9,9 +9,10 @@ use workspace::{Filter, Sidebar, Workspace};
 
 use crate::search::SearchView;
 use crate::tracks::{ALBUM_COLUMNS, LIBRARY_COLUMNS};
-use crate::{ArtistView, DetailView, LibraryView, LoginView, SettingsView};
+use crate::{ArtistView, DetailView, HomeView, LibraryView, LoginView, SettingsView};
 
 struct Screens {
+    home: Entity<HomeView>,
     library: Entity<LibraryView>,
     artist: Option<Entity<ArtistView>>,
     artist_detail: Option<Entity<ArtistDetail>>,
@@ -72,6 +73,9 @@ impl Root {
             )
         });
 
+        let home =
+            cx.new(|cx| HomeView::new(library.clone(), playback.clone(), sidebar.clone(), cx));
+
         let io = Io::global(cx);
         let search_library = library.clone();
         let album_detail =
@@ -126,6 +130,7 @@ impl Root {
             filter,
             pending: None,
             screens: Screens {
+                home,
                 library: library_view,
                 artist: None,
                 artist_detail: None,
@@ -188,6 +193,7 @@ impl Root {
         );
 
         let content: AnyView = match destination {
+            Destination::Home => self.screens.home.clone().into(),
             Destination::Library(tab) => {
                 self.screens
                     .library

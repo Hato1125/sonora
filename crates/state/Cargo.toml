@@ -7,6 +7,7 @@ edition.workspace = true
 anyhow.workspace = true
 audio.workspace = true
 dirs.workspace = true
+fastrand.workspace = true
 gpui.workspace = true
 librespot-core.workspace = true
 log.workspace = true
