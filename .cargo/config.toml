@@ -1,2 +1,2 @@
-[target.x86_64-unknown-linux-gnu]
-rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+# Keep the repository build portable. Cargo will use the platform's default
+# linker; developers who prefer mold or lld can opt in through RUSTFLAGS.
