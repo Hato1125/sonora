@@ -286,6 +286,20 @@ pub(crate) fn dim<F>(cell: &Cell<F>, value: impl Into<SharedString>, muted: Hsla
         .into_any_element()
 }
 
+pub(crate) fn count(value: u64) -> String {
+    let digits = value.to_string();
+    let first = match digits.len() % 3 {
+        0 => 3,
+        remainder => remainder,
+    };
+    let mut grouped = digits[..first].to_owned();
+    for chunk in digits.as_bytes()[first..].chunks(3) {
+        grouped.push(',');
+        grouped.push_str(std::str::from_utf8(chunk).unwrap_or_default());
+    }
+    grouped
+}
+
 pub(crate) fn title<F>(
     cell: &Cell<F>,
     value: impl Into<SharedString>,
@@ -321,4 +335,16 @@ pub(crate) fn blank<F>(cell: &Cell<F>) -> AnyElement {
 
 pub(crate) fn content_width(window: &Window, sidebar: Pixels, inset: Pixels) -> Pixels {
     (window.viewport_size().width - sidebar - inset).max(px(200.))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::count;
+
+    #[test]
+    fn groups_count() {
+        assert_eq!(count(999), "999");
+        assert_eq!(count(1_234), "1,234");
+        assert_eq!(count(12_345_678), "12,345,678");
+    }
 }

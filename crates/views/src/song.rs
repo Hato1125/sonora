@@ -193,7 +193,7 @@ impl SongView {
             .detail
             .read(cx)
             .playcount()
-            .map(count)
+            .map(cells::count)
             .unwrap_or_else(|| "Not available".to_owned());
         self.card(
             "ABOUT THIS SONG",
@@ -504,31 +504,5 @@ impl Render for SongView {
                     }),
             )
             .child(self.scrollbar.clone())
-    }
-}
-
-fn count(value: u64) -> String {
-    let digits = value.to_string();
-    let first = match digits.len() % 3 {
-        0 => 3,
-        remainder => remainder,
-    };
-    let mut grouped = digits[..first].to_owned();
-    for chunk in digits.as_bytes()[first..].chunks(3) {
-        grouped.push(',');
-        grouped.push_str(std::str::from_utf8(chunk).unwrap_or_default());
-    }
-    grouped
-}
-
-#[cfg(test)]
-mod tests {
-    use super::count;
-
-    #[test]
-    fn groups_playcount() {
-        assert_eq!(count(999), "999");
-        assert_eq!(count(1_234), "1,234");
-        assert_eq!(count(12_345_678), "12,345,678");
     }
 }

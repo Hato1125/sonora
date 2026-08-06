@@ -99,6 +99,7 @@ fn track_from(uri: &str, track: &TrackMessage) -> Track {
         cover: track.album.as_ref().and_then(cover_url),
         duration: Duration::from_millis(track.duration.unwrap_or_default().max(0) as u64),
         added_at: None,
+        playcount: None,
         popularity: track.popularity.unwrap_or_default().clamp(0, 100) as u32,
         explicit: track.explicit.unwrap_or_default(),
         track_number: track.number.unwrap_or_default().max(0) as u32,

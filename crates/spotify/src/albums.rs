@@ -9,7 +9,7 @@ use librespot_protocol::metadata::album::Type as AlbumType;
 use protobuf::{EnumOrUnknown, Message as _};
 
 use crate::models::{Album, AlbumDetail, ReleaseType, Track};
-use crate::{collection, collection2, wire};
+use crate::{collection, collection2, plays, wire};
 
 const ALBUM_PREFIX: &str = "spotify:album:";
 const TRACK_PREFIX: &str = "spotify:track:";
@@ -45,13 +45,21 @@ pub async fn album(session: &Session, album_id: &str) -> Result<AlbumDetail> {
         .into_iter()
         .map(|id| format!("{TRACK_PREFIX}{id}"))
         .collect();
-    let tracks = match uris.is_empty() {
+    let mut tracks = match uris.is_empty() {
         true => Vec::new(),
         false => {
             let mut known = collection::metadata(session, &uris).await?;
             uris.iter().filter_map(|uri| known.remove(uri)).collect()
         }
     };
+    match plays::album(session, album_id).await {
+        Ok(plays) => {
+            for track in &mut tracks {
+                track.playcount = track.id.as_ref().and_then(|id| plays.get(id).copied());
+            }
+        }
+        Err(error) => log::warn!("albums: cannot load play counts: {error:#}"),
+    }
 
     Ok(AlbumDetail { album, tracks })
 }

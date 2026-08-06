@@ -31,6 +31,7 @@ pub struct Track {
     pub cover: Option<String>,
     pub duration: Duration,
     pub added_at: Option<i64>,
+    pub playcount: Option<u64>,
     pub popularity: u32,
     pub explicit: bool,
     pub track_number: u32,

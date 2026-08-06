@@ -121,6 +121,7 @@ mod tests {
             cover: None,
             duration: Duration::from_secs(180),
             added_at: None,
+            playcount: None,
             popularity: 0,
             explicit: false,
             track_number: 0,

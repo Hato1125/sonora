@@ -19,6 +19,7 @@ pub(crate) enum TrackField {
     Artists,
     Album,
     AddedAt,
+    Plays,
     Duration,
 }
 
@@ -122,6 +123,16 @@ pub(crate) const ALBUM_COLUMNS: &[ColumnSpec<TrackField>] = &[
         header: "Artist",
         align: TextAlign::Left,
         width: Width::Fill(0.38),
+        flush: false,
+        sortable: true,
+        hide_below: ROOMY,
+    },
+    ColumnSpec {
+        field: TrackField::Plays,
+        key: "plays",
+        header: "Plays",
+        align: TextAlign::Right,
+        width: Width::Fixed(DATE),
         flush: false,
         sortable: true,
         hide_below: ROOMY,
@@ -292,6 +303,11 @@ impl GridSource for TrackSource {
                     .unwrap_or_default(),
                 detail,
             ),
+            TrackField::Plays => cells::dim(
+                &cell,
+                track.playcount.map(cells::count).unwrap_or_default(),
+                detail,
+            ),
             TrackField::Duration => cells::dim(&cell, clock(track.duration), detail),
             TrackField::Index => cells::blank(&cell),
         }
@@ -316,6 +332,10 @@ impl GridSource for TrackSource {
                 .get(a)
                 .and_then(|track| track.added_at)
                 .cmp(&tracks.get(b).and_then(|track| track.added_at)),
+            TrackField::Plays => tracks
+                .get(a)
+                .and_then(|track| track.playcount)
+                .cmp(&tracks.get(b).and_then(|track| track.playcount)),
             TrackField::Duration => tracks
                 .get(a)
                 .map(|track| track.duration)
