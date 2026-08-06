@@ -147,7 +147,7 @@ pub struct BlazingSink {
 }
 
 impl BlazingSink {
-    pub fn open(_format: AudioFormat, flush: Flush, volume: Volume) -> Result<Self, SinkError> {
+    pub fn open(format: AudioFormat, flush: Flush, volume: Volume) -> Result<Self, SinkError> {
         let host = cpal::default_host();
         let device = host
             .default_output_device()
@@ -172,10 +172,11 @@ impl BlazingSink {
             })
             .unwrap_or(default);
 
+        let sample_format = output_sample_format(format, config.sample_format());
         let mut stream = OutputStreamBuilder::default()
             .with_device(device)
             .with_config(&config.config())
-            .with_sample_format(config.sample_format())
+            .with_sample_format(sample_format)
             .open_stream()
             .map_err(|error| SinkError::ConnectionRefused(error.to_string()))?;
         stream.log_on_drop(false);
@@ -253,5 +254,36 @@ struct Silence;
 impl Sink for Silence {
     fn write(&mut self, _packet: AudioPacket, _converter: &mut Converter) -> SinkResult<()> {
         Ok(())
+    }
+}
+
+fn output_sample_format(input: AudioFormat, device: cpal::SampleFormat) -> cpal::SampleFormat {
+    if cfg!(target_os = "windows") {
+        device
+    } else {
+        match input {
+            AudioFormat::F64 => cpal::SampleFormat::F64,
+            AudioFormat::F32 => cpal::SampleFormat::F32,
+            AudioFormat::S32 => cpal::SampleFormat::I32,
+            AudioFormat::S24 | AudioFormat::S24_3 => cpal::SampleFormat::I24,
+            AudioFormat::S16 => cpal::SampleFormat::I16,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use librespot_playback::config::AudioFormat;
+
+    use super::output_sample_format;
+
+    #[test]
+    fn chooses_the_sample_format_for_the_platform() {
+        let selected = output_sample_format(AudioFormat::F32, cpal::SampleFormat::I16);
+
+        #[cfg(target_os = "windows")]
+        assert_eq!(selected, cpal::SampleFormat::I16);
+        #[cfg(not(target_os = "windows"))]
+        assert_eq!(selected, cpal::SampleFormat::F32);
     }
 }
