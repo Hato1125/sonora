@@ -9,7 +9,7 @@ use state::{AppSettings, Library, LibraryState, Playback, Sonora};
 use ui::{
     GridDelegate, GridEvent, GridState, Scrollbar, Scroller, Sort, Toggle, Viewport, grid, scrolled,
 };
-use workspace::{Searchable, Sidebar};
+use workspace::{Chrome, Searchable};
 
 use crate::cells;
 use crate::tracks::{
@@ -77,7 +77,6 @@ pub struct LibraryView {
     settings: Entity<AppSettings>,
     playback: Entity<Playback>,
     playback_status: PlaybackStatus,
-    sidebar: Entity<Sidebar>,
     section: Section,
     width: Pixels,
     scrollbar: Entity<Scrollbar>,
@@ -90,11 +89,10 @@ impl LibraryView {
     pub fn new(
         library: Entity<Library>,
         playback: Entity<Playback>,
-        sidebar: Entity<Sidebar>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let width = cells::content_width(window, sidebar.read(cx).occupied_width(), Pixels::ZERO);
+        let width = cells::content_width(window, Pixels::ZERO, cx);
         let settings = Sonora::global(cx).settings.clone();
         let saved = |section: Section, cx: &App| settings.read(cx).hidden_columns(section.key());
 
@@ -140,7 +138,8 @@ impl LibraryView {
         })
         .detach();
 
-        cx.observe(&sidebar, |_, _, cx| cx.notify()).detach();
+        let chrome = Chrome::entity(cx);
+        cx.observe(&chrome, |_, _, cx| cx.notify()).detach();
 
         let current_playback = playback_status(&playback, cx);
         cx.observe(&playback, |this, playback, cx| {
@@ -178,7 +177,6 @@ impl LibraryView {
             settings,
             playback,
             playback_status: current_playback,
-            sidebar,
             section: Section::Tracks,
             width,
             scrollbar,
@@ -317,8 +315,7 @@ impl LibraryView {
     }
 
     fn resize(&mut self, window: &Window, cx: &mut Context<Self>) {
-        let sidebar = self.sidebar.read(cx).occupied_width();
-        let width = cells::content_width(window, sidebar, Pixels::ZERO);
+        let width = cells::content_width(window, Pixels::ZERO, cx);
         if (width - self.width).abs() < px(0.5) {
             return;
         }

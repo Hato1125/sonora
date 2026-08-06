@@ -13,6 +13,7 @@ use state::{Playback, PlaybackState};
 use ui::{
     ActiveTheme as _, Artwork, Cell, ExplicitBadge, InlineLink, InlineLinks, ROW_GROUP, Theme,
 };
+use workspace::Chrome;
 
 const PLAY: &str = "icons/play.svg";
 const PLAYING: &str = "icons/music-2.svg";
@@ -26,10 +27,7 @@ pub(crate) const DATE: Pixels = px(112.);
 pub(crate) const YEAR: Pixels = px(64.);
 pub(crate) const HIT: Pixels = px(18.);
 
-pub(crate) const ALWAYS: Pixels = Pixels::ZERO;
-pub(crate) const WIDE: Pixels = px(740.);
-pub(crate) const ROOMY: Pixels = px(620.);
-pub(crate) const SNUG: Pixels = px(420.);
+pub(crate) use ui::{ALWAYS, ROOMY, SNUG, WIDE};
 
 pub(crate) fn glyph(theme: &Theme) -> Pixels {
     px((theme.metrics.row / px(1.) * 0.23).round())
@@ -319,6 +317,6 @@ pub(crate) fn blank<F>(cell: &Cell<F>) -> AnyElement {
     cell.frame().into_any_element()
 }
 
-pub(crate) fn content_width(window: &Window, sidebar: Pixels, inset: Pixels) -> Pixels {
-    (window.viewport_size().width - sidebar - inset).max(px(200.))
+pub(crate) fn content_width(window: &Window, inset: Pixels, cx: &App) -> Pixels {
+    (Chrome::content(window, cx) - inset).max(ui::MIN_CONTENT)
 }

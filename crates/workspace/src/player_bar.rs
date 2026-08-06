@@ -7,7 +7,7 @@ use gpui::{Context, Entity, MouseMoveEvent, MouseUpEvent, Pixels, Render, Shared
 use gpui::{Window, div, px};
 use state::{Playback, PlaybackState, Queue, Repeat};
 
-use ui::{Artwork, Button, InlineLink, InlineLinks, Scrubber, ScrubberState, clock};
+use ui::{Artwork, Button, InlineLink, InlineLinks, Room, Scrubber, ScrubberState, clock};
 
 use crate::queue_panel::QueuePanel;
 
@@ -15,8 +15,6 @@ const SEEK_MAX: f32 = 560.;
 const VOLUME_WIDTH: f32 = 110.;
 const VOLUME_TIGHT: f32 = 72.;
 const CLOCK_CHARS: f32 = 3.4;
-const STACK_BREAKPOINT: f32 = 640.;
-const TRACK_BREAKPOINT: f32 = 380.;
 const STEP: f32 = 0.004;
 
 pub struct PlayerBar {
@@ -277,23 +275,25 @@ impl PlayerBar {
                         .justify_center()
                         .flex_1()
                         .min_w_0()
-                        .child(match &track {
-                            Some(track) => div()
-                                .id("now-playing-album")
-                                .when_some(track.album_id.clone(), |this, album| {
-                                    this.hover(|style| style.underline())
-                                        .link(Destination::Album(album.into()))
-                                })
-                                .child(SharedString::from(track.name.clone()))
-                                .w_full()
-                                .truncate(),
-                            None => div()
-                                .id("now-playing-album")
-                                .child("Nothing playing")
-                                .w_full()
-                                .text_color(muted)
-                                .truncate(),
-                        })
+                        .child(
+                            div().flex().min_w_0().child(match &track {
+                                Some(track) => div()
+                                    .id("now-playing-album")
+                                    .when_some(track.album_id.clone(), |this, album| {
+                                        this.hover(|style| style.underline())
+                                            .link(Destination::Album(album.into()))
+                                    })
+                                    .child(SharedString::from(track.name.clone()))
+                                    .min_w_0()
+                                    .truncate(),
+                                None => div()
+                                    .id("now-playing-album")
+                                    .child("Nothing playing")
+                                    .min_w_0()
+                                    .text_color(muted)
+                                    .truncate(),
+                            }),
+                        )
                         .when_some(track, |this, track| {
                             this.child(
                                 InlineLinks::new(
@@ -305,6 +305,7 @@ impl PlayerBar {
                                     muted,
                                 )
                                 .text_size(artists)
+                                .truncate()
                                 .on_click(|id, cx| {
                                     navigate(Destination::Artist(id), cx);
                                 }),
@@ -340,7 +341,8 @@ impl Render for PlayerBar {
         let theme = *cx.theme();
         let muted = theme.muted_foreground;
         let empty = muted.opacity(0.3);
-        let stacked = window.viewport_size().width < px(STACK_BREAKPOINT);
+        let span = Room::of(window.viewport_size().width);
+        let stacked = !span.fits(Room::Roomy);
         let height = match stacked {
             true => ui::snapped(theme.metrics.player_bar + theme.metrics.pad * 3., window),
             false => ui::snapped(theme.metrics.player_bar, window),
@@ -348,7 +350,7 @@ impl Render for PlayerBar {
         let clock_text = theme.text(ui::Text::Tiny);
         let clock_width = clock_text * CLOCK_CHARS;
 
-        let show_track = window.viewport_size().width >= px(TRACK_BREAKPOINT);
+        let show_track = span.fits(Room::Snug);
 
         let playback = self.playback.read(cx);
         let seekable = playback.track().is_some();

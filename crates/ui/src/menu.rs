@@ -6,11 +6,13 @@ use gpui::prelude::*;
 use gpui::{
     Anchor, AnyWindowHandle, App, Bounds, ClickEvent, Div, ElementId, Entity, Interactivity,
     MouseButton, MouseDownEvent, Pixels, Point, SharedString, Size, Stateful, StyleRefinement,
-    Window, anchored, deferred, div, px, svg,
+    Window, anchored, deferred, div, point, px, svg,
 };
 
 use crate::Artwork;
+use crate::metrics::snapped;
 use crate::scrollbar::Scrollbar;
+use crate::shield::Shield;
 use crate::theme::ActiveTheme as _;
 
 const SUBMENU_CLOSE_DELAY: Duration = Duration::from_millis(160);
@@ -522,6 +524,17 @@ impl RenderOnce for Menu {
                         dismiss(event, window, cx);
                     }
                 })
+            })
+            .when(should_defer, |this| {
+                let viewport = window.viewport_size();
+                let chrome = snapped(theme.metrics.title_bar, window);
+                this.child(
+                    anchored().position(point(Pixels::ZERO, chrome)).child(
+                        Shield::new("menu-shield")
+                            .w(viewport.width)
+                            .h(viewport.height - chrome),
+                    ),
+                )
             })
             .child(body);
 
