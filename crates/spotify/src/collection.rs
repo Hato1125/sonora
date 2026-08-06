@@ -108,6 +108,8 @@ fn track_from(uri: &str, track: &TrackMessage) -> Track {
         album_id: track.album.as_ref().and_then(|album| base62(album.gid())),
         cover: track.album.as_ref().and_then(cover_url),
         duration: Duration::from_millis(track.duration.unwrap_or_default().max(0) as u64),
+        popularity: track.popularity.unwrap_or_default().clamp(0, 100) as u32,
+        explicit: track.explicit.unwrap_or_default(),
     }
 }
 

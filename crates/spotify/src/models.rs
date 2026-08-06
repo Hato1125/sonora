@@ -17,6 +17,8 @@ pub struct Track {
     pub album_id: Option<String>,
     pub cover: Option<String>,
     pub duration: Duration,
+    pub popularity: u32,
+    pub explicit: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
