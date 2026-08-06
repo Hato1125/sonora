@@ -1,10 +1,12 @@
 use gpui::prelude::*;
-use gpui::{AnyElement, App, Hsla, SharedString, Window, div};
+use gpui::{AnyElement, App, Hsla, Pixels, SharedString, Window, div, px};
 
 use crate::ExplicitBadge;
 use crate::artwork::Artwork;
 use crate::metrics::{Text, snapped};
 use crate::theme::ActiveTheme as _;
+
+const TITLE: Pixels = px(120.);
 
 #[derive(IntoElement)]
 pub struct Row {
@@ -77,9 +79,11 @@ impl RenderOnce for Row {
             .rounded(theme.radius)
             .hover(move |style| style.bg(theme.table_hover))
             .child(
-                Artwork::new(self.cover)
-                    .size(art)
-                    .when(self.circle, Artwork::circle),
+                div().flex_none().child(
+                    Artwork::new(self.cover)
+                        .size(art)
+                        .when(self.circle, Artwork::circle),
+                ),
             )
             .child(
                 div()
@@ -87,6 +91,7 @@ impl RenderOnce for Row {
                     .flex_col()
                     .flex_1()
                     .min_w_0()
+                    .min_w(TITLE)
                     .child(
                         div()
                             .flex()
@@ -107,6 +112,9 @@ impl RenderOnce for Row {
                             .child(meta)
                     })),
             )
-            .children(self.trailing)
+            .children(
+                self.trailing
+                    .map(|trailing| div().flex_shrink(1.).min_w_0().child(trailing)),
+            )
     }
 }
