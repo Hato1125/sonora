@@ -1,7 +1,11 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+use std::time::Duration;
+
 use gpui::prelude::*;
 use gpui::{
-    AnyElement, App, Context, Div, Entity, Hsla, MouseButton, Pixels, SharedString, Window, div,
-    px, svg,
+    AnyElement, App, Context, Div, Entity, Hsla, MouseButton, Pixels, SharedString, Task, Window,
+    div, px, svg,
 };
 use router::{Destination, Link as _, navigate};
 use spotify::ArtistRef;
@@ -14,6 +18,7 @@ const PLAY: &str = "icons/play.svg";
 const PLAYING: &str = "icons/music-2.svg";
 const PAUSE: &str = "icons/pause.svg";
 const UNAVAILABLE: &str = "icons/play-off.svg";
+const HOVER_PRELOAD_DELAY: Duration = Duration::from_millis(200);
 
 pub(crate) const NUMBER: Pixels = px(44.);
 pub(crate) const TRAILING: Pixels = px(72.);
@@ -144,6 +149,8 @@ pub(crate) fn transport<F>(cell: &Cell<F>, resting: AnyElement, hover: Transport
         press,
     } = hover;
     let enabled = press.is_some();
+    let preload = preload.map(Rc::<dyn Fn(&mut App)>::from);
+    let hover_task = Rc::new(RefCell::new(None::<Task<()>>));
 
     cell.frame()
         .h_full()
@@ -152,11 +159,27 @@ pub(crate) fn transport<F>(cell: &Cell<F>, resting: AnyElement, hover: Transport
         .justify_center()
         .child(
             div()
+                .id(("transport-hit", cell.row))
                 .relative()
                 .flex()
                 .items_center()
                 .justify_center()
                 .size(HIT)
+                .when_some(preload.clone(), |this, preload| {
+                    let hover_task = hover_task.clone();
+                    this.on_hover(move |hovered: &bool, _, cx| {
+                        let mut task = hover_task.borrow_mut();
+                        *task = if *hovered {
+                            let preload = preload.clone();
+                            Some(cx.spawn(async move |cx| {
+                                cx.background_executor().timer(HOVER_PRELOAD_DELAY).await;
+                                cx.update(|cx| preload(cx));
+                            }))
+                        } else {
+                            None
+                        };
+                    })
+                })
                 .child(
                     div()
                         .flex()
@@ -183,8 +206,10 @@ pub(crate) fn transport<F>(cell: &Cell<F>, resting: AnyElement, hover: Transport
                             |this| this.cursor_not_allowed(),
                         )
                         .when_some(press, |this, press| {
+                            let hover_task = hover_task.clone();
                             this.on_mouse_down(MouseButton::Left, move |_, _, cx| {
                                 cx.stop_propagation();
+                                hover_task.borrow_mut().take();
                                 if let Some(preload) = preload.as_ref() {
                                     preload(cx);
                                 }
