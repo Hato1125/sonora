@@ -9,10 +9,22 @@ use gpui::{
     Point, Render, SharedString, Window, canvas, div, px, relative,
 };
 
-const TRACK: f32 = 4.;
-const THUMB: f32 = 12.;
-const HIT: f32 = 16.;
-const BUBBLE: f32 = 56.;
+const TRACK: f32 = 0.5;
+const THUMB: f32 = 1.5;
+const HIT: f32 = 2.;
+const BUBBLE: f32 = 7.;
+
+fn track(pad: Pixels) -> Pixels {
+    px((pad / px(1.) * TRACK).round())
+}
+
+fn thumb(pad: Pixels) -> Pixels {
+    px((pad / px(1.) * THUMB).round())
+}
+
+fn hit(pad: Pixels) -> Pixels {
+    px((pad / px(1.) * HIT).round())
+}
 
 #[derive(Clone)]
 struct Grab(SharedString);
@@ -36,11 +48,11 @@ impl ScrubberState {
         }
     }
 
-    pub fn hovered(&self, position: Point<Pixels>) -> Option<f32> {
+    pub fn hovered(&self, position: Point<Pixels>, pad: Pixels) -> Option<f32> {
         let bounds = self.bounds.get();
         let reach = Bounds {
-            origin: gpui::point(bounds.origin.x, bounds.origin.y - px(HIT / 2.)),
-            size: gpui::size(bounds.size.width, bounds.size.height + px(HIT)),
+            origin: gpui::point(bounds.origin.x, bounds.origin.y - hit(pad) / 2.),
+            size: gpui::size(bounds.size.width, bounds.size.height + hit(pad)),
         };
         reach
             .contains(&position)
@@ -126,6 +138,11 @@ impl Scrubber {
 
 impl RenderOnce for Scrubber {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let pad = cx.theme().metrics.pad;
+        let line = track(pad);
+        let pin = thumb(pad);
+        let reach = hit(pad);
+        let bubble_width = px((pad / px(1.) * BUBBLE).round());
         let popover = cx.theme().popover;
         let popover_border = cx.theme().border;
         let popover_text = cx.theme().popover_foreground;
@@ -187,7 +204,7 @@ impl RenderOnce for Scrubber {
             .flex()
             .items_center()
             .w_full()
-            .h(px(HIT))
+            .h(reach)
             .when(enabled, |this| {
                 this.cursor_pointer()
                     .on_mouse_down(MouseButton::Left, down)
@@ -200,7 +217,7 @@ impl RenderOnce for Scrubber {
                 div()
                     .relative()
                     .w_full()
-                    .h(px(TRACK))
+                    .h(line)
                     .rounded_full()
                     .bg(empty)
                     .child(
@@ -211,13 +228,20 @@ impl RenderOnce for Scrubber {
                             .bg(filled),
                     )
                     .when(enabled, |this| {
+                        let width = bounds.get().size.width;
+                        let travel = (width - pin).max(Pixels::ZERO);
+
                         this.child(
                             div()
                                 .absolute()
-                                .left(relative(fraction))
-                                .top(px((TRACK - THUMB) / 2.))
-                                .ml(px(-THUMB / 2.))
-                                .size(px(THUMB))
+                                .top((line - pin) / 2.)
+                                .map(|this| match width > Pixels::ZERO {
+                                    true => this.left(travel * fraction),
+                                    false => {
+                                        this.left(relative(fraction)).ml(Pixels::ZERO - pin / 2.)
+                                    }
+                                })
+                                .size(pin)
                                 .rounded_full()
                                 .bg(thumb),
                         )
@@ -234,8 +258,8 @@ impl RenderOnce for Scrubber {
                                     }
                                 })
                                 .left(relative(at))
-                                .ml(px(-BUBBLE / 2.))
-                                .w(px(BUBBLE))
+                                .ml(Pixels::ZERO - bubble_width / 2.)
+                                .w(bubble_width)
                                 .flex()
                                 .justify_center()
                                 .child(

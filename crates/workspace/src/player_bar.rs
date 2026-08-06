@@ -3,18 +3,18 @@ use std::time::Duration;
 use ui::ActiveTheme as _;
 
 use gpui::prelude::*;
-use gpui::{Context, Entity, MouseMoveEvent, MouseUpEvent, Render, SharedString, svg};
+use gpui::{Context, Entity, MouseMoveEvent, MouseUpEvent, Pixels, Render, SharedString};
 use gpui::{Window, div, px};
-use state::{Playback, PlaybackState, Queue};
+use state::{Playback, PlaybackState, Queue, Repeat};
 
 use ui::{Artwork, Button, InlineLink, InlineLinks, Scrubber, ScrubberState, clock};
 
 const SEEK_MAX: f32 = 560.;
 const VOLUME_WIDTH: f32 = 110.;
+const VOLUME_TIGHT: f32 = 72.;
 const CLOCK_CHARS: f32 = 3.4;
-const VOLUME_BREAKPOINT: f32 = 720.;
-const CLOCK_BREAKPOINT: f32 = 560.;
-const TRACK_BREAKPOINT: f32 = 460.;
+const STACK_BREAKPOINT: f32 = 640.;
+const TRACK_BREAKPOINT: f32 = 380.;
 const STEP: f32 = 0.004;
 
 pub struct PlayerBar {
@@ -25,6 +25,7 @@ pub struct PlayerBar {
     pending: Option<f32>,
     over_seek: Option<f32>,
     over_volume: Option<f32>,
+    muted: Option<f32>,
 }
 
 impl PlayerBar {
@@ -40,6 +41,7 @@ impl PlayerBar {
             pending: None,
             over_seek: None,
             over_volume: None,
+            muted: None,
         }
     }
 
@@ -52,8 +54,9 @@ impl PlayerBar {
     }
 
     fn hover(&mut self, event: &MouseMoveEvent, _: &mut Window, cx: &mut Context<Self>) {
-        let seek = self.seek.hovered(event.position);
-        let volume = self.volume.hovered(event.position);
+        let pad = cx.theme().metrics.pad;
+        let seek = self.seek.hovered(event.position, pad);
+        let volume = self.volume.hovered(event.position, pad);
 
         if moved(self.over_seek, seek) || moved(self.over_volume, volume) {
             self.over_seek = seek;
@@ -67,9 +70,96 @@ impl PlayerBar {
             .flex()
             .items_center()
             .gap_2()
+            .child(self.shuffle(cx))
             .child(self.previous(cx))
             .child(self.toggle(cx))
             .child(self.next(cx))
+            .child(self.repeat(cx))
+    }
+
+    fn shuffle(&self, cx: &mut Context<Self>) -> Button {
+        let theme = *cx.theme();
+        let on = self.playback.read(cx).shuffle();
+
+        Button::new("shuffle")
+            .ghost()
+            .small()
+            .icon("icons/shuffle.svg")
+            .tint(match on {
+                true => theme.primary,
+                false => theme.muted_foreground,
+            })
+            .on_click(cx.listener(|this, _, _, cx| {
+                this.playback
+                    .update(cx, |playback, cx| playback.toggle_shuffle(cx));
+            }))
+    }
+
+    fn repeat(&self, cx: &mut Context<Self>) -> Button {
+        let theme = *cx.theme();
+        let repeat = self.playback.read(cx).repeat();
+
+        Button::new("repeat")
+            .ghost()
+            .small()
+            .icon(match repeat {
+                Repeat::One => "icons/repeat-one.svg",
+                _ => "icons/repeat.svg",
+            })
+            .tint(match repeat {
+                Repeat::Off => theme.muted_foreground,
+                _ => theme.primary,
+            })
+            .on_click(cx.listener(|this, _, _, cx| {
+                this.playback
+                    .update(cx, |playback, cx| playback.cycle_repeat(cx));
+            }))
+    }
+
+    fn sound(&self, width: Pixels, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+        let empty = theme.muted_foreground.opacity(0.3);
+        let level = self.playback.read(cx).volume();
+        let bubble = self.over_volume.map(|at| (at, percent(at)));
+        let restore = self.muted.unwrap_or(0.7);
+
+        div()
+            .flex()
+            .flex_none()
+            .items_center()
+            .gap_1()
+            .child(
+                Button::new("volume")
+                    .ghost()
+                    .small()
+                    .icon(volume_icon(level))
+                    .tint(theme.muted_foreground)
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        let wanted = match level <= 0.001 {
+                            true => restore,
+                            false => 0.,
+                        };
+                        this.muted = match wanted {
+                            0. => Some(level),
+                            _ => None,
+                        };
+                        this.playback
+                            .update(cx, |playback, cx| playback.set_volume(wanted, cx));
+                    })),
+            )
+            .child(
+                div().w(width).flex_none().child(
+                    Scrubber::new(&self.volume, level)
+                        .colors(theme.progress_bar, empty, theme.foreground)
+                        .when_some(bubble, |this, (at, text)| this.bubble(at, text))
+                        .on_move(cx.listener(|this, fraction: &f32, _, cx| {
+                            let level = *fraction;
+                            this.muted = None;
+                            this.playback
+                                .update(cx, |playback, cx| playback.set_volume(level, cx));
+                        })),
+                ),
+            )
     }
 
     fn previous(&self, cx: &mut Context<Self>) -> Button {
@@ -190,12 +280,11 @@ fn moved(before: Option<f32>, after: Option<f32>) -> bool {
 }
 
 fn volume_icon(level: f32) -> &'static str {
-    if level <= 0.001 {
-        "icons/volume-x.svg"
-    } else if level < 0.5 {
-        "icons/volume-1.svg"
-    } else {
-        "icons/volume-2.svg"
+    match level {
+        level if level <= 0.0001 => "icons/volume-x.svg",
+        level if level < 0.25 => "icons/volume.svg",
+        level if level < 0.5 => "icons/volume-1.svg",
+        _ => "icons/volume-2.svg",
     }
 }
 
@@ -208,14 +297,15 @@ impl Render for PlayerBar {
         let theme = *cx.theme();
         let muted = theme.muted_foreground;
         let empty = muted.opacity(0.3);
-        let height = ui::snapped(theme.metrics.player_bar, window);
+        let stacked = window.viewport_size().width < px(STACK_BREAKPOINT);
+        let height = match stacked {
+            true => ui::snapped(theme.metrics.player_bar + theme.metrics.pad * 3., window),
+            false => ui::snapped(theme.metrics.player_bar, window),
+        };
         let clock_text = theme.text(ui::Text::Tiny);
         let clock_width = clock_text * CLOCK_CHARS;
 
-        let viewport = window.viewport_size().width;
-        let show_volume = viewport >= px(VOLUME_BREAKPOINT);
-        let show_clocks = viewport >= px(CLOCK_BREAKPOINT);
-        let show_track = viewport >= px(TRACK_BREAKPOINT);
+        let show_track = window.viewport_size().width >= px(TRACK_BREAKPOINT);
 
         let playback = self.playback.read(cx);
         let seekable = playback.track().is_some();
@@ -225,13 +315,11 @@ impl Render for PlayerBar {
             .track()
             .map(|track| track.duration)
             .unwrap_or(Duration::ZERO);
-        let level = playback.volume();
 
         let seek_bubble = self
             .over_seek
             .or(self.pending)
             .map(|at| (at, clock(total.mul_f32(at))));
-        let volume_bubble = self.over_volume.map(|at| (at, percent(at)));
 
         let clock_label = |value: Duration, align_end: bool| {
             div()
@@ -243,88 +331,90 @@ impl Render for PlayerBar {
                 .when_else(align_end, |this| this.text_right(), |this| this.text_left())
         };
 
-        div()
+        let seek = div()
             .flex()
             .items_center()
-            .gap_4()
+            .gap_2()
+            .w_full()
+            .child(clock_label(elapsed, true))
+            .child(
+                div().flex_1().min_w_0().child(
+                    Scrubber::new(&self.seek, progress)
+                        .colors(theme.progress_bar, empty, theme.foreground)
+                        .enabled(seekable)
+                        .when_some(seek_bubble, |this, (at, text)| this.bubble(at, text))
+                        .on_move(cx.listener(|this, fraction: &f32, _, cx| {
+                            this.pending = Some(*fraction);
+                            cx.notify();
+                        }))
+                        .on_release(
+                            cx.listener(|this, _: &MouseUpEvent, _, cx| this.commit_seek(cx)),
+                        ),
+                ),
+            )
+            .child(clock_label(total, false))
+            .into_any_element();
+
+        let base = div()
+            .flex()
             .w_full()
             .h(height)
             .flex_none()
             .px_5()
+            .when(stacked, |this| this.py_2())
             .bg(theme.secondary)
             .border_t_1()
             .border_color(theme.border)
-            .on_mouse_move(cx.listener(Self::hover))
-            .child(self.now_playing(show_track, window, cx))
-            .child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .items_center()
-                    .gap_1()
-                    .flex_1()
-                    .min_w_0()
-                    .max_w(px(SEEK_MAX))
-                    .child(self.transport(cx))
-                    .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap_2()
-                            .w_full()
-                            .when(show_clocks, |this| this.child(clock_label(elapsed, true)))
-                            .child(
-                                div().flex_1().min_w_0().child(
-                                    Scrubber::new(&self.seek, progress)
-                                        .colors(theme.progress_bar, empty, theme.foreground)
-                                        .enabled(seekable)
-                                        .when_some(seek_bubble, |this, (at, text)| {
-                                            this.bubble(at, text)
-                                        })
-                                        .on_move(cx.listener(|this, fraction: &f32, _, cx| {
-                                            this.pending = Some(*fraction);
-                                            cx.notify();
-                                        }))
-                                        .on_release(cx.listener(
-                                            |this, _: &MouseUpEvent, _, cx| this.commit_seek(cx),
-                                        )),
-                                ),
-                            )
-                            .when(show_clocks, |this| this.child(clock_label(total, false))),
-                    ),
-            )
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .justify_end()
-                    .gap_2()
-                    .flex_1()
-                    .min_w_0()
-                    .child(
-                        svg()
-                            .path(volume_icon(level))
-                            .size_4()
-                            .flex_none()
-                            .text_color(muted),
-                    )
-                    .when(show_volume, |this| {
-                        this.child(
-                            div().w(px(VOLUME_WIDTH)).flex_none().child(
-                                Scrubber::new(&self.volume, level)
-                                    .colors(theme.progress_bar, empty, theme.foreground)
-                                    .when_some(volume_bubble, |this, (at, text)| {
-                                        this.bubble(at, text)
-                                    })
-                                    .on_move(cx.listener(|this, fraction: &f32, _, cx| {
-                                        let level = *fraction;
-                                        this.playback.update(cx, |playback, cx| {
-                                            playback.set_volume(level, cx)
-                                        });
-                                    })),
-                            ),
-                        )
-                    }),
-            )
+            .on_mouse_move(cx.listener(Self::hover));
+
+        match stacked {
+            true => base
+                .flex_col()
+                .justify_center()
+                .gap_2()
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap_2()
+                        .w_full()
+                        .child(self.now_playing(show_track, window, cx))
+                        .child(self.transport(cx)),
+                )
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap_3()
+                        .w_full()
+                        .child(div().flex_1().min_w_0().child(seek))
+                        .child(self.sound(px(VOLUME_TIGHT), cx)),
+                ),
+            false => base
+                .items_center()
+                .gap_4()
+                .child(self.now_playing(show_track, window, cx))
+                .child(
+                    div()
+                        .flex()
+                        .flex_col()
+                        .items_center()
+                        .gap_1()
+                        .flex_1()
+                        .min_w_0()
+                        .max_w(px(SEEK_MAX))
+                        .child(self.transport(cx))
+                        .child(seek),
+                )
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .justify_end()
+                        .flex_1()
+                        .min_w_0()
+                        .child(self.sound(px(VOLUME_WIDTH), cx)),
+                ),
+        }
     }
 }
