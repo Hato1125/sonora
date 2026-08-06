@@ -11,6 +11,7 @@ macro_rules! icons {
 
 const ICONS: &[(&str, &[u8])] = icons![
     "chevron-down",
+    "columns-3",
     "chevron-left",
     "chevron-right",
     "chevrons-up-down",

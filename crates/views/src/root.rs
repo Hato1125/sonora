@@ -11,11 +11,14 @@ use workspace::{Filter, Sidebar, Workspace};
 
 use crate::search::SearchView;
 use crate::tracks::{ALBUM_COLUMNS, LIBRARY_COLUMNS};
-use crate::{ArtistView, DetailView, HomeView, LibraryView, LoginView, SettingsView};
+use crate::{
+    ArtistView, ColumnPicker, DetailView, HomeView, LibraryView, LoginView, SettingsView,
+};
 
 struct Screens {
     home: Entity<HomeView>,
     library: Entity<LibraryView>,
+    picker: Entity<ColumnPicker>,
     artist: Option<Entity<ArtistView>>,
     artist_detail: Option<Entity<ArtistDetail>>,
     album: Entity<DetailView>,
@@ -74,6 +77,8 @@ impl Root {
                 cx,
             )
         });
+
+        let picker = cx.new(|cx| ColumnPicker::new(library_view.clone(), cx));
 
         let home_state = cx.new(|cx| Home::new(library.clone(), cx));
         let home = cx.new(|cx| HomeView::new(home_state, playback.clone(), sidebar.clone(), cx));
@@ -134,6 +139,7 @@ impl Root {
             screens: Screens {
                 home,
                 library: library_view,
+                picker,
                 artist: None,
                 artist_detail: None,
                 album,
@@ -199,6 +205,8 @@ impl Root {
                 | Destination::Playlist(_)
         );
 
+        let listing = matches!(destination, Destination::Library(_));
+
         let content: AnyView = match destination {
             Destination::Home => self.screens.home.clone().into(),
             Destination::Library(tab) => {
@@ -206,8 +214,11 @@ impl Root {
                     .library
                     .update(cx, |library, cx| library.select(tab.into(), cx));
                 let library = self.screens.library.clone();
-                self.filter
-                    .update(cx, |filter, cx| filter.bind(&library, cx));
+                let picker = self.screens.picker.clone().into();
+                self.filter.update(cx, |filter, cx| {
+                    filter.bind(&library, cx);
+                    filter.set_actions(Some(picker), cx);
+                });
                 library.into()
             }
             Destination::Album(id) => {
@@ -235,6 +246,11 @@ impl Root {
             Destination::Search => self.screens.search.clone().into(),
             Destination::Settings => self.screens.settings.clone().into(),
         };
+
+        if !listing {
+            self.filter
+                .update(cx, |filter, cx| filter.set_actions(None, cx));
+        }
 
         if !searchable {
             self.filter.update(cx, |filter, cx| filter.release(cx));

@@ -1,5 +1,6 @@
 mod artist;
 mod cells;
+mod columns;
 mod detail;
 mod home;
 mod library;
@@ -14,6 +15,7 @@ mod tracks;
 use artist::ArtistView;
 use detail::DetailView;
 use home::HomeView;
+pub use columns::ColumnPicker;
 pub use library::LibraryView;
 pub use login::LoginView;
 pub use root::Root;

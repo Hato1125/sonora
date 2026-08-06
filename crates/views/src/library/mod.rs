@@ -5,8 +5,8 @@ use gpui::prelude::*;
 use gpui::{App, Context, Entity, Pixels, Point, Render, ScrollHandle, Window, div, px};
 use router::{Destination, LibraryTab, navigate};
 use spotify::Track;
-use state::{Library, LibraryState, Playback};
-use ui::{GridDelegate, GridEvent, GridState, Scrollbar, Sort, Viewport, grid, scrolled};
+use state::{AppSettings, Library, LibraryState, Playback, Spotty};
+use ui::{GridDelegate, GridEvent, GridState, Scrollbar, Sort, Toggle, Viewport, grid, scrolled};
 use workspace::{Searchable, Sidebar};
 
 use crate::cells;
@@ -43,6 +43,18 @@ pub enum Section {
     Playlists,
 }
 
+const PINNED: [&str; 3] = ["cover", "title", "name"];
+
+impl Section {
+    fn key(self) -> &'static str {
+        match self {
+            Section::Tracks => "songs",
+            Section::Albums => "albums",
+            Section::Playlists => "playlists",
+        }
+    }
+}
+
 struct LibraryTracks(Entity<Library>);
 
 impl Tracks for LibraryTracks {
@@ -60,6 +72,7 @@ impl Tracks for LibraryTracks {
 
 pub struct LibraryView {
     library: Entity<Library>,
+    settings: Entity<AppSettings>,
     playback: Entity<Playback>,
     playback_status: PlaybackStatus,
     sidebar: Entity<Sidebar>,
@@ -80,6 +93,8 @@ impl LibraryView {
         cx: &mut Context<Self>,
     ) -> Self {
         let width = cells::content_width(window, sidebar.read(cx).occupied_width(), Pixels::ZERO);
+        let settings = Spotty::global(cx).settings.clone();
+        let saved = |section: Section, cx: &App| settings.read(cx).hidden_columns(section.key());
 
         let tracks = cx.new(|cx| {
             let source = TrackSource::new(
@@ -87,20 +102,25 @@ impl LibraryView {
                 LibraryTracks(library.clone()),
                 playback.clone(),
             );
-            let delegate = GridDelegate::new(source, width, cx).with_sort(
+            let mut delegate = GridDelegate::new(source, width, cx).with_sort(
                 TrackField::AddedAt,
                 Sort::Descending,
                 cx,
             );
+            delegate.set_hidden(saved(Section::Tracks, cx), cx);
             GridState::new(delegate)
         });
         let albums = cx.new(|cx| {
             let source = AlbumSource::new(library.clone(), playback.clone());
-            GridState::new(GridDelegate::new(source, width, cx))
+            let mut delegate = GridDelegate::new(source, width, cx);
+            delegate.set_hidden(saved(Section::Albums, cx), cx);
+            GridState::new(delegate)
         });
         let playlists = cx.new(|cx| {
             let source = PlaylistSource::new(library.clone(), playback.clone());
-            GridState::new(GridDelegate::new(source, width, cx))
+            let mut delegate = GridDelegate::new(source, width, cx);
+            delegate.set_hidden(saved(Section::Playlists, cx), cx);
+            GridState::new(delegate)
         });
 
         cx.observe(&library, |this, _, cx| {
@@ -146,6 +166,7 @@ impl LibraryView {
 
         Self {
             library,
+            settings,
             playback,
             playback_status: current_playback,
             sidebar,
@@ -160,6 +181,63 @@ impl LibraryView {
 
     pub fn section(&self) -> Section {
         self.section
+    }
+
+    pub fn toggles(&self, cx: &App) -> Vec<Toggle> {
+        let all = match self.section {
+            Section::Tracks => self.tracks.read(cx).delegate().toggles(),
+            Section::Albums => self.albums.read(cx).delegate().toggles(),
+            Section::Playlists => self.playlists.read(cx).delegate().toggles(),
+        };
+
+        all.into_iter()
+            .filter(|toggle| !PINNED.contains(&toggle.key))
+            .collect()
+    }
+
+    pub fn toggle_column(&mut self, key: &str, cx: &mut Context<Self>) {
+        if PINNED.contains(&key) {
+            return;
+        }
+
+        let mut hidden = self.hidden(cx);
+        match hidden.iter().position(|hidden| hidden == key) {
+            Some(at) => {
+                hidden.remove(at);
+            }
+            None => hidden.push(key.to_owned()),
+        }
+
+        self.settings.update(cx, |settings, cx| {
+            settings.set_hidden_columns(self.section.key(), hidden.clone(), cx);
+        });
+        self.apply_hidden(hidden, cx);
+        cx.notify();
+    }
+
+    fn hidden(&self, cx: &App) -> Vec<String> {
+        match self.section {
+            Section::Tracks => self.tracks.read(cx).delegate().hidden().to_vec(),
+            Section::Albums => self.albums.read(cx).delegate().hidden().to_vec(),
+            Section::Playlists => self.playlists.read(cx).delegate().hidden().to_vec(),
+        }
+    }
+
+    fn apply_hidden(&mut self, hidden: Vec<String>, cx: &mut Context<Self>) {
+        match self.section {
+            Section::Tracks => self.tracks.update(cx, |table, cx| {
+                table.delegate_mut().set_hidden(hidden, cx);
+                table.refresh(cx);
+            }),
+            Section::Albums => self.albums.update(cx, |table, cx| {
+                table.delegate_mut().set_hidden(hidden, cx);
+                table.refresh(cx);
+            }),
+            Section::Playlists => self.playlists.update(cx, |table, cx| {
+                table.delegate_mut().set_hidden(hidden, cx);
+                table.refresh(cx);
+            }),
+        }
     }
 
     pub fn is_loading(&self, cx: &App) -> bool {

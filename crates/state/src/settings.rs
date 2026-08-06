@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -19,6 +20,7 @@ struct Values {
     normalisation: bool,
     sidebar_width: f32,
     sidebar_open: bool,
+    hidden_columns: HashMap<String, Vec<String>>,
     appearance: Appearance,
 }
 
@@ -42,6 +44,7 @@ impl Default for Values {
             normalisation: true,
             sidebar_width: DEFAULT_SIDEBAR_WIDTH,
             sidebar_open: true,
+            hidden_columns: HashMap::new(),
             appearance: Appearance::default(),
         }
     }
@@ -150,6 +153,21 @@ impl AppSettings {
 
     pub fn set_normalisation(&mut self, normalisation: bool, cx: &mut Context<Self>) {
         self.values.normalisation = normalisation;
+        self.schedule_save(cx);
+    }
+
+    pub fn hidden_columns(&self, section: &str) -> Vec<String> {
+        self.values
+            .hidden_columns
+            .get(section)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    pub fn set_hidden_columns(&mut self, section: &str, hidden: Vec<String>, cx: &mut Context<Self>) {
+        self.values
+            .hidden_columns
+            .insert(section.to_owned(), hidden);
         self.schedule_save(cx);
     }
 

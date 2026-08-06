@@ -116,6 +116,7 @@ pub struct GridDelegate<S: GridSource> {
     source: S,
     columns: Vec<Resolved<S::Field>>,
     width: Pixels,
+    hidden: Vec<String>,
     sort: Option<(S::Field, Sort)>,
     filter: String,
     order: Vec<usize>,
@@ -123,11 +124,12 @@ pub struct GridDelegate<S: GridSource> {
 
 impl<S: GridSource> GridDelegate<S> {
     pub fn new(source: S, width: Pixels, cx: &App) -> Self {
-        let columns = build(source.columns(), width, cx.theme().metrics);
+        let columns = build(source.columns(), width, cx.theme().metrics, &[]);
         let mut delegate = Self {
             source,
             columns,
             width,
+            hidden: Vec::new(),
             sort: None,
             filter: String::new(),
             order: Vec::new(),
@@ -165,7 +167,33 @@ impl<S: GridSource> GridDelegate<S> {
     }
 
     fn relayout(&mut self, cx: &App) {
-        self.columns = build(self.source.columns(), self.width, cx.theme().metrics);
+        self.columns = build(
+            self.source.columns(),
+            self.width,
+            cx.theme().metrics,
+            &self.hidden,
+        );
+    }
+
+    pub fn hidden(&self) -> &[String] {
+        &self.hidden
+    }
+
+    pub fn set_hidden(&mut self, hidden: Vec<String>, cx: &App) {
+        self.hidden = hidden;
+        self.relayout(cx);
+    }
+
+    pub fn toggles(&self) -> Vec<Toggle> {
+        self.source
+            .columns()
+            .iter()
+            .map(|spec| Toggle {
+                key: spec.key,
+                label: spec.header,
+                visible: !self.hidden.iter().any(|hidden| hidden == spec.key),
+            })
+            .collect()
     }
 
     pub fn set_filter(&mut self, query: &str, cx: &App) {
@@ -205,11 +233,13 @@ fn build<F: Copy + PartialEq + 'static>(
     specs: &'static [ColumnSpec<F>],
     room: Pixels,
     metrics: Metrics,
+    hidden: &[String],
 ) -> Vec<Resolved<F>> {
     let available = (room - SLACK).max(MIN_FLEXIBLE);
     let mut visible: Vec<_> = specs
         .iter()
         .filter(|spec| available >= spec.hide_below)
+        .filter(|spec| !hidden.iter().any(|key| key == spec.key))
         .collect();
     if visible.is_empty() {
         visible.extend(specs.iter().take(1));
@@ -250,6 +280,12 @@ fn build<F: Copy + PartialEq + 'static>(
 
 pub enum GridEvent {
     DoubleClicked(usize),
+}
+
+pub struct Toggle {
+    pub key: &'static str,
+    pub label: &'static str,
+    pub visible: bool,
 }
 
 #[derive(Clone, Copy, Default)]

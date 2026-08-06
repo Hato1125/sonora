@@ -1,5 +1,5 @@
 use gpui::prelude::*;
-use gpui::{App, Context, Entity, Pixels, Render, Window, div, px};
+use gpui::{AnyView, App, Context, Entity, Pixels, Render, Window, div, px};
 use input::{Dismiss, Input};
 use ui::Button;
 
@@ -20,6 +20,7 @@ pub trait Searchable: 'static {
 pub struct Filter {
     input: Entity<Input>,
     apply: Option<Apply>,
+    actions: Option<AnyView>,
     open: bool,
 }
 
@@ -43,6 +44,7 @@ impl Filter {
         Self {
             input,
             apply: None,
+            actions: None,
             open: false,
         }
     }
@@ -57,6 +59,11 @@ impl Filter {
             target.update(cx, |view, cx| view.search(&query, cx)).ok();
         }));
         self.reset(V::hint(), cx);
+    }
+
+    pub fn set_actions(&mut self, actions: Option<AnyView>, cx: &mut Context<Self>) {
+        self.actions = actions;
+        cx.notify();
     }
 
     pub fn release(&mut self, cx: &mut Context<Self>) {
@@ -117,6 +124,7 @@ impl Render for Filter {
             .justify_end()
             .gap_1()
             .on_action(cx.listener(|this, _: &Dismiss, _, cx| this.close(cx)))
+            .children(self.actions.clone())
             .when(self.apply.is_some(), |this| {
                 this.when(self.open, |this| {
                     this.child(
