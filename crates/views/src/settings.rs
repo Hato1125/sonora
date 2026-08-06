@@ -362,7 +362,7 @@ impl SettingsView {
                                         settings.set_theme(kind.id(), cx);
                                     });
                                     this.themes_open = false;
-                                    Theme::set(Look { kind, ..look }, &overrides, cx);
+                                    Theme::fade(Look { kind, ..look }, &overrides, cx);
                                     cx.notify();
                                 }))
                         })),

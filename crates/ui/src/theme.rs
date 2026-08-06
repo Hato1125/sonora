@@ -1,10 +1,15 @@
-use gpui::{App, Global, Hsla, Pixels, px, rgb, rgba};
+use std::time::{Duration, Instant};
+
+use gpui::{App, Global, Hsla, Pixels, Rgba, Task, px, rgb, rgba};
 use serde::{Deserialize, Serialize};
 
 use crate::metrics::{Metrics, Rounding, Text};
 
 pub const MIN_FONT: f32 = 10.;
 pub const MAX_FONT: f32 = 24.;
+
+const FADE: Duration = Duration::from_millis(320);
+const FRAME: Duration = Duration::from_millis(8);
 
 const SURFACE_TINT: f32 = 0.5;
 const BORDER_TINT: f32 = 0.4;
@@ -156,6 +161,13 @@ pub struct Theme {
 }
 
 impl Global for Theme {}
+
+#[derive(Default)]
+struct Transition {
+    task: Option<Task<()>>,
+}
+
+impl Global for Transition {}
 
 impl Theme {
     pub fn dark() -> Self {
@@ -492,6 +504,47 @@ impl Theme {
         self
     }
 
+    pub fn mixed(&self, other: &Self, delta: f32) -> Self {
+        let mut theme = *other;
+        macro_rules! mix_color {
+            ($($field:ident),+ $(,)?) => {
+                $(theme.$field = mix(self.$field, other.$field, delta);)+
+            };
+        }
+
+        mix_color!(
+            background,
+            foreground,
+            border,
+            muted,
+            muted_foreground,
+            secondary,
+            secondary_hover,
+            secondary_active,
+            primary,
+            primary_foreground,
+            primary_hover,
+            danger,
+            danger_foreground,
+            danger_hover,
+            popover,
+            popover_foreground,
+            progress_bar,
+            selection,
+            sidebar,
+            sidebar_accent,
+            sidebar_border,
+            title_bar_border,
+            table_head,
+            table_head_foreground,
+            table_row_border,
+            table_hover,
+            table_active,
+            table_active_border,
+        );
+        theme
+    }
+
     pub fn with_overrides(mut self, overrides: &ThemeOverrides) -> Self {
         macro_rules! apply_color {
             ($field:ident) => {
@@ -566,9 +619,57 @@ impl Theme {
     }
 
     pub fn set(look: Look, overrides: &ThemeOverrides, cx: &mut App) {
+        cx.default_global::<Transition>().task = None;
         cx.set_global(Self::for_look(look, overrides));
         cx.refresh_windows();
     }
+
+    pub fn fade(look: Look, overrides: &ThemeOverrides, cx: &mut App) {
+        let from = *cx.theme();
+        let to = Self::for_look(look, overrides);
+
+        cx.default_global::<Transition>().task = None;
+        cx.set_global(from.mixed(&to, 0.));
+        cx.refresh_windows();
+
+        let task = cx.spawn(async move |cx| {
+            let start = Instant::now();
+            loop {
+                cx.background_executor().timer(FRAME).await;
+
+                let delta = start.elapsed().as_secs_f32() / FADE.as_secs_f32();
+                let step = match delta >= 1. {
+                    true => to,
+                    false => from.mixed(&to, ease_out(delta)),
+                };
+                cx.update(|cx| {
+                    cx.set_global(step);
+                    cx.refresh_windows();
+                });
+
+                if delta >= 1. {
+                    break;
+                }
+            }
+        });
+        cx.default_global::<Transition>().task = Some(task);
+    }
+}
+
+fn mix(from: Hsla, to: Hsla, delta: f32) -> Hsla {
+    let (from, to) = (Rgba::from(from), Rgba::from(to));
+    let channel = |from: f32, to: f32| from + (to - from) * delta;
+
+    Hsla::from(Rgba {
+        r: channel(from.r, to.r),
+        g: channel(from.g, to.g),
+        b: channel(from.b, to.b),
+        a: channel(from.a, to.a),
+    })
+}
+
+fn ease_out(delta: f32) -> f32 {
+    1. - (1. - delta.clamp(0., 1.)).powi(3)
 }
 
 fn wash(base: Hsla, tint: Hsla, strength: f32) -> Hsla {
@@ -631,6 +732,33 @@ mod tests {
         assert_eq!(dark.progress_bar, dark.primary);
         assert!(dark.primary.l > dark.background.l);
         assert!(light.primary.l < light.background.l);
+    }
+
+    #[test]
+    fn mixing_runs_from_one_palette_to_the_other() {
+        let from = Theme::dark();
+        let to = Theme::light();
+
+        let start = from.mixed(&to, 0.);
+        let middle = from.mixed(&to, 0.5);
+        let end = from.mixed(&to, 1.);
+
+        assert!((start.background.l - from.background.l).abs() < 0.01);
+        assert!((end.background.l - to.background.l).abs() < 0.01);
+        assert!(middle.background.l > from.background.l);
+        assert!(middle.background.l < to.background.l);
+    }
+
+    #[test]
+    fn mixing_adopts_the_target_metrics_immediately() {
+        let from = Theme::dark();
+        let to = Theme::light().tinted(TINT);
+
+        let start = from.mixed(&to, 0.);
+
+        assert_eq!(start.radius, to.radius);
+        assert_eq!(start.font_size, to.font_size);
+        assert_eq!(start.tint, to.tint);
     }
 
     #[test]

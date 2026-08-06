@@ -73,5 +73,5 @@ fn apply(tint: Option<Hsla>, cx: &mut App) {
             settings.theme_overrides().clone(),
         )
     };
-    Theme::set(look, &overrides, cx);
+    Theme::fade(look, &overrides, cx);
 }
