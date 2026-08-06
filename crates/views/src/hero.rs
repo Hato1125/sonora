@@ -128,6 +128,7 @@ pub(crate) struct PageHero {
     eyebrow: Option<SharedString>,
     meta: Option<AnyElement>,
     actions: Option<AnyElement>,
+    circle: bool,
     explicit: bool,
 }
 
@@ -140,6 +141,7 @@ impl PageHero {
             eyebrow: None,
             meta: None,
             actions: None,
+            circle: false,
             explicit: false,
         }
     }
@@ -161,6 +163,11 @@ impl PageHero {
 
     pub(crate) fn actions(mut self, actions: impl IntoElement) -> Self {
         self.actions = Some(actions.into_any_element());
+        self
+    }
+
+    pub(crate) fn circle(mut self) -> Self {
+        self.circle = true;
         self
     }
 
@@ -191,6 +198,7 @@ impl RenderOnce for PageHero {
             .when_some(self.eyebrow, Card::eyebrow)
             .when_some(self.meta, Card::bare_meta)
             .when_some(self.actions, Card::footer)
+            .when(self.circle, Card::circle)
             .when(self.explicit, Card::explicit)
     }
 }
