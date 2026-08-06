@@ -88,7 +88,7 @@ impl PlaylistSource {
             playback.play_playlist(&id, cx)
         });
 
-        cells::index(cell, state, true, press, cx)
+        cells::index(cell, state, true, None, press, cx)
     }
 
     pub(super) fn at(&self, row: usize, cx: &App) -> Option<Playlist> {

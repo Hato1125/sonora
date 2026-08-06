@@ -61,6 +61,7 @@ pub(crate) fn index<F>(
     cell: &Cell<F>,
     state: Option<PlaybackState>,
     playable: bool,
+    preload: Option<Box<dyn Fn(&mut App)>>,
     press: Option<Box<dyn Fn(&mut App)>>,
     cx: &App,
 ) -> AnyElement {
@@ -97,7 +98,16 @@ pub(crate) fn index<F>(
         false => theme.muted_foreground,
     };
 
-    transport(cell, resting, Transport { icon, color, press })
+    transport(
+        cell,
+        resting,
+        Transport {
+            icon,
+            color,
+            preload,
+            press,
+        },
+    )
 }
 
 pub(crate) fn toggle<F>(
@@ -122,11 +132,17 @@ where
 pub(crate) struct Transport {
     pub(crate) icon: &'static str,
     pub(crate) color: Hsla,
+    pub(crate) preload: Option<Box<dyn Fn(&mut App)>>,
     pub(crate) press: Option<Box<dyn Fn(&mut App)>>,
 }
 
 pub(crate) fn transport<F>(cell: &Cell<F>, resting: AnyElement, hover: Transport) -> AnyElement {
-    let Transport { icon, color, press } = hover;
+    let Transport {
+        icon,
+        color,
+        preload,
+        press,
+    } = hover;
     let enabled = press.is_some();
 
     cell.frame()
@@ -167,8 +183,13 @@ pub(crate) fn transport<F>(cell: &Cell<F>, resting: AnyElement, hover: Transport
                             |this| this.cursor_not_allowed(),
                         )
                         .when_some(press, |this, press| {
-                            this.on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                                .on_click(move |_, _, cx| press(cx))
+                            this.on_mouse_down(MouseButton::Left, move |_, _, cx| {
+                                cx.stop_propagation();
+                                if let Some(preload) = preload.as_ref() {
+                                    preload(cx);
+                                }
+                            })
+                            .on_click(move |_, _, cx| press(cx))
                         }),
                 ),
         )

@@ -183,19 +183,25 @@ impl TrackSource {
 
     fn index_cell(&self, cell: &Cell<TrackField>, track: &Track, cx: &App) -> AnyElement {
         let state = self.now_playing(track, cx);
-        let press = match track.playable {
-            false => None,
+        let (preload, press) = match track.playable {
+            false => (None, None),
             true => {
+                let playback = self.playback.clone();
+                let preload_track = track.clone();
+                let preload: Option<Box<dyn Fn(&mut App)>> = Some(Box::new(move |cx| {
+                    playback.update(cx, |playback, _| playback.preload(&preload_track));
+                }));
                 let provider = self.provider.clone();
                 let row = cell.row;
-                cells::toggle(&self.playback, state.clone(), move |playback, cx| {
+                let press = cells::toggle(&self.playback, state.clone(), move |playback, cx| {
                     let queued = provider.tracks(cx).to_vec();
                     playback.start(queued, row, cx)
-                })
+                });
+                (preload, press)
             }
         };
 
-        cells::index(cell, state, track.playable, press, cx)
+        cells::index(cell, state, track.playable, preload, press, cx)
     }
 
     fn now_playing(&self, track: &Track, cx: &App) -> Option<PlaybackState> {
