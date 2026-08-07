@@ -2,14 +2,19 @@ use std::cmp::Ordering;
 use std::rc::Rc;
 use ui::ActiveTheme as _;
 
-use gpui::{AnyElement, App, ClipboardItem, Entity, Hsla, Styled as _, TextAlign, WeakEntity};
+use gpui::prelude::FluentBuilder as _;
+use gpui::{
+    AnyElement, App, ClipboardItem, Entity, Hsla, InteractiveElement as _, IntoElement as _,
+    Styled as _, TextAlign, WeakEntity,
+};
 use i18n::t;
 use jiff::Timestamp;
 use router::{Destination, navigate};
 use spotify::Track;
-use state::{LibraryState, Playback, PlaybackState, Sonora};
+use state::{Library, LibraryState, Playback, PlaybackState, Sonora};
 use ui::{
-    Cell, ColumnSpec, GridSource, GridState, Menu, MenuItem, Scrollbar, SubmenuState, Width, clock,
+    Button, Cell, ColumnSpec, GridSource, GridState, Menu, MenuItem, ROW_GROUP, Scrollbar,
+    SubmenuState, Width, clock,
 };
 
 use crate::cells::{self, ALWAYS, DATE, NUMBER, ROOMY, SNUG, TRAILING, WIDE};
@@ -299,6 +304,7 @@ pub(crate) struct TrackSource {
     columns: &'static [ColumnSpec<TrackField>],
     provider: Rc<dyn Tracks>,
     playback: Entity<Playback>,
+    is_liked: Option<Entity<Library>>,
     menu: TrackMenu,
     table: Option<WeakEntity<GridState<TrackSource>>>,
 }
@@ -314,6 +320,7 @@ impl TrackSource {
             columns,
             provider: Rc::new(provider),
             playback,
+            is_liked: None,
             menu: TrackMenu::new(playlist_scrollbar),
             table: None,
         }
@@ -321,6 +328,11 @@ impl TrackSource {
 
     pub(crate) fn table(mut self, table: WeakEntity<GridState<TrackSource>>) -> Self {
         self.table = Some(table);
+        self
+    }
+
+    pub(crate) fn with_liked(mut self, library: Entity<Library>) -> Self {
+        self.is_liked = Some(library);
         self
     }
 
@@ -382,6 +394,7 @@ impl TrackSource {
         cell: &Cell<TrackField>,
         track: &Track,
         color: Option<Hsla>,
+        cx: &App,
     ) -> AnyElement {
         let press: Option<Box<dyn Fn(&mut App)>> = match track.playable {
             true => {
@@ -402,7 +415,51 @@ impl TrackSource {
             false => None,
         };
 
-        cells::title(cell, track.name.clone(), color, track.explicit, press)
+        let is_liked = self.liked_button(cell, track, cx);
+
+        cells::title(
+            cell,
+            track.name.clone(),
+            color,
+            track.explicit,
+            press,
+            is_liked,
+        )
+    }
+
+    fn liked_button(&self, cell: &Cell<TrackField>, track: &Track, cx: &App) -> Option<AnyElement> {
+        let library = self.is_liked.as_ref()?;
+        let id = track.id.clone()?;
+        let theme = *cx.theme();
+        let state = library.read(cx);
+        let saved = state.saved(&id);
+        let pending = state.pending(&id);
+        let library = library.clone();
+        let track = track.clone();
+
+        Some(
+            Button::new(("toggle-liked-track", cell.row))
+                .ghost()
+                .backgroundless()
+                .small()
+                .icon(match saved {
+                    true => "icons/heart-filled.svg",
+                    false => "icons/heart.svg",
+                })
+                .tint(match saved {
+                    true => theme.primary,
+                    false => theme.muted_foreground,
+                })
+                .when(!saved, |this| {
+                    this.invisible()
+                        .group_hover(ROW_GROUP, |style| style.visible())
+                })
+                .disabled(pending)
+                .on_click(move |_, _, cx| {
+                    library.update(cx, |library, cx| library.toggle(track.clone(), cx));
+                })
+                .into_any_element(),
+        )
     }
 
     fn now_playing(&self, track: &Track, cx: &App) -> Option<PlaybackState> {
@@ -463,7 +520,7 @@ impl GridSource for TrackSource {
 
         match cell.field {
             TrackField::Cover => cells::artwork(&cell, track.cover.clone()),
-            TrackField::Title => self.title_cell(&cell, track, title),
+            TrackField::Title => self.title_cell(&cell, track, title, cx),
             TrackField::Artists => self.artist_cell(&cell, track, detail),
             TrackField::Album => self.album_cell(&cell, track, detail),
             TrackField::AddedAt => cells::dim(

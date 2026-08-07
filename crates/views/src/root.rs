@@ -89,6 +89,7 @@ impl Root {
                 album_detail.clone(),
                 playback.clone(),
                 ALBUM_COLUMNS,
+                true,
                 window,
                 cx,
             )
@@ -100,6 +101,7 @@ impl Root {
                 playlist_detail.clone(),
                 playback.clone(),
                 LIBRARY_COLUMNS,
+                true,
                 window,
                 cx,
             )

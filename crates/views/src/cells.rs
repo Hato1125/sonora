@@ -306,6 +306,7 @@ pub(crate) fn title<F>(
     color: Option<Hsla>,
     explicit: bool,
     press: Option<Box<dyn Fn(&mut App)>>,
+    is_liked: Option<AnyElement>,
 ) -> AnyElement {
     let text = div()
         .id(("track-title", cell.row))
@@ -329,6 +330,7 @@ pub(crate) fn title<F>(
         .when(explicit, |this| {
             this.child(div().flex_none().child(ExplicitBadge::new()))
         })
+        .when_some(is_liked, |this, is_liked| this.child(is_liked))
         .into_any_element()
 }
 

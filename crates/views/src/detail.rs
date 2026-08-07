@@ -5,7 +5,7 @@ use gpui::{
 
 use i18n::t;
 use spotify::Track;
-use state::{Collection, Detail, Playback};
+use state::{Collection, Detail, Playback, Sonora};
 use ui::ActiveTheme as _;
 use ui::{ColumnSpec, GridDelegate, GridEvent, GridState, Scrollbar, Scroller, clock, grid};
 
@@ -40,6 +40,7 @@ impl DetailView {
         detail: Entity<Detail>,
         playback: Entity<Playback>,
         columns: &'static [ColumnSpec<TrackField>],
+        show_liked: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -61,6 +62,10 @@ impl DetailView {
                 playback.clone(),
                 playlist_scrollbar,
             );
+            let source = match show_liked {
+                true => source.with_liked(Sonora::global(cx).library.clone()),
+                false => source,
+            };
             let source = source.table(cx.weak_entity());
             GridState::new(GridDelegate::new(source, width, cx), cx).follow(scroll)
         });
@@ -74,6 +79,14 @@ impl DetailView {
             cx.notify();
         })
         .detach();
+
+        if show_liked {
+            let library = Sonora::global(cx).library.clone();
+            cx.observe(&library, |this, _, cx| {
+                this.table.update(cx, |table, cx| table.refresh(cx));
+            })
+            .detach();
+        }
 
         let chrome = Chrome::entity(cx);
         cx.observe(&chrome, |_, _, cx| cx.notify()).detach();
