@@ -4,6 +4,7 @@ mod card;
 mod controls;
 mod explicit;
 mod grid;
+mod info_card;
 mod inline_links;
 mod label;
 mod layout;
@@ -27,6 +28,7 @@ pub use grid::{
     Cell, ColumnSpec, Deselect, GRID_CONTEXT, Grid, GridDelegate, GridEvent, GridSource, GridState,
     ROW_GROUP, SelectNext, SelectPrevious, Sort, Toggle, Viewport, Width, grid,
 };
+pub use info_card::{Fact, InfoCard};
 pub use inline_links::{InlineLink, InlineLinks};
 pub use label::{eyebrow, heading};
 pub use layout::{ALWAYS, MIN_CONTENT, ROOMY, Room, SNUG, VAST, WIDE};

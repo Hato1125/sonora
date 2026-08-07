@@ -1,9 +1,12 @@
 use gpui::prelude::*;
-use gpui::{AnyElement, Context, Entity, FontWeight, Render, SharedString, Window, div, px};
+use gpui::{AnyElement, Context, Entity, FontWeight, Render, Window, div, px};
 use router::{Destination, Link as _};
 use spotify::{Credit, Track};
 use state::{Playback, SongDetail};
-use ui::{ActiveTheme as _, Artwork, Avatar, Button, Initials, Scrollbar, Text, clock};
+use ui::{
+    ActiveTheme as _, Artwork, Avatar, Button, Fact, InfoCard, Initials, Scrollbar, Text, clock,
+    eyebrow, heading,
+};
 
 use crate::cells;
 use crate::hero::{HeroMetaStrip, HeroPlayButton, PageHero, release_date_label};
@@ -55,67 +58,6 @@ impl SongView {
             playback,
             scrollbar: cx.new(|_| Scrollbar::new(gpui::ScrollHandle::new())),
         }
-    }
-
-    fn card(
-        &self,
-        title: &'static str,
-        body: impl IntoElement,
-        fill: bool,
-        cx: &Context<Self>,
-    ) -> AnyElement {
-        let theme = *cx.theme();
-        div()
-            .flex()
-            .flex_col()
-            .when(fill, |this| this.h_full())
-            .gap_4()
-            .p_5()
-            .rounded(theme.radius)
-            .border_1()
-            .border_color(theme.border)
-            .bg(theme.secondary.opacity(0.45))
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap_3()
-                    .text_size(theme.text(Text::Small))
-                    .text_color(theme.muted_foreground)
-                    .font_weight(FontWeight::SEMIBOLD)
-                    .child(div().flex_none().child(title))
-                    .child(div().h(px(1.)).flex_1().bg(theme.border)),
-            )
-            .child(body)
-            .into_any_element()
-    }
-
-    fn fact(
-        label: impl Into<SharedString>,
-        value: impl Into<SharedString>,
-        index: usize,
-        cx: &Context<Self>,
-    ) -> AnyElement {
-        let theme = *cx.theme();
-        div()
-            .flex()
-            .items_center()
-            .justify_between()
-            .gap_4()
-            .px(theme.metrics.pad)
-            .py(theme.metrics.pad / 2.)
-            .rounded(theme.radius)
-            .when(index % 2 == 1, |this| {
-                this.bg(theme.table_hover.opacity(0.35))
-            })
-            .child(div().text_color(theme.muted_foreground).child(label.into()))
-            .child(
-                div()
-                    .text_right()
-                    .font_weight(FontWeight::MEDIUM)
-                    .child(value.into()),
-            )
-            .into_any_element()
     }
 
     fn hero(&self, track: &Track, cx: &Context<Self>) -> AnyElement {
@@ -200,25 +142,24 @@ impl SongView {
             .playcount()
             .map(cells::count)
             .unwrap_or_else(|| "Not available".to_owned());
-        self.card(
-            "ABOUT THIS SONG",
-            div()
-                .flex()
-                .flex_col()
-                .child(Self::fact("Album", album_name, 0, cx))
-                .child(Self::fact("Released", release, 1, cx))
-                .child(Self::fact("Streams", streams, 2, cx))
-                .child(Self::fact("Position", number, 3, cx))
-                .child(Self::fact("Label", label, 4, cx))
-                .child(Self::fact(
-                    "Popularity",
-                    format!("{}%", track.popularity),
-                    5,
-                    cx,
-                )),
-            true,
-            cx,
-        )
+        let facts = [
+            ("Album", album_name),
+            ("Released", release),
+            ("Streams", streams),
+            ("Position", number),
+            ("Label", label),
+            ("Popularity", format!("{}%", track.popularity)),
+        ];
+        InfoCard::new("ABOUT THIS SONG")
+            .stretch()
+            .child(
+                div().flex().flex_col().children(
+                    facts.into_iter().enumerate().map(|(index, (name, value))| {
+                        Fact::new(name, value).striped(index % 2 == 1)
+                    }),
+                ),
+            )
+            .into_any_element()
     }
 
     fn credits(&self, track: &Track, cx: &Context<Self>) -> AnyElement {
@@ -237,57 +178,56 @@ impl SongView {
             track.credits.clone()
         };
         let portraits = self.detail.read(cx).portraits().clone();
-        self.card(
-            "CREDITS",
-            div()
-                .flex()
-                .flex_col()
-                .gap_3()
-                .children(rows.into_iter().enumerate().map(|(index, credit)| {
-                    let portrait = credit.id.as_ref().and_then(|id| portraits.get(id)).cloned();
-                    let avatar = match portrait {
-                        Some(portrait) => Avatar::new(Some(portrait))
-                            .size(theme.metrics.thumb)
-                            .into_any_element(),
-                        None => Initials::new(credit.name.clone(), theme.metrics.thumb)
-                            .into_any_element(),
-                    };
-                    let row = div()
-                        .flex()
-                        .items_center()
-                        .gap_3()
-                        .px(theme.metrics.pad)
-                        .py(theme.metrics.pad / 2.)
-                        .rounded(theme.radius)
-                        .child(avatar)
-                        .child(
-                            div()
-                                .flex()
-                                .flex_col()
-                                .gap_0p5()
-                                .child(div().font_weight(FontWeight::MEDIUM).child(credit.name))
-                                .child(
-                                    div()
-                                        .text_size(theme.text(Text::Small))
-                                        .text_color(theme.muted_foreground)
-                                        .child(credit.role),
-                                ),
-                        );
-
-                    match credit.id {
-                        Some(id) => row
-                            .id(("song-credit", index))
-                            .cursor_pointer()
-                            .hover(|style| style.bg(theme.secondary_hover))
+        InfoCard::new("CREDITS")
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap_3()
+                    .children(rows.into_iter().enumerate().map(|(index, credit)| {
+                        let portrait = credit.id.as_ref().and_then(|id| portraits.get(id)).cloned();
+                        let avatar = match portrait {
+                            Some(portrait) => Avatar::new(Some(portrait))
+                                .size(theme.metrics.thumb)
+                                .into_any_element(),
+                            None => Initials::new(credit.name.clone(), theme.metrics.thumb)
+                                .into_any_element(),
+                        };
+                        let row = div()
+                            .flex()
+                            .items_center()
+                            .gap_3()
+                            .px(theme.metrics.pad)
+                            .py(theme.metrics.pad / 2.)
                             .rounded(theme.radius)
-                            .link(Destination::Artist(id.into()))
-                            .into_any_element(),
-                        None => row.into_any_element(),
-                    }
-                })),
-            false,
-            cx,
-        )
+                            .child(avatar)
+                            .child(
+                                div()
+                                    .flex()
+                                    .flex_col()
+                                    .gap_0p5()
+                                    .child(div().font_weight(FontWeight::MEDIUM).child(credit.name))
+                                    .child(
+                                        div()
+                                            .text_size(theme.text(Text::Small))
+                                            .text_color(theme.muted_foreground)
+                                            .child(credit.role),
+                                    ),
+                            );
+
+                        match credit.id {
+                            Some(id) => row
+                                .id(("song-credit", index))
+                                .cursor_pointer()
+                                .hover(|style| style.bg(theme.secondary_hover))
+                                .rounded(theme.radius)
+                                .link(Destination::Artist(id.into()))
+                                .into_any_element(),
+                            None => row.into_any_element(),
+                        }
+                    })),
+            )
+            .into_any_element()
     }
 
     fn discovery(&self, track: &Track, cx: &Context<Self>) -> AnyElement {
@@ -303,63 +243,63 @@ impl SongView {
                 .collect::<Vec<_>>()
                 .join(", ")
         };
-        self.card(
-            "GENRES & DETAILS",
-            div()
-                .flex()
-                .flex_col()
-                .gap_1()
-                .child(div().when_else(
-                    tags.is_empty(),
-                    |this| this.child(Self::fact("Genres", "Not available", 0, cx)),
-                    |this| {
-                        this.child(
-                            div()
-                                .flex()
-                                .items_start()
-                                .justify_between()
-                                .gap_4()
-                                .px(theme.metrics.pad)
-                                .py(theme.metrics.pad / 2.)
-                                .child(
-                                    div()
-                                        .flex_none()
-                                        .text_color(theme.muted_foreground)
-                                        .child("Genres"),
-                                )
-                                .child(
-                                    div()
-                                        .flex()
-                                        .flex_1()
-                                        .min_w_0()
-                                        .flex_wrap()
-                                        .justify_end()
-                                        .gap_2()
-                                        .children(tags.into_iter().map(|tag| {
-                                            div()
-                                                .px_3()
-                                                .py_1()
-                                                .rounded_full()
-                                                .bg(theme.secondary)
-                                                .border_1()
-                                                .border_color(theme.border)
-                                                .text_size(theme.text(Text::Small))
-                                                .child(tag)
-                                        })),
-                                ),
-                        )
-                    },
-                ))
-                .child(Self::fact("Language", languages, 1, cx))
-                .child(Self::fact(
-                    "Content",
-                    if track.explicit { "Explicit" } else { "Clean" },
-                    2,
-                    cx,
-                )),
-            false,
-            cx,
-        )
+        InfoCard::new("GENRES & DETAILS")
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap_1()
+                    .child(div().when_else(
+                        tags.is_empty(),
+                        |this| this.child(Fact::new("Genres", "Not available")),
+                        |this| {
+                            this.child(
+                                div()
+                                    .flex()
+                                    .items_start()
+                                    .justify_between()
+                                    .gap_4()
+                                    .px(theme.metrics.pad)
+                                    .py(theme.metrics.pad / 2.)
+                                    .child(
+                                        div()
+                                            .flex_none()
+                                            .text_color(theme.muted_foreground)
+                                            .child("Genres"),
+                                    )
+                                    .child(
+                                        div()
+                                            .flex()
+                                            .flex_1()
+                                            .min_w_0()
+                                            .flex_wrap()
+                                            .justify_end()
+                                            .gap_2()
+                                            .children(tags.into_iter().map(|tag| {
+                                                div()
+                                                    .px_3()
+                                                    .py_1()
+                                                    .rounded_full()
+                                                    .bg(theme.secondary)
+                                                    .border_1()
+                                                    .border_color(theme.border)
+                                                    .text_size(theme.text(Text::Small))
+                                                    .child(tag)
+                                            })),
+                                    ),
+                            )
+                        },
+                    ))
+                    .child(Fact::new("Language", languages).striped(true))
+                    .child(Fact::new(
+                        "Content",
+                        match track.explicit {
+                            true => "Explicit",
+                            false => "Clean",
+                        },
+                    )),
+            )
+            .into_any_element()
     }
 
     fn artist_profile(&self, cx: &Context<Self>) -> Option<AnyElement> {
@@ -401,19 +341,8 @@ impl SongView {
                         .flex_1()
                         .min_w_0()
                         .gap_2()
-                        .child(
-                            div()
-                                .text_size(theme.text(Text::Small))
-                                .text_color(theme.muted_foreground)
-                                .font_weight(FontWeight::SEMIBOLD)
-                                .child("ABOUT THE ARTIST"),
-                        )
-                        .child(
-                            div()
-                                .text_size(theme.text(Text::Title))
-                                .font_weight(FontWeight::BOLD)
-                                .child(artist.name.clone()),
-                        )
+                        .child(eyebrow("ABOUT THE ARTIST", cx))
+                        .child(heading(artist.name.clone(), cx))
                         .child(div().text_color(theme.muted_foreground).child(bio)),
                 )
                 .child(
