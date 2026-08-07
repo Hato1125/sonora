@@ -90,7 +90,7 @@ Not exercised in this repo; package sets translated from the dependency list abo
 
 ```sh
 # Debian/Ubuntu
-sudo apt install build-essential pkg-config mold libasound2-dev libfontconfig-1-dev \
+sudo apt install build-essential pkg-config mold libasound2-dev libfontconfig1-dev \
   libfreetype-dev libx11-dev libxcb1-dev libxcursor-dev libxi-dev \
   libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libvulkan-dev mesa-vulkan-drivers
 
