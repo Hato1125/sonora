@@ -231,6 +231,7 @@ fn pick(
     )
     .cover(track.cover.clone())
     .weight(FontWeight::SEMIBOLD)
+    .underline()
     .tint(tint)
     .when(track.explicit, |card| card.explicit())
     .bare_meta(

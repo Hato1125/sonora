@@ -2,12 +2,13 @@
 
 use gpui::prelude::*;
 use gpui::{
-    AnyElement, App, ClickEvent, Div, ElementId, FontWeight, Hsla, Interactivity, Pixels,
-    SharedString, Stateful, StyleRefinement, Window, div, px,
+    AnyElement, App, ClickEvent, Div, ElementId, FontWeight, Hsla, Interactivity, MouseButton,
+    Pixels, SharedString, Stateful, StyleRefinement, Window, div, px,
 };
 
 use crate::ExplicitBadge;
 use crate::artwork::{Artwork, Avatar};
+use crate::button::Button;
 use crate::label::upper;
 use crate::metrics::{Text, snapped};
 use crate::skeleton::Skeleton;
@@ -16,6 +17,11 @@ use crate::theme::ActiveTheme as _;
 const TITLE: Pixels = px(120.);
 const BAR_TITLE: (Pixels, Pixels) = (px(140.), px(11.));
 const BAR_META: (Pixels, Pixels) = (px(90.), px(9.));
+const PLAY_RATIO: f32 = 0.34;
+const PLAY_MIN: Pixels = px(28.);
+const PLAY_INSET: Pixels = px(8.);
+
+pub const CARD_GROUP: &str = "card";
 
 type Press = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 
@@ -43,6 +49,10 @@ pub struct Card {
     hovered: Option<StyleRefinement>,
     press: Option<Press>,
     loading: bool,
+    tile: Option<Pixels>,
+    play: Option<Press>,
+    underline: bool,
+    action: Option<AnyElement>,
 }
 
 impl Card {
@@ -71,7 +81,31 @@ impl Card {
             hovered: None,
             press: None,
             loading: false,
+            tile: None,
+            play: None,
+            underline: false,
+            action: None,
         }
+    }
+
+    pub fn tile(mut self, width: Pixels) -> Self {
+        self.tile = Some(width);
+        self
+    }
+
+    pub fn play(mut self, handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static) -> Self {
+        self.play = Some(Box::new(handler));
+        self
+    }
+
+    pub fn underline(mut self) -> Self {
+        self.underline = true;
+        self
+    }
+
+    pub fn action(mut self, action: impl IntoElement) -> Self {
+        self.action = Some(action.into_any_element());
+        self
     }
 
     pub fn cover(mut self, cover: Option<String>) -> Self {
@@ -216,12 +250,18 @@ impl RenderOnce for Card {
             hovered,
             press,
             loading,
+            tile,
+            play,
+            underline,
+            action,
         } = self;
 
         let theme = *cx.theme();
         let height = snapped(theme.metrics.list_row, window);
-        let listed = art.is_none();
-        let art = art.unwrap_or(theme.metrics.list_row - theme.metrics.pad * 2.);
+        let listed = art.is_none() && tile.is_none();
+        let art = art
+            .or(tile)
+            .unwrap_or(theme.metrics.list_row - theme.metrics.pad * 2.);
         let hovered = match (hovered, fill) {
             (Some(style), _) => Some(style),
             (None, true) => Some(StyleRefinement::default().bg(theme.table_hover)),
@@ -240,12 +280,44 @@ impl RenderOnce for Card {
                 .when_some(art_radius, Artwork::corner_radius)
                 .into_any_element(),
         };
+        let leading = match play {
+            None => leading,
+            Some(play) => div()
+                .relative()
+                .size(art)
+                .child(leading)
+                .child(
+                    div()
+                        .id("card-play")
+                        .absolute()
+                        .right(PLAY_INSET)
+                        .bottom(PLAY_INSET)
+                        .invisible()
+                        .group_hover(CARD_GROUP, |style| style.visible())
+                        .child(
+                            Button::new("card-play-button")
+                                .primary()
+                                .icon("icons/play.svg")
+                                .size(px((art / px(1.) * PLAY_RATIO).round()).max(PLAY_MIN))
+                                .rounded_full()
+                                .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                                .on_click(move |event, window, cx| {
+                                    cx.stop_propagation();
+                                    play(event, window, cx);
+                                }),
+                        ),
+                )
+                .into_any_element(),
+        };
 
         let mut card = base
+            .group(CARD_GROUP)
             .flex()
-            .items_center()
-            .gap_3()
-            .px_2()
+            .when_else(
+                tile.is_some(),
+                |this| this.flex_col().gap_2().w(art),
+                |this| this.items_center().gap_3().px_2(),
+            )
             .rounded(theme.radius)
             .when(listed, |this| this.flex_none().h(height))
             .when_some(hovered, |this, style| this.hover(move |_| style))
@@ -262,6 +334,7 @@ impl RenderOnce for Card {
                     .min_w_0()
                     .when(match_art_height, |this| this.h(art).justify_between())
                     .when(listed, |this| this.min_w(TITLE))
+                    .when(tile.is_some(), |this| this.w_full().flex_none().gap_1())
                     .when_some(spacing, |this, spacing| this.gap(spacing))
                     .when_else(
                         loading,
@@ -293,6 +366,11 @@ impl RenderOnce for Card {
                                             .when_some(weight, |this, weight| {
                                                 this.font_weight(weight)
                                             })
+                                            .when(underline, |this| {
+                                                this.group_hover(CARD_GROUP, |style| {
+                                                    style.underline()
+                                                })
+                                            })
                                             .child(title),
                                     )
                                     .when(explicit, |this| {
@@ -313,7 +391,14 @@ impl RenderOnce for Card {
                         },
                     ),
             )
-            .children(trailing.map(|trailing| div().flex_shrink(1.).min_w_0().child(trailing)));
+            .children(trailing.map(|trailing| div().flex_shrink(1.).min_w_0().child(trailing)))
+            .children(action.map(|action| {
+                div()
+                    .flex_none()
+                    .invisible()
+                    .group_hover(CARD_GROUP, |style| style.visible())
+                    .child(action)
+            }));
 
         card.style().refine(&overrides);
         card

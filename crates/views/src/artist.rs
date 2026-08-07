@@ -242,7 +242,9 @@ impl ArtistView {
                             .filter(|album| self.release_filter.matches(album.release_type))
                             .cloned()
                             .enumerate()
-                            .map(|(index, album)| ReleaseCard::new(index, album)),
+                            .map(|(index, album)| {
+                                ReleaseCard::new(index, album, self.playback.clone())
+                            }),
                     ),
                 )
                 .into_any_element(),

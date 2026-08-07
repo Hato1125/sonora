@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use gpui::prelude::*;
-use gpui::{App, FontWeight, SharedString, Window, div};
+use gpui::{App, Entity, FontWeight, SharedString, Window, div};
 use i18n::t;
-use router::{Destination, Link as _};
+use router::{Destination, navigate};
 use spotify::{Album, ReleaseType};
-use ui::{ActiveTheme as _, Artwork, Text};
+use state::Playback;
+use ui::{ActiveTheme as _, Card, Text};
 
 pub(crate) fn release_label(kind: ReleaseType) -> SharedString {
     match kind {
@@ -22,56 +23,54 @@ pub(crate) fn release_label(kind: ReleaseType) -> SharedString {
 pub(crate) struct ReleaseCard {
     index: usize,
     album: Album,
+    playback: Entity<Playback>,
 }
 
 impl ReleaseCard {
-    pub(crate) fn new(index: usize, album: Album) -> Self {
-        Self { index, album }
+    pub(crate) fn new(index: usize, album: Album, playback: Entity<Playback>) -> Self {
+        Self {
+            index,
+            album,
+            playback,
+        }
     }
 }
 
 impl RenderOnce for ReleaseCard {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+        let Self {
+            index,
+            album,
+            playback,
+        } = self;
+
         let theme = *cx.theme();
-        let cover = self
-            .album
-            .cover_large
-            .clone()
-            .or_else(|| self.album.cover.clone());
-        let release = release_label(self.album.release_type);
-        let metadata = match self.album.year > 0 {
-            true => t!("release-meta", year = self.album.year, kind = &release),
+        let cover = album.cover_large.clone().or_else(|| album.cover.clone());
+        let release = release_label(album.release_type);
+        let metadata = match album.year > 0 {
+            true => t!("release-meta", year = album.year, kind = &release),
             false => release,
         };
+        let played = album.id.clone();
+        let opened = SharedString::from(album.id);
 
-        div()
-            .id(("artist-release", self.index))
-            .w(theme.metrics.cover)
-            .flex()
-            .flex_col()
-            .gap_2()
-            .cursor_pointer()
-            .link(Destination::Album(self.album.id.into()))
-            .child(Artwork::new(cover).size(theme.metrics.cover))
-            .child(
+        Card::new(("artist-release", index), SharedString::from(album.name))
+            .tile(theme.metrics.cover)
+            .cover(cover)
+            .weight(FontWeight::SEMIBOLD)
+            .flat()
+            .underline()
+            .line_height(theme.text(Text::Body))
+            .bare_meta(
                 div()
-                    .flex()
-                    .flex_col()
-                    .gap_1()
-                    .child(
-                        div()
-                            .truncate()
-                            .line_height(theme.text(Text::Body))
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .child(SharedString::from(self.album.name)),
-                    )
-                    .child(
-                        div()
-                            .text_size(theme.text(Text::Small))
-                            .line_height(theme.text(Text::Small))
-                            .text_color(theme.muted_foreground)
-                            .child(metadata),
-                    ),
+                    .text_size(theme.text(Text::Small))
+                    .line_height(theme.text(Text::Small))
+                    .text_color(theme.muted_foreground)
+                    .child(metadata),
             )
+            .play(move |_, _, cx| {
+                playback.update(cx, |playback, cx| playback.play_album(&played, cx));
+            })
+            .press(move |_, _, cx| navigate(Destination::Album(opened.clone()), cx))
     }
 }

@@ -7,17 +7,16 @@ use std::cell::Cell;
 
 use gpui::{
     App, Context, Div, DragMoveEvent, Empty, Entity, FontWeight, MouseButton, MouseDownEvent,
-    Pixels, Point, Render, ScrollStrategy, SharedString, UniformListScrollHandle, Window, anchored,
-    div, px, uniform_list,
+    Pixels, Point, Render, ScrollHandle, ScrollStrategy, SharedString, UniformListScrollHandle,
+    Window, anchored, div, px, uniform_list,
 };
 use i18n::t;
 use spotify::Track;
 use state::{AppSettings, Playback, Queue, Sonora};
-use ui::{ActiveTheme as _, Button, Card, Menu, MenuItem, Room, Scrollbar, eyebrow, snapped};
+use ui::{ActiveTheme as _, Button, Card, Room, Scrollbar, Text, eyebrow, snapped};
 
-use crate::Sidebar;
+use crate::{Sidebar, TrackMenu};
 
-const MENU_WIDTH: f32 = 210.;
 const MIN_WIDTH: Pixels = px(240.);
 const MAX_WIDTH: Pixels = px(560.);
 const PINNED_SHARE: f32 = 0.25;
@@ -131,9 +130,9 @@ enum DropLine {
     Below,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct ContextMenuState {
-    index: usize,
+    track: Track,
     revision: u64,
     position: Point<Pixels>,
 }
@@ -180,6 +179,7 @@ pub(crate) struct QueuePanel {
     playback: Entity<Playback>,
     sidebar: Entity<Sidebar>,
     context_menu: Option<ContextMenuState>,
+    track_menu: TrackMenu,
     drop_gap: Option<usize>,
     scroll: UniformListScrollHandle,
     scrollbar: Entity<Scrollbar>,
@@ -206,8 +206,10 @@ impl QueuePanel {
             let revision = queue.read(cx).revision();
             if this
                 .context_menu
+                .as_ref()
                 .is_some_and(|menu| menu.revision != revision)
             {
+                this.track_menu.reset();
                 this.context_menu = None;
             }
             cx.notify();
@@ -217,6 +219,11 @@ impl QueuePanel {
 
         let scroll = UniformListScrollHandle::new();
         let scrollbar = cx.new(|_| Scrollbar::new(scroll.0.borrow().base_handle.clone()));
+        let playlist_scrollbar = cx.new(|_| {
+            Scrollbar::new(ScrollHandle::new())
+                .always_visible()
+                .track_inset(px(4.))
+        });
         let settings = Sonora::global(cx).settings.clone();
         let width = px(settings.read(cx).queue_width()).clamp(MIN_WIDTH, MAX_WIDTH);
 
@@ -225,6 +232,7 @@ impl QueuePanel {
             playback,
             sidebar,
             context_menu: None,
+            track_menu: TrackMenu::new(playlist_scrollbar),
             drop_gap: None,
             scroll,
             scrollbar,
@@ -300,12 +308,14 @@ impl QueuePanel {
     }
 
     pub(crate) fn close(&mut self, cx: &mut Context<Self>) {
+        self.track_menu.reset();
         self.context_menu = None;
         self.open = false;
         cx.notify();
     }
 
     fn dismiss_menu(&mut self, cx: &mut Context<Self>) {
+        self.track_menu.reset();
         self.context_menu = None;
         cx.notify();
     }
@@ -332,75 +342,104 @@ impl QueuePanel {
             name: SharedString::from(track.name.clone()),
             position: Point::default(),
         });
+        let menu_track = track.clone();
 
-        let card = Card::new(("queue-track", index), SharedString::from(track.name))
-            .cover(track.cover)
-            .meta(SharedString::from(track.artists))
-            .weight(FontWeight::SEMIBOLD)
-            .tint(title)
-            .when(track.explicit, Card::explicit)
-            .when_some(past_index, |this, index| {
-                this.press(cx.listener(move |this, _, _, cx| {
-                    if this.queue.read(cx).revision() == queue_revision {
-                        this.playback
-                            .update(cx, |playback, cx| playback.play_past(index, cx));
-                    }
-                }))
-            })
-            .when_some(queue_index, |this, target| {
-                this.press(cx.listener(move |this, _, _, cx| {
-                    if this.queue.read(cx).revision() == queue_revision {
-                        this.playback
-                            .update(cx, |playback, cx| playback.play_upcoming(target, cx));
-                    }
-                }))
-                .on_drag_move(cx.listener(
-                    move |this, event: &DragMoveEvent<DraggedTrack>, _, cx| {
-                        let position = event.event.position;
-                        if !event.bounds.contains(&position) {
-                            return;
-                        }
-                        let gap = if position.y < event.bounds.center().y {
-                            target
-                        } else {
-                            target + 1
-                        };
-                        let dragged = event.drag(cx).index;
-                        let gap = (gap != dragged && gap != dragged + 1).then_some(gap);
-                        if this.drop_gap != gap {
-                            this.drop_gap = gap;
-                            cx.notify();
-                        }
-                    },
-                ))
-                .on_drop(cx.listener(move |this, dragged: &DraggedTrack, _, cx| {
-                    if let Some(gap) = this.drop_gap.take() {
+        let card = Card::new(
+            ("queue-track", index),
+            SharedString::from(track.name.clone()),
+        )
+        .cover(track.cover.clone())
+        .bare_meta(
+            crate::artist_links(
+                SharedString::from(format!("queue-track-artist-{index}")),
+                track.artist_refs.clone(),
+                track.artists.clone(),
+                theme.muted_foreground,
+            )
+            .text_size(theme.text(Text::Small))
+            .truncate(),
+        )
+        .weight(FontWeight::SEMIBOLD)
+        .tint(title)
+        .when(track.explicit, Card::explicit)
+        .on_mouse_down(
+            MouseButton::Right,
+            cx.listener(move |this, event: &MouseDownEvent, window, cx| {
+                window.prevent_default();
+                this.track_menu.reset();
+                this.context_menu = Some(ContextMenuState {
+                    track: menu_track.clone(),
+                    revision: queue_revision,
+                    position: event.position,
+                });
+                cx.stop_propagation();
+                cx.notify();
+            }),
+        )
+        .when_some(past_index, |this, index| {
+            this.press(cx.listener(move |this, _, _, cx| {
+                if this.queue.read(cx).revision() == queue_revision {
+                    this.playback
+                        .update(cx, |playback, cx| playback.play_past(index, cx));
+                }
+            }))
+        })
+        .when_some(queue_index, |this, target| {
+            this.press(cx.listener(move |this, _, _, cx| {
+                if this.queue.read(cx).revision() == queue_revision {
+                    this.playback
+                        .update(cx, |playback, cx| playback.play_upcoming(target, cx));
+                }
+            }))
+            .action(
+                Button::new(("remove-queued-track", index))
+                    .ghost()
+                    .small()
+                    .icon("icons/x.svg")
+                    .tint(theme.muted_foreground)
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        cx.stop_propagation();
                         this.queue.update(cx, |queue, cx| {
-                            if queue.revision() == dragged.revision {
-                                queue.move_upcoming_to_gap(dragged.index, gap, cx);
+                            if queue.revision() == queue_revision {
+                                queue.remove_upcoming(target, cx);
                             }
                         });
+                    })),
+            )
+            .on_drag_move(
+                cx.listener(move |this, event: &DragMoveEvent<DraggedTrack>, _, cx| {
+                    let position = event.event.position;
+                    if !event.bounds.contains(&position) {
+                        return;
                     }
-                }))
-                .on_mouse_down(
-                    MouseButton::Right,
-                    cx.listener(move |this, event: &MouseDownEvent, window, cx| {
-                        window.prevent_default();
-                        this.context_menu = Some(ContextMenuState {
-                            index: target,
-                            revision: queue_revision,
-                            position: event.position,
-                        });
-                        cx.stop_propagation();
+                    let gap = if position.y < event.bounds.center().y {
+                        target
+                    } else {
+                        target + 1
+                    };
+                    let dragged = event.drag(cx).index;
+                    let gap = (gap != dragged && gap != dragged + 1).then_some(gap);
+                    if this.drop_gap != gap {
+                        this.drop_gap = gap;
                         cx.notify();
-                    }),
-                )
+                    }
+                }),
+            )
+            .on_drop(cx.listener(move |this, dragged: &DraggedTrack, _, cx| {
+                if let Some(gap) = this.drop_gap.take() {
+                    this.queue.update(cx, |queue, cx| {
+                        if queue.revision() == dragged.revision {
+                            queue.move_upcoming_to_gap(dragged.index, gap, cx);
+                        }
+                    });
+                }
+            }))
+        })
+        .when_some(dragged, |this, dragged| {
+            this.on_drag(dragged, |dragged, position, _, cx| {
+                cx.new(|_| dragged.clone().at(position))
             })
-            .when_some(dragged, |this, dragged| {
-                this.on_drag(dragged, |dragged, position, _, cx| {
-                    cx.new(|_| dragged.clone().at(position))
-                })
-            });
+        });
 
         div()
             .id(("queue-track-container", index))
@@ -424,32 +463,18 @@ impl QueuePanel {
 
     fn menu(&self, cx: &mut Context<Self>) -> Option<impl IntoElement> {
         let ContextMenuState {
-            index,
-            revision,
-            position,
-        } = self.context_menu?;
+            track, position, ..
+        } = self.context_menu.clone()?;
 
         Some(
             anchored()
                 .position(position)
                 .snap_to_window_with_margin(px(8.))
                 .child(
-                    Menu::new("queue-track-menu")
-                        .relative()
-                        .w(px(MENU_WIDTH))
+                    self.track_menu
+                        .for_track(&track, cx)
                         .on_action(cx.listener(|this, _, _, cx| this.dismiss_menu(cx)))
-                        .on_dismiss(cx.listener(|this, _, _, cx| this.dismiss_menu(cx)))
-                        .item(
-                            MenuItem::new("remove-queued-track", t!("menu-remove-from-queue"))
-                                .icon("icons/x.svg")
-                                .on_click(cx.listener(move |this, _, _, cx| {
-                                    this.queue.update(cx, |queue, cx| {
-                                        if queue.revision() == revision {
-                                            queue.remove_upcoming(index, cx);
-                                        }
-                                    });
-                                })),
-                        ),
+                        .on_dismiss(cx.listener(|this, _, _, cx| this.dismiss_menu(cx))),
                 ),
         )
     }

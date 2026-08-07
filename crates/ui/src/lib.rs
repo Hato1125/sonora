@@ -24,6 +24,7 @@ mod time;
 
 pub use artwork::{Artwork, Avatar};
 pub use button::Button;
+pub use card::CARD_GROUP;
 pub use card::Card;
 pub use controls::WindowControls;
 pub use explicit::ExplicitBadge;
