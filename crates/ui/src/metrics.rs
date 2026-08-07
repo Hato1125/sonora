@@ -1,4 +1,5 @@
-use gpui::{Pixels, Window, px};
+use gpui::{Pixels, SharedString, Window, px};
+use i18n::t;
 
 const HEADER: f32 = 0.75;
 
@@ -22,12 +23,12 @@ impl Rounding {
         }
     }
 
-    pub fn label(self) -> &'static str {
+    pub fn label(self) -> SharedString {
         match self {
-            Self::Square => "Square",
-            Self::Subtle => "Subtle",
-            Self::Rounded => "Rounded",
-            Self::Round => "Round",
+            Self::Square => t!("corners-square"),
+            Self::Subtle => t!("corners-subtle"),
+            Self::Rounded => t!("corners-rounded"),
+            Self::Round => t!("corners-round"),
         }
     }
 

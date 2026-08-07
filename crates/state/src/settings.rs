@@ -22,6 +22,7 @@ struct Values {
     sidebar_width: f32,
     sidebar_open: bool,
     queue_width: f32,
+    language: String,
     hidden_columns: HashMap<String, Vec<String>>,
     appearance: Appearance,
 }
@@ -48,6 +49,7 @@ impl Default for Values {
             sidebar_width: DEFAULT_SIDEBAR_WIDTH,
             sidebar_open: true,
             queue_width: DEFAULT_QUEUE_WIDTH,
+            language: i18n::AUTO.to_owned(),
             hidden_columns: HashMap::new(),
             appearance: Appearance::default(),
         }
@@ -115,6 +117,10 @@ impl AppSettings {
 
     pub fn queue_width(&self) -> f32 {
         self.values.queue_width
+    }
+
+    pub fn language(&self) -> &str {
+        &self.values.language
     }
 
     pub fn auto_hide_sidebar(&self) -> bool {
@@ -206,6 +212,13 @@ impl AppSettings {
 
     pub fn set_queue_width(&mut self, width: f32, cx: &mut Context<Self>) {
         self.values.queue_width = width;
+        self.schedule_save(cx);
+    }
+
+    pub fn set_language(&mut self, language: impl Into<String>, cx: &mut Context<Self>) {
+        self.values.language = language.into();
+        i18n::set(i18n::resolve(&self.values.language));
+        cx.refresh_windows();
         self.schedule_save(cx);
     }
 

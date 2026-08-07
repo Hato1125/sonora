@@ -3,8 +3,9 @@ use gpui::{
     AnyElement, App, Context, Entity, Pixels, Render, ScrollHandle, SharedString, Window, px,
 };
 
+use i18n::t;
 use spotify::Track;
-use state::{Detail, Playback};
+use state::{Collection, Detail, Playback};
 use ui::ActiveTheme as _;
 use ui::{ColumnSpec, GridDelegate, GridEvent, GridState, Scrollbar, Scroller, clock, grid};
 
@@ -116,7 +117,9 @@ impl DetailView {
         let theme = cx.theme();
         let muted = theme.muted_foreground;
         let header = self.detail.read(cx).header();
-        let kind = header.map(|header| header.kind).unwrap_or_default();
+        let kind = header
+            .map(|header| header.kind)
+            .unwrap_or(Collection::Album);
         let title = header
             .map(|header| SharedString::from(header.title.clone()))
             .unwrap_or_default();
@@ -128,9 +131,9 @@ impl DetailView {
         let meta = header.map(|header| header.meta.clone()).unwrap_or_default();
         let queued = self.detail.read(cx).tracks().to_vec();
         let duration: std::time::Duration = queued.iter().map(|track| track.duration).sum();
-        let label = match kind {
-            "Playlist" => "Play playlist",
-            _ => "Play album",
+        let (eyebrow, label) = match kind {
+            Collection::Playlist => (t!("detail-playlist"), t!("detail-play-playlist")),
+            Collection::Album => (t!("detail-album"), t!("detail-play-album")),
         };
 
         let mut strip = HeroMetaStrip::new();
@@ -154,7 +157,7 @@ impl DetailView {
 
         PageHero::new("detail-hero", title)
             .cover(header.and_then(|header| header.cover.clone()))
-            .eyebrow(kind)
+            .eyebrow(eyebrow)
             .meta(strip)
             .actions(HeroPlayButton::new(
                 "play-detail",
@@ -200,7 +203,7 @@ impl Searchable for DetailView {
         cx.notify();
     }
 
-    fn hint() -> &'static str {
-        "Filter album tracks"
+    fn hint() -> SharedString {
+        t!("filter-album")
     }
 }

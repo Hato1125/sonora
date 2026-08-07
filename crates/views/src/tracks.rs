@@ -3,6 +3,7 @@ use std::rc::Rc;
 use ui::ActiveTheme as _;
 
 use gpui::{AnyElement, App, ClipboardItem, Entity, Hsla, Styled as _, TextAlign, WeakEntity};
+use i18n::t;
 use jiff::Timestamp;
 use router::{Destination, navigate};
 use spotify::Track;
@@ -12,6 +13,7 @@ use ui::{
 };
 
 use crate::cells::{self, ALWAYS, DATE, NUMBER, ROOMY, SNUG, TRAILING, WIDE};
+use crate::hero::release_date_label;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TrackField {
@@ -29,7 +31,7 @@ pub(crate) const LIBRARY_COLUMNS: &[ColumnSpec<TrackField>] = &[
     ColumnSpec {
         field: TrackField::Index,
         key: "index",
-        header: "#",
+        header: "column-index",
         align: TextAlign::Center,
         width: Width::Fixed(NUMBER),
         flush: false,
@@ -49,7 +51,7 @@ pub(crate) const LIBRARY_COLUMNS: &[ColumnSpec<TrackField>] = &[
     ColumnSpec {
         field: TrackField::Title,
         key: "title",
-        header: "Title",
+        header: "column-title",
         align: TextAlign::Left,
         width: Width::Fill(0.42),
         flush: false,
@@ -59,7 +61,7 @@ pub(crate) const LIBRARY_COLUMNS: &[ColumnSpec<TrackField>] = &[
     ColumnSpec {
         field: TrackField::Artists,
         key: "artists",
-        header: "Artist",
+        header: "column-artist",
         align: TextAlign::Left,
         width: Width::Fill(0.29),
         flush: false,
@@ -69,7 +71,7 @@ pub(crate) const LIBRARY_COLUMNS: &[ColumnSpec<TrackField>] = &[
     ColumnSpec {
         field: TrackField::Album,
         key: "album",
-        header: "Album",
+        header: "column-album",
         align: TextAlign::Left,
         width: Width::Fill(0.29),
         flush: false,
@@ -79,7 +81,7 @@ pub(crate) const LIBRARY_COLUMNS: &[ColumnSpec<TrackField>] = &[
     ColumnSpec {
         field: TrackField::AddedAt,
         key: "added-at",
-        header: "Date added",
+        header: "column-date-added",
         align: TextAlign::Left,
         width: Width::Fixed(DATE),
         flush: false,
@@ -89,7 +91,7 @@ pub(crate) const LIBRARY_COLUMNS: &[ColumnSpec<TrackField>] = &[
     ColumnSpec {
         field: TrackField::Duration,
         key: "duration",
-        header: "Length",
+        header: "column-length",
         align: TextAlign::Right,
         width: Width::Fixed(TRAILING),
         flush: false,
@@ -102,7 +104,7 @@ pub(crate) const ALBUM_COLUMNS: &[ColumnSpec<TrackField>] = &[
     ColumnSpec {
         field: TrackField::Index,
         key: "index",
-        header: "#",
+        header: "column-index",
         align: TextAlign::Center,
         width: Width::Fixed(NUMBER),
         flush: false,
@@ -112,7 +114,7 @@ pub(crate) const ALBUM_COLUMNS: &[ColumnSpec<TrackField>] = &[
     ColumnSpec {
         field: TrackField::Title,
         key: "title",
-        header: "Title",
+        header: "column-title",
         align: TextAlign::Left,
         width: Width::Fill(0.62),
         flush: false,
@@ -122,7 +124,7 @@ pub(crate) const ALBUM_COLUMNS: &[ColumnSpec<TrackField>] = &[
     ColumnSpec {
         field: TrackField::Artists,
         key: "artists",
-        header: "Artist",
+        header: "column-artist",
         align: TextAlign::Left,
         width: Width::Fill(0.38),
         flush: false,
@@ -132,7 +134,7 @@ pub(crate) const ALBUM_COLUMNS: &[ColumnSpec<TrackField>] = &[
     ColumnSpec {
         field: TrackField::Plays,
         key: "plays",
-        header: "Plays",
+        header: "column-plays",
         align: TextAlign::Left,
         width: Width::Fixed(DATE),
         flush: false,
@@ -142,7 +144,7 @@ pub(crate) const ALBUM_COLUMNS: &[ColumnSpec<TrackField>] = &[
     ColumnSpec {
         field: TrackField::Duration,
         key: "duration",
-        header: "Length",
+        header: "column-length",
         align: TextAlign::Right,
         width: Width::Fixed(TRAILING),
         flush: false,
@@ -190,14 +192,14 @@ impl TrackMenu {
         let playlist_menu = if playlists.is_empty() {
             Menu::new("playlist-submenu")
                 .w(gpui::px(220.))
-                .item(MenuItem::new("no-playlists", "No playlists").disabled())
+                .item(MenuItem::new("no-playlists", t!("menu-no-playlists")).disabled())
         } else {
             Menu::new("playlist-submenu")
                 .w(gpui::px(220.))
                 .max_h(gpui::px(360.))
                 .scrollbar(self.playlist_scrollbar.clone())
                 .item(
-                    MenuItem::new("new-playlist", "New playlist")
+                    MenuItem::new("new-playlist", t!("menu-new-playlist"))
                         .icon("icons/plus.svg")
                         .disabled(),
                 )
@@ -209,36 +211,36 @@ impl TrackMenu {
                 }))
         };
         let copy = match track.id.clone() {
-            Some(id) => MenuItem::new("copy-track-link", "Copy link")
+            Some(id) => MenuItem::new("copy-track-link", t!("menu-copy-link"))
                 .icon("icons/link.svg")
                 .on_click(move |_, _, cx| {
                     cx.write_to_clipboard(ClipboardItem::new_string(format!(
                         "https://open.spotify.com/track/{id}"
                     )));
                 }),
-            None => MenuItem::new("copy-track-link", "Copy link")
+            None => MenuItem::new("copy-track-link", t!("menu-copy-link"))
                 .icon("icons/link.svg")
                 .disabled(),
         };
         let queue = match track.playable {
             true => {
                 let track = track.clone();
-                MenuItem::new("add-to-queue", "Add to queue")
+                MenuItem::new("add-to-queue", t!("menu-add-to-queue"))
                     .icon("icons/list-end.svg")
                     .on_click(move |_, _, cx| {
                         let queue = Sonora::global(cx).queue.clone();
                         queue.update(cx, |queue, cx| queue.append(track.clone(), cx));
                     })
             }
-            false => MenuItem::new("add-to-queue", "Add to queue")
+            false => MenuItem::new("add-to-queue", t!("menu-add-to-queue"))
                 .icon("icons/list-end.svg")
                 .disabled(),
         };
         let details = match track.id.clone() {
-            Some(id) => MenuItem::new("view-details", "View details")
+            Some(id) => MenuItem::new("view-details", t!("menu-view-details"))
                 .icon("icons/info.svg")
                 .on_click(move |_, _, cx| navigate(Destination::Song(id.clone().into()), cx)),
-            None => MenuItem::new("view-details", "View details")
+            None => MenuItem::new("view-details", t!("menu-view-details"))
                 .icon("icons/info.svg")
                 .disabled(),
         };
@@ -247,18 +249,18 @@ impl TrackMenu {
             .relative()
             .w(gpui::px(210.))
             .item(
-                MenuItem::new("add-to-playlist", "Add to playlist")
+                MenuItem::new("add-to-playlist", t!("menu-add-to-playlist"))
                     .icon("icons/list-plus.svg")
                     .submenu(playlist_menu, self.playlist_submenu.clone()),
             )
             .item(
-                MenuItem::new("toggle-library", "Add/Remove to Library")
+                MenuItem::new("toggle-library", t!("menu-toggle-library"))
                     .icon("icons/heart.svg")
                     .disabled(),
             )
             .item(queue)
             .item(
-                MenuItem::new("song-radio", "Go to song radio")
+                MenuItem::new("song-radio", t!("menu-song-radio"))
                     .icon("icons/radio.svg")
                     .disabled(),
             )
@@ -430,7 +432,9 @@ impl GridSource for TrackSource {
                 track
                     .added_at
                     .and_then(|seconds| Timestamp::new(seconds, 0).ok())
-                    .map(|timestamp| timestamp.strftime("%b %-d, %Y").to_string())
+                    .map(|timestamp| {
+                        release_date_label(&timestamp.strftime("%Y-%m-%d").to_string())
+                    })
                     .unwrap_or_default(),
                 detail,
             ),

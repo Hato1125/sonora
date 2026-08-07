@@ -5,6 +5,7 @@ use ui::ActiveTheme as _;
 use gpui::prelude::*;
 use gpui::{Context, Entity, MouseMoveEvent, MouseUpEvent, Pixels, Render, SharedString};
 use gpui::{Window, div, px};
+use i18n::t;
 use state::{Playback, PlaybackState, Queue, Repeat};
 
 use ui::{Artwork, Button, InlineLink, InlineLinks, Room, Scrubber, ScrubberState, clock};
@@ -287,7 +288,7 @@ impl PlayerBar {
                                     .truncate(),
                                 None => div()
                                     .id("now-playing-album")
-                                    .child("Nothing playing")
+                                    .child(t!("player-nothing-playing"))
                                     .min_w_0()
                                     .text_color(muted)
                                     .truncate(),
@@ -332,7 +333,7 @@ fn volume_icon(level: f32) -> &'static str {
 }
 
 fn percent(fraction: f32) -> SharedString {
-    SharedString::from(format!("{}%", (fraction * 100.).round()))
+    t!("player-percent", value = (fraction * 100.).round())
 }
 
 impl Render for PlayerBar {

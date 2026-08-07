@@ -8,6 +8,7 @@ use gpui::{
     Pixels, Point, Render, ScrollStrategy, SharedString, UniformListScrollHandle, Window, anchored,
     div, px, uniform_list,
 };
+use i18n::t;
 use spotify::Track;
 use state::{AppSettings, Playback, Queue, Sonora};
 use ui::{ActiveTheme as _, Button, Card, Menu, MenuItem, Room, Scrollbar, eyebrow, snapped};
@@ -23,7 +24,7 @@ fn fills_content(width: Pixels) -> bool {
     !Room::of(width).fits(Room::Wide)
 }
 
-fn section_label(label: &'static str, window: &Window, cx: &App) -> Div {
+fn section_label(key: &'static str, window: &Window, cx: &App) -> Div {
     div()
         .flex()
         .flex_none()
@@ -31,7 +32,7 @@ fn section_label(label: &'static str, window: &Window, cx: &App) -> Div {
         .h(snapped(cx.theme().metrics.list_row, window))
         .px_2()
         .pb_1()
-        .child(eyebrow(label, cx))
+        .child(eyebrow(i18n::lookup(key, None), cx))
 }
 
 fn track(queue: &Queue, position: QueuePosition) -> Option<Track> {
@@ -104,18 +105,18 @@ impl Sections {
     fn slot(self, index: usize) -> Slot {
         if index < self.past_end() {
             return match index {
-                0 => Slot::Header("History"),
+                0 => Slot::Header("queue-history"),
                 _ => Slot::Track(QueuePosition::Past(index - 1)),
             };
         }
         if index < self.current_end() {
             return match index == self.past_end() {
-                true => Slot::Header("Now playing"),
+                true => Slot::Header("queue-now-playing"),
                 false => Slot::Track(QueuePosition::Current),
             };
         }
         match index == self.current_end() {
-            true => Slot::Header("Up next"),
+            true => Slot::Header("queue-up-next"),
             false => Slot::Track(QueuePosition::Upcoming(index - self.current_end() - 1)),
         }
     }
@@ -437,7 +438,7 @@ impl QueuePanel {
                         .on_action(cx.listener(|this, _, _, cx| this.dismiss_menu(cx)))
                         .on_dismiss(cx.listener(|this, _, _, cx| this.dismiss_menu(cx)))
                         .item(
-                            MenuItem::new("remove-queued-track", "Remove from queue")
+                            MenuItem::new("remove-queued-track", t!("menu-remove-from-queue"))
                                 .icon("icons/x.svg")
                                 .on_click(cx.listener(move |this, _, _, cx| {
                                     this.queue.update(cx, |queue, cx| {
@@ -464,7 +465,7 @@ impl QueuePanel {
             .px_2()
             .border_b_1()
             .border_color(theme.border)
-            .child(eyebrow("Queue", cx))
+            .child(eyebrow(t!("queue-title"), cx))
             .child(
                 div()
                     .flex()
@@ -488,7 +489,7 @@ impl QueuePanel {
                         Button::new("reset-queue")
                             .ghost()
                             .small()
-                            .label("Reset")
+                            .label(t!("queue-reset"))
                             .tint(theme.muted_foreground)
                             .disabled(!self.queue.read(cx).reordered())
                             .on_click(cx.listener(|this, _, _, cx| {
@@ -499,7 +500,7 @@ impl QueuePanel {
                         Button::new("clear-queue")
                             .ghost()
                             .small()
-                            .label("Clear")
+                            .label(t!("queue-clear"))
                             .tint(theme.muted_foreground)
                             .disabled(sections.upcoming == 0)
                             .on_click(cx.listener(|this, _, _, cx| {
@@ -556,9 +557,7 @@ impl QueuePanel {
                 slots
                     .into_iter()
                     .map(|(index, slot, found)| match (slot, found) {
-                        (Slot::Header(label), _) => {
-                            section_label(label, window, cx).into_any_element()
-                        }
+                        (Slot::Header(key), _) => section_label(key, window, cx).into_any_element(),
                         (Slot::Track(position), Some(found)) => {
                             let drop_line = match (position.upcoming(), drop_gap) {
                                 (Some(queued), Some(gap)) if gap == queued => Some(DropLine::Above),
@@ -641,7 +640,7 @@ impl Render for QueuePanel {
                                 .items_center()
                                 .justify_center()
                                 .text_color(theme.muted_foreground)
-                                .child("Your queue is empty"),
+                                .child(t!("queue-empty")),
                         )
                     })
                     .when(!empty, |this| {
@@ -694,12 +693,12 @@ mod tests {
         assert_eq!(
             slots(sections),
             [
-                Slot::Header("History"),
+                Slot::Header("queue-history"),
                 Slot::Track(QueuePosition::Past(0)),
                 Slot::Track(QueuePosition::Past(1)),
-                Slot::Header("Now playing"),
+                Slot::Header("queue-now-playing"),
                 Slot::Track(QueuePosition::Current),
-                Slot::Header("Up next"),
+                Slot::Header("queue-up-next"),
                 Slot::Track(QueuePosition::Upcoming(0)),
                 Slot::Track(QueuePosition::Upcoming(1)),
             ]
@@ -718,9 +717,9 @@ mod tests {
         assert_eq!(
             slots(sections),
             [
-                Slot::Header("Now playing"),
+                Slot::Header("queue-now-playing"),
                 Slot::Track(QueuePosition::Current),
-                Slot::Header("Up next"),
+                Slot::Header("queue-up-next"),
                 Slot::Track(QueuePosition::Upcoming(0)),
             ]
         );
@@ -737,7 +736,10 @@ mod tests {
         assert_eq!(sections.current_index(), None);
         assert_eq!(
             slots(sections),
-            [Slot::Header("History"), Slot::Track(QueuePosition::Past(0))]
+            [
+                Slot::Header("queue-history"),
+                Slot::Track(QueuePosition::Past(0))
+            ]
         );
     }
 

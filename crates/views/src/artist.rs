@@ -4,6 +4,7 @@ use gpui::{
     Window, div, px,
 };
 
+use i18n::t;
 use spotify::{ReleaseType, Track};
 use state::{ArtistDetail, Playback};
 use ui::ActiveTheme as _;
@@ -26,12 +27,21 @@ enum ReleaseFilter {
 impl ReleaseFilter {
     const ALL: [Self; 4] = [Self::All, Self::Singles, Self::Albums, Self::Eps];
 
-    fn label(self) -> &'static str {
+    fn id(self) -> &'static str {
         match self {
-            Self::All => "All",
-            Self::Albums => "Albums",
-            Self::Singles => "Singles",
-            Self::Eps => "EPs",
+            Self::All => "release-filter-all",
+            Self::Albums => "release-filter-albums",
+            Self::Singles => "release-filter-singles",
+            Self::Eps => "release-filter-eps",
+        }
+    }
+
+    fn label(self) -> SharedString {
+        match self {
+            Self::All => t!("artist-filter-all"),
+            Self::Albums => t!("artist-filter-albums"),
+            Self::Singles => t!("artist-filter-singles"),
+            Self::Eps => t!("artist-filter-eps"),
         }
     }
 
@@ -148,10 +158,10 @@ impl ArtistView {
 
         PageHero::new("artist-hero", title)
             .cover(artist.and_then(|artist| artist.cover_large.clone()))
-            .eyebrow("Artist")
+            .eyebrow(t!("artist-eyebrow"))
             .actions(HeroPlayButton::new(
                 "play-artist",
-                "Play now",
+                t!("artist-play"),
                 self.detail.read(cx).tracks().to_vec(),
                 self.playback.clone(),
             ))
@@ -176,27 +186,22 @@ impl ArtistView {
                     div()
                         .text_size(theme.text(Text::Title))
                         .font_weight(FontWeight::BOLD)
-                        .child("Releases"),
+                        .child(t!("artist-releases")),
                 )
                 .child(
                     div()
                         .flex()
                         .gap_1()
                         .children(ReleaseFilter::ALL.map(|filter| {
-                            Button::new(SharedString::from(format!(
-                                "release-filter-{}",
-                                filter.label().to_lowercase()
-                            )))
-                            .label(filter.label())
-                            .small()
-                            .outline()
-                            .selected(self.release_filter == filter)
-                            .on_click(cx.listener(
-                                move |this, _, _, cx| {
+                            Button::new(filter.id())
+                                .label(filter.label())
+                                .small()
+                                .outline()
+                                .selected(self.release_filter == filter)
+                                .on_click(cx.listener(move |this, _, _, cx| {
                                     this.release_filter = filter;
                                     cx.notify();
-                                },
-                            ))
+                                }))
                         })),
                 )
                 .child(
@@ -249,7 +254,7 @@ impl Render for ArtistView {
                             .pb_3()
                             .text_size(theme.text(Text::Title))
                             .font_weight(FontWeight::BOLD)
-                            .child("Popular"),
+                            .child(t!("artist-popular")),
                     ),
             )
             .child(

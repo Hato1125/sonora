@@ -4,7 +4,7 @@ use gpui::prelude::*;
 use gpui::{
     AbsoluteLength, AnyElement, App, Context, Corners, Div, Entity, EventEmitter, FocusHandle,
     Focusable, Interactivity, MouseButton, MouseDownEvent, Pixels, Point, ScrollHandle,
-    StyleRefinement, TextAlign, Window, actions, anchored, div, point, px, svg,
+    SharedString, StyleRefinement, TextAlign, Window, actions, anchored, div, point, px, svg,
 };
 
 use crate::menu::Menu;
@@ -49,6 +49,13 @@ pub struct ColumnSpec<F: 'static> {
 }
 
 impl<F: 'static> ColumnSpec<F> {
+    pub fn label(&self) -> SharedString {
+        match self.header.is_empty() {
+            true => SharedString::default(),
+            false => i18n::lookup(self.header, None),
+        }
+    }
+
     fn share(&self) -> f32 {
         match self.width {
             Width::Fill(share) => share,
@@ -220,7 +227,7 @@ impl<S: GridSource> GridDelegate<S> {
             .iter()
             .map(|spec| Toggle {
                 key: spec.key,
-                label: spec.header,
+                label: spec.label(),
                 visible: !self.hidden.iter().any(|hidden| hidden == spec.key),
             })
             .collect()
@@ -314,7 +321,7 @@ pub enum GridEvent {
 
 pub struct Toggle {
     pub key: &'static str,
-    pub label: &'static str,
+    pub label: SharedString,
     pub visible: bool,
 }
 
@@ -486,7 +493,7 @@ impl<S: GridSource> GridState<S> {
                     column.width,
                     self.delegate.inner_width(ix),
                     column.spec.align,
-                    column.spec.header,
+                    column.spec.label(),
                     column.spec.sortable,
                     self.delegate.direction(column.spec.field),
                 )

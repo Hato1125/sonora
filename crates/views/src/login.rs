@@ -1,7 +1,8 @@
 use gpui::{
-    Context, Entity, FontWeight, IntoElement, ParentElement as _, Render, Styled as _, Window, div,
-    px,
+    Context, Entity, FontWeight, IntoElement, ParentElement as _, Render, SharedString,
+    Styled as _, Window, div, px,
 };
+use i18n::t;
 use state::{Session, SessionState};
 use ui::ActiveTheme as _;
 use ui::{Button, Text};
@@ -23,11 +24,11 @@ impl Render for LoginView {
         let pending = self.session.read(cx).is_pending();
 
         let status = match &state {
-            SessionState::SignedOut => "Sign in to load your Spotify library".to_owned(),
-            SessionState::Restoring => "Checking your saved session...".to_owned(),
-            SessionState::Authorizing => "Waiting for authorization in your browser...".to_owned(),
-            SessionState::SignedIn(profile) => format!("Signed in as {}", profile.display_name),
-            SessionState::Failed(error) => error.clone(),
+            SessionState::SignedOut => t!("login-signed-out"),
+            SessionState::Restoring => t!("login-restoring"),
+            SessionState::Authorizing => t!("login-authorizing"),
+            SessionState::SignedIn(profile) => t!("login-signed-in", name = &profile.display_name),
+            SessionState::Failed(error) => SharedString::from(error.clone()),
         };
 
         let theme = *cx.theme();
@@ -62,7 +63,7 @@ impl Render for LoginView {
             )
             .child(
                 Button::new("sign-in")
-                    .label("Sign in with Spotify")
+                    .label(t!("login-sign-in"))
                     .primary()
                     .disabled(pending)
                     .on_click(move |_, _, cx| {

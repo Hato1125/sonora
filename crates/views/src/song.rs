@@ -1,5 +1,6 @@
 use gpui::prelude::*;
-use gpui::{AnyElement, Context, Entity, FontWeight, Render, Window, div, px};
+use gpui::{AnyElement, Context, Entity, FontWeight, Render, SharedString, Window, div, px};
+use i18n::t;
 use router::{Destination, Link as _};
 use spotify::{Credit, Track};
 use state::{Playback, SongDetail};
@@ -18,24 +19,24 @@ pub(crate) struct SongView {
 }
 
 impl SongView {
-    fn language_label(code: &str) -> &str {
+    fn language_label(code: &str) -> SharedString {
         match code {
-            "ar" => "Arabic",
-            "de" => "German",
-            "en" => "English",
-            "es" => "Spanish",
-            "fr" => "French",
-            "hi" => "Hindi",
-            "it" => "Italian",
-            "ja" => "Japanese",
-            "ko" => "Korean",
-            "pt" => "Portuguese",
-            "ru" => "Russian",
-            "tr" => "Turkish",
-            "uk" => "Ukrainian",
-            "zh" => "Chinese",
-            "zxx" => "No linguistic content",
-            _ => code,
+            "ar" => t!("language-ar"),
+            "de" => t!("language-de"),
+            "en" => t!("language-en"),
+            "es" => t!("language-es"),
+            "fr" => t!("language-fr"),
+            "hi" => t!("language-hi"),
+            "it" => t!("language-it"),
+            "ja" => t!("language-ja"),
+            "ko" => t!("language-ko"),
+            "pt" => t!("language-pt"),
+            "ru" => t!("language-ru"),
+            "tr" => t!("language-tr"),
+            "uk" => t!("language-uk"),
+            "zh" => t!("language-zh"),
+            "zxx" => t!("language-zxx"),
+            _ => SharedString::from(code.to_owned()),
         }
     }
 
@@ -90,14 +91,14 @@ impl SongView {
             .gap_3()
             .child(HeroPlayButton::new(
                 "play-song",
-                "Play song",
+                t!("song-play"),
                 vec![track.clone()],
                 self.playback.clone(),
             ))
             .when_some(track.album_id.clone(), |this, album_id| {
                 this.child(
                     Button::new("open-album")
-                        .label("View album")
+                        .label(t!("song-view-album"))
                         .outline()
                         .on_click(move |_, _, cx| {
                             router::navigate(Destination::Album(album_id.clone().into()), cx);
@@ -107,7 +108,7 @@ impl SongView {
 
         PageHero::new("song-hero", track.name.clone())
             .cover(cover)
-            .eyebrow("Song")
+            .eyebrow(t!("song-eyebrow"))
             .meta(meta)
             .actions(actions)
             .explicit(track.explicit)
@@ -122,35 +123,38 @@ impl SongView {
         let release = album
             .map(|detail| detail.album.release_date.clone())
             .unwrap_or_default();
-        let release = if release.is_empty() {
-            "Unknown".to_owned()
-        } else {
-            release_date_label(&release)
+        let release = match release.is_empty() {
+            true => t!("common-unknown"),
+            false => release_date_label(&release),
         };
         let label = album
             .map(|detail| detail.album.label.clone())
             .filter(|value| !value.is_empty())
-            .unwrap_or_else(|| "Not provided".to_owned());
+            .map(SharedString::from)
+            .unwrap_or_else(|| t!("common-not-provided"));
         let number = match (track.disc_number, track.track_number) {
-            (disc, number) if disc > 1 => format!("Disc {disc}, track {number}"),
-            (_, number) if number > 0 => format!("Track {number}"),
-            _ => "Not provided".to_owned(),
+            (disc, number) if disc > 1 => t!("song-disc-track", disc = disc, track = number),
+            (_, number) if number > 0 => t!("song-track", track = number),
+            _ => t!("common-not-provided"),
         };
         let streams = self
             .detail
             .read(cx)
             .playcount()
             .map(cells::count)
-            .unwrap_or_else(|| "Not available".to_owned());
+            .unwrap_or_else(|| t!("common-not-available"));
         let facts = [
-            ("Album", album_name),
-            ("Released", release),
-            ("Streams", streams),
-            ("Position", number),
-            ("Label", label),
-            ("Popularity", format!("{}%", track.popularity)),
+            (t!("song-album"), SharedString::from(album_name)),
+            (t!("song-released"), release),
+            (t!("song-streams"), streams),
+            (t!("song-position"), number),
+            (t!("song-label"), label),
+            (
+                t!("song-popularity"),
+                t!("song-popularity-value", value = track.popularity),
+            ),
         ];
-        InfoCard::new("About this song")
+        InfoCard::new(t!("song-about"))
             .stretch()
             .child(
                 div().flex().flex_col().children(
@@ -170,7 +174,7 @@ impl SongView {
                 .iter()
                 .map(|artist| Credit {
                     name: artist.name.clone(),
-                    role: "Performed by".to_owned(),
+                    role: t!("song-performed-by").to_string(),
                     id: artist.id.clone(),
                 })
                 .collect()
@@ -178,7 +182,7 @@ impl SongView {
             track.credits.clone()
         };
         let portraits = self.detail.read(cx).portraits().clone();
-        InfoCard::new("Credits")
+        InfoCard::new(t!("song-credits"))
             .child(
                 div()
                     .flex()
@@ -233,17 +237,18 @@ impl SongView {
     fn discovery(&self, track: &Track, cx: &Context<Self>) -> AnyElement {
         let theme = *cx.theme();
         let tags = track.tags.clone();
-        let languages = if track.languages.is_empty() {
-            "Not provided".to_owned()
-        } else {
-            track
-                .languages
-                .iter()
-                .map(|language| Self::language_label(language))
-                .collect::<Vec<_>>()
-                .join(", ")
+        let languages = match track.languages.is_empty() {
+            true => t!("common-not-provided"),
+            false => SharedString::from(
+                track
+                    .languages
+                    .iter()
+                    .map(|language| Self::language_label(language))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            ),
         };
-        InfoCard::new("Genres & details")
+        InfoCard::new(t!("song-details"))
             .child(
                 div()
                     .flex()
@@ -251,7 +256,7 @@ impl SongView {
                     .gap_1()
                     .child(div().when_else(
                         tags.is_empty(),
-                        |this| this.child(Fact::new("Genres", "Not available")),
+                        |this| this.child(Fact::new(t!("song-genres"), t!("common-not-available"))),
                         |this| {
                             this.child(
                                 div()
@@ -265,7 +270,7 @@ impl SongView {
                                         div()
                                             .flex_none()
                                             .text_color(theme.muted_foreground)
-                                            .child("Genres"),
+                                            .child(t!("song-genres")),
                                     )
                                     .child(
                                         div()
@@ -290,12 +295,12 @@ impl SongView {
                             )
                         },
                     ))
-                    .child(Fact::new("Language", languages).striped(true))
+                    .child(Fact::new(t!("song-language"), languages).striped(true))
                     .child(Fact::new(
-                        "Content",
+                        t!("song-content"),
                         match track.explicit {
-                            true => "Explicit",
-                            false => "Clean",
+                            true => t!("song-explicit"),
+                            false => t!("song-clean"),
                         },
                     )),
             )
@@ -310,7 +315,7 @@ impl SongView {
         let bio = artist
             .biography
             .clone()
-            .unwrap_or_else(|| "Explore the artist's popular songs and releases.".to_owned());
+            .unwrap_or_else(|| t!("song-artist-fallback").to_string());
         let bio = if bio.chars().count() > 360 {
             format!("{}…", bio.chars().take(360).collect::<String>())
         } else {
@@ -341,7 +346,7 @@ impl SongView {
                         .flex_1()
                         .min_w_0()
                         .gap_2()
-                        .child(eyebrow("About the artist", cx))
+                        .child(eyebrow(t!("song-about-artist"), cx))
                         .child(heading(artist.name.clone(), cx))
                         .child(div().text_color(theme.muted_foreground).child(bio)),
                 )
@@ -384,7 +389,7 @@ impl Render for SongView {
                             div()
                                 .py_8()
                                 .text_color(theme.muted_foreground)
-                                .child("Loading song information…"),
+                                .child(t!("song-loading")),
                         )
                     })
                     .when_some(error, |this, error| {
@@ -426,8 +431,8 @@ impl Render for SongView {
                                     .cloned(),
                                 |this, copyright| {
                                     let copyright = match copyright.starts_with(['©', '℗']) {
-                                        true => copyright,
-                                        false => format!("© {copyright}"),
+                                        true => SharedString::from(copyright),
+                                        false => t!("song-copyright", notice = copyright),
                                     };
                                     this.child(
                                         div()

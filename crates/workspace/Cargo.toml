@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 gpui.workspace = true
+i18n.workspace = true
 state.workspace = true
 input.workspace = true
 router.workspace = true

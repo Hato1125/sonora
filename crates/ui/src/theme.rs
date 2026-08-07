@@ -1,6 +1,7 @@
 use std::time::{Duration, Instant};
 
-use gpui::{App, Global, Hsla, Pixels, Rgba, Task, px, rgb, rgba};
+use gpui::{App, Global, Hsla, Pixels, Rgba, SharedString, Task, px, rgb, rgba};
+use i18n::t;
 use serde::{Deserialize, Serialize};
 
 use crate::metrics::{Metrics, Rounding, Text};
@@ -63,16 +64,16 @@ impl ThemeKind {
         }
     }
 
-    pub fn label(self) -> &'static str {
+    pub fn label(self) -> SharedString {
         match self {
-            Self::Dark => "Dark",
-            Self::Light => "Light",
-            Self::Midnight => "Midnight",
-            Self::Forest => "Forest",
-            Self::Ocean => "Ocean",
-            Self::Rose => "Rose",
-            Self::Lavender => "Lavender",
-            Self::Amber => "Amber",
+            Self::Dark => t!("theme-dark"),
+            Self::Light => t!("theme-light"),
+            Self::Midnight => t!("theme-midnight"),
+            Self::Forest => t!("theme-forest"),
+            Self::Ocean => t!("theme-ocean"),
+            Self::Rose => t!("theme-rose"),
+            Self::Lavender => t!("theme-lavender"),
+            Self::Amber => t!("theme-amber"),
         }
     }
 

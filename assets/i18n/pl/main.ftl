@@ -1,0 +1,237 @@
+# common
+common-on = Wł.
+common-off = Wył.
+common-left = Po lewej
+common-right = Po prawej
+common-search = Szukaj
+common-unknown = Nieznane
+common-not-provided = Nie podano
+common-not-available = Brak danych
+number-group = { "\u00A0" }
+
+# navigation
+nav-home = Strona główna
+nav-search = Szukaj
+nav-library = Twoja biblioteka
+nav-settings = Ustawienia
+nav-songs = Utwory
+nav-albums = Albumy
+nav-playlists = Playlisty
+
+# app menu
+app-refresh-library = Odśwież bibliotekę
+app-sign-out = Wyloguj się
+app-quit = Zakończ
+
+# table columns
+column-index = #
+column-title = Tytuł
+column-artist = Wykonawca
+column-album = Album
+column-date-added = Data dodania
+column-length = Czas
+column-plays = Odtworzenia
+column-name = Nazwa
+column-owner = Właściciel
+column-year = Rok
+column-tracks = Utwory
+
+# track menu
+menu-add-to-playlist = Dodaj do playlisty
+menu-new-playlist = Nowa playlista
+menu-no-playlists = Brak playlist
+menu-toggle-library = Dodaj lub usuń z biblioteki
+menu-add-to-queue = Dodaj do kolejki
+menu-song-radio = Radio utworu
+menu-view-details = Szczegóły
+menu-copy-link = Kopiuj link
+menu-remove-from-queue = Usuń z kolejki
+
+# queue panel
+queue-title = Kolejka
+queue-history = Historia
+queue-now-playing = Teraz odtwarzane
+queue-up-next = Następne
+queue-reset = Resetuj
+queue-clear = Wyczyść
+queue-empty = Twoja kolejka jest pusta
+
+# player bar
+player-nothing-playing = Nic nie jest odtwarzane
+player-percent = { $value }%
+
+# filters
+filter-library = Filtruj bibliotekę
+filter-album = Filtruj utwory albumu
+
+# login
+login-signed-out = Zaloguj się, aby wczytać bibliotekę Spotify
+login-restoring = Sprawdzanie zapisanej sesji…
+login-authorizing = Oczekiwanie na autoryzację w przeglądarce…
+login-signed-in = Zalogowano jako { $name }
+login-sign-in = Zaloguj się przez Spotify
+
+# album and playlist pages
+detail-album = Album
+detail-playlist = Playlista
+detail-play-album = Odtwórz album
+detail-play-playlist = Odtwórz playlistę
+
+# play button
+play-pause = Wstrzymaj
+play-resume = Wznów
+play-loading = Ładowanie…
+
+# artist page
+artist-eyebrow = Wykonawca
+artist-play = Odtwórz
+artist-popular = Popularne
+artist-releases = Wydawnictwa
+artist-filter-all = Wszystkie
+artist-filter-albums = Albumy
+artist-filter-singles = Single
+artist-filter-eps = EP
+
+# release kinds
+release-album = Album
+release-single = Singiel
+release-compilation = Kompilacja
+release-ep = EP
+release-audiobook = Audiobook
+release-podcast = Podcast
+release-meta = { $year } • { $kind }
+
+# home page
+home-quick-picks = Szybki wybór
+home-quick-picks-eyebrow = Zacznij od utworu
+
+# search page
+search-placeholder = Czego chcesz posłuchać?
+search-best-match = Najlepszy wynik
+search-no-matches = Brak wyników
+search-results = Wyniki
+search-songs = Utwory
+search-artists = Wykonawcy
+search-albums = Albumy
+search-tagged = { $kind } · { $value }
+search-saved =
+    { $count ->
+        [one] { $count } utwór w bibliotece
+        [few] { $count } utwory w bibliotece
+       *[other] { $count } utworów w bibliotece
+    }
+kind-song = Utwór
+kind-artist = Wykonawca
+kind-album = Album
+
+# song page
+song-eyebrow = Utwór
+song-play = Odtwórz utwór
+song-view-album = Zobacz album
+song-loading = Wczytywanie informacji o utworze…
+song-about = O utworze
+song-album = Album
+song-released = Data wydania
+song-streams = Odtworzenia
+song-position = Pozycja
+song-label = Wytwórnia
+song-popularity = Popularność
+song-popularity-value = { $value }%
+song-disc-track = Płyta { $disc }, utwór { $track }
+song-track = Utwór { $track }
+song-credits = Twórcy
+song-performed-by = Wykonanie
+song-details = Gatunki i szczegóły
+song-genres = Gatunki
+song-language = Język
+song-content = Treść
+song-explicit = Wulgaryzmy
+song-clean = Bez wulgaryzmów
+song-about-artist = O wykonawcy
+song-artist-fallback = Poznaj popularne utwory i wydawnictwa tego wykonawcy.
+song-copyright = © { $notice }
+
+# song languages
+language-ar = Arabski
+language-de = Niemiecki
+language-en = Angielski
+language-es = Hiszpański
+language-fr = Francuski
+language-hi = Hindi
+language-it = Włoski
+language-ja = Japoński
+language-ko = Koreański
+language-pt = Portugalski
+language-ru = Rosyjski
+language-tr = Turecki
+language-uk = Ukraiński
+language-zh = Chiński
+language-zxx = Bez treści językowej
+
+# counts
+count-songs =
+    { $count ->
+        [one] { $count } utwór
+        [few] { $count } utwory
+       *[other] { $count } utworów
+    }
+
+# dates
+date-full = { $day } { $month } { $year }
+month-1 = sty
+month-2 = lut
+month-3 = mar
+month-4 = kwi
+month-5 = maj
+month-6 = cze
+month-7 = lip
+month-8 = sie
+month-9 = wrz
+month-10 = paź
+month-11 = lis
+month-12 = gru
+
+# settings
+settings-tab-appearance = Wygląd
+settings-tab-playback = Odtwarzanie
+settings-tab-account = Konto
+settings-theme = Motyw
+settings-theme-detail = Paleta kolorów aplikacji
+settings-theme-config = Otwórz konfigurację
+settings-adaptive = Motyw adaptacyjny
+settings-adaptive-detail = Zabarw paletę okładką odtwarzanego albumu
+settings-corners = Narożniki
+settings-corners-detail = Jak bardzo zaokrąglone są powierzchnie i kontrolki
+settings-font = Rozmiar czcionki
+settings-font-detail = Bazowy rozmiar tekstu, reszta skaluje się razem z nim
+settings-font-value = { $size } px
+settings-language = Język
+settings-language-detail = Język interfejsu sonora
+settings-language-system = Systemowy
+settings-auto-hide = Automatyczne ukrywanie panelu
+settings-auto-hide-detail = Zwijaj panel boczny, gdy okno staje się wąskie
+settings-window-controls = Przyciski okna
+settings-window-controls-detail = Rysuj minimalizację, maksymalizację i zamknięcie na pasku tytułu
+settings-controls-side = Strona przycisków
+settings-controls-side-detail = Po której stronie paska tytułu znajdują się przyciski
+settings-normalisation = Normalizacja głośności
+settings-normalisation-detail = Utrzymuje stałą głośność utworów
+settings-account = Konto
+settings-account-detail = Wyloguj się ze Spotify na tym urządzeniu
+settings-sign-out = Wyloguj się
+
+# themes
+theme-dark = Ciemny
+theme-light = Jasny
+theme-midnight = Północ
+theme-forest = Las
+theme-ocean = Ocean
+theme-rose = Róża
+theme-lavender = Lawenda
+theme-amber = Bursztyn
+
+# corners
+corners-square = Proste
+corners-subtle = Subtelne
+corners-rounded = Zaokrąglone
+corners-round = Okrągłe
