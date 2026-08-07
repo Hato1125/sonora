@@ -29,6 +29,7 @@ crates/
   ui/         design system: theme, metrics, and reusable elements (gpui only)
   router/     Destination enum, navigation history, Link trait
   input/      text input element + global actions and keybindings
+  i18n/       Fluent localization: the `t!` macro, locale selection, embedded .ftl
 ```
 
 Dependency direction is strict; do not create a back edge:
@@ -37,12 +38,16 @@ Dependency direction is strict; do not create a back edge:
 sonora → views → workspace → state → spotify
                                    → audio
          all ui-side crates → ui, router, input → ui → gpui
+         every ui-side crate → i18n → gpui
 ```
 
-- `ui` depends only on `gpui` + `serde`. It must never know about `spotify`, `state`, or playback.
+- `ui` depends only on `gpui`, `serde` and `i18n`. It must never know about `spotify`, `state`, or
+  playback.
 - `spotify` and `audio` must never depend on `gpui`. They are plain async Rust.
 - `state` depends on `ui` only for `ThemeOverrides`, `MIN_FONT`, `MAX_FONT` (settings persistence).
 - Widgets that need app state (player bar, sidebar) live in `workspace`, not `ui`.
+- `i18n` is a leaf: it depends on `fluent-bundle`, `unic-langid`, `sys-locale` and `gpui` (for
+  `SharedString`) and on nothing else in the workspace.
 
 ## Building
 
@@ -223,6 +228,35 @@ theme.metrics.row / .header / .pad / .inset / .control / .field
 - Eight themes exist (`ThemeKind::ALL`). `ocean`/`rose`/`lavender`/`amber` are derived by mutating
   `midnight()`/`dark()`; follow that pattern rather than writing a full palette.
 - Users can override any token via `settings.json`; `Theme::set` re-renders all windows.
+
+## Localization
+
+Every user-facing string comes from Fluent. **Never render a bare English literal**; add a key to
+`assets/i18n/en-US/main.ftl` and translate it in `ru`, `uk` and `pl` — a test in `crates/i18n`
+fails if the key sets diverge.
+
+```rust
+use i18n::t;
+
+t!("song-credits")                                   // -> SharedString
+t!("song-disc-track", disc = disc, track = number)   // named args, any number or &str
+i18n::lookup(key, None)                              // when the key is a runtime &str
+```
+
+- The `.ftl` files are embedded with `include_str!` in `crates/i18n/src/language.rs`, so they do
+  **not** go through `crates/sonora/src/assets.rs`.
+- Keys are scoped by area: `nav-`, `column-`, `menu-`, `queue-`, `player-`, `search-`, `song-`,
+  `settings-`, `theme-`, `common-`. Values stay natural case — `ui::eyebrow()` / `ui::upper()`
+  do the shouting.
+- Counts use Fluent selectors (`{ $count -> [one] … [few] … *[other] … }`), never string
+  concatenation; ru/uk/pl need `one`/`few`/`other` to be right.
+- Dates are assembled from `month-1`..`month-12` plus `date-full`, never `strftime`.
+- A missing key logs `i18n: … is missing` and falls back to English, then to the key itself.
+- `ColumnSpec::header` and `Slot::Header` hold a **key**, not a label; call `ColumnSpec::label()`.
+- Developer-facing text — `.context("cannot …")`, `log::warn!`, `PlaybackState::Failed` — stays
+  in English. So do wire values in `crates/spotify`.
+- The language lives in `settings.json` (`language`, default `"auto"`). Changing it calls
+  `i18n::set` then `cx.refresh_windows()`, the same way `Theme::set` repaints.
 
 ## Breakpoints and content width
 
