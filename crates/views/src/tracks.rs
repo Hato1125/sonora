@@ -2,12 +2,14 @@ use std::cmp::Ordering;
 use std::rc::Rc;
 use ui::ActiveTheme as _;
 
-use gpui::{AnyElement, App, ClipboardItem, Entity, Hsla, Styled as _, TextAlign};
+use gpui::{AnyElement, App, ClipboardItem, Entity, Hsla, Styled as _, TextAlign, WeakEntity};
 use jiff::Timestamp;
 use router::{Destination, navigate};
 use spotify::Track;
 use state::{LibraryState, Playback, PlaybackState, Sonora};
-use ui::{Cell, ColumnSpec, GridSource, Menu, MenuItem, Scrollbar, SubmenuState, Width, clock};
+use ui::{
+    Cell, ColumnSpec, GridSource, GridState, Menu, MenuItem, Scrollbar, SubmenuState, Width, clock,
+};
 
 use crate::cells::{self, ALWAYS, DATE, NUMBER, ROOMY, SNUG, TRAILING, WIDE};
 
@@ -265,11 +267,21 @@ impl TrackMenu {
     }
 }
 
+pub(crate) fn ordered(table: &Entity<GridState<TrackSource>>, cx: &App) -> Vec<Track> {
+    let state = table.read(cx);
+    let delegate = state.delegate();
+
+    (0..delegate.row_count())
+        .filter_map(|display| delegate.source().at(delegate.row(display), cx))
+        .collect()
+}
+
 pub(crate) struct TrackSource {
     columns: &'static [ColumnSpec<TrackField>],
     provider: Rc<dyn Tracks>,
     playback: Entity<Playback>,
     menu: TrackMenu,
+    table: Option<WeakEntity<GridState<TrackSource>>>,
 }
 
 impl TrackSource {
@@ -284,7 +296,13 @@ impl TrackSource {
             provider: Rc::new(provider),
             playback,
             menu: TrackMenu::new(playlist_scrollbar),
+            table: None,
         }
+    }
+
+    pub(crate) fn table(mut self, table: WeakEntity<GridState<TrackSource>>) -> Self {
+        self.table = Some(table);
+        self
     }
 
     fn artist_cell(&self, cell: &Cell<TrackField>, track: &Track, color: Hsla) -> AnyElement {
@@ -321,11 +339,18 @@ impl TrackSource {
                     playback.update(cx, |playback, _| playback.preload(&preload_track));
                 }));
                 let provider = self.provider.clone();
+                let table = self.table.clone();
                 let row = cell.row;
-                let press = cells::toggle(&self.playback, state.clone(), move |playback, cx| {
-                    let queued = provider.tracks(cx).to_vec();
-                    playback.start(queued, row, cx)
-                });
+                let display = cell.display;
+                let press =
+                    cells::toggle(
+                        &self.playback,
+                        state.clone(),
+                        move |playback, cx| match table.as_ref().and_then(|table| table.upgrade()) {
+                            Some(table) => playback.start(ordered(&table, cx), display, cx),
+                            None => playback.start(provider.tracks(cx).to_vec(), row, cx),
+                        },
+                    );
                 (preload, press)
             }
         };
