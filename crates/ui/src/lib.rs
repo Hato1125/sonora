@@ -30,7 +30,8 @@ pub use explicit::ExplicitBadge;
 pub use filters::{FlagAxis, RangeAxis, RangeScrubber, RangeState, Unit};
 pub use grid::{
     Cell, ColumnSpec, Deselect, GRID_CONTEXT, Grid, GridDelegate, GridEvent, GridSource, GridState,
-    ROW_GROUP, SelectNext, SelectPrevious, Sort, Toggle, Viewport, Width, grid,
+    Layout, ROW_GROUP, SelectNext, SelectPrevious, Sort, Sorting, Table, Toggle, Viewport, Width,
+    grid,
 };
 pub use info_card::{Fact, InfoCard};
 pub use inline_links::{InlineLink, InlineLinks};

@@ -269,12 +269,15 @@ pub(crate) fn artists<F>(
     color: Hsla,
 ) -> AnyElement {
     cell.frame()
-        .child(artist_links(
-            SharedString::from(format!("artist-{}", cell.row)),
-            artists,
-            fallback,
-            color,
-        ))
+        .child(
+            artist_links(
+                SharedString::from(format!("artist-{}", cell.row)),
+                artists,
+                fallback,
+                color,
+            )
+            .truncate(),
+        )
         .into_any_element()
 }
 

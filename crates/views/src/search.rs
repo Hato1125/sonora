@@ -119,7 +119,9 @@ impl SearchView {
 
     fn subtitle(&self, hit: &Hit, place: usize, compact: bool, theme: &Theme) -> AnyElement {
         let links = |id: String, artists, fallback| {
-            cells::artist_links(id, artists, fallback, theme.muted_foreground).into_any_element()
+            cells::artist_links(id, artists, fallback, theme.muted_foreground)
+                .truncate()
+                .into_any_element()
         };
 
         match (compact, hit) {
@@ -239,7 +241,8 @@ impl SearchView {
                     meta(hit, false),
                     theme.muted_foreground,
                 )
-                .text_size(theme.text(Text::Small)),
+                .text_size(theme.text(Text::Small))
+                .truncate(),
             )
             .flat()
             .gap_4()

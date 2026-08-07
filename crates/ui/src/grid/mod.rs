@@ -1,79 +1,34 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+mod layout;
+
+use std::cell::Cell as StdCell;
 use std::cmp::Ordering;
 
 use gpui::prelude::*;
 use gpui::{
-    AbsoluteLength, AnyElement, App, Context, Corners, Div, Entity, EventEmitter, FocusHandle,
-    Focusable, Interactivity, MouseButton, MouseDownEvent, Pixels, Point, ScrollHandle,
-    SharedString, StyleRefinement, TextAlign, Window, actions, anchored, div, point, px, svg,
+    AbsoluteLength, AnyElement, App, Context, Corners, Div, DragMoveEvent, Empty, Entity,
+    EventEmitter, FocusHandle, Focusable, Interactivity, MouseButton, MouseDownEvent, MouseUpEvent,
+    Pixels, Point, ScrollHandle, SharedString, Stateful, StyleRefinement, TextAlign, Window,
+    actions, anchored, div, point, px, svg,
 };
 
 use crate::menu::Menu;
-use crate::metrics::{Metrics, snapped};
+use crate::metrics::{snapped, text_width};
 use crate::theme::ActiveTheme as _;
+
+pub use layout::{ColumnSpec, Layout, Sort, Sorting, Width};
+use layout::{PADDING, Resolved, SORT_ROOM, TRAIL, reordered, resolve, shifted, stretch};
 
 actions!(grid, [SelectNext, SelectPrevious, Deselect]);
 
 pub const GRID_CONTEXT: &str = "Grid";
 
-const PADDING: Pixels = px(8.);
-const TRAIL: Pixels = px(4.);
 const MIN_CELL: Pixels = px(24.);
-const MIN_FLEXIBLE: Pixels = px(120.);
-const SLACK: Pixels = px(2.);
+const GRIP: Pixels = px(9.);
 const OVERSCAN: usize = 2;
 
 pub const ROW_GROUP: &str = "grid-row";
-
-#[derive(Clone, Copy)]
-pub enum Width {
-    Fixed(Pixels),
-    Fill(f32),
-    Thumb,
-}
-
-#[derive(Clone, Copy, PartialEq)]
-pub enum Sort {
-    Ascending,
-    Descending,
-}
-
-pub struct ColumnSpec<F: 'static> {
-    pub field: F,
-    pub key: &'static str,
-    pub header: &'static str,
-    pub align: TextAlign,
-    pub width: Width,
-    pub flush: bool,
-    pub sortable: bool,
-    pub hide_below: Pixels,
-}
-
-impl<F: 'static> ColumnSpec<F> {
-    pub fn label(&self) -> SharedString {
-        match self.header.is_empty() {
-            true => SharedString::default(),
-            false => i18n::lookup(self.header, None),
-        }
-    }
-
-    fn share(&self) -> f32 {
-        match self.width {
-            Width::Fill(share) => share,
-            _ => 0.,
-        }
-    }
-
-    fn resolve(&self, flexible: Pixels, shares: f32, metrics: Metrics) -> Pixels {
-        match self.width {
-            Width::Fixed(width) => width,
-            Width::Thumb => metrics.thumb + metrics.pad * 2.,
-            Width::Fill(share) if shares > 0. => flexible * (share / shares),
-            Width::Fill(_) => Pixels::ZERO,
-        }
-    }
-}
 
 pub struct Cell<F> {
     pub field: F,
@@ -128,24 +83,20 @@ pub trait GridSource: 'static {
 }
 
 fn frame(width: Pixels, align: TextAlign) -> Div {
-    let frame = div().w(width).flex_none().min_w_0();
-    match align {
-        TextAlign::Left => frame.truncate(),
-        TextAlign::Center => frame.flex().justify_center(),
-        TextAlign::Right => frame.flex().justify_end(),
-    }
-}
-
-struct Resolved<F: 'static> {
-    spec: &'static ColumnSpec<F>,
-    width: Pixels,
+    div()
+        .w(width)
+        .flex_none()
+        .min_w_0()
+        .truncate()
+        .text_align(align)
 }
 
 pub struct GridDelegate<S: GridSource> {
     source: S,
     columns: Vec<Resolved<S::Field>>,
     width: Pixels,
-    hidden: Vec<String>,
+    layout: Layout,
+    heads: Vec<Pixels>,
     selected: Option<usize>,
     sort: Option<(S::Field, Sort)>,
     filter: String,
@@ -154,12 +105,20 @@ pub struct GridDelegate<S: GridSource> {
 
 impl<S: GridSource> GridDelegate<S> {
     pub fn new(source: S, width: Pixels, cx: &App) -> Self {
-        let columns = build(source.columns(), width, cx.theme().metrics, &[]);
+        let heads = vec![Pixels::ZERO; source.columns().len()];
+        let columns = resolve(
+            source.columns(),
+            width,
+            cx.theme().metrics,
+            &Layout::default(),
+            &heads,
+        );
         let mut delegate = Self {
             source,
             columns,
             width,
-            hidden: Vec::new(),
+            layout: Layout::default(),
+            heads,
             selected: None,
             sort: None,
             filter: String::new(),
@@ -167,6 +126,21 @@ impl<S: GridSource> GridDelegate<S> {
         };
         delegate.reorder(cx);
         delegate
+    }
+
+    fn measure(&mut self, window: &Window, cx: &App) {
+        let heads: Vec<Pixels> = self
+            .source
+            .columns()
+            .iter()
+            .map(|spec| text_width(spec.label(), window))
+            .collect();
+        if heads == self.heads {
+            return;
+        }
+
+        self.heads = heads;
+        self.relayout(cx);
     }
 
     pub fn source(&self) -> &S {
@@ -214,21 +188,49 @@ impl<S: GridSource> GridDelegate<S> {
     }
 
     fn relayout(&mut self, cx: &App) {
-        self.columns = build(
+        self.columns = resolve(
             self.source.columns(),
             self.width,
             cx.theme().metrics,
-            &self.hidden,
+            &self.layout,
+            &self.heads,
         );
     }
 
-    pub fn hidden(&self) -> &[String] {
-        &self.hidden
+    pub fn layout(&self) -> &Layout {
+        &self.layout
     }
 
-    pub fn set_hidden(&mut self, hidden: Vec<String>, cx: &App) {
-        self.hidden = hidden;
+    pub fn set_layout(&mut self, layout: Layout, cx: &App) {
+        self.layout = layout;
         self.relayout(cx);
+    }
+
+    pub fn sorting(&self) -> Option<Sorting> {
+        let (field, order) = self.sort?;
+        let column = self
+            .source
+            .columns()
+            .iter()
+            .find(|spec| spec.field == field)?;
+
+        Some(Sorting {
+            column: column.key.to_owned(),
+            order,
+        })
+    }
+
+    pub fn set_sorting(&mut self, sorting: Option<Sorting>, cx: &App) {
+        self.sort = sorting.and_then(|sorting| {
+            let column = self
+                .source
+                .columns()
+                .iter()
+                .filter(|spec| spec.sortable)
+                .find(|spec| spec.key == sorting.column)?;
+            Some((column.field, sorting.order))
+        });
+        self.reorder(cx);
     }
 
     pub fn toggles(&self) -> Vec<Toggle> {
@@ -238,7 +240,7 @@ impl<S: GridSource> GridDelegate<S> {
             .map(|spec| Toggle {
                 key: spec.key,
                 label: spec.label(),
-                visible: !self.hidden.iter().any(|hidden| hidden == spec.key),
+                visible: !self.layout.hides(spec.key),
             })
             .collect()
     }
@@ -280,6 +282,14 @@ impl<S: GridSource> GridDelegate<S> {
         (self.columns[col_ix].width - PADDING * 2. - gutter).max(MIN_CELL)
     }
 
+    fn offset(&self, col_ix: usize) -> Pixels {
+        self.columns
+            .iter()
+            .take(col_ix)
+            .map(|column| column.width)
+            .fold(Pixels::ZERO, |total, width| total + width)
+    }
+
     fn direction(&self, field: S::Field) -> Option<Sort> {
         self.sort
             .filter(|(sorted, _)| *sorted == field)
@@ -287,57 +297,10 @@ impl<S: GridSource> GridDelegate<S> {
     }
 }
 
-fn build<F: Copy + PartialEq + 'static>(
-    specs: &'static [ColumnSpec<F>],
-    room: Pixels,
-    metrics: Metrics,
-    hidden: &[String],
-) -> Vec<Resolved<F>> {
-    let available = (room - SLACK).max(MIN_FLEXIBLE);
-    let mut visible: Vec<_> = specs
-        .iter()
-        .filter(|spec| available >= spec.hide_below)
-        .filter(|spec| !hidden.iter().any(|key| key == spec.key))
-        .collect();
-    if visible.is_empty() {
-        visible.extend(specs.iter().take(1));
-    }
-
-    let fixed = visible
-        .iter()
-        .map(|spec| spec.resolve(Pixels::ZERO, 0., metrics))
-        .fold(Pixels::ZERO, |total, width| total + width);
-    let shares: f32 = visible.iter().map(|spec| spec.share()).sum();
-    let flexible = (available - fixed).max(MIN_FLEXIBLE);
-
-    let mut columns: Vec<Resolved<F>> = visible
-        .iter()
-        .map(|spec| Resolved {
-            spec,
-            width: spec.resolve(flexible, shares, metrics),
-        })
-        .collect();
-
-    let total = columns
-        .iter()
-        .map(|column| column.width)
-        .fold(Pixels::ZERO, |total, width| total + width);
-    let leftover = available - total;
-    let stretchy = visible
-        .iter()
-        .rposition(|spec| spec.share() > 0.)
-        .unwrap_or(visible.len().saturating_sub(1));
-    if leftover > Pixels::ZERO {
-        if let Some(column) = columns.get_mut(stretchy) {
-            column.width += leftover;
-        }
-    }
-
-    columns
-}
-
 pub enum GridEvent {
     DoubleClicked(usize),
+    LayoutChanged,
+    SortChanged,
 }
 
 pub struct Toggle {
@@ -362,6 +325,23 @@ impl Viewport {
     }
 }
 
+#[derive(Clone)]
+struct Grip {
+    column: usize,
+    origin: StdCell<Pixels>,
+}
+
+#[derive(Clone)]
+struct Haul {
+    column: usize,
+    origin: StdCell<Pixels>,
+}
+
+struct Sizing {
+    column: usize,
+    widths: Vec<Pixels>,
+}
+
 pub struct GridState<S: GridSource> {
     delegate: GridDelegate<S>,
     viewport: Viewport,
@@ -369,6 +349,8 @@ pub struct GridState<S: GridSource> {
     focus: FocusHandle,
     scroll: Option<ScrollHandle>,
     context_menu: Option<(usize, Point<Pixels>)>,
+    moving: Option<(usize, usize)>,
+    sizing: Option<Sizing>,
 }
 
 impl<S: GridSource> EventEmitter<GridEvent> for GridState<S> {}
@@ -388,6 +370,8 @@ impl<S: GridSource> GridState<S> {
             focus: cx.focus_handle(),
             scroll: None,
             context_menu: None,
+            moving: None,
+            sizing: None,
         }
     }
 
@@ -498,30 +482,119 @@ impl<S: GridSource> GridState<S> {
             Some(Sort::Descending) => None,
         };
         self.delegate.rebuild(cx);
+        cx.emit(GridEvent::SortChanged);
+        cx.notify();
+    }
+
+    fn resize(&mut self, grip: &Grip, to: Pixels, cx: &mut Context<Self>) {
+        let start = match &self.sizing {
+            Some(sizing) if sizing.column == grip.column => sizing.widths.clone(),
+            _ => {
+                let widths: Vec<Pixels> = self.delegate.columns.iter().map(|it| it.width).collect();
+                self.sizing = Some(Sizing {
+                    column: grip.column,
+                    widths: widths.clone(),
+                });
+                widths
+            }
+        };
+        if start.len() != self.delegate.columns.len() {
+            return;
+        }
+
+        let anchor: Vec<Resolved<S::Field>> = self
+            .delegate
+            .columns
+            .iter()
+            .zip(&start)
+            .map(|(column, width)| Resolved {
+                spec: column.spec,
+                width: *width,
+                floor: column.floor,
+            })
+            .collect();
+        let Some(widths) = stretch(&anchor, grip.column, to - grip.origin.get()) else {
+            return;
+        };
+
+        let mut layout = self.delegate.layout.clone();
+        layout.widths.extend(widths);
+        self.delegate.set_layout(layout, cx);
+        cx.emit(GridEvent::LayoutChanged);
+        cx.notify();
+    }
+
+    fn haul(&mut self, haul: &Haul, to: Pixels, cx: &mut Context<Self>) {
+        let target = shifted(&self.delegate.columns, haul.column, to - haul.origin.get());
+        if self.moving == Some((haul.column, target)) {
+            return;
+        }
+        self.moving = Some((haul.column, target));
+        cx.notify();
+    }
+
+    fn settle(&mut self, cx: &mut Context<Self>) {
+        self.sizing = None;
+        let Some((from, to)) = self.moving.take() else {
+            return;
+        };
+        if from == to {
+            cx.notify();
+            return;
+        }
+
+        let mut layout = self.delegate.layout.clone();
+        layout.order = reordered(&self.delegate.columns, from, to);
+        self.delegate.set_layout(layout, cx);
+        cx.emit(GridEvent::LayoutChanged);
         cx.notify();
     }
 
     fn header(&self, head: Pixels, top: Corners<Pixels>, cx: &mut Context<Self>) -> Div {
         let theme = *cx.theme();
+        let last = self.delegate.columns.len().saturating_sub(1);
         let heads: Vec<_> = self
             .delegate
             .columns
             .iter()
             .enumerate()
             .map(|(ix, column)| {
+                let sortable = column.spec.sortable;
+                let room = match sortable {
+                    true => SORT_ROOM,
+                    false => Pixels::ZERO,
+                };
                 (
                     ix,
                     column.width,
-                    self.delegate.inner_width(ix),
+                    self.delegate.inner_width(ix) - room,
                     column.spec.align,
                     column.spec.label(),
-                    column.spec.sortable,
+                    sortable,
                     self.delegate.direction(column.spec.field),
+                    !column.spec.anchored,
                 )
             })
             .collect();
+        let marker = self.moving.and_then(|(from, to)| {
+            let column = self.delegate.columns.get(to)?;
+            (from != to).then(|| match to > from {
+                true => self.delegate.offset(to) + column.width,
+                false => self.delegate.offset(to),
+            })
+        });
+        let grips: Vec<(usize, Pixels)> = self
+            .delegate
+            .columns
+            .iter()
+            .enumerate()
+            .take(last)
+            .filter(|(_, column)| !column.spec.anchored)
+            .map(|(ix, _)| (ix, self.delegate.offset(ix + 1)))
+            .collect();
 
         div()
+            .relative()
             .flex()
             .flex_none()
             .h(head)
@@ -531,10 +604,20 @@ impl<S: GridSource> GridState<S> {
             .border_b_1()
             .border_color(theme.table_row_border)
             .text_color(theme.table_head_foreground)
+            .on_mouse_up(
+                MouseButton::Left,
+                cx.listener(|this, _: &MouseUpEvent, _, cx| this.settle(cx)),
+            )
+            .on_mouse_up_out(
+                MouseButton::Left,
+                cx.listener(|this, _: &MouseUpEvent, _, cx| this.settle(cx)),
+            )
             .children(heads.into_iter().map(
-                |(ix, width, inner, align, header, sortable, direction)| {
+                |(ix, width, inner, align, header, sortable, direction, movable)| {
+                    let dragged = self.moving.is_some_and(|(from, _)| from == ix);
                     div()
                         .id(("head", ix))
+                        .relative()
                         .flex()
                         .flex_none()
                         .items_center()
@@ -542,17 +625,43 @@ impl<S: GridSource> GridState<S> {
                         .w(width)
                         .h_full()
                         .px(PADDING)
+                        .overflow_hidden()
+                        .when(dragged, |this| this.bg(theme.table_active))
                         .when(sortable, |this| {
                             this.cursor_pointer()
                                 .hover(move |style| style.text_color(theme.foreground))
-                                .on_mouse_down(
+                                .on_mouse_up(
                                     MouseButton::Left,
-                                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                                        this.toggle_sort(ix, cx)
+                                    cx.listener(move |this, _: &MouseUpEvent, _, cx| {
+                                        if this.moving.is_some() || this.sizing.is_some() {
+                                            return;
+                                        }
+                                        this.toggle_sort(ix, cx);
                                     }),
                                 )
                         })
-                        .child(frame(inner - sort_room(sortable), align).child(header))
+                        .when(movable, |this| {
+                            this.on_drag_move(cx.listener(
+                                move |this, event: &DragMoveEvent<Haul>, _, cx| {
+                                    let haul = event.drag(cx).clone();
+                                    if haul.column != ix {
+                                        return;
+                                    }
+                                    this.haul(&haul, event.event.position.x, cx);
+                                },
+                            ))
+                            .on_drag(
+                                Haul {
+                                    column: ix,
+                                    origin: StdCell::new(Pixels::ZERO),
+                                },
+                                |haul, _, window, cx| {
+                                    haul.origin.set(window.mouse_position().x);
+                                    cx.new(|_| Empty)
+                                },
+                            )
+                        })
+                        .child(frame(inner, align).child(header))
                         .when(sortable, |this| {
                             this.child(
                                 svg()
@@ -567,6 +676,18 @@ impl<S: GridSource> GridState<S> {
                         })
                 },
             ))
+            .children(grips.into_iter().map(|(ix, edge)| grip(ix, edge, cx)))
+            .when_some(marker, |this, marker| {
+                this.child(
+                    div()
+                        .absolute()
+                        .top_0()
+                        .bottom_0()
+                        .left(marker - px(1.))
+                        .w(px(2.))
+                        .bg(theme.foreground),
+                )
+            })
     }
 
     fn rows(&self, head: Pixels, row_height: Pixels, cx: &mut Context<Self>) -> Vec<AnyElement> {
@@ -657,6 +778,37 @@ impl<S: GridSource> GridState<S> {
     }
 }
 
+fn grip<S: GridSource>(ix: usize, edge: Pixels, cx: &mut Context<GridState<S>>) -> Stateful<Div> {
+    div()
+        .id(("grip", ix))
+        .occlude()
+        .absolute()
+        .top_0()
+        .bottom_0()
+        .left(edge - GRIP / 2.)
+        .w(GRIP)
+        .cursor_col_resize()
+        .on_drag_move(cx.listener(
+            move |this, event: &DragMoveEvent<Grip>, _, cx: &mut Context<GridState<S>>| {
+                let grip = event.drag(cx).clone();
+                if grip.column != ix {
+                    return;
+                }
+                this.resize(&grip, event.event.position.x, cx);
+            },
+        ))
+        .on_drag(
+            Grip {
+                column: ix,
+                origin: StdCell::new(Pixels::ZERO),
+            },
+            |grip, _, window, cx| {
+                grip.origin.set(window.mouse_position().x);
+                cx.new(|_| Empty)
+            },
+        )
+}
+
 fn unpinned(corners: Corners<Pixels>, pinned: Pixels) -> Corners<Pixels> {
     Corners {
         top_left: (corners.top_left - pinned).max(Pixels::ZERO),
@@ -681,10 +833,6 @@ fn radii(style: &StyleRefinement, rem: Pixels) -> Corners<Pixels> {
     }
 }
 
-fn sort_room(sortable: bool) -> Pixels {
-    if sortable { px(16.) } else { Pixels::ZERO }
-}
-
 fn sort_icon(direction: Option<Sort>) -> &'static str {
     match direction {
         Some(Sort::Ascending) => "icons/chevron-up.svg",
@@ -695,6 +843,8 @@ fn sort_icon(direction: Option<Sort>) -> &'static str {
 
 impl<S: GridSource> Render for GridState<S> {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.delegate.measure(window, cx);
+
         let metrics = cx.theme().metrics;
         let backdrop = cx.theme().background;
         let row = snapped(metrics.row, window);
@@ -784,5 +934,77 @@ pub fn grid<S: GridSource>(state: &Entity<GridState<S>>) -> Grid<S> {
     Grid {
         base: div(),
         state: state.clone(),
+    }
+}
+
+pub trait Table {
+    fn layout(&self, cx: &App) -> Layout;
+    fn set_layout(&self, layout: Layout, cx: &mut App);
+    fn sorting(&self, cx: &App) -> Option<Sorting>;
+    fn set_sorting(&self, sorting: Option<Sorting>, cx: &mut App);
+    fn toggles(&self, cx: &App) -> Vec<Toggle>;
+    fn set_width(&self, width: Pixels, cx: &mut App);
+    fn set_filter(&self, query: &str, cx: &mut App);
+    fn set_viewport(&self, viewport: Viewport, cx: &mut App);
+    fn rebuild(&self, cx: &mut App);
+    fn refresh(&self, cx: &mut App);
+    fn element(&self) -> AnyElement;
+}
+
+impl<S: GridSource> Table for Entity<GridState<S>> {
+    fn layout(&self, cx: &App) -> Layout {
+        self.read(cx).delegate().layout().clone()
+    }
+
+    fn set_layout(&self, layout: Layout, cx: &mut App) {
+        self.update(cx, |table, cx| {
+            table.delegate_mut().set_layout(layout, cx);
+            table.refresh(cx);
+        });
+    }
+
+    fn sorting(&self, cx: &App) -> Option<Sorting> {
+        self.read(cx).delegate().sorting()
+    }
+
+    fn set_sorting(&self, sorting: Option<Sorting>, cx: &mut App) {
+        self.update(cx, |table, cx| {
+            table.delegate_mut().set_sorting(sorting, cx);
+            table.refresh(cx);
+        });
+    }
+
+    fn toggles(&self, cx: &App) -> Vec<Toggle> {
+        self.read(cx).delegate().toggles()
+    }
+
+    fn set_width(&self, width: Pixels, cx: &mut App) {
+        self.update(cx, |table, cx| {
+            table.delegate_mut().set_width(width, cx);
+            table.refresh(cx);
+        });
+    }
+
+    fn set_filter(&self, query: &str, cx: &mut App) {
+        self.update(cx, |table, cx| {
+            table.delegate_mut().set_filter(query, cx);
+            table.refresh(cx);
+        });
+    }
+
+    fn set_viewport(&self, viewport: Viewport, cx: &mut App) {
+        self.update(cx, |table, _| table.set_viewport(viewport));
+    }
+
+    fn rebuild(&self, cx: &mut App) {
+        self.update(cx, |table, cx| table.rebuild(cx));
+    }
+
+    fn refresh(&self, cx: &mut App) {
+        self.update(cx, |table, cx| table.refresh(cx));
+    }
+
+    fn element(&self) -> AnyElement {
+        grid(self).into_any_element()
     }
 }

@@ -2,13 +2,29 @@
 
 use gpui::{App, Entity, Pixels, ScrollHandle, Window, px};
 
-use state::Playback;
-use ui::{GridState, Viewport, scrolled};
+use state::{AppSettings, Playback};
+use ui::{GridState, Table, Viewport, scrolled};
 
 use crate::cells;
 use crate::tracks::{self, TrackSource};
 
 const FRAME: Pixels = px(1.);
+
+pub(crate) fn store(
+    settings: &Entity<AppSettings>,
+    table: &dyn Table,
+    layout_key: &str,
+    sort_key: &str,
+    cx: &mut App,
+) {
+    let layout = table.layout(cx);
+    let sorting = table.sorting(cx);
+
+    settings.update(cx, |settings, cx| {
+        settings.set_table(layout_key, layout, cx);
+        settings.set_sorting(sort_key, sorting, cx);
+    });
+}
 
 pub(crate) fn reserved(inset: Pixels) -> Pixels {
     inset * 2. + px(2.)
@@ -25,7 +41,7 @@ pub(crate) fn play(
 }
 
 pub(crate) fn resize(
-    table: &Entity<GridState<TrackSource>>,
+    table: &dyn Table,
     width: &mut Pixels,
     inset: Pixels,
     window: &Window,
@@ -36,10 +52,7 @@ pub(crate) fn resize(
         return;
     }
     *width = next;
-    table.update(cx, |table, cx| {
-        table.delegate_mut().set_width(next, cx);
-        table.refresh(cx);
-    });
+    table.set_width(next, cx);
 }
 
 pub(crate) fn viewport(scroll: &ScrollHandle, inset: Pixels, window: &Window) -> Viewport {
