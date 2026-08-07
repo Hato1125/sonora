@@ -2,3 +2,4 @@
 /result
 /.direnv
 /vendor
+__pycache__/
