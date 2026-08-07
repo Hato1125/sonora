@@ -21,7 +21,7 @@ pub(super) const COLUMNS: &[ColumnSpec<PlaylistField>] = &[
     ColumnSpec {
         field: PlaylistField::Index,
         key: "index",
-        header: "#",
+        header: "column-index",
         align: TextAlign::Center,
         width: Width::Fixed(NUMBER),
         flush: false,
@@ -41,7 +41,7 @@ pub(super) const COLUMNS: &[ColumnSpec<PlaylistField>] = &[
     ColumnSpec {
         field: PlaylistField::Name,
         key: "name",
-        header: "Name",
+        header: "column-name",
         align: TextAlign::Left,
         width: Width::Fill(0.55),
         flush: false,
@@ -51,7 +51,7 @@ pub(super) const COLUMNS: &[ColumnSpec<PlaylistField>] = &[
     ColumnSpec {
         field: PlaylistField::Owner,
         key: "owner",
-        header: "Owner",
+        header: "column-owner",
         align: TextAlign::Left,
         width: Width::Fill(0.45),
         flush: false,
@@ -61,7 +61,7 @@ pub(super) const COLUMNS: &[ColumnSpec<PlaylistField>] = &[
     ColumnSpec {
         field: PlaylistField::TrackCount,
         key: "tracks",
-        header: "Tracks",
+        header: "column-tracks",
         align: TextAlign::Right,
         width: Width::Fixed(TRAILING),
         flush: false,

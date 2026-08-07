@@ -11,24 +11,24 @@ use router::{Destination, LibraryTab, Navigation, NavigationEvent, navigate};
 use state::{AppSettings, Sonora};
 
 const NAV: [(&str, &str, Option<Destination>); 4] = [
-    ("Home", "icons/house.svg", Some(Destination::Home)),
-    ("Search", "icons/search.svg", Some(Destination::Search)),
+    ("nav-home", "icons/house.svg", Some(Destination::Home)),
+    ("nav-search", "icons/search.svg", Some(Destination::Search)),
     (
-        "Your Library",
+        "nav-library",
         "icons/library-big.svg",
         Some(Destination::Library(LibraryTab::Songs)),
     ),
     (
-        "Settings",
+        "nav-settings",
         "icons/settings.svg",
         Some(Destination::Settings),
     ),
 ];
 
 const TABS: [(&str, LibraryTab); 3] = [
-    ("Songs", LibraryTab::Songs),
-    ("Albums", LibraryTab::Albums),
-    ("Playlists", LibraryTab::Playlists),
+    ("nav-songs", LibraryTab::Songs),
+    ("nav-albums", LibraryTab::Albums),
+    ("nav-playlists", LibraryTab::Playlists),
 ];
 
 const MIN_WIDTH: Pixels = px(130.);
@@ -138,7 +138,7 @@ impl Render for Sidebar {
         self.adapt(window, cx);
 
         let mut rows: Vec<AnyElement> = Vec::new();
-        for (index, (label, icon, destination)) in NAV.into_iter().enumerate() {
+        for (index, (key, icon, destination)) in NAV.into_iter().enumerate() {
             if matches!(destination, Some(Destination::Library(_))) {
                 let inside = matches!(current, Destination::Library(_));
                 let text = if inside { foreground } else { muted };
@@ -146,7 +146,7 @@ impl Render for Sidebar {
                 let target = link_destination.unwrap_or(current.clone());
 
                 rows.push(
-                    nav_row(index, label, text, sidebar_accent)
+                    nav_row(index, key, text, sidebar_accent)
                         .icon(icon)
                         .on_click(cx.listener(move |this, _, _, cx| match inside {
                             true => {
@@ -216,7 +216,7 @@ impl Render for Sidebar {
             let text = if active { foreground } else { muted };
 
             rows.push(
-                nav_row(index, label, text, sidebar_accent)
+                nav_row(index, key, text, sidebar_accent)
                     .icon(icon)
                     .when(active, |button| button.bg(sidebar_accent))
                     .when_some(destination, |button, destination| {
@@ -300,10 +300,10 @@ impl Render for Sidebar {
     }
 }
 
-fn nav_row(id: impl Into<ElementId>, label: &'static str, tint: Hsla, accent: Hsla) -> Button {
+fn nav_row(id: impl Into<ElementId>, key: &'static str, tint: Hsla, accent: Hsla) -> Button {
     Button::new(id)
         .ghost()
-        .label(label)
+        .label(i18n::lookup(key, None))
         .tint(tint)
         .gap_2p5()
         .justify_start()

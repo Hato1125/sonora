@@ -2,7 +2,8 @@ mod albums;
 mod playlists;
 
 use gpui::prelude::*;
-use gpui::{App, Context, Entity, Pixels, Point, Render, ScrollHandle, Window, px};
+use gpui::{App, Context, Entity, Pixels, Point, Render, ScrollHandle, SharedString, Window, px};
+use i18n::t;
 use router::{Destination, LibraryTab, navigate};
 use spotify::Track;
 use state::{AppSettings, Library, LibraryState, Playback, Sonora};
@@ -389,7 +390,7 @@ impl Searchable for LibraryView {
         cx.notify();
     }
 
-    fn hint() -> &'static str {
-        "Filter your library"
+    fn hint() -> SharedString {
+        t!("filter-library")
     }
 }

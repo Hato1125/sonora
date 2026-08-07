@@ -22,7 +22,7 @@ pub(super) const COLUMNS: &[ColumnSpec<AlbumField>] = &[
     ColumnSpec {
         field: AlbumField::Index,
         key: "index",
-        header: "#",
+        header: "column-index",
         align: TextAlign::Center,
         width: Width::Fixed(NUMBER),
         flush: false,
@@ -42,7 +42,7 @@ pub(super) const COLUMNS: &[ColumnSpec<AlbumField>] = &[
     ColumnSpec {
         field: AlbumField::Name,
         key: "name",
-        header: "Album",
+        header: "column-album",
         align: TextAlign::Left,
         width: Width::Fill(0.55),
         flush: false,
@@ -52,7 +52,7 @@ pub(super) const COLUMNS: &[ColumnSpec<AlbumField>] = &[
     ColumnSpec {
         field: AlbumField::Artists,
         key: "artists",
-        header: "Artist",
+        header: "column-artist",
         align: TextAlign::Left,
         width: Width::Fill(0.45),
         flush: false,
@@ -62,7 +62,7 @@ pub(super) const COLUMNS: &[ColumnSpec<AlbumField>] = &[
     ColumnSpec {
         field: AlbumField::Year,
         key: "year",
-        header: "Year",
+        header: "column-year",
         align: TextAlign::Right,
         width: Width::Fixed(YEAR),
         flush: false,
@@ -72,7 +72,7 @@ pub(super) const COLUMNS: &[ColumnSpec<AlbumField>] = &[
     ColumnSpec {
         field: AlbumField::TrackCount,
         key: "tracks",
-        header: "Tracks",
+        header: "column-tracks",
         align: TextAlign::Right,
         width: Width::Fixed(TRAILING),
         flush: false,

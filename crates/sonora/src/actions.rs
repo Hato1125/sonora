@@ -1,4 +1,5 @@
 use gpui::{App, Menu, MenuItem};
+use i18n::t;
 use input::{Quit, RefreshLibrary, SignOut, TogglePlayback};
 use state::Sonora;
 
@@ -33,10 +34,10 @@ pub fn register(cx: &mut App) {
         name: "sonora".into(),
         disabled: false,
         items: vec![
-            MenuItem::action("Refresh Library", RefreshLibrary),
-            MenuItem::action("Sign Out", SignOut),
+            MenuItem::action(t!("app-refresh-library"), RefreshLibrary),
+            MenuItem::action(t!("app-sign-out"), SignOut),
             MenuItem::separator(),
-            MenuItem::action("Quit", Quit),
+            MenuItem::action(t!("app-quit"), Quit),
         ],
     }]);
 }

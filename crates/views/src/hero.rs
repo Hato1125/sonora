@@ -1,31 +1,33 @@
 use gpui::prelude::*;
 use gpui::{AnyElement, App, ElementId, Entity, FontWeight, SharedString, Window, div};
+use i18n::t;
 use spotify::Track;
 use state::{Playback, PlaybackState};
 use ui::{ActiveTheme as _, Button, Card, Text};
 
-pub(crate) fn release_date_label(value: &str) -> String {
+pub(crate) fn release_date_label(value: &str) -> SharedString {
     let parts: Vec<_> = value.split('-').collect();
     if parts.len() != 3 {
-        return value.to_owned();
+        return SharedString::from(value.to_owned());
     }
     let month = match parts[1] {
-        "01" => "Jan",
-        "02" => "Feb",
-        "03" => "Mar",
-        "04" => "Apr",
-        "05" => "May",
-        "06" => "Jun",
-        "07" => "Jul",
-        "08" => "Aug",
-        "09" => "Sep",
-        "10" => "Oct",
-        "11" => "Nov",
-        "12" => "Dec",
-        _ => return value.to_owned(),
+        "01" => t!("month-1"),
+        "02" => t!("month-2"),
+        "03" => t!("month-3"),
+        "04" => t!("month-4"),
+        "05" => t!("month-5"),
+        "06" => t!("month-6"),
+        "07" => t!("month-7"),
+        "08" => t!("month-8"),
+        "09" => t!("month-9"),
+        "10" => t!("month-10"),
+        "11" => t!("month-11"),
+        "12" => t!("month-12"),
+        _ => return SharedString::from(value.to_owned()),
     };
     let day = parts[2].trim_start_matches('0');
-    format!("{month} {day}, {}", parts[0])
+
+    t!("date-full", month = &month, day = day, year = parts[0])
 }
 
 #[derive(IntoElement, Default)]
@@ -117,9 +119,9 @@ impl RenderOnce for HeroPlayButton {
                 .map(|_| playback.state().clone())
         };
         let (label, icon, blocked) = match &state {
-            Some(PlaybackState::Playing) => ("Pause".into(), "icons/pause.svg", false),
-            Some(PlaybackState::Paused) => ("Resume".into(), "icons/play.svg", false),
-            Some(PlaybackState::Loading) => ("Loading…".into(), "icons/play.svg", true),
+            Some(PlaybackState::Playing) => (t!("play-pause"), "icons/pause.svg", false),
+            Some(PlaybackState::Paused) => (t!("play-resume"), "icons/play.svg", false),
+            Some(PlaybackState::Loading) => (t!("play-loading"), "icons/play.svg", true),
             _ => (self.label, "icons/play.svg", false),
         };
         let disabled = first_playable.is_none() || blocked;

@@ -1,10 +1,11 @@
 use gpui::{Context, Entity, Task};
+use i18n::t;
 use spotify::{Album, AlbumDetail, ArtistRef, Playlist, Track};
 
 use crate::{Io, Library, Session, SessionEvent, join};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum Kind {
+pub enum Collection {
     Album,
     Playlist,
 }
@@ -15,7 +16,7 @@ enum Loaded {
 }
 
 pub struct Header {
-    pub kind: &'static str,
+    pub kind: Collection,
     pub title: String,
     pub artist: Option<String>,
     pub artist_refs: Vec<ArtistRef>,
@@ -82,15 +83,15 @@ impl Detail {
 
     pub fn open_album(&mut self, id: &str, cx: &mut Context<Self>) {
         let known = self.library.read(cx).album(id).map(album_header);
-        self.open(Kind::Album, id, known, cx);
+        self.open(Collection::Album, id, known, cx);
     }
 
     pub fn open_playlist(&mut self, id: &str, cx: &mut Context<Self>) {
         let known = self.library.read(cx).playlist(id).map(playlist_header);
-        self.open(Kind::Playlist, id, known, cx);
+        self.open(Collection::Playlist, id, known, cx);
     }
 
-    fn open(&mut self, kind: Kind, id: &str, known: Option<Header>, cx: &mut Context<Self>) {
+    fn open(&mut self, kind: Collection, id: &str, known: Option<Header>, cx: &mut Context<Self>) {
         if self.shows(id) {
             return;
         }
@@ -112,8 +113,8 @@ impl Detail {
         self.task = Some(cx.spawn(async move |this, cx| {
             let loaded = join(io.spawn(async move {
                 match kind {
-                    Kind::Album => client.album(&id).await.map(Loaded::Album),
-                    Kind::Playlist => client.playlist_tracks(&id).await.map(Loaded::Tracks),
+                    Collection::Album => client.album(&id).await.map(Loaded::Album),
+                    Collection::Playlist => client.playlist_tracks(&id).await.map(Loaded::Tracks),
                 }
             }))
             .await;
@@ -152,11 +153,11 @@ impl Detail {
 fn album_header(album: &Album) -> Header {
     let mut parts = Vec::new();
     if album.track_count > 0 {
-        parts.push(format!("{} songs", album.track_count));
+        parts.push(t!("count-songs", count = album.track_count).to_string());
     }
 
     Header {
-        kind: "Album",
+        kind: Collection::Album,
         title: album.name.clone(),
         artist: Some(album.artists.clone()),
         artist_refs: album.artist_refs.clone(),
@@ -172,11 +173,11 @@ fn album_header(album: &Album) -> Header {
 fn playlist_header(playlist: &Playlist) -> Header {
     let mut parts = vec![playlist.owner.clone()];
     if playlist.track_count > 0 {
-        parts.push(format!("{} songs", playlist.track_count));
+        parts.push(t!("count-songs", count = playlist.track_count).to_string());
     }
 
     Header {
-        kind: "Playlist",
+        kind: Collection::Playlist,
         title: playlist.name.clone(),
         artist: None,
         artist_refs: Vec::new(),

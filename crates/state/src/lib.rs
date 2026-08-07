@@ -10,7 +10,7 @@ mod settings;
 mod song;
 
 pub use artist::ArtistDetail;
-pub use detail::{Detail, Header};
+pub use detail::{Collection, Detail, Header};
 pub use home::Home;
 pub use library::{Library, LibraryState};
 pub use playback::{Origin, Playback, PlaybackState, Repeat};

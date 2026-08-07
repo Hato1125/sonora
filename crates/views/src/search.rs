@@ -3,6 +3,7 @@ use gpui::{
     AnyElement, App, Context, ElementId, Entity, FontWeight, Hsla, Pixels, Render, ScrollHandle,
     SharedString, Window, div, px,
 };
+use i18n::t;
 use input::Input;
 use router::{Destination, navigate};
 
@@ -37,8 +38,7 @@ impl SearchView {
         playback: Entity<Playback>,
         cx: &mut Context<Self>,
     ) -> Self {
-        let input =
-            cx.new(|cx| Input::new("What do you want to listen to?", cx).icon("icons/search.svg"));
+        let input = cx.new(|cx| Input::new(t!("search-placeholder"), cx).icon("icons/search.svg"));
 
         cx.observe(&input, |this, input, cx| {
             let query = input.read(cx).text().to_owned();
@@ -218,7 +218,7 @@ impl SearchView {
                 .flex_col()
                 .flex_none()
                 .gap_2()
-                .child(eyebrow("Best match", cx).pb_1())
+                .child(eyebrow(t!("search-best-match"), cx).pb_1())
                 .child(card)
                 .into_any_element(),
         )
@@ -247,7 +247,7 @@ impl SearchView {
             return div()
                 .flex_none()
                 .text_color(cx.theme().muted_foreground)
-                .child("No matches")
+                .child(t!("search-no-matches"))
                 .into_any_element();
         }
 
@@ -265,7 +265,7 @@ impl SearchView {
         &self,
         id: &'static str,
         bar: &Entity<Scrollbar>,
-        title: &'static str,
+        title: SharedString,
         rows: Vec<AnyElement>,
         cx: &Context<Self>,
     ) -> AnyElement {
@@ -283,9 +283,9 @@ impl SearchView {
 
     fn column(&self, kind: Kind, cx: &Context<Self>) -> AnyElement {
         let (id, bar, title) = match kind {
-            Kind::Song => ("search-songs", &self.songs, "Songs"),
-            Kind::Artist => ("search-artists", &self.artists, "Artists"),
-            Kind::Album => ("search-albums", &self.albums, "Albums"),
+            Kind::Song => ("search-songs", &self.songs, t!("search-songs")),
+            Kind::Artist => ("search-artists", &self.artists, t!("search-artists")),
+            Kind::Album => ("search-albums", &self.albums, t!("search-albums")),
         };
 
         let rows = self
@@ -318,7 +318,7 @@ impl SearchView {
             })
             .collect();
 
-        self.section("search-all", &self.mixed, "Results", rows, cx)
+        self.section("search-all", &self.mixed, t!("search-results"), rows, cx)
     }
 }
 
@@ -335,32 +335,33 @@ fn meta(hit: &Hit, compact: bool) -> SharedString {
         Hit::Song(track) => tagged(Kind::Song, &track.artists, compact),
         Hit::Album(album) => tagged(Kind::Album, &album.artists, compact),
         Hit::Artist(artist) => match compact {
-            true => SharedString::from(noun(Kind::Artist)),
-            false => SharedString::from(held(artist.saved)),
+            true => noun(Kind::Artist),
+            false => held(artist.saved),
         },
     }
 }
 
 fn tagged(kind: Kind, value: &str, compact: bool) -> SharedString {
-    match compact {
-        true => SharedString::from(format!("{} · {value}", noun(kind))),
-        false => SharedString::from(value.to_owned()),
+    if !compact {
+        return SharedString::from(value.to_owned());
     }
+
+    let noun = noun(kind);
+    t!("search-tagged", kind = &noun, value = value)
 }
 
-fn held(saved: usize) -> String {
+fn held(saved: usize) -> SharedString {
     match saved {
-        0 => noun(Kind::Artist).to_owned(),
-        1 => "1 song in Library".to_owned(),
-        count => format!("{count} songs in Library"),
+        0 => noun(Kind::Artist),
+        count => t!("search-saved", count = count),
     }
 }
 
-fn noun(kind: Kind) -> &'static str {
+fn noun(kind: Kind) -> SharedString {
     match kind {
-        Kind::Song => "Song",
-        Kind::Artist => "Artist",
-        Kind::Album => "Album",
+        Kind::Song => t!("kind-song"),
+        Kind::Artist => t!("kind-artist"),
+        Kind::Album => t!("kind-album"),
     }
 }
 

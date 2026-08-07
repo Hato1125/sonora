@@ -5,6 +5,7 @@ use gpui::{
     App, ClickEvent, Entity, FontWeight, MouseButton, MouseDownEvent, Pixels, SharedString, Window,
     div,
 };
+use i18n::t;
 use spotify::Track;
 use state::Playback;
 use ui::{ActiveTheme as _, Button, Card, Text, eyebrow, heading};
@@ -123,8 +124,8 @@ impl RenderOnce for QuickPicks {
                             .flex()
                             .flex_col()
                             .gap_0p5()
-                            .child(eyebrow("Start from a song", cx))
-                            .child(heading("Quick picks", cx)),
+                            .child(eyebrow(t!("home-quick-picks-eyebrow"), cx))
+                            .child(heading(t!("home-quick-picks"), cx)),
                     )
                     .child(
                         div()

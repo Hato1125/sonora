@@ -1,8 +1,20 @@
 use gpui::prelude::*;
 use gpui::{App, FontWeight, SharedString, Window, div};
+use i18n::t;
 use router::{Destination, Link as _};
-use spotify::Album;
+use spotify::{Album, ReleaseType};
 use ui::{ActiveTheme as _, Artwork, Text};
+
+pub(crate) fn release_label(kind: ReleaseType) -> SharedString {
+    match kind {
+        ReleaseType::Album => t!("release-album"),
+        ReleaseType::Single => t!("release-single"),
+        ReleaseType::Compilation => t!("release-compilation"),
+        ReleaseType::Ep => t!("release-ep"),
+        ReleaseType::Audiobook => t!("release-audiobook"),
+        ReleaseType::Podcast => t!("release-podcast"),
+    }
+}
 
 #[derive(IntoElement)]
 pub(crate) struct ReleaseCard {
@@ -24,10 +36,10 @@ impl RenderOnce for ReleaseCard {
             .cover_large
             .clone()
             .or_else(|| self.album.cover.clone());
-        let release = self.album.release_type.label();
+        let release = release_label(self.album.release_type);
         let metadata = match self.album.year > 0 {
-            true => format!("{} • {release}", self.album.year),
-            false => release.to_owned(),
+            true => t!("release-meta", year = self.album.year, kind = &release),
+            false => release,
         };
 
         div()

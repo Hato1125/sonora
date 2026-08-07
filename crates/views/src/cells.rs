@@ -7,6 +7,7 @@ use gpui::{
     AnyElement, App, Context, Div, Entity, Hsla, MouseButton, Pixels, SharedString, Task, Window,
     div, px, svg,
 };
+use i18n::t;
 use router::{Destination, Link as _, navigate};
 use spotify::ArtistRef;
 use state::{Playback, PlaybackState};
@@ -284,7 +285,8 @@ pub(crate) fn dim<F>(cell: &Cell<F>, value: impl Into<SharedString>, muted: Hsla
         .into_any_element()
 }
 
-pub(crate) fn count(value: u64) -> String {
+pub(crate) fn count(value: u64) -> SharedString {
+    let group = t!("number-group");
     let digits = value.to_string();
     let first = match digits.len() % 3 {
         0 => 3,
@@ -292,10 +294,10 @@ pub(crate) fn count(value: u64) -> String {
     };
     let mut grouped = digits[..first].to_owned();
     for chunk in digits.as_bytes()[first..].chunks(3) {
-        grouped.push(',');
+        grouped.push_str(&group);
         grouped.push_str(std::str::from_utf8(chunk).unwrap_or_default());
     }
-    grouped
+    SharedString::from(grouped)
 }
 
 pub(crate) fn title<F>(

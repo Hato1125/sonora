@@ -5,6 +5,7 @@ use gpui::{
     AnyElement, Context, Entity, FontWeight, Pixels, Render, SharedString, Window, div, px,
 };
 use gpui::{ScrollHandle, prelude::*};
+use i18n::{Language, t};
 use state::{AppSettings, Playback, Session, SessionState, Sonora};
 use ui::{ActiveTheme as _, Scrollbar, Scroller};
 use ui::{
@@ -22,11 +23,19 @@ enum Tab {
 impl Tab {
     const ALL: [Self; 3] = [Self::Appearance, Self::Playback, Self::Account];
 
-    fn label(self) -> &'static str {
+    fn id(self) -> &'static str {
         match self {
-            Self::Appearance => "Appearance",
-            Self::Playback => "Playback",
-            Self::Account => "Account",
+            Self::Appearance => "tab-appearance",
+            Self::Playback => "tab-playback",
+            Self::Account => "tab-account",
+        }
+    }
+
+    fn label(self) -> SharedString {
+        match self {
+            Self::Appearance => t!("settings-tab-appearance"),
+            Self::Playback => t!("settings-tab-playback"),
+            Self::Account => t!("settings-tab-account"),
         }
     }
 }
@@ -39,6 +48,7 @@ pub struct SettingsView {
     scrollbar: Entity<Scrollbar>,
     themes_open: bool,
     corners_open: bool,
+    languages_open: bool,
 }
 
 impl SettingsView {
@@ -58,12 +68,13 @@ impl SettingsView {
             scrollbar: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
             themes_open: false,
             corners_open: false,
+            languages_open: false,
         }
     }
 
     fn tabs(&self, cx: &mut Context<Self>) -> impl IntoElement {
         div().flex().gap_1().children(Tab::ALL.map(|tab| {
-            Button::new(SharedString::from(tab.label()))
+            Button::new(tab.id())
                 .label(tab.label())
                 .small()
                 .selected(self.tab == tab)
@@ -71,6 +82,7 @@ impl SettingsView {
                     this.tab = tab;
                     this.themes_open = false;
                     this.corners_open = false;
+                    this.languages_open = false;
                     cx.notify();
                 }))
         }))
@@ -83,6 +95,7 @@ impl SettingsView {
                 self.theme_row(cx).into_any_element(),
                 self.adaptive_row(cx).into_any_element(),
                 self.corners_row(cx).into_any_element(),
+                self.language_row(cx).into_any_element(),
                 self.font_row(cx).into_any_element(),
                 self.auto_hide_row(cx).into_any_element(),
             ]
@@ -109,6 +122,66 @@ impl SettingsView {
             tint: cx.theme().tint,
             ..self.settings.read(cx).look()
         }
+    }
+
+    fn language_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+        let muted = theme.muted_foreground;
+        let small = theme.text(Text::Small);
+        let chosen = self.settings.read(cx).language().to_owned();
+        let current = match Language::from_id(&chosen) {
+            Some(language) => SharedString::from(language.label()),
+            None => t!("settings-language-system"),
+        };
+
+        let entries = std::iter::once((i18n::AUTO, t!("settings-language-system"))).chain(
+            Language::ALL
+                .into_iter()
+                .map(|language| (language.id(), SharedString::from(language.label()))),
+        );
+
+        let picker = div()
+            .relative()
+            .child(
+                Button::new("language-picker")
+                    .label(format!("{current}  ▾"))
+                    .small()
+                    .outline()
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.languages_open = !this.languages_open;
+                        cx.notify();
+                    })),
+            )
+            .when(self.languages_open, |this| {
+                this.child(
+                    Menu::new("language-dropdown")
+                        .top(px(30.))
+                        .right_0()
+                        .w(px(170.))
+                        .on_dismiss(cx.listener(|this, _, _, cx| {
+                            this.languages_open = false;
+                            cx.notify();
+                        }))
+                        .items(entries.map(|(id, label)| {
+                            MenuItem::new(id, label)
+                                .selected(chosen == id)
+                                .on_click(cx.listener(move |this, _, _, cx| {
+                                    this.settings
+                                        .update(cx, |settings, cx| settings.set_language(id, cx));
+                                    this.languages_open = false;
+                                    cx.notify();
+                                }))
+                        })),
+                )
+            });
+
+        self.row(
+            t!("settings-language"),
+            t!("settings-language-detail"),
+            muted,
+            small,
+            picker.into_any_element(),
+        )
     }
 
     fn corners_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -157,8 +230,8 @@ impl SettingsView {
             });
 
         self.row(
-            "Corners",
-            "How rounded surfaces and controls are",
+            t!("settings-corners"),
+            t!("settings-corners-detail"),
             muted,
             small,
             picker.into_any_element(),
@@ -201,12 +274,12 @@ impl SettingsView {
             .items_center()
             .gap_2()
             .child(step("font-smaller", "−", -1.))
-            .child(div().child(format!("{:.0} px", look.font)))
+            .child(div().child(t!("settings-font-value", size = look.font.round() as i64)))
             .child(step("font-larger", "+", 1.));
 
         self.row(
-            "Font size",
-            "Base text size, everything else scales with it",
+            t!("settings-font"),
+            t!("settings-font-detail"),
             muted,
             small,
             actions.into_any_element(),
@@ -220,12 +293,15 @@ impl SettingsView {
         let on = self.settings.read(cx).window_controls();
 
         self.row(
-            "Window controls",
-            "Draw minimise, maximise and close in the title bar",
+            t!("settings-window-controls"),
+            t!("settings-window-controls-detail"),
             muted,
             small,
             Button::new("window-controls")
-                .label(if on { "On" } else { "Off" })
+                .label(match on {
+                    true => t!("common-on"),
+                    false => t!("common-off"),
+                })
                 .small()
                 .outline()
                 .on_click(cx.listener(move |this, _, _, cx| {
@@ -245,12 +321,15 @@ impl SettingsView {
         let shown = settings.window_controls();
 
         self.row(
-            "Controls side",
-            "Which end of the title bar the controls sit on",
+            t!("settings-controls-side"),
+            t!("settings-controls-side-detail"),
             muted,
             small,
             Button::new("controls-side")
-                .label(if left { "Left" } else { "Right" })
+                .label(match left {
+                    true => t!("common-left"),
+                    false => t!("common-right"),
+                })
                 .small()
                 .outline()
                 .disabled(!shown)
@@ -269,12 +348,15 @@ impl SettingsView {
         let on = self.settings.read(cx).auto_hide_sidebar();
 
         self.row(
-            "Auto-hide sidebar",
-            "Collapse the sidebar when the window gets narrow",
+            t!("settings-auto-hide"),
+            t!("settings-auto-hide-detail"),
             muted,
             small,
             Button::new("auto-hide-sidebar")
-                .label(if on { "On" } else { "Off" })
+                .label(match on {
+                    true => t!("common-on"),
+                    false => t!("common-off"),
+                })
                 .small()
                 .outline()
                 .on_click(cx.listener(move |this, _, _, cx| {
@@ -376,7 +458,7 @@ impl SettingsView {
             .gap_2()
             .child(
                 Button::new("open-theme-config")
-                    .label("Open config")
+                    .label(t!("settings-theme-config"))
                     .small()
                     .outline()
                     .on_click(move |_, _, cx| {
@@ -389,8 +471,8 @@ impl SettingsView {
             .child(picker);
 
         self.row(
-            "Theme",
-            "Choose the application colour palette",
+            t!("settings-theme"),
+            t!("settings-theme-detail"),
             muted,
             small,
             actions.into_any_element(),
@@ -404,12 +486,15 @@ impl SettingsView {
         let on = self.settings.read(cx).adaptive_theme();
 
         self.row(
-            "Adaptive theme",
-            "Tint the palette with the artwork of the playing album",
+            t!("settings-adaptive"),
+            t!("settings-adaptive-detail"),
             muted,
             small,
             Button::new("adaptive-theme")
-                .label(if on { "On" } else { "Off" })
+                .label(match on {
+                    true => t!("common-on"),
+                    false => t!("common-off"),
+                })
                 .small()
                 .outline()
                 .on_click(cx.listener(move |this, _, _, cx| {
@@ -427,12 +512,15 @@ impl SettingsView {
         let on = self.playback.read(cx).normalisation();
 
         self.row(
-            "Normalise loudness",
-            "Keeps tracks at a consistent volume",
+            t!("settings-normalisation"),
+            t!("settings-normalisation-detail"),
             muted,
             small,
             Button::new("normalisation")
-                .label(if on { "On" } else { "Off" })
+                .label(match on {
+                    true => t!("common-on"),
+                    false => t!("common-off"),
+                })
                 .small()
                 .outline()
                 .on_click(cx.listener(move |this, _, _, cx| {
@@ -450,12 +538,12 @@ impl SettingsView {
         let session = self.session.clone();
 
         self.row(
-            "Account",
-            "Sign out of Spotify on this device",
+            t!("settings-account"),
+            t!("settings-account-detail"),
             muted,
             small,
             Button::new("sign-out")
-                .label("Sign out")
+                .label(t!("settings-sign-out"))
                 .small()
                 .outline()
                 .icon("icons/log-out.svg")
@@ -468,8 +556,8 @@ impl SettingsView {
 
     fn row(
         &self,
-        title: &'static str,
-        detail: &'static str,
+        title: SharedString,
+        detail: SharedString,
         muted: gpui::Hsla,
         small: Pixels,
         action: gpui::AnyElement,
