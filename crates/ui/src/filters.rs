@@ -44,28 +44,51 @@ impl RangeAxis {
         (self.bounds.1 - self.bounds.0).max(f32::EPSILON)
     }
 
+    fn steps(&self) -> Option<&[f32]> {
+        match self.values.as_deref() {
+            Some(values) if values.len() > 1 => Some(values),
+            _ => None,
+        }
+    }
+
+    fn seat(&self, value: f32) -> f32 {
+        let Some(steps) = self.steps() else {
+            return ((value - self.bounds.0) / self.span()).clamp(0., 1.);
+        };
+        let last = (steps.len() - 1) as f32;
+        steps
+            .iter()
+            .enumerate()
+            .min_by(|(_, a), (_, b)| (*a - value).abs().total_cmp(&(*b - value).abs()))
+            .map(|(index, _)| index as f32 / last)
+            .unwrap_or(0.)
+    }
+
     pub fn share(&self) -> (f32, f32) {
-        (
-            ((self.value.0 - self.bounds.0) / self.span()).clamp(0., 1.),
-            ((self.value.1 - self.bounds.0) / self.span()).clamp(0., 1.),
-        )
+        (self.seat(self.value.0), self.seat(self.value.1))
     }
 
     pub fn at(&self, share: (f32, f32)) -> (f32, f32) {
-        (
-            self.bounds.0 + share.0 * self.span(),
-            self.bounds.0 + share.1 * self.span(),
-        )
+        let Some(steps) = self.steps() else {
+            return (
+                self.bounds.0 + share.0 * self.span(),
+                self.bounds.0 + share.1 * self.span(),
+            );
+        };
+        let last = steps.len() - 1;
+        let pick = |share: f32| {
+            let index = (share.clamp(0., 1.) * last as f32).round() as usize;
+            steps[index.min(last)]
+        };
+        (pick(share.0), pick(share.1))
     }
 
     pub fn stops(&self) -> Vec<f32> {
-        match &self.values {
-            Some(values) => values
-                .iter()
-                .map(|value| ((value - self.bounds.0) / self.span()).clamp(0., 1.))
-                .collect(),
-            None => Vec::new(),
-        }
+        let Some(steps) = self.steps() else {
+            return Vec::new();
+        };
+        let last = (steps.len() - 1) as f32;
+        (0..steps.len()).map(|index| index as f32 / last).collect()
     }
 
     pub fn clamped(mut self) -> Self {
@@ -332,23 +355,43 @@ mod tests {
     }
 
     #[test]
-    fn stops_sit_where_the_values_are() {
+    fn stops_are_evenly_spaced_whatever_the_gaps() {
         let stops = sparse().stops();
 
         assert_eq!(stops.len(), 4);
-        assert!((stops[0] - 0.).abs() < 1e-6);
-        assert!((stops[3] - 1.).abs() < 1e-6);
-        assert!(stops[1] > 0. && stops[1] < stops[2]);
+        for (index, stop) in stops.iter().enumerate() {
+            assert!((stop - index as f32 / 3.).abs() < 1e-6, "stop {index}");
+        }
     }
 
     #[test]
-    fn snapping_skips_gaps_between_present_values() {
+    fn every_present_value_owns_an_equal_slice() {
         let axis = sparse();
         let stops = axis.stops();
-        let missing = (1995. - axis.bounds.0) / axis.span();
 
-        let landed = axis.at((snap(missing, &stops), 1.)).0;
-        assert_eq!(landed.round(), 1989.);
+        for (index, value) in [1967., 1977., 1989., 2020.].iter().enumerate() {
+            let seat = snap(index as f32 / 3., &stops);
+            assert_eq!(axis.at((seat, 1.)).0.round(), *value);
+        }
+    }
+
+    #[test]
+    fn a_position_between_stops_lands_on_the_nearer_value() {
+        let axis = sparse();
+        let stops = axis.stops();
+
+        assert_eq!(axis.at((snap(0.6, &stops), 1.)).0.round(), 1989.);
+        assert_eq!(axis.at((snap(0.2, &stops), 1.)).0.round(), 1977.);
+    }
+
+    #[test]
+    fn a_selection_round_trips_through_its_seat() {
+        let axis = RangeAxis {
+            values: Some(vec![1967., 1977., 1989., 2020.]),
+            ..axis((1967., 2020.), (1977., 1989.))
+        };
+
+        assert_eq!(axis.at(axis.share()), (1977., 1989.));
     }
 
     #[test]
