@@ -63,6 +63,11 @@ player-percent = { $value }%
 # filters
 filter-library = Filtruj bibliotekę
 filter-album = Filtruj utwory albumu
+filter-reset = Wyczyść filtry
+filter-duration = Czas trwania
+filter-year = Rok
+filter-explicit = Tylko z wulgaryzmami
+filter-playable = Tylko dostępne
 
 # login
 login-signed-out = Zaloguj się, aby wczytać bibliotekę Spotify
