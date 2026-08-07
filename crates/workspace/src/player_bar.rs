@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use router::{Destination, Link, navigate};
 use std::time::Duration;
 use ui::ActiveTheme as _;

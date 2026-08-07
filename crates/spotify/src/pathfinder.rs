@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use anyhow::{Context as _, Result, bail};
 use bytes::Bytes;
 use http::{Method, Request, header};

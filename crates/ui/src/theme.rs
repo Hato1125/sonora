@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use std::time::{Duration, Instant};
 
 use gpui::{App, Global, Hsla, Pixels, Rgba, SharedString, Task, px, rgb, rgba};
@@ -187,7 +189,7 @@ impl Theme {
             danger: rgb(0x7f1d1d).into(),
             danger_foreground: rgb(0xfef2f2).into(),
             danger_hover: rgb(0x8b2020).into(),
-            popover: rgb(0x0a0a0a).into(),
+            popover: rgb(0x141414).into(),
             popover_foreground: rgb(0xfafafa).into(),
             progress_bar: rgb(0xf5f5f5).into(),
             selection: rgb(0x1d4ed8).into(),

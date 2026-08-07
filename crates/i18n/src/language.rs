@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use unic_langid::{LanguageIdentifier, langid};
 
 pub const AUTO: &str = "auto";

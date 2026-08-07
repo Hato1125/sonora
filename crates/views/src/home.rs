@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use gpui::prelude::*;
 use gpui::{Context, Entity, Pixels, Point, Render, ScrollHandle, Window, anchored, div, px};
 use state::{Home, Playback};

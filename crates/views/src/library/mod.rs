@@ -1,19 +1,24 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 mod albums;
 mod playlists;
 
 use gpui::prelude::*;
 use gpui::{App, Context, Entity, Pixels, Point, Render, ScrollHandle, SharedString, Window, px};
+use i18n::t;
 use router::{Destination, LibraryTab, navigate};
 use spotify::Track;
 use state::{AppSettings, Library, LibraryState, Playback, Sonora};
 use ui::{
-    GridDelegate, GridEvent, GridState, Scrollbar, Scroller, Sort, Toggle, Viewport, grid, scrolled,
+    FlagAxis, GridDelegate, GridEvent, GridState, RangeAxis, Scrollbar, Scroller, Sort, Toggle,
+    Unit, Viewport, grid, scrolled,
 };
-use workspace::{Chrome, Searchable};
+use workspace::{Chrome, Columned, Filterable, Searchable, Toolbar, Tooled};
 
 use crate::cells;
 use crate::tracks::{
-    self, LIBRARY_COLUMNS, PlaybackStatus, TrackField, TrackSource, Tracks, playback_status,
+    self, LIBRARY_COLUMNS, PlaybackStatus, TrackField, TrackSieve, TrackSource, Tracks,
+    playback_status,
 };
 use albums::AlbumSource;
 use playlists::PlaylistSource;
@@ -83,6 +88,7 @@ pub struct LibraryView {
     tracks: Entity<GridState<TrackSource>>,
     albums: Entity<GridState<AlbumSource>>,
     playlists: Entity<GridState<PlaylistSource>>,
+    toolbar: Entity<Toolbar>,
 }
 
 impl LibraryView {
@@ -173,6 +179,15 @@ impl LibraryView {
         })
         .detach();
 
+        let me = cx.entity();
+        let toolbar = cx.new(|cx| {
+            let mut toolbar = Toolbar::new(cx);
+            toolbar.bind(&me, cx);
+            toolbar.columns(&me, cx);
+            toolbar.filters(&me, cx);
+            toolbar
+        });
+
         Self {
             library,
             settings,
@@ -184,6 +199,7 @@ impl LibraryView {
             tracks,
             albums,
             playlists,
+            toolbar,
         }
     }
 
@@ -191,7 +207,7 @@ impl LibraryView {
         self.section
     }
 
-    pub fn toggles(&self, cx: &App) -> Vec<Toggle> {
+    fn column_toggles(&self, cx: &App) -> Vec<Toggle> {
         let all = match self.section {
             Section::Tracks => self.tracks.read(cx).delegate().toggles(),
             Section::Albums => self.albums.read(cx).delegate().toggles(),
@@ -203,7 +219,7 @@ impl LibraryView {
             .collect()
     }
 
-    pub fn toggle_column(&mut self, key: &str, cx: &mut Context<Self>) {
+    fn switch_column(&mut self, key: &str, cx: &mut Context<Self>) {
         if PINNED.contains(&key) {
             return;
         }
@@ -391,5 +407,148 @@ impl Searchable for LibraryView {
 
     fn hint() -> SharedString {
         "filter-library".into()
+    }
+}
+
+impl Columned for LibraryView {
+    fn toggles(&self, cx: &App) -> Vec<Toggle> {
+        self.column_toggles(cx)
+    }
+
+    fn toggle_column(&mut self, key: &'static str, cx: &mut Context<Self>) {
+        self.switch_column(key, cx);
+    }
+}
+
+impl Tooled for LibraryView {
+    fn toolbar(&self) -> Entity<Toolbar> {
+        self.toolbar.clone()
+    }
+}
+
+impl LibraryView {
+    fn sieve(&self, cx: &App) -> TrackSieve {
+        self.tracks.read(cx).delegate().source().sieve()
+    }
+
+    fn sift(&mut self, sieve: TrackSieve, cx: &mut Context<Self>) {
+        self.tracks.update(cx, |table, cx| {
+            table.delegate_mut().source_mut().set_sieve(sieve);
+            table.delegate_mut().resift(cx);
+            table.refresh(cx);
+        });
+        cx.notify();
+    }
+
+    fn span(&self, cx: &App) -> Option<(f32, f32)> {
+        self.albums.read(cx).delegate().source().span()
+    }
+
+    fn set_span(&mut self, span: Option<(f32, f32)>, cx: &mut Context<Self>) {
+        self.albums.update(cx, |table, cx| {
+            table.delegate_mut().source_mut().set_span(span);
+            table.delegate_mut().resift(cx);
+            table.refresh(cx);
+        });
+        cx.notify();
+    }
+}
+
+impl Filterable for LibraryView {
+    fn ranges(&self, cx: &App) -> Vec<RangeAxis> {
+        match self.section {
+            Section::Tracks => {
+                let table = self.tracks.read(cx);
+                let Some(bounds) = table
+                    .delegate()
+                    .source()
+                    .extent(table.delegate().query(), cx)
+                else {
+                    return Vec::new();
+                };
+                let value = self.sieve(cx).duration.unwrap_or(bounds);
+                vec![
+                    RangeAxis {
+                        key: "filter-duration",
+                        label: t!("filter-duration"),
+                        bounds,
+                        value,
+                        unit: Unit::Clock,
+                        values: None,
+                    }
+                    .clamped(),
+                ]
+            }
+            Section::Albums => {
+                let table = self.albums.read(cx);
+                let years = table
+                    .delegate()
+                    .source()
+                    .years(table.delegate().query(), cx);
+                let (Some(first), Some(last)) = (years.first(), years.last()) else {
+                    return Vec::new();
+                };
+                let bounds = (*first, *last);
+                let value = self.span(cx).unwrap_or(bounds);
+                vec![
+                    RangeAxis {
+                        key: "filter-year",
+                        label: t!("filter-year"),
+                        bounds,
+                        value,
+                        unit: Unit::Plain,
+                        values: Some(years),
+                    }
+                    .clamped(),
+                ]
+            }
+            Section::Playlists => Vec::new(),
+        }
+    }
+
+    fn flags(&self, cx: &App) -> Vec<FlagAxis> {
+        if self.section != Section::Tracks {
+            return Vec::new();
+        }
+
+        let sieve = self.sieve(cx);
+        vec![
+            FlagAxis {
+                key: "filter-explicit",
+                label: t!("filter-explicit"),
+                on: sieve.explicit,
+            },
+            FlagAxis {
+                key: "filter-playable",
+                label: t!("filter-playable"),
+                on: sieve.playable,
+            },
+        ]
+    }
+
+    fn set_range(&mut self, key: &'static str, value: (f32, f32), cx: &mut Context<Self>) {
+        match key {
+            "filter-year" => self.set_span(Some(value), cx),
+            _ => {
+                let mut sieve = self.sieve(cx);
+                sieve.duration = Some(value);
+                self.sift(sieve, cx);
+            }
+        }
+    }
+
+    fn set_flag(&mut self, key: &'static str, on: bool, cx: &mut Context<Self>) {
+        let mut sieve = self.sieve(cx);
+        match key {
+            "filter-explicit" => sieve.explicit = on,
+            "filter-playable" => sieve.playable = on,
+            _ => return,
+        }
+        self.sift(sieve, cx);
+    }
+
+    fn reset_filters(&mut self, cx: &mut Context<Self>) {
+        self.sift(TrackSieve::default(), cx);
+        self.set_span(None, cx);
     }
 }

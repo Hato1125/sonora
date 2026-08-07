@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use gpui::{App, Context, Entity, Hsla, Task};
 use state::{AppSettings, Playback, Sonora};
 use ui::{ActiveTheme as _, Look, Theme};

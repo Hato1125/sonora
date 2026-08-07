@@ -7,6 +7,28 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-07
+
+### Added
+
+- Added an About tab in settings carrying the copyright, the warranty disclaimer and links to the
+  license and the source.
+- Added `THIRD-PARTY.md`, listing every bundled dependency and the full text of every license.
+  Packages and release archives now ship it alongside the Inter and Lucide license files.
+- Added a Nix package that installs the prebuilt release binary instead of compiling GPUI.
+
+### Changed
+
+- **Licensing.** Sonora is now released under the GNU General Public License version 3 or later.
+  Earlier releases carried no license file at all, which left them undistributable; GPUI depends on
+  `zlog` and `ztracing` from the Zed repository, both GPL-3.0-or-later, so every binary ever built
+  from this tree was already covered by the GPL. Versions 0.1.0 and 0.1.1 are therefore to be read
+  as GPL-3.0-or-later as well.
+
+### Fixed
+
+- Spaced the sidebar tabs apart and drew menus on the popover surface.
+
 ## [0.1.1] - 2026-08-07
 
 ### Added
@@ -25,6 +47,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Capped the volume taper at unity gain; the top of the slider no longer clips.
 - Aligned the scrubber thumb with the pointer across the whole track.
 
-[unreleased]: https://github.com/nolight132/sonora/compare/v0.1.1...HEAD
+[unreleased]: https://github.com/nolight132/sonora/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/nolight132/sonora/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/nolight132/sonora/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/nolight132/sonora/releases/tag/v0.1.0

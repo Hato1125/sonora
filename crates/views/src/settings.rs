@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use std::path::Path;
 use std::process::Command;
 
@@ -13,21 +15,27 @@ use ui::{
     ThemeKind,
 };
 
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+const LICENSE_URL: &str = "https://www.gnu.org/licenses/gpl-3.0.html";
+const SOURCE_URL: &str = "https://github.com/nolight132/sonora";
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Tab {
     Appearance,
     Playback,
     Account,
+    About,
 }
 
 impl Tab {
-    const ALL: [Self; 3] = [Self::Appearance, Self::Playback, Self::Account];
+    const ALL: [Self; 4] = [Self::Appearance, Self::Playback, Self::Account, Self::About];
 
     fn id(self) -> &'static str {
         match self {
             Self::Appearance => "tab-appearance",
             Self::Playback => "tab-playback",
             Self::Account => "tab-account",
+            Self::About => "tab-about",
         }
     }
 
@@ -36,6 +44,7 @@ impl Tab {
             Self::Appearance => t!("settings-tab-appearance"),
             Self::Playback => t!("settings-tab-playback"),
             Self::Account => t!("settings-tab-account"),
+            Self::About => t!("settings-tab-about"),
         }
     }
 }
@@ -105,6 +114,11 @@ impl SettingsView {
             .collect(),
             Tab::Playback => vec![self.playback_row(cx).into_any_element()],
             Tab::Account => vec![self.account_row(cx).into_any_element()],
+            Tab::About => vec![
+                self.version_row(cx).into_any_element(),
+                self.license_row(cx).into_any_element(),
+                self.source_row(cx).into_any_element(),
+            ],
         };
 
         let mut panel = div().flex().flex_col();
@@ -411,6 +425,7 @@ impl SettingsView {
         let small = theme.text(Text::Small);
         let look = self.look(cx);
         let current = look.kind;
+        let adaptive = self.settings.read(cx).adaptive_theme();
         let overrides = self.settings.read(cx).theme_overrides().clone();
 
         let picker = div()
@@ -436,17 +451,22 @@ impl SettingsView {
                             cx.notify();
                         }))
                         .items(ThemeKind::ALL.into_iter().map(|kind| {
-                            let overrides = overrides.clone();
-                            MenuItem::new(kind.id(), kind.label())
-                                .selected(current == kind)
-                                .on_click(cx.listener(move |this, _, _, cx| {
-                                    this.settings.update(cx, |settings, cx| {
-                                        settings.set_theme(kind.id(), cx);
-                                    });
-                                    this.themes_open = false;
-                                    Theme::fade(Look { kind, ..look }, &overrides, cx);
-                                    cx.notify();
-                                }))
+                            let item =
+                                MenuItem::new(kind.id(), kind.label()).selected(current == kind);
+                            match adaptive && !matches!(kind, ThemeKind::Dark | ThemeKind::Light) {
+                                true => item.disabled(),
+                                false => {
+                                    let overrides = overrides.clone();
+                                    item.on_click(cx.listener(move |this, _, _, cx| {
+                                        this.settings.update(cx, |settings, cx| {
+                                            settings.set_theme(kind.id(), cx);
+                                        });
+                                        this.themes_open = false;
+                                        Theme::fade(Look { kind, ..look }, &overrides, cx);
+                                        cx.notify();
+                                    }))
+                                }
+                            }
                         })),
                 )
             });
@@ -484,6 +504,8 @@ impl SettingsView {
         let muted = theme.muted_foreground;
         let small = theme.text(Text::Small);
         let on = self.settings.read(cx).adaptive_theme();
+        let look = self.look(cx);
+        let overrides = self.settings.read(cx).theme_overrides().clone();
 
         self.row(
             t!("settings-adaptive"),
@@ -498,8 +520,22 @@ impl SettingsView {
                 .small()
                 .outline()
                 .on_click(cx.listener(move |this, _, _, cx| {
-                    this.settings
-                        .update(cx, |settings, cx| settings.set_adaptive_theme(!on, cx));
+                    let adaptive = !on;
+                    let kind = match adaptive
+                        && !matches!(look.kind, ThemeKind::Dark | ThemeKind::Light)
+                    {
+                        true => ThemeKind::Dark,
+                        false => look.kind,
+                    };
+                    this.settings.update(cx, |settings, cx| {
+                        settings.set_adaptive_theme(adaptive, cx);
+                        if kind != look.kind {
+                            settings.set_theme(kind.id(), cx);
+                        }
+                    });
+                    if kind != look.kind {
+                        Theme::fade(Look { kind, ..look }, &overrides, cx);
+                    }
                 }))
                 .into_any_element(),
         )
@@ -552,6 +588,63 @@ impl SettingsView {
                 })
                 .into_any_element(),
         )
+    }
+
+    fn version_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+
+        self.row(
+            t!("settings-version"),
+            t!("settings-version-detail"),
+            theme.muted_foreground,
+            theme.text(Text::Small),
+            div().child(VERSION).into_any_element(),
+        )
+    }
+
+    fn license_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+
+        self.row(
+            t!("settings-license"),
+            t!("settings-license-detail"),
+            theme.muted_foreground,
+            theme.text(Text::Small),
+            Button::new("license")
+                .label(t!("settings-license-view"))
+                .small()
+                .outline()
+                .icon("icons/link.svg")
+                .on_click(|_, _, cx| cx.open_url(LICENSE_URL))
+                .into_any_element(),
+        )
+    }
+
+    fn source_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+
+        self.row(
+            t!("settings-source"),
+            t!("settings-source-detail"),
+            theme.muted_foreground,
+            theme.text(Text::Small),
+            Button::new("source")
+                .label(t!("settings-source-view"))
+                .small()
+                .outline()
+                .icon("icons/link.svg")
+                .on_click(|_, _, cx| cx.open_url(SOURCE_URL))
+                .into_any_element(),
+        )
+    }
+
+    fn notice(&self, cx: &Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+
+        div()
+            .text_color(theme.muted_foreground)
+            .text_size(theme.text(Text::Small))
+            .child(t!("settings-notice"))
     }
 
     fn row(
@@ -619,7 +712,8 @@ impl Render for SettingsView {
                     .child(self.profile(cx))
                     .child(div().h(px(1.)).w_full().bg(border))
                     .child(self.tabs(cx))
-                    .child(self.panel(cx)),
+                    .child(self.panel(cx))
+                    .when(self.tab == Tab::About, |this| this.child(self.notice(cx))),
             )
     }
 }

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use std::cmp::Ordering;
 use ui::ActiveTheme as _;
 
@@ -84,11 +86,16 @@ pub(super) const COLUMNS: &[ColumnSpec<AlbumField>] = &[
 pub(super) struct AlbumSource {
     library: Entity<Library>,
     playback: Entity<Playback>,
+    span: Option<(f32, f32)>,
 }
 
 impl AlbumSource {
     pub(super) fn new(library: Entity<Library>, playback: Entity<Playback>) -> Self {
-        Self { library, playback }
+        Self {
+            library,
+            playback,
+            span: None,
+        }
     }
 
     fn index_cell(&self, cell: &Cell<AlbumField>, album: &Album, cx: &App) -> AnyElement {
@@ -104,6 +111,26 @@ impl AlbumSource {
 
     pub(super) fn at(&self, row: usize, cx: &App) -> Option<Album> {
         self.albums(cx).get(row).cloned()
+    }
+
+    pub(super) fn years(&self, query: &str, cx: &App) -> Vec<f32> {
+        let mut years: Vec<f32> = self
+            .albums(cx)
+            .iter()
+            .filter(|album| album.year > 0 && hits(album, query))
+            .map(|album| album.year as f32)
+            .collect();
+        years.sort_by(f32::total_cmp);
+        years.dedup();
+        years
+    }
+
+    pub(super) fn span(&self) -> Option<(f32, f32)> {
+        self.span
+    }
+
+    pub(super) fn set_span(&mut self, span: Option<(f32, f32)>) {
+        self.span = span;
     }
 
     fn albums<'a>(&self, cx: &'a App) -> &'a [Album] {
@@ -127,9 +154,18 @@ impl GridSource for AlbumSource {
 
     fn matches(&self, row: usize, query: &str, cx: &App) -> bool {
         self.at(row, cx).is_some_and(|album| {
-            let haystack = format!("{} {} {}", album.name, album.artists, album.year);
-            haystack.to_lowercase().contains(query)
+            if let Some((low, high)) = self.span {
+                let year = album.year as f32;
+                if album.year == 0 || year < low - 0.5 || year > high + 0.5 {
+                    return false;
+                }
+            }
+            hits(&album, query)
         })
+    }
+
+    fn filtered(&self, _cx: &App) -> bool {
+        self.span.is_some()
     }
 
     fn playing(&self, row: usize, cx: &App) -> bool {
@@ -194,6 +230,14 @@ impl GridSource for AlbumSource {
             AlbumField::Index | AlbumField::Cover => a.cmp(&b),
         }
     }
+}
+
+fn hits(album: &Album, query: &str) -> bool {
+    if query.is_empty() {
+        return true;
+    }
+    let haystack = format!("{} {} {}", album.name, album.artists, album.year);
+    haystack.to_lowercase().contains(query)
 }
 
 fn year(album: &Album) -> String {

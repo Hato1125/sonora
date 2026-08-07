@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use gpui::{App, Menu, MenuItem};
 use i18n::t;
 use input::{Quit, RefreshLibrary, SignOut, TogglePlayback};
