@@ -309,6 +309,7 @@ impl Toolbar {
                         )
                         .child(
                             RangeScrubber::new(state, axis.share())
+                                .stops(axis.stops())
                                 .colors(theme.progress_bar, theme.muted, theme.foreground)
                                 .on_change(cx.listener(move |this, share: &(f32, f32), _, cx| {
                                     if let Some(port) = this.port.as_ref() {

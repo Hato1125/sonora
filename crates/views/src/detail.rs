@@ -309,6 +309,7 @@ impl Filterable for DetailView {
                 bounds,
                 value,
                 unit: Unit::Clock,
+                values: None,
             }
             .clamped(),
         ]

@@ -474,19 +474,21 @@ impl Filterable for LibraryView {
                         bounds,
                         value,
                         unit: Unit::Clock,
+                        values: None,
                     }
                     .clamped(),
                 ]
             }
             Section::Albums => {
                 let table = self.albums.read(cx);
-                let Some(bounds) = table
+                let years = table
                     .delegate()
                     .source()
-                    .years(table.delegate().query(), cx)
-                else {
+                    .years(table.delegate().query(), cx);
+                let (Some(first), Some(last)) = (years.first(), years.last()) else {
                     return Vec::new();
                 };
+                let bounds = (*first, *last);
                 let value = self.span(cx).unwrap_or(bounds);
                 vec![
                     RangeAxis {
@@ -495,6 +497,7 @@ impl Filterable for LibraryView {
                         bounds,
                         value,
                         unit: Unit::Plain,
+                        values: Some(years),
                     }
                     .clamped(),
                 ]

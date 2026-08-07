@@ -36,6 +36,7 @@ pub struct RangeAxis {
     pub bounds: (f32, f32),
     pub value: (f32, f32),
     pub unit: Unit,
+    pub values: Option<Vec<f32>>,
 }
 
 impl RangeAxis {
@@ -55,6 +56,16 @@ impl RangeAxis {
             self.bounds.0 + share.0 * self.span(),
             self.bounds.0 + share.1 * self.span(),
         )
+    }
+
+    pub fn stops(&self) -> Vec<f32> {
+        match &self.values {
+            Some(values) => values
+                .iter()
+                .map(|value| ((value - self.bounds.0) / self.span()).clamp(0., 1.))
+                .collect(),
+            None => Vec::new(),
+        }
     }
 
     pub fn clamped(mut self) -> Self {
@@ -126,6 +137,7 @@ pub struct RangeScrubber {
     bounds: Rc<Cell<Bounds<Pixels>>>,
     active: Rc<Cell<Handle>>,
     value: (f32, f32),
+    stops: Rc<[f32]>,
     filled: Hsla,
     empty: Hsla,
     thumb: Hsla,
@@ -139,11 +151,17 @@ impl RangeScrubber {
             bounds: state.bounds.clone(),
             active: state.active.clone(),
             value: (value.0.clamp(0., 1.), value.1.clamp(0., 1.)),
+            stops: Rc::from(Vec::new()),
             filled: gpui::white(),
             empty: gpui::black(),
             thumb: gpui::white(),
             on_change: None,
         }
+    }
+
+    pub fn stops(mut self, stops: Vec<f32>) -> Self {
+        self.stops = Rc::from(stops);
+        self
     }
 
     pub fn colors(mut self, filled: Hsla, empty: Hsla, thumb: Hsla) -> Self {
@@ -174,6 +192,7 @@ impl RenderOnce for RangeScrubber {
             bounds,
             active,
             value,
+            stops,
             filled,
             empty,
             thumb,
@@ -190,8 +209,9 @@ impl RenderOnce for RangeScrubber {
         let seize = {
             let state = state.clone();
             let on_change = on_change.clone();
+            let stops = stops.clone();
             move |event: &MouseDownEvent, window: &mut Window, cx: &mut App| {
-                let share = state.share_at(event.position.x, pad);
+                let share = snap(state.share_at(event.position.x, pad), &stops);
                 let near = match (share - value.0).abs() <= (share - value.1).abs() {
                     true => Handle::Low,
                     false => Handle::High,
@@ -207,11 +227,12 @@ impl RenderOnce for RangeScrubber {
             let state = state.clone();
             let on_change = on_change.clone();
             let mine = id.clone();
+            let stops = stops.clone();
             move |event: &DragMoveEvent<Seize>, window: &mut Window, cx: &mut App| {
                 if event.drag(cx).0 != mine {
                     return;
                 }
-                let share = state.share_at(event.event.position.x, pad);
+                let share = snap(state.share_at(event.event.position.x, pad), &stops);
                 if let Some(handler) = on_change.as_ref() {
                     handler(&settle(value, state.active.get(), share), window, cx);
                 }
@@ -273,6 +294,14 @@ fn handle(left: Pixels, line: Pixels, pin: Pixels, thumb: Hsla) -> impl IntoElem
         .bg(thumb)
 }
 
+fn snap(share: f32, stops: &[f32]) -> f32 {
+    stops
+        .iter()
+        .copied()
+        .min_by(|a, b| (a - share).abs().total_cmp(&(b - share).abs()))
+        .unwrap_or(share)
+}
+
 fn settle(value: (f32, f32), handle: Handle, share: f32) -> (f32, f32) {
     match handle {
         Handle::Low => (share.min(value.1), value.1),
@@ -282,7 +311,7 @@ fn settle(value: (f32, f32), handle: Handle, share: f32) -> (f32, f32) {
 
 #[cfg(test)]
 mod tests {
-    use super::{RangeAxis, Unit};
+    use super::{RangeAxis, Unit, snap};
 
     fn axis(bounds: (f32, f32), value: (f32, f32)) -> RangeAxis {
         RangeAxis {
@@ -291,7 +320,43 @@ mod tests {
             bounds,
             value,
             unit: Unit::Plain,
+            values: None,
         }
+    }
+
+    fn sparse() -> RangeAxis {
+        RangeAxis {
+            values: Some(vec![1967., 1977., 1989., 2020.]),
+            ..axis((1967., 2020.), (1967., 2020.))
+        }
+    }
+
+    #[test]
+    fn stops_sit_where_the_values_are() {
+        let stops = sparse().stops();
+
+        assert_eq!(stops.len(), 4);
+        assert!((stops[0] - 0.).abs() < 1e-6);
+        assert!((stops[3] - 1.).abs() < 1e-6);
+        assert!(stops[1] > 0. && stops[1] < stops[2]);
+    }
+
+    #[test]
+    fn snapping_skips_gaps_between_present_values() {
+        let axis = sparse();
+        let stops = axis.stops();
+        let missing = (1995. - axis.bounds.0) / axis.span();
+
+        let landed = axis.at((snap(missing, &stops), 1.)).0;
+        assert_eq!(landed.round(), 1989.);
+    }
+
+    #[test]
+    fn snapping_is_a_no_op_without_values() {
+        let stops = axis((0., 100.), (0., 100.)).stops();
+
+        assert!(stops.is_empty());
+        assert!((snap(0.37, &stops) - 0.37).abs() < 1e-6);
     }
 
     #[test]

@@ -113,17 +113,16 @@ impl AlbumSource {
         self.albums(cx).get(row).cloned()
     }
 
-    pub(super) fn years(&self, query: &str, cx: &App) -> Option<(f32, f32)> {
-        let mut low = f32::MAX;
-        let mut high = f32::MIN;
-        for album in self.albums(cx) {
-            if album.year == 0 || !hits(album, query) {
-                continue;
-            }
-            low = low.min(album.year as f32);
-            high = high.max(album.year as f32);
-        }
-        (low <= high).then_some((low, high))
+    pub(super) fn years(&self, query: &str, cx: &App) -> Vec<f32> {
+        let mut years: Vec<f32> = self
+            .albums(cx)
+            .iter()
+            .filter(|album| album.year > 0 && hits(album, query))
+            .map(|album| album.year as f32)
+            .collect();
+        years.sort_by(f32::total_cmp);
+        years.dedup();
+        years
     }
 
     pub(super) fn span(&self) -> Option<(f32, f32)> {
