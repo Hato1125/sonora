@@ -13,7 +13,7 @@ use workspace::{Chrome, Searchable};
 
 use crate::cells;
 use crate::tracks::{
-    LIBRARY_COLUMNS, PlaybackStatus, TrackField, TrackSource, Tracks, playback_status,
+    self, LIBRARY_COLUMNS, PlaybackStatus, TrackField, TrackSource, Tracks, playback_status,
 };
 use albums::AlbumSource;
 use playlists::PlaylistSource;
@@ -111,6 +111,7 @@ impl LibraryView {
                 playback.clone(),
                 playlist_scrollbar,
             );
+            let source = source.table(cx.weak_entity());
             let mut delegate = GridDelegate::new(source, width, cx).with_sort(
                 TrackField::AddedAt,
                 Sort::Descending,
@@ -279,13 +280,7 @@ impl LibraryView {
     }
 
     fn play(&mut self, display: usize, cx: &mut Context<Self>) {
-        let queued = {
-            let state = self.tracks.read(cx);
-            let delegate = state.delegate();
-            (0..delegate.row_count())
-                .filter_map(|row| delegate.source().at(delegate.row(row), cx))
-                .collect::<Vec<_>>()
-        };
+        let queued = tracks::ordered(&self.tracks, cx);
         self.playback
             .update(cx, |playback, cx| playback.start(queued, display, cx));
     }

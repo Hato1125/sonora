@@ -60,6 +60,7 @@ impl DetailView {
                 playback.clone(),
                 playlist_scrollbar,
             );
+            let source = source.table(cx.weak_entity());
             GridState::new(GridDelegate::new(source, width, cx), cx).follow(scroll)
         });
 

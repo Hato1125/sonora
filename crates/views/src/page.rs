@@ -4,7 +4,7 @@ use state::Playback;
 use ui::{GridState, Viewport, scrolled};
 
 use crate::cells;
-use crate::tracks::TrackSource;
+use crate::tracks::{self, TrackSource};
 
 const FRAME: Pixels = px(1.);
 
@@ -18,13 +18,7 @@ pub(crate) fn play(
     display: usize,
     cx: &mut App,
 ) {
-    let queued = {
-        let state = table.read(cx);
-        let delegate = state.delegate();
-        (0..delegate.row_count())
-            .filter_map(|row| delegate.source().at(delegate.row(row), cx))
-            .collect::<Vec<_>>()
-    };
+    let queued = tracks::ordered(table, cx);
     playback.update(cx, |playback, cx| playback.start(queued, display, cx));
 }
 
