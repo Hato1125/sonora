@@ -13,10 +13,10 @@ use spotify::Track;
 use state::{Hit, Kind, Playback, Search};
 use ui::ActiveTheme as _;
 use ui::{Card, Room, Scrollbar, Scroller, Text, Theme, VAST, clock, eyebrow};
-use workspace::Chrome;
+use workspace::{Chrome, TrackMenu};
 
 use crate::cells;
-use crate::tracks::{PlaybackStatus, TrackMenu, playback_status};
+use crate::tracks::{PlaybackStatus, playback_status};
 
 enum Press {
     Song(usize),

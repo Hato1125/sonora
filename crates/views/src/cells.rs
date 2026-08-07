@@ -230,12 +230,18 @@ pub(crate) fn link<F>(
     color: Hsla,
     to: Destination,
 ) -> AnyElement {
-    cell.frame()
+    let text = div()
         .id((id, cell.row))
-        .text_color(color)
+        .min_w_0()
+        .truncate()
         .hover(|style| style.underline())
         .link(to)
-        .child(value.into())
+        .child(value.into());
+
+    line(cell, Some(color))
+        .flex()
+        .items_center()
+        .child(text)
         .into_any_element()
 }
 
@@ -275,10 +281,6 @@ pub(crate) fn artists<F>(
 fn line<F>(cell: &Cell<F>, color: Option<Hsla>) -> Div {
     cell.frame()
         .when_some(color, |this, color| this.text_color(color))
-}
-
-pub(crate) fn text<F>(cell: &Cell<F>, value: impl Into<SharedString>) -> AnyElement {
-    line(cell, None).child(value.into()).into_any_element()
 }
 
 pub(crate) fn dim<F>(cell: &Cell<F>, value: impl Into<SharedString>, muted: Hsla) -> AnyElement {

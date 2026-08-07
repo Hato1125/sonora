@@ -5,13 +5,19 @@ use std::time::Duration;
 use ui::ActiveTheme as _;
 
 use gpui::prelude::*;
-use gpui::{Context, Entity, MouseMoveEvent, MouseUpEvent, Pixels, Render, SharedString};
+use gpui::{
+    Context, Entity, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, Point,
+    Render, ScrollHandle, SharedString, anchored,
+};
 use gpui::{Window, div, px};
 use i18n::t;
 use state::{Library, Playback, PlaybackState, Queue, Repeat, Sonora};
-use ui::{Artwork, Button, InlineLink, InlineLinks, Room, Scrubber, ScrubberState, clock};
+use ui::{
+    Artwork, Button, InlineLink, InlineLinks, Room, Scrollbar, Scrubber, ScrubberState, clock,
+};
 
 use crate::sidebar_right::QueuePanel;
+use crate::track_menu::TrackMenu;
 
 const SEEK_MAX: f32 = 560.;
 const VOLUME_WIDTH: f32 = 110.;
@@ -24,6 +30,8 @@ pub struct PlayerBar {
     queue: Entity<Queue>,
     library: Entity<Library>,
     queue_panel: Option<Entity<QueuePanel>>,
+    track_menu: TrackMenu,
+    context_menu: Option<(spotify::Track, Point<Pixels>)>,
     seek: ScrubberState,
     volume: ScrubberState,
     pending: Option<f32>,
@@ -60,11 +68,19 @@ impl PlayerBar {
             cx.observe(queue_panel, |_, _, cx| cx.notify()).detach();
         }
 
+        let playlist_scrollbar = cx.new(|_| {
+            Scrollbar::new(ScrollHandle::new())
+                .always_visible()
+                .track_inset(px(4.))
+        });
+
         Self {
             playback,
             queue,
             library,
             queue_panel,
+            track_menu: TrackMenu::new(playlist_scrollbar),
+            context_menu: None,
             seek: ScrubberState::new("seek"),
             volume: ScrubberState::new("volume"),
             pending: None,
@@ -72,6 +88,17 @@ impl PlayerBar {
             over_volume: None,
             muted: None,
         }
+    }
+
+    fn open_context_menu(
+        &mut self,
+        track: spotify::Track,
+        position: Point<Pixels>,
+        cx: &mut Context<Self>,
+    ) {
+        self.track_menu.reset();
+        self.context_menu = Some((track, position));
+        cx.notify();
     }
 
     fn commit_seek(&mut self, cx: &mut Context<Self>) {
@@ -324,15 +351,29 @@ impl PlayerBar {
                                 .items_center()
                                 .gap_1()
                                 .child(match &track {
-                                    Some(track) => div()
-                                        .id("now-playing-track")
-                                        .when_some(track.id.clone(), |this, id| {
-                                            this.hover(|style| style.underline())
-                                                .link(Destination::Song(id.into()))
-                                        })
-                                        .child(SharedString::from(track.name.clone()))
-                                        .min_w_0()
-                                        .truncate(),
+                                    Some(track) => {
+                                        let context_track = track.clone();
+                                        div()
+                                            .id("now-playing-track")
+                                            .when_some(track.album_id.clone(), |this, album_id| {
+                                                this.hover(|style| style.underline())
+                                                    .link(Destination::Album(album_id.into()))
+                                            })
+                                            .on_mouse_down(
+                                                MouseButton::Right,
+                                                cx.listener(move |this, event: &MouseDownEvent, window, cx| {
+                                                    window.prevent_default();
+                                                    this.open_context_menu(
+                                                        context_track.clone(),
+                                                        event.position,
+                                                        cx,
+                                                    );
+                                                }),
+                                            )
+                                            .child(SharedString::from(track.name.clone()))
+                                            .min_w_0()
+                                            .truncate()
+                                    }
                                     None => div()
                                         .id("now-playing-album")
                                         .child(t!("player-nothing-playing"))
@@ -460,7 +501,25 @@ impl Render for PlayerBar {
             .border_color(theme.border)
             .on_mouse_move(cx.listener(Self::hover));
 
-        match stacked {
+        let context_menu = self.context_menu.clone().map(|(track, position)| {
+            anchored()
+                .position(position)
+                .snap_to_window_with_margin(px(8.))
+                .child(
+                    self.track_menu
+                        .for_track(&track, cx)
+                        .on_action(cx.listener(|this, _, _, cx| {
+                            this.context_menu = None;
+                            cx.notify();
+                        }))
+                        .on_dismiss(cx.listener(|this, _, _, cx| {
+                            this.context_menu = None;
+                            cx.notify();
+                        })),
+                )
+        });
+
+        let content = match stacked {
             true => base
                 .flex_col()
                 .justify_center()
@@ -511,6 +570,8 @@ impl Render for PlayerBar {
                         .child(self.sound(px(VOLUME_WIDTH), cx))
                         .when_some(self.queue_button(cx), |this, button| this.child(button)),
                 ),
-        }
+        };
+
+        content.when_some(context_menu, |this, menu| this.child(menu))
     }
 }

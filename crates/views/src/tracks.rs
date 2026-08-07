@@ -6,18 +6,17 @@ use ui::ActiveTheme as _;
 
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
-    AnyElement, App, ClipboardItem, Entity, Hsla, InteractiveElement as _, IntoElement as _,
-    Styled as _, TextAlign, WeakEntity,
+    AnyElement, App, Entity, Hsla, InteractiveElement as _, IntoElement as _, Styled as _,
+    TextAlign, WeakEntity,
 };
-use i18n::t;
 use jiff::Timestamp;
-use router::{Destination, navigate};
+use router::Destination;
 use spotify::Track;
-use state::{Library, LibraryState, Playback, PlaybackState, Sonora};
+use state::{Library, Playback, PlaybackState};
 use ui::{
-    Button, Cell, ColumnSpec, GridSource, GridState, Menu, MenuItem, ROW_GROUP, Scrollbar,
-    SubmenuState, Width, clock,
+    Button, Cell, ColumnSpec, GridSource, GridState, Menu, ROW_GROUP, Scrollbar, Width, clock,
 };
+use workspace::TrackMenu;
 
 use crate::cells::{self, ALWAYS, DATE, NUMBER, ROOMY, SNUG, TRAILING, WIDE};
 use crate::hero::release_date_label;
@@ -170,127 +169,6 @@ pub(crate) fn playback_status(playback: &Entity<Playback>, cx: &App) -> Playback
 pub(crate) trait Tracks: 'static {
     fn tracks<'a>(&self, cx: &'a App) -> &'a [Track];
     fn is_loading(&self, cx: &App) -> bool;
-}
-
-#[derive(Clone)]
-pub(crate) struct TrackMenu {
-    playlist_submenu: SubmenuState,
-    playlist_scrollbar: Entity<Scrollbar>,
-}
-
-impl TrackMenu {
-    pub(crate) fn new(playlist_scrollbar: Entity<Scrollbar>) -> Self {
-        Self {
-            playlist_submenu: SubmenuState::default(),
-            playlist_scrollbar,
-        }
-    }
-
-    pub(crate) fn reset(&self) {
-        self.playlist_submenu.reset();
-    }
-
-    pub(crate) fn for_track(&self, track: &Track, cx: &App) -> Menu {
-        let playlists = match Sonora::global(cx).library.read(cx).state() {
-            LibraryState::Ready { playlists, .. } => playlists.clone(),
-            _ => Vec::new(),
-        };
-        let playlist_menu = if playlists.is_empty() {
-            Menu::new("playlist-submenu")
-                .w(gpui::px(220.))
-                .item(MenuItem::new("no-playlists", t!("menu-no-playlists")).disabled())
-        } else {
-            Menu::new("playlist-submenu")
-                .w(gpui::px(220.))
-                .max_h(gpui::px(360.))
-                .scrollbar(self.playlist_scrollbar.clone())
-                .item(
-                    MenuItem::new("new-playlist", t!("menu-new-playlist"))
-                        .icon("icons/plus.svg")
-                        .disabled(),
-                )
-                .item(MenuItem::separator("playlist-separator"))
-                .items(playlists.into_iter().map(|playlist| {
-                    MenuItem::new(format!("playlist-{}", playlist.id), playlist.name)
-                        .artwork(playlist.cover)
-                        .disabled()
-                }))
-        };
-        let copy = match track.id.clone() {
-            Some(id) => MenuItem::new("copy-track-link", t!("menu-copy-link"))
-                .icon("icons/link.svg")
-                .on_click(move |_, _, cx| {
-                    cx.write_to_clipboard(ClipboardItem::new_string(format!(
-                        "https://open.spotify.com/track/{id}"
-                    )));
-                }),
-            None => MenuItem::new("copy-track-link", t!("menu-copy-link"))
-                .icon("icons/link.svg")
-                .disabled(),
-        };
-        let queue = match track.playable {
-            true => {
-                let track = track.clone();
-                MenuItem::new("add-to-queue", t!("menu-add-to-queue"))
-                    .icon("icons/list-end.svg")
-                    .on_click(move |_, _, cx| {
-                        let queue = Sonora::global(cx).queue.clone();
-                        queue.update(cx, |queue, cx| queue.append(track.clone(), cx));
-                    })
-            }
-            false => MenuItem::new("add-to-queue", t!("menu-add-to-queue"))
-                .icon("icons/list-end.svg")
-                .disabled(),
-        };
-        let library = Sonora::global(cx).library.clone();
-        let toggle_library = match track.id.as_deref() {
-            Some(id) if !library.read(cx).pending(id) => {
-                let saved = library.read(cx).saved(id);
-                let track = track.clone();
-                MenuItem::new(
-                    "toggle-library",
-                    match saved {
-                        true => t!("menu-remove-from-library"),
-                        false => t!("menu-add-to-library"),
-                    },
-                )
-                .icon("icons/heart.svg")
-                .on_click(move |_, _, cx| {
-                    library.update(cx, |library, cx| library.toggle(track.clone(), cx));
-                })
-            }
-            _ => MenuItem::new("toggle-library", t!("menu-add-to-library"))
-                .icon("icons/heart.svg")
-                .disabled(),
-        };
-
-        let details = match track.id.clone() {
-            Some(id) => MenuItem::new("view-details", t!("menu-view-details"))
-                .icon("icons/info.svg")
-                .on_click(move |_, _, cx| navigate(Destination::Song(id.clone().into()), cx)),
-            None => MenuItem::new("view-details", t!("menu-view-details"))
-                .icon("icons/info.svg")
-                .disabled(),
-        };
-
-        Menu::new("track-context-menu")
-            .relative()
-            .w(gpui::px(210.))
-            .item(
-                MenuItem::new("add-to-playlist", t!("menu-add-to-playlist"))
-                    .icon("icons/list-plus.svg")
-                    .submenu(playlist_menu, self.playlist_submenu.clone()),
-            )
-            .item(toggle_library)
-            .item(queue)
-            .item(
-                MenuItem::new("song-radio", t!("menu-song-radio"))
-                    .icon("icons/radio.svg")
-                    .disabled(),
-            )
-            .item(details)
-            .item(copy)
-    }
 }
 
 pub(crate) fn ordered(table: &Entity<GridState<TrackSource>>, cx: &App) -> Vec<Track> {

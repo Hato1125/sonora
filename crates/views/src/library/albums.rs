@@ -4,6 +4,7 @@ use std::cmp::Ordering;
 use ui::ActiveTheme as _;
 
 use gpui::{AnyElement, App, Entity, TextAlign};
+use router::Destination;
 use spotify::Album;
 use state::{Library, LibraryState, Origin, Playback};
 use ui::{Cell, ColumnSpec, GridSource, Width};
@@ -180,7 +181,8 @@ impl GridSource for AlbumSource {
     }
 
     fn cell(&self, cell: Cell<AlbumField>, cx: &mut App) -> AnyElement {
-        let muted = cx.theme().muted_foreground;
+        let theme = *cx.theme();
+        let muted = theme.muted_foreground;
 
         let Some(album) = self.albums(cx).get(cell.row) else {
             return cells::blank(&cell);
@@ -192,7 +194,13 @@ impl GridSource for AlbumSource {
 
         match cell.field {
             AlbumField::Cover => cells::artwork(&cell, album.cover.clone()),
-            AlbumField::Name => cells::text(&cell, album.name.clone()),
+            AlbumField::Name => cells::link(
+                &cell,
+                "album-name",
+                album.name.clone(),
+                theme.foreground,
+                Destination::Album(album.id.clone().into()),
+            ),
             AlbumField::Artists => cells::artists(
                 &cell,
                 album.artist_refs.clone(),
