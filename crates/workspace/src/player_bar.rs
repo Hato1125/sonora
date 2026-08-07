@@ -289,7 +289,6 @@ impl PlayerBar {
         let id = track.as_ref().and_then(|track| track.id.as_deref());
         let library = self.library.read(cx);
         let saved = id.is_some_and(|id| library.saved(id));
-        let pending = id.is_some_and(|id| library.pending(id));
 
         Button::new("toggle-liked-track")
             .ghost()
@@ -303,7 +302,7 @@ impl PlayerBar {
                 true => theme.primary,
                 false => theme.muted_foreground,
             })
-            .disabled(id.is_none() || pending)
+            .disabled(id.is_none())
             .on_click(cx.listener(move |this, _, _, cx| {
                 if let Some(track) = track.clone() {
                     this.library
