@@ -108,7 +108,7 @@ pub struct Toolbar {
     toggles: Option<Toggles>,
     switch: Option<Switch>,
     port: Option<Box<dyn Port>>,
-    sliders: Vec<RangeState>,
+    sliders: Vec<(&'static str, RangeState)>,
     open: bool,
     picker: bool,
     sifting: bool,
@@ -175,12 +175,6 @@ impl Toolbar {
     }
 
     pub fn filters<V: Filterable>(&mut self, view: &Entity<V>, cx: &mut Context<Self>) {
-        self.sliders = view
-            .read(cx)
-            .ranges(cx)
-            .iter()
-            .map(|axis| RangeState::new(axis.key))
-            .collect();
         self.port = Some(Box::new(Wire(view.downgrade())));
         cx.observe(view, |_, _, cx| cx.notify()).detach();
         cx.notify();
@@ -258,7 +252,17 @@ impl Toolbar {
 }
 
 impl Toolbar {
-    fn sift(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn slider(&mut self, key: &'static str) -> RangeState {
+        if let Some((_, state)) = self.sliders.iter().find(|(known, _)| *known == key) {
+            return state.clone();
+        }
+
+        let state = RangeState::new(key);
+        self.sliders.push((key, state.clone()));
+        state
+    }
+
+    fn sift(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
         let ranges = match self.port.as_ref() {
             Some(port) => port.ranges(cx),
@@ -270,9 +274,11 @@ impl Toolbar {
         };
         let narrowed = ranges.iter().any(|axis| !axis.whole()) || flags.iter().any(|flag| flag.on);
 
+        let states: Vec<RangeState> = ranges.iter().map(|axis| self.slider(axis.key)).collect();
+
         let sliders: Vec<MenuItem> = ranges
             .iter()
-            .zip(self.sliders.iter())
+            .zip(states.iter())
             .map(|(axis, state)| {
                 let key = axis.key;
                 let unit = axis.unit;
@@ -381,6 +387,11 @@ impl Toolbar {
 
 impl Render for Toolbar {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let sift = match self.port.is_some() {
+            true => Some(self.sift(cx).into_any_element()),
+            false => None,
+        };
+
         div()
             .flex()
             .flex_1()
@@ -389,7 +400,7 @@ impl Render for Toolbar {
             .justify_end()
             .gap_1()
             .on_action(cx.listener(|this, _: &Dismiss, _, cx| this.close(cx)))
-            .when(self.port.is_some(), |this| this.child(self.sift(cx)))
+            .children(sift)
             .when(self.toggles.is_some(), |this| this.child(self.menu(cx)))
             .when(self.apply.is_some(), |this| {
                 this.when(self.open, |this| {

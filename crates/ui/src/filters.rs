@@ -85,6 +85,7 @@ impl Render for Seize {
     }
 }
 
+#[derive(Clone)]
 pub struct RangeState {
     id: SharedString,
     bounds: Rc<Cell<Bounds<Pixels>>>,
