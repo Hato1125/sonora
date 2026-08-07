@@ -9,6 +9,7 @@ audio.workspace = true
 dirs.workspace = true
 fastrand.workspace = true
 gpui.workspace = true
+i18n.workspace = true
 librespot-core.workspace = true
 log.workspace = true
 serde.workspace = true

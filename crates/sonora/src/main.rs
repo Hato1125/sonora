@@ -41,10 +41,15 @@ fn main() {
 
             state::init(cx, io);
             router::init(Destination::Home, cx);
-            let (look, overrides) = {
+            let (look, overrides, language) = {
                 let settings = Sonora::global(cx).settings.read(cx);
-                (settings.look(), settings.theme_overrides().clone())
+                (
+                    settings.look(),
+                    settings.theme_overrides().clone(),
+                    settings.language().to_owned(),
+                )
             };
+            i18n::set(i18n::resolve(&language));
             ui::Theme::init(look, &overrides, cx);
 
             actions::register(cx);

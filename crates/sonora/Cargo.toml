@@ -9,6 +9,7 @@ env_logger.workspace = true
 log.workspace = true
 gpui.workspace = true
 gpui_platform.workspace = true
+i18n.workspace = true
 state.workspace = true
 input.workspace = true
 router.workspace = true
