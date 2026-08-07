@@ -9,7 +9,9 @@ use librespot_protocol::playlist4_external::SelectedListContent as RootList;
 use protobuf::Message as _;
 
 use crate::models::{Album, AlbumDetail, Artist, Playlist, Track, UserProfile};
-use crate::{albums, artists, collection, pathfinder, playlists, profiles, radio, search, wire};
+use crate::{
+    albums, artists, collection, collection2, pathfinder, playlists, profiles, radio, search, wire,
+};
 
 #[async_trait]
 pub trait SpotifyApi: Send + Sync {
@@ -17,6 +19,7 @@ pub trait SpotifyApi: Send + Sync {
     async fn artist(&self, artist_id: &str) -> Result<Artist>;
     async fn artist_images(&self, ids: Vec<String>) -> Result<HashMap<String, String>>;
     async fn saved_tracks(&self, limit: u32) -> Result<Vec<Track>>;
+    async fn set_track_saved(&self, track_id: &str, saved: bool) -> Result<()>;
     async fn track(&self, track_id: &str) -> Result<Track>;
     async fn track_playcount(&self, track_id: &str) -> Result<Option<u64>>;
     async fn playlists(&self, limit: u32) -> Result<Vec<Playlist>>;
@@ -69,6 +72,10 @@ impl SpotifyApi for LibrespotClient {
 
     async fn saved_tracks(&self, limit: u32) -> Result<Vec<Track>> {
         collection::saved_tracks(&self.session, limit).await
+    }
+
+    async fn set_track_saved(&self, track_id: &str, saved: bool) -> Result<()> {
+        collection2::set_track_saved(&self.session, track_id, saved).await
     }
 
     async fn track(&self, track_id: &str) -> Result<Track> {

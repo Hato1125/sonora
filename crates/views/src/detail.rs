@@ -50,6 +50,7 @@ impl DetailView {
         detail: Entity<Detail>,
         playback: Entity<Playback>,
         columns: &'static [ColumnSpec<TrackField>],
+        show_liked: bool,
         section: &'static str,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -74,6 +75,10 @@ impl DetailView {
                 playback.clone(),
                 playlist_scrollbar,
             );
+            let source = match show_liked {
+                true => source.with_liked(Sonora::global(cx).library.clone()),
+                false => source,
+            };
             let source = source.table(cx.weak_entity());
             let mut delegate = GridDelegate::new(source, width, cx);
             delegate.set_hidden(saved, cx);
@@ -89,6 +94,14 @@ impl DetailView {
             cx.notify();
         })
         .detach();
+
+        if show_liked {
+            let library = Sonora::global(cx).library.clone();
+            cx.observe(&library, |this, _, cx| {
+                this.table.update(cx, |table, cx| table.refresh(cx));
+            })
+            .detach();
+        }
 
         let chrome = Chrome::entity(cx);
         cx.observe(&chrome, |_, _, cx| cx.notify()).detach();

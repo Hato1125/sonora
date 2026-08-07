@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use gpui::{Context, Entity, Task};
 use spotify::{Album, Playlist, SpotifyApi, Track};
@@ -54,6 +56,7 @@ pub struct Library {
     session: Entity<Session>,
     io: Io,
     task: Option<Task<()>>,
+    pending: HashMap<String, Task<()>>,
 }
 
 impl Library {
@@ -67,6 +70,7 @@ impl Library {
             }
             SessionEvent::SignedOut => {
                 this.task = None;
+                this.pending.clear();
                 this.state = LibraryState::Empty;
                 cx.notify();
             }
@@ -78,6 +82,7 @@ impl Library {
             session,
             io,
             task: None,
+            pending: HashMap::new(),
         }
     }
 
@@ -87,6 +92,72 @@ impl Library {
 
     pub fn is_loading(&self) -> bool {
         matches!(self.state, LibraryState::Loading)
+    }
+
+    pub fn saved(&self, track_id: &str) -> bool {
+        let LibraryState::Ready { tracks, .. } = &self.state else {
+            return false;
+        };
+        tracks
+            .iter()
+            .any(|track| track.id.as_deref() == Some(track_id))
+    }
+
+    pub fn pending(&self, track_id: &str) -> bool {
+        self.pending.contains_key(track_id)
+    }
+
+    pub fn toggle(&mut self, mut track: Track, cx: &mut Context<Self>) {
+        let Some(track_id) = track.id.clone() else {
+            return;
+        };
+        if self.pending(&track_id) {
+            return;
+        }
+        let Some(client) = self.session.read(cx).client() else {
+            return;
+        };
+        let saved = !self.saved(&track_id);
+        let previous = match &self.state {
+            LibraryState::Ready { tracks, .. } => tracks
+                .iter()
+                .find(|track| track.id.as_deref() == Some(track_id.as_str()))
+                .cloned(),
+            _ => None,
+        };
+        if saved {
+            track.added_at = Some(
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs() as i64,
+            );
+        }
+        self.set_saved(track.clone(), saved);
+
+        let io = self.io.clone();
+        let request_id = track_id.clone();
+        let pending_id = track_id.clone();
+        let task = cx.spawn(async move |this, cx| {
+            let result =
+                join(io.spawn(async move { client.set_track_saved(&request_id, saved).await }))
+                    .await;
+
+            this.update(cx, |this, cx| {
+                this.pending.remove(&pending_id);
+                if let Err(error) = result {
+                    match previous {
+                        Some(previous) => this.set_saved(previous, true),
+                        None => this.set_saved(track, false),
+                    }
+                    log::warn!("library: cannot update saved track: {error:#}");
+                }
+                cx.notify();
+            })
+            .ok();
+        });
+        self.pending.insert(track_id, task);
+        cx.notify();
     }
 
     pub fn album(&self, id: &str) -> Option<&Album> {
@@ -103,6 +174,18 @@ impl Library {
         playlists.iter().find(|playlist| playlist.id == id)
     }
 
+    fn set_saved(&mut self, track: Track, saved: bool) {
+        let LibraryState::Ready { tracks, .. } = &mut self.state else {
+            return;
+        };
+        let id = track.id.as_deref();
+        match saved {
+            true if !tracks.iter().any(|saved| saved.id.as_deref() == id) => tracks.push(track),
+            false => tracks.retain(|saved| saved.id.as_deref() != id),
+            _ => {}
+        }
+    }
+
     pub fn refresh(&mut self, cx: &mut Context<Self>) {
         let client = self.session.read(cx).client();
         if let Some(client) = client {
@@ -111,6 +194,7 @@ impl Library {
     }
 
     fn load(&mut self, client: Arc<dyn SpotifyApi>, cx: &mut Context<Self>) {
+        self.pending.clear();
         self.state = LibraryState::Loading;
         cx.notify();
 

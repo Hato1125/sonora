@@ -230,12 +230,18 @@ pub(crate) fn link<F>(
     color: Hsla,
     to: Destination,
 ) -> AnyElement {
-    cell.frame()
+    let text = div()
         .id((id, cell.row))
-        .text_color(color)
+        .min_w_0()
+        .truncate()
         .hover(|style| style.underline())
         .link(to)
-        .child(value.into())
+        .child(value.into());
+
+    line(cell, Some(color))
+        .flex()
+        .items_center()
+        .child(text)
         .into_any_element()
 }
 
@@ -277,10 +283,6 @@ fn line<F>(cell: &Cell<F>, color: Option<Hsla>) -> Div {
         .when_some(color, |this, color| this.text_color(color))
 }
 
-pub(crate) fn text<F>(cell: &Cell<F>, value: impl Into<SharedString>) -> AnyElement {
-    line(cell, None).child(value.into()).into_any_element()
-}
-
 pub(crate) fn dim<F>(cell: &Cell<F>, value: impl Into<SharedString>, muted: Hsla) -> AnyElement {
     line(cell, Some(muted))
         .child(value.into())
@@ -307,17 +309,22 @@ pub(crate) fn title<F>(
     value: impl Into<SharedString>,
     color: Option<Hsla>,
     explicit: bool,
-    song_id: Option<String>,
+    press: Option<Box<dyn Fn(&mut App)>>,
+    is_liked: Option<AnyElement>,
 ) -> AnyElement {
-    let text = div().min_w_0().truncate().child(value.into());
-    let text = match song_id {
-        Some(id) => text
-            .id(("song", cell.row))
-            .hover(|style| style.underline())
-            .link(Destination::Song(id.into()))
-            .into_any_element(),
-        None => text.into_any_element(),
-    };
+    let text = div()
+        .id(("track-title", cell.row))
+        .min_w_0()
+        .truncate()
+        .child(value.into())
+        .when_some(press, |this, press| {
+            this.cursor_pointer()
+                .hover(|style| style.underline())
+                .on_click(move |_, _, cx| {
+                    cx.stop_propagation();
+                    press(cx);
+                })
+        });
 
     line(cell, color)
         .flex()
@@ -327,6 +334,7 @@ pub(crate) fn title<F>(
         .when(explicit, |this| {
             this.child(div().flex_none().child(ExplicitBadge::new()))
         })
+        .when_some(is_liked, |this, is_liked| this.child(is_liked))
         .into_any_element()
 }
 

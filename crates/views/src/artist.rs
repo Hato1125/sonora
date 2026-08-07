@@ -8,7 +8,7 @@ use gpui::{
 
 use i18n::t;
 use spotify::{ReleaseType, Track};
-use state::{ArtistDetail, Playback};
+use state::{ArtistDetail, Playback, Sonora};
 use ui::ActiveTheme as _;
 use ui::{Button, ColumnSpec, GridDelegate, GridEvent, GridState, Scrollbar, Scroller, Text, grid};
 use workspace::Chrome;
@@ -101,7 +101,8 @@ impl ArtistView {
                 ArtistTracks(detail.clone()),
                 playback.clone(),
                 playlist_scrollbar,
-            );
+            )
+            .with_liked(Sonora::global(cx).library.clone());
             let source = source.table(cx.weak_entity());
             GridState::new(GridDelegate::new(source, width, cx), cx).follow(scroll)
         });
@@ -118,6 +119,12 @@ impl ArtistView {
         .detach();
         let chrome = Chrome::entity(cx);
         cx.observe(&chrome, |_, _, cx| cx.notify()).detach();
+
+        let library = Sonora::global(cx).library.clone();
+        cx.observe(&library, |this, _, cx| {
+            this.table.update(cx, |table, cx| table.refresh(cx));
+        })
+        .detach();
         let current_playback = playback_status(&playback, cx);
         cx.observe(&playback, |this, playback, cx| {
             let current = playback_status(&playback, cx);

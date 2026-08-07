@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use anyhow::{Context as _, Result};
 use http::header::{ACCEPT, CONTENT_TYPE};
 use http::{HeaderMap, HeaderValue, Method};
@@ -8,9 +11,12 @@ use librespot_core::Session;
 use crate::pb::{Reader, Value, Writer, text};
 
 const PAGING: &str = "/collection/v2/paging";
+const WRITE: &str = "/collection/v2/write";
 const CONTENT: &str = "application/vnd.collection-v2.spotify.proto";
 const SET: &str = "collection";
 const PAGE: i32 = 300;
+
+static UPDATE: AtomicU64 = AtomicU64::new(0);
 
 const REQUEST_USERNAME: u32 = 1;
 const REQUEST_SET: u32 = 2;
@@ -24,6 +30,11 @@ const ITEM_URI: u32 = 1;
 const ITEM_ADDED_AT: u32 = 2;
 const ITEM_REMOVED: u32 = 3;
 
+const WRITE_USERNAME: u32 = 1;
+const WRITE_SET: u32 = 2;
+const WRITE_ITEMS: u32 = 3;
+const WRITE_UPDATE_ID: u32 = 4;
+
 struct Page {
     items: Vec<SavedItem>,
     next: String,
@@ -32,6 +43,45 @@ struct Page {
 pub(crate) struct SavedItem {
     pub(crate) uri: String,
     pub(crate) added_at: Option<i64>,
+}
+
+pub async fn set_track_saved(session: &Session, track_id: &str, saved: bool) -> Result<()> {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .context("cannot read the current time")?;
+    let added_at = match saved {
+        true => now
+            .as_secs()
+            .try_into()
+            .context("current time exceeds the collection timestamp range")?,
+        false => 0,
+    };
+
+    let mut item = Writer::default();
+    item.string(ITEM_URI, &format!("spotify:track:{track_id}"));
+    item.int32(ITEM_ADDED_AT, added_at);
+    item.bool(ITEM_REMOVED, !saved);
+
+    let sequence = UPDATE.fetch_add(1, Ordering::Relaxed);
+    let update_id = format!(
+        "sonora-{}-{}-{}-{sequence}",
+        now.as_secs(),
+        now.subsec_nanos(),
+        std::process::id()
+    );
+    let mut request = Writer::default();
+    request.string(WRITE_USERNAME, &session.username());
+    request.string(WRITE_SET, SET);
+    request.message(WRITE_ITEMS, &item.finish());
+    request.string(WRITE_UPDATE_ID, &update_id);
+    let body = request.finish();
+
+    session
+        .spclient()
+        .request(&Method::POST, WRITE, Some(headers()), Some(&body))
+        .await
+        .context("cannot update the saved collection")?;
+    Ok(())
 }
 
 pub async fn saved_uris(session: &Session, prefix: &str, limit: usize) -> Result<Vec<String>> {
@@ -47,10 +97,6 @@ pub(crate) async fn saved_items(
     prefix: &str,
     limit: usize,
 ) -> Result<Vec<SavedItem>> {
-    let mut headers = HeaderMap::new();
-    headers.insert(CONTENT_TYPE, HeaderValue::from_static(CONTENT));
-    headers.insert(ACCEPT, HeaderValue::from_static(CONTENT));
-
     let username = session.username();
     let mut found = Vec::new();
     let mut token = String::new();
@@ -59,7 +105,7 @@ pub(crate) async fn saved_items(
         let body = request(&username, &token);
         let raw = session
             .spclient()
-            .request(&Method::POST, PAGING, Some(headers.clone()), Some(&body))
+            .request(&Method::POST, PAGING, Some(headers()), Some(&body))
             .await
             .context("cannot read the saved collection")?;
 
@@ -79,6 +125,13 @@ pub(crate) async fn saved_items(
 
     found.truncate(limit);
     Ok(found)
+}
+
+fn headers() -> HeaderMap {
+    let mut headers = HeaderMap::new();
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static(CONTENT));
+    headers.insert(ACCEPT, HeaderValue::from_static(CONTENT));
+    headers
 }
 
 fn request(username: &str, token: &str) -> Vec<u8> {

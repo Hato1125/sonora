@@ -5,14 +5,19 @@ use std::time::Duration;
 use ui::ActiveTheme as _;
 
 use gpui::prelude::*;
-use gpui::{Context, Entity, MouseMoveEvent, MouseUpEvent, Pixels, Render, SharedString};
+use gpui::{
+    Context, Entity, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, Point,
+    Render, ScrollHandle, SharedString, anchored,
+};
 use gpui::{Window, div, px};
 use i18n::t;
-use state::{Playback, PlaybackState, Queue, Repeat};
-
-use ui::{Artwork, Button, InlineLink, InlineLinks, Room, Scrubber, ScrubberState, clock};
+use state::{Library, Playback, PlaybackState, Queue, Repeat, Sonora};
+use ui::{
+    Artwork, Button, InlineLink, InlineLinks, Room, Scrollbar, Scrubber, ScrubberState, clock,
+};
 
 use crate::sidebar_right::QueuePanel;
+use crate::track_menu::TrackMenu;
 
 const SEEK_MAX: f32 = 560.;
 const VOLUME_WIDTH: f32 = 110.;
@@ -23,7 +28,10 @@ const STEP: f32 = 0.004;
 pub struct PlayerBar {
     playback: Entity<Playback>,
     queue: Entity<Queue>,
+    library: Entity<Library>,
     queue_panel: Option<Entity<QueuePanel>>,
+    track_menu: TrackMenu,
+    context_menu: Option<(spotify::Track, Point<Pixels>)>,
     seek: ScrubberState,
     volume: ScrubberState,
     pending: Option<f32>,
@@ -52,16 +60,27 @@ impl PlayerBar {
         queue_panel: Option<Entity<QueuePanel>>,
         cx: &mut Context<Self>,
     ) -> Self {
+        let library = Sonora::global(cx).library.clone();
         cx.observe(&playback, |_, _, cx| cx.notify()).detach();
         cx.observe(&queue, |_, _, cx| cx.notify()).detach();
+        cx.observe(&library, |_, _, cx| cx.notify()).detach();
         if let Some(queue_panel) = &queue_panel {
             cx.observe(queue_panel, |_, _, cx| cx.notify()).detach();
         }
 
+        let playlist_scrollbar = cx.new(|_| {
+            Scrollbar::new(ScrollHandle::new())
+                .always_visible()
+                .track_inset(px(4.))
+        });
+
         Self {
             playback,
             queue,
+            library,
             queue_panel,
+            track_menu: TrackMenu::new(playlist_scrollbar),
+            context_menu: None,
             seek: ScrubberState::new("seek"),
             volume: ScrubberState::new("volume"),
             pending: None,
@@ -69,6 +88,17 @@ impl PlayerBar {
             over_volume: None,
             muted: None,
         }
+    }
+
+    fn open_context_menu(
+        &mut self,
+        track: spotify::Track,
+        position: Point<Pixels>,
+        cx: &mut Context<Self>,
+    ) {
+        self.track_menu.reset();
+        self.context_menu = Some((track, position));
+        cx.notify();
     }
 
     fn commit_seek(&mut self, cx: &mut Context<Self>) {
@@ -254,6 +284,33 @@ impl PlayerBar {
             }))
     }
 
+    fn like(&self, track: Option<spotify::Track>, cx: &mut Context<Self>) -> Button {
+        let theme = *cx.theme();
+        let id = track.as_ref().and_then(|track| track.id.as_deref());
+        let library = self.library.read(cx);
+        let saved = id.is_some_and(|id| library.saved(id));
+
+        Button::new("toggle-liked-track")
+            .ghost()
+            .backgroundless()
+            .small()
+            .icon(match saved {
+                true => "icons/heart-filled.svg",
+                false => "icons/heart.svg",
+            })
+            .tint(match saved {
+                true => theme.primary,
+                false => theme.muted_foreground,
+            })
+            .disabled(id.is_none())
+            .on_click(cx.listener(move |this, _, _, cx| {
+                if let Some(track) = track.clone() {
+                    this.library
+                        .update(cx, |library, cx| library.toggle(track, cx));
+                }
+            }))
+    }
+
     fn now_playing(&self, room: bool, window: &Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
         let muted = theme.muted_foreground;
@@ -261,6 +318,7 @@ impl PlayerBar {
         let artists = theme.text(ui::Text::Small);
         let track = self.playback.read(cx).track().cloned();
         let cover = track.as_ref().and_then(|track| track.cover.clone());
+        let like = self.like(track.clone(), cx);
 
         div()
             .flex()
@@ -268,7 +326,15 @@ impl PlayerBar {
             .gap_3()
             .flex_1()
             .min_w_0()
-            .child(Artwork::new(cover).size(artwork))
+            .child(
+                div()
+                    .id("now-playing-artwork")
+                    .when_some(
+                        track.as_ref().and_then(|track| track.album_id.clone()),
+                        |this, album| this.link(Destination::Album(album.into())),
+                    )
+                    .child(Artwork::new(cover).size(artwork)),
+            )
             .when(room, |this| {
                 this.child(
                     div()
@@ -278,25 +344,45 @@ impl PlayerBar {
                         .flex_1()
                         .min_w_0()
                         .child(
-                            div().flex().min_w_0().child(match &track {
-                                Some(track) => div()
-                                    .id("now-playing-album")
-                                    .when_some(track.album_id.clone(), |this, album| {
-                                        this.hover(|style| style.underline())
-                                            .link(Destination::Album(album.into()))
-                                    })
-                                    .child(SharedString::from(track.name.clone()))
-                                    .min_w_0()
-                                    .truncate(),
-                                None => div()
-                                    .id("now-playing-album")
-                                    .child(t!("player-nothing-playing"))
-                                    .min_w_0()
-                                    .text_color(muted)
-                                    .truncate(),
-                            }),
+                            div()
+                                .flex()
+                                .min_w_0()
+                                .items_center()
+                                .gap_1()
+                                .child(match &track {
+                                    Some(track) => {
+                                        let context_track = track.clone();
+                                        div()
+                                            .id("now-playing-track")
+                                            .when_some(track.album_id.clone(), |this, album_id| {
+                                                this.hover(|style| style.underline())
+                                                    .link(Destination::Album(album_id.into()))
+                                            })
+                                            .on_mouse_down(
+                                                MouseButton::Right,
+                                                cx.listener(move |this, event: &MouseDownEvent, window, cx| {
+                                                    window.prevent_default();
+                                                    this.open_context_menu(
+                                                        context_track.clone(),
+                                                        event.position,
+                                                        cx,
+                                                    );
+                                                }),
+                                            )
+                                            .child(SharedString::from(track.name.clone()))
+                                            .min_w_0()
+                                            .truncate()
+                                    }
+                                    None => div()
+                                        .id("now-playing-album")
+                                        .child(t!("player-nothing-playing"))
+                                        .min_w_0()
+                                        .text_color(muted)
+                                        .truncate(),
+                                })
+                                .child(like),
                         )
-                        .when_some(track, |this, track| {
+                        .when_some(track.clone(), |this, track| {
                             this.child(
                                 InlineLinks::new(
                                     "now-playing-artist",
@@ -414,7 +500,25 @@ impl Render for PlayerBar {
             .border_color(theme.border)
             .on_mouse_move(cx.listener(Self::hover));
 
-        match stacked {
+        let context_menu = self.context_menu.clone().map(|(track, position)| {
+            anchored()
+                .position(position)
+                .snap_to_window_with_margin(px(8.))
+                .child(
+                    self.track_menu
+                        .for_track(&track, cx)
+                        .on_action(cx.listener(|this, _, _, cx| {
+                            this.context_menu = None;
+                            cx.notify();
+                        }))
+                        .on_dismiss(cx.listener(|this, _, _, cx| {
+                            this.context_menu = None;
+                            cx.notify();
+                        })),
+                )
+        });
+
+        let content = match stacked {
             true => base
                 .flex_col()
                 .justify_center()
@@ -465,6 +569,8 @@ impl Render for PlayerBar {
                         .child(self.sound(px(VOLUME_WIDTH), cx))
                         .when_some(self.queue_button(cx), |this, button| this.child(button)),
                 ),
-        }
+        };
+
+        content.when_some(context_menu, |this, menu| this.child(menu))
     }
 }

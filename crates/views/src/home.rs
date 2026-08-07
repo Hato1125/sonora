@@ -4,11 +4,11 @@ use gpui::prelude::*;
 use gpui::{Context, Entity, Pixels, Point, Render, ScrollHandle, Window, anchored, div, px};
 use state::{Home, Playback};
 use ui::{ActiveTheme as _, Scrollbar, Scroller};
-use workspace::Chrome;
+use workspace::{Chrome, TrackMenu};
 
 use crate::cells;
 use crate::quick_picks::{QuickPicks, column_count, page_count};
-use crate::tracks::{PlaybackStatus, TrackMenu, playback_status};
+use crate::tracks::{PlaybackStatus, playback_status};
 
 pub(crate) struct HomeView {
     home: Entity<Home>,

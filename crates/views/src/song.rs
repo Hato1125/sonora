@@ -1,18 +1,25 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use gpui::prelude::*;
-use gpui::{AnyElement, Context, Entity, FontWeight, Render, SharedString, Window, div, px};
+use gpui::{
+    AnyElement, Context, Entity, FontWeight, Pixels, Render, SharedString, Window, div, px,
+};
 use i18n::t;
 use router::{Destination, Link as _};
 use spotify::{Credit, Track};
 use state::{Playback, SongDetail};
 use ui::{
-    ActiveTheme as _, Artwork, Avatar, Button, Fact, InfoCard, Initials, Scrollbar, Text, clock,
-    eyebrow, heading,
+    ActiveTheme as _, Artwork, Avatar, Button, Fact, InfoCard, Initials, Scrollbar, Skeleton, Text,
+    clock, eyebrow, heading,
 };
 
 use crate::cells;
 use crate::hero::{HeroMetaStrip, HeroPlayButton, PageHero, release_date_label};
+
+const TITLE_SKELETON: Pixels = px(240.);
+const META_SKELETON: Pixels = px(180.);
+const ACTION_SKELETON: Pixels = px(96.);
+const FACT_SKELETON: Pixels = px(120.);
 
 pub(crate) struct SongView {
     detail: Entity<SongDetail>,
@@ -309,6 +316,59 @@ impl SongView {
             .into_any_element()
     }
 
+    fn loading(&self, cx: &Context<Self>) -> AnyElement {
+        let theme = *cx.theme();
+        let line = || Skeleton::new().w_full().h(theme.metrics.pad);
+        let panel = || {
+            div()
+                .flex()
+                .flex_col()
+                .gap_3()
+                .min_w(px(300.))
+                .flex_1()
+                .p(theme.metrics.pad)
+                .rounded(theme.radius)
+                .border_1()
+                .border_color(theme.border)
+                .child(Skeleton::new().w(FACT_SKELETON).h(theme.metrics.pad))
+                .children((0..5).map(|_| line()))
+        };
+
+        div()
+            .flex()
+            .flex_col()
+            .gap_5()
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap_5()
+                    .child(Skeleton::new().size(theme.metrics.cover))
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .gap_3()
+                            .flex_1()
+                            .min_w_0()
+                            .child(Skeleton::new().w(FACT_SKELETON).h(theme.metrics.pad))
+                            .child(Skeleton::new().w(TITLE_SKELETON).h(theme.metrics.control))
+                            .child(Skeleton::new().w(META_SKELETON).h(theme.metrics.pad))
+                            .child(Skeleton::new().w(ACTION_SKELETON).h(theme.metrics.control)),
+                    ),
+            )
+            .child(
+                div()
+                    .flex()
+                    .flex_wrap()
+                    .items_stretch()
+                    .gap_5()
+                    .child(panel())
+                    .child(panel()),
+            )
+            .into_any_element()
+    }
+
     fn artist_profile(&self, cx: &Context<Self>) -> Option<AnyElement> {
         let theme = *cx.theme();
         let detail = self.detail.read(cx);
@@ -387,12 +447,7 @@ impl Render for SongView {
                     .px(theme.metrics.inset)
                     .py(theme.metrics.inset)
                     .when(loading && track.is_none(), |this| {
-                        this.child(
-                            div()
-                                .py_8()
-                                .text_color(theme.muted_foreground)
-                                .child(t!("song-loading")),
-                        )
+                        this.child(self.loading(cx))
                     })
                     .when_some(error, |this, error| {
                         this.child(div().pb_4().text_color(theme.danger).child(error))
