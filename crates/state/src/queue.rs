@@ -114,6 +114,14 @@ impl Queue {
         !self.past.is_empty()
     }
 
+    pub fn clear_upcoming(&mut self, cx: &mut Context<Self>) {
+        if self.upcoming.is_empty() {
+            return;
+        }
+        self.upcoming.clear();
+        self.changed(cx);
+    }
+
     pub fn clear(&mut self, cx: &mut Context<Self>) {
         self.past.clear();
         self.current = None;

@@ -10,7 +10,7 @@ use gpui::{
 };
 use spotify::Track;
 use state::{AppSettings, Playback, Queue, Sonora};
-use ui::{ActiveTheme as _, Card, Menu, MenuItem, Room, Scrollbar, eyebrow, snapped};
+use ui::{ActiveTheme as _, Button, Card, Menu, MenuItem, Room, Scrollbar, eyebrow, snapped};
 
 use crate::Sidebar;
 
@@ -451,6 +451,33 @@ impl QueuePanel {
         )
     }
 
+    fn header(&self, sections: Sections, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+
+        div()
+            .flex()
+            .flex_none()
+            .items_center()
+            .justify_between()
+            .gap_2()
+            .h(theme.metrics.header)
+            .px_2()
+            .border_b_1()
+            .border_color(theme.border)
+            .child(eyebrow("QUEUE", cx))
+            .child(
+                Button::new("clear-queue")
+                    .ghost()
+                    .small()
+                    .label("Clear")
+                    .tint(theme.muted_foreground)
+                    .disabled(sections.upcoming == 0)
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.queue.update(cx, |queue, cx| queue.clear_upcoming(cx));
+                    })),
+            )
+    }
+
     fn pin(&mut self, sections: Sections, window: &Window, cx: &Context<Self>) {
         let Some(index) = sections.current_index() else {
             self.anchor = false;
@@ -568,6 +595,7 @@ impl Render for QueuePanel {
             .when(!fullscreen, |this| {
                 this.flex_none().w(self.width).child(self.grip(cx))
             })
+            .child(self.header(sections, cx))
             .child(
                 div()
                     .flex()
