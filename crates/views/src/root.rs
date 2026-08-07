@@ -10,19 +10,17 @@ use state::{
     SongDetail,
 };
 use ui::ActiveTheme as _;
-use workspace::{Filter, Sidebar, Workspace};
+use workspace::{Sidebar, Toolbar, Tooled, Workspace};
 
 use crate::search::SearchView;
 use crate::tracks::{ALBUM_COLUMNS, LIBRARY_COLUMNS};
 use crate::{
-    Adaptive, ArtistView, ColumnPicker, DetailView, HomeView, LibraryView, LoginView, SettingsView,
-    SongView,
+    Adaptive, ArtistView, DetailView, HomeView, LibraryView, LoginView, SettingsView, SongView,
 };
 
 struct Screens {
     home: Entity<HomeView>,
     library: Entity<LibraryView>,
-    picker: Entity<ColumnPicker>,
     artist: Option<Entity<ArtistView>>,
     artist_detail: Option<Entity<ArtistDetail>>,
     album: Entity<DetailView>,
@@ -46,7 +44,7 @@ pub struct Root {
     io: Io,
     login: Entity<LoginView>,
     workspace: Entity<Workspace>,
-    filter: Entity<Filter>,
+    toolbar: Option<Entity<Toolbar>>,
     pending: Option<Focus>,
     screens: Screens,
     _adaptive: Entity<Adaptive>,
@@ -77,8 +75,6 @@ impl Root {
         let library_view =
             cx.new(|cx| LibraryView::new(library.clone(), playback.clone(), window, cx));
 
-        let picker = cx.new(|cx| ColumnPicker::new(library_view.clone(), cx));
-
         let home_state = cx.new(|cx| Home::new(library.clone(), cx));
         let home = cx.new(|cx| HomeView::new(home_state, playback.clone(), cx));
 
@@ -91,6 +87,7 @@ impl Root {
                 album_detail.clone(),
                 playback.clone(),
                 ALBUM_COLUMNS,
+                "album",
                 window,
                 cx,
             )
@@ -102,6 +99,7 @@ impl Root {
                 playlist_detail.clone(),
                 playback.clone(),
                 LIBRARY_COLUMNS,
+                "playlist",
                 window,
                 cx,
             )
@@ -115,7 +113,6 @@ impl Root {
         let song_detail = cx.new(|cx| SongDetail::new(session.clone(), io.clone(), cx));
         let song = cx.new(|cx| SongView::new(song_detail.clone(), playback.clone(), cx));
 
-        let filter = cx.new(Filter::new);
         let start = navigation.read(cx).current();
         let workspace = cx.new(|cx| {
             Workspace::new(
@@ -135,12 +132,11 @@ impl Root {
             io,
             login,
             workspace,
-            filter,
+            toolbar: None,
             pending: None,
             screens: Screens {
                 home,
                 library: library_view,
-                picker,
                 artist: None,
                 artist_detail: None,
                 album,
@@ -178,8 +174,10 @@ impl Root {
     }
 
     fn open_filter(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.filter
-            .update(cx, |filter, cx| filter.focus(window, cx));
+        let Some(toolbar) = self.toolbar.clone() else {
+            return;
+        };
+        toolbar.update(cx, |toolbar, cx| toolbar.focus(window, cx));
     }
 
     fn open_settings(&mut self, cx: &mut Context<Self>) {
@@ -194,15 +192,7 @@ impl Root {
             _ => Focus::Workspace,
         });
 
-        let searchable = matches!(
-            destination,
-            Destination::Library(_)
-                | Destination::Artist(_)
-                | Destination::Album(_)
-                | Destination::Playlist(_)
-        );
-
-        let listing = matches!(destination, Destination::Library(_));
+        let mut toolbar = None;
 
         let content: AnyView = match destination {
             Destination::Home => self.screens.home.clone().into(),
@@ -211,11 +201,7 @@ impl Root {
                     .library
                     .update(cx, |library, cx| library.select(tab.into(), cx));
                 let library = self.screens.library.clone();
-                let picker = self.screens.picker.clone().into();
-                self.filter.update(cx, |filter, cx| {
-                    filter.bind(&library, cx);
-                    filter.set_actions(Some(picker), cx);
-                });
+                toolbar = Some(library.read(cx).toolbar());
                 library.into()
             }
             Destination::Album(id) => {
@@ -223,7 +209,7 @@ impl Root {
                     .album_detail
                     .update(cx, |detail, cx| detail.open_album(&id, cx));
                 let album = self.screens.album.clone();
-                self.filter.update(cx, |filter, cx| filter.bind(&album, cx));
+                toolbar = Some(album.read(cx).toolbar());
                 album.into()
             }
             Destination::Song(id) => {
@@ -237,8 +223,7 @@ impl Root {
                     .playlist_detail
                     .update(cx, |detail, cx| detail.open_playlist(&id, cx));
                 let playlist = self.screens.playlist.clone();
-                self.filter
-                    .update(cx, |filter, cx| filter.bind(&playlist, cx));
+                toolbar = Some(playlist.read(cx).toolbar());
                 playlist.into()
             }
             Destination::Artist(id) => {
@@ -250,20 +235,11 @@ impl Root {
             Destination::Settings => self.screens.settings.clone().into(),
         };
 
-        if !listing {
-            self.filter
-                .update(cx, |filter, cx| filter.set_actions(None, cx));
-        }
-
-        if !searchable {
-            self.filter.update(cx, |filter, cx| filter.release(cx));
-        }
-
-        let toolbar = searchable.then(|| self.filter.clone().into());
+        self.toolbar = toolbar.clone();
 
         self.workspace.update(cx, |workspace, cx| {
             workspace.set_content(content, cx);
-            workspace.set_toolbar(toolbar, cx);
+            workspace.set_toolbar(toolbar.map(Into::into), cx);
         });
         cx.notify();
     }

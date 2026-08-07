@@ -7,14 +7,19 @@ use gpui::{
 
 use i18n::t;
 use spotify::Track;
-use state::{Collection, Detail, Playback};
+use state::{AppSettings, Collection, Detail, Playback, Sonora};
 use ui::ActiveTheme as _;
-use ui::{ColumnSpec, GridDelegate, GridEvent, GridState, Scrollbar, Scroller, clock, grid};
+use ui::{
+    ColumnSpec, FlagAxis, GridDelegate, GridEvent, GridState, RangeAxis, Scrollbar, Scroller,
+    Toggle, Unit, clock, grid,
+};
 
 use crate::hero::{HeroMetaStrip, HeroPlayButton, PageHero, release_date_label};
-use crate::tracks::{PlaybackStatus, TrackField, TrackSource, Tracks, playback_status};
+use crate::tracks::{PlaybackStatus, TrackField, TrackSieve, TrackSource, Tracks, playback_status};
 use crate::{cells, page};
-use workspace::{Chrome, Searchable};
+use workspace::{Chrome, Columned, Filterable, Searchable, Toolbar, Tooled};
+
+const PINNED: [&str; 3] = ["cover", "title", "name"];
 
 struct DetailTracks(Entity<Detail>);
 
@@ -35,6 +40,9 @@ pub(crate) struct DetailView {
     width: Pixels,
     scrollbar: Entity<Scrollbar>,
     table: Entity<GridState<TrackSource>>,
+    settings: Entity<AppSettings>,
+    section: &'static str,
+    toolbar: Entity<Toolbar>,
 }
 
 impl DetailView {
@@ -42,10 +50,13 @@ impl DetailView {
         detail: Entity<Detail>,
         playback: Entity<Playback>,
         columns: &'static [ColumnSpec<TrackField>],
+        section: &'static str,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
         let inset = cx.theme().metrics.inset;
+        let settings = Sonora::global(cx).settings.clone();
+        let saved = settings.read(cx).hidden_columns(section);
         let width = cells::content_width(window, page::reserved(inset), cx);
 
         let scrollbar = cx.new(|_| Scrollbar::new(ScrollHandle::new()));
@@ -64,7 +75,9 @@ impl DetailView {
                 playlist_scrollbar,
             );
             let source = source.table(cx.weak_entity());
-            GridState::new(GridDelegate::new(source, width, cx), cx).follow(scroll)
+            let mut delegate = GridDelegate::new(source, width, cx);
+            delegate.set_hidden(saved, cx);
+            GridState::new(delegate, cx).follow(scroll)
         });
 
         cx.observe(&detail, |this, _, cx| {
@@ -98,6 +111,15 @@ impl DetailView {
         })
         .detach();
 
+        let me = cx.entity();
+        let toolbar = cx.new(|cx| {
+            let mut toolbar = Toolbar::new(cx);
+            toolbar.bind(&me, cx);
+            toolbar.columns(&me, cx);
+            toolbar.filters(&me, cx);
+            toolbar
+        });
+
         Self {
             detail,
             playback,
@@ -105,6 +127,9 @@ impl DetailView {
             width,
             scrollbar,
             table,
+            settings,
+            section,
+            toolbar,
         }
     }
 
@@ -207,5 +232,122 @@ impl Searchable for DetailView {
 
     fn hint() -> SharedString {
         "filter-album".into()
+    }
+}
+
+impl Columned for DetailView {
+    fn toggles(&self, cx: &App) -> Vec<Toggle> {
+        self.table
+            .read(cx)
+            .delegate()
+            .toggles()
+            .into_iter()
+            .filter(|toggle| !PINNED.contains(&toggle.key))
+            .collect()
+    }
+
+    fn toggle_column(&mut self, key: &'static str, cx: &mut Context<Self>) {
+        if PINNED.contains(&key) {
+            return;
+        }
+
+        let mut hidden = self.table.read(cx).delegate().hidden().to_vec();
+        match hidden.iter().position(|hidden| hidden == key) {
+            Some(at) => {
+                hidden.remove(at);
+            }
+            None => hidden.push(key.to_owned()),
+        }
+
+        self.settings.update(cx, |settings, cx| {
+            settings.set_hidden_columns(self.section, hidden.clone(), cx);
+        });
+        self.table.update(cx, |table, cx| {
+            table.delegate_mut().set_hidden(hidden, cx);
+            table.refresh(cx);
+        });
+        cx.notify();
+    }
+}
+
+impl Tooled for DetailView {
+    fn toolbar(&self) -> Entity<Toolbar> {
+        self.toolbar.clone()
+    }
+}
+
+impl DetailView {
+    fn sieve(&self, cx: &App) -> TrackSieve {
+        self.table.read(cx).delegate().source().sieve()
+    }
+
+    fn sift(&mut self, sieve: TrackSieve, cx: &mut Context<Self>) {
+        self.table.update(cx, |table, cx| {
+            table.delegate_mut().source_mut().set_sieve(sieve);
+            table.delegate_mut().resift(cx);
+            table.refresh(cx);
+        });
+        cx.notify();
+    }
+}
+
+impl Filterable for DetailView {
+    fn ranges(&self, cx: &App) -> Vec<RangeAxis> {
+        let table = self.table.read(cx);
+        let Some(bounds) = table
+            .delegate()
+            .source()
+            .extent(table.delegate().query(), cx)
+        else {
+            return Vec::new();
+        };
+        let value = self.sieve(cx).duration.unwrap_or(bounds);
+        vec![
+            RangeAxis {
+                key: "filter-duration",
+                label: t!("filter-duration"),
+                bounds,
+                value,
+                unit: Unit::Clock,
+                values: None,
+            }
+            .clamped(),
+        ]
+    }
+
+    fn flags(&self, cx: &App) -> Vec<FlagAxis> {
+        let sieve = self.sieve(cx);
+        vec![
+            FlagAxis {
+                key: "filter-explicit",
+                label: t!("filter-explicit"),
+                on: sieve.explicit,
+            },
+            FlagAxis {
+                key: "filter-playable",
+                label: t!("filter-playable"),
+                on: sieve.playable,
+            },
+        ]
+    }
+
+    fn set_range(&mut self, _key: &'static str, value: (f32, f32), cx: &mut Context<Self>) {
+        let mut sieve = self.sieve(cx);
+        sieve.duration = Some(value);
+        self.sift(sieve, cx);
+    }
+
+    fn set_flag(&mut self, key: &'static str, on: bool, cx: &mut Context<Self>) {
+        let mut sieve = self.sieve(cx);
+        match key {
+            "filter-explicit" => sieve.explicit = on,
+            "filter-playable" => sieve.playable = on,
+            _ => return,
+        }
+        self.sift(sieve, cx);
+    }
+
+    fn reset_filters(&mut self, cx: &mut Context<Self>) {
+        self.sift(TrackSieve::default(), cx);
     }
 }

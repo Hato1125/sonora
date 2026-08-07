@@ -6,9 +6,9 @@ use std::time::Duration;
 
 use gpui::prelude::*;
 use gpui::{
-    Anchor, AnyWindowHandle, App, Bounds, ClickEvent, Div, ElementId, Entity, Interactivity,
-    MouseButton, MouseDownEvent, Pixels, Point, SharedString, Size, Stateful, StyleRefinement,
-    Window, anchored, deferred, div, point, px, svg,
+    Anchor, AnyElement, AnyWindowHandle, App, Bounds, ClickEvent, Div, ElementId, Entity,
+    Interactivity, MouseButton, MouseDownEvent, Pixels, Point, SharedString, Size, Stateful,
+    StyleRefinement, Window, anchored, deferred, div, point, px, svg,
 };
 
 use crate::Artwork;
@@ -126,6 +126,7 @@ pub struct MenuItem {
     selected: bool,
     disabled: bool,
     separator: bool,
+    content: Option<AnyElement>,
     icon: Option<&'static str>,
     artwork: Option<Option<SharedString>>,
     press: Option<Press>,
@@ -140,6 +141,7 @@ impl MenuItem {
             selected: false,
             disabled: false,
             separator: false,
+            content: None,
             icon: None,
             artwork: None,
             press: None,
@@ -159,11 +161,18 @@ impl MenuItem {
             selected: false,
             disabled: true,
             separator: true,
+            content: None,
             icon: None,
             artwork: None,
             press: None,
             submenu: None,
         }
+    }
+
+    pub fn content(mut self, content: impl IntoElement) -> Self {
+        self.content = Some(content.into_any_element());
+        self.disabled = true;
+        self
     }
 
     pub fn disabled(mut self) -> Self {
@@ -319,11 +328,25 @@ impl RenderOnce for Menu {
                 selected,
                 disabled,
                 separator,
+                content,
                 icon,
                 artwork,
                 press,
                 submenu,
             } = item;
+
+            if let Some(content) = content {
+                return div()
+                    .id(id)
+                    .flex()
+                    .w_full()
+                    .min_w_0()
+                    .flex_col()
+                    .px_3()
+                    .py_1()
+                    .child(content)
+                    .into_any_element();
+            }
 
             if separator {
                 return div()
@@ -488,6 +511,7 @@ impl RenderOnce for Menu {
                         }
                     }
                 })
+                .gap(px(2.))
                 .children(rows)
                 .into_any_element(),
         };

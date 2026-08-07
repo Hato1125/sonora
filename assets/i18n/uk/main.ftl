@@ -63,6 +63,11 @@ player-percent = { $value }%
 # filters
 filter-library = Фільтр медіатеки
 filter-album = Фільтр треків альбому
+filter-reset = Скинути фільтри
+filter-duration = Тривалість
+filter-year = Рік
+filter-explicit = Лише з ненормативною лексикою
+filter-playable = Лише доступні
 
 # login
 login-signed-out = Увійдіть, щоб завантажити медіатеку Spotify
