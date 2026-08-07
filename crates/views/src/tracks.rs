@@ -343,14 +343,22 @@ impl TrackSource {
         self.sieve = sieve;
     }
 
-    pub(crate) fn longest(&self, cx: &App) -> Option<(f32, f32)> {
-        let longest = self
-            .provider
-            .tracks(cx)
-            .iter()
-            .map(|track| track.duration.as_secs_f32())
-            .fold(0., f32::max);
-        (longest > 0.).then_some((0., longest))
+    pub(crate) fn extent(&self, query: &str, cx: &App) -> Option<(f32, f32)> {
+        let open = TrackSieve {
+            duration: None,
+            ..self.sieve
+        };
+        let mut low = f32::MAX;
+        let mut high = f32::MIN;
+        for track in self.provider.tracks(cx) {
+            if !open.keeps(track) || !hits(track, query) {
+                continue;
+            }
+            let seconds = track.duration.as_secs_f32();
+            low = low.min(seconds);
+            high = high.max(seconds);
+        }
+        (low <= high).then_some((low, high))
     }
 
     pub(crate) fn table(mut self, table: WeakEntity<GridState<TrackSource>>) -> Self {
@@ -438,8 +446,7 @@ impl GridSource for TrackSource {
             if !self.sieve.keeps(&track) {
                 return false;
             }
-            let haystack = format!("{} {} {}", track.name, track.artists, track.album);
-            haystack.to_lowercase().contains(query)
+            hits(&track, query)
         })
     }
 
@@ -547,13 +554,21 @@ impl GridSource for TrackSource {
     }
 }
 
+fn hits(track: &Track, query: &str) -> bool {
+    if query.is_empty() {
+        return true;
+    }
+    let haystack = format!("{} {} {}", track.name, track.artists, track.album);
+    haystack.to_lowercase().contains(query)
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
 
     use spotify::Track;
 
-    use super::TrackSieve;
+    use super::{TrackSieve, hits};
 
     fn track(seconds: u64, explicit: bool, playable: bool) -> Track {
         Track {
@@ -576,6 +591,16 @@ mod tests {
             languages: Vec::new(),
             credits: Vec::new(),
         }
+    }
+
+    #[test]
+    fn an_empty_query_hits_everything() {
+        let mut track = track(60, false, true);
+        track.name = "Bark at the Moon".to_owned();
+
+        assert!(hits(&track, ""));
+        assert!(hits(&track, "moon"));
+        assert!(!hits(&track, "sunshine"));
     }
 
     #[test]

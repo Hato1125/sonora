@@ -57,6 +57,14 @@ impl RangeAxis {
         )
     }
 
+    pub fn clamped(mut self) -> Self {
+        self.value = (
+            self.value.0.clamp(self.bounds.0, self.bounds.1),
+            self.value.1.clamp(self.bounds.0, self.bounds.1),
+        );
+        self
+    }
+
     pub fn whole(&self) -> bool {
         let (low, high) = self.share();
         low <= f32::EPSILON && high >= 1. - f32::EPSILON
@@ -308,6 +316,20 @@ mod tests {
 
         assert!(axis.share().0.is_finite());
         assert!(axis.share().1.is_finite());
+    }
+
+    #[test]
+    fn clamping_pulls_a_stale_selection_into_view() {
+        let axis = axis((2010., 2020.), (1990., 2000.)).clamped();
+
+        assert_eq!(axis.value, (2010., 2010.));
+    }
+
+    #[test]
+    fn clamping_leaves_a_selection_inside_the_bounds_alone() {
+        let axis = axis((1967., 2026.), (1990., 2000.)).clamped();
+
+        assert_eq!(axis.value, (1990., 2000.));
     }
 
     #[test]

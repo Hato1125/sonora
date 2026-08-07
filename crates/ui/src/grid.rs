@@ -248,6 +248,10 @@ impl<S: GridSource> GridDelegate<S> {
         self.reorder(cx);
     }
 
+    pub fn query(&self) -> &str {
+        &self.filter
+    }
+
     pub fn resift(&mut self, cx: &App) {
         self.reorder(cx);
     }

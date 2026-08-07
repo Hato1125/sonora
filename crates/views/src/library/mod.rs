@@ -458,30 +458,46 @@ impl Filterable for LibraryView {
     fn ranges(&self, cx: &App) -> Vec<RangeAxis> {
         match self.section {
             Section::Tracks => {
-                let Some(bounds) = self.tracks.read(cx).delegate().source().longest(cx) else {
+                let table = self.tracks.read(cx);
+                let Some(bounds) = table
+                    .delegate()
+                    .source()
+                    .extent(table.delegate().query(), cx)
+                else {
                     return Vec::new();
                 };
                 let value = self.sieve(cx).duration.unwrap_or(bounds);
-                vec![RangeAxis {
-                    key: "filter-duration",
-                    label: t!("filter-duration"),
-                    bounds,
-                    value,
-                    unit: Unit::Clock,
-                }]
+                vec![
+                    RangeAxis {
+                        key: "filter-duration",
+                        label: t!("filter-duration"),
+                        bounds,
+                        value,
+                        unit: Unit::Clock,
+                    }
+                    .clamped(),
+                ]
             }
             Section::Albums => {
-                let Some(bounds) = self.albums.read(cx).delegate().source().years(cx) else {
+                let table = self.albums.read(cx);
+                let Some(bounds) = table
+                    .delegate()
+                    .source()
+                    .years(table.delegate().query(), cx)
+                else {
                     return Vec::new();
                 };
                 let value = self.span(cx).unwrap_or(bounds);
-                vec![RangeAxis {
-                    key: "filter-year",
-                    label: t!("filter-year"),
-                    bounds,
-                    value,
-                    unit: Unit::Plain,
-                }]
+                vec![
+                    RangeAxis {
+                        key: "filter-year",
+                        label: t!("filter-year"),
+                        bounds,
+                        value,
+                        unit: Unit::Plain,
+                    }
+                    .clamped(),
+                ]
             }
             Section::Playlists => Vec::new(),
         }

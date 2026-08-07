@@ -293,17 +293,25 @@ impl DetailView {
 
 impl Filterable for DetailView {
     fn ranges(&self, cx: &App) -> Vec<RangeAxis> {
-        let Some(bounds) = self.table.read(cx).delegate().source().longest(cx) else {
+        let table = self.table.read(cx);
+        let Some(bounds) = table
+            .delegate()
+            .source()
+            .extent(table.delegate().query(), cx)
+        else {
             return Vec::new();
         };
         let value = self.sieve(cx).duration.unwrap_or(bounds);
-        vec![RangeAxis {
-            key: "filter-duration",
-            label: t!("filter-duration"),
-            bounds,
-            value,
-            unit: Unit::Clock,
-        }]
+        vec![
+            RangeAxis {
+                key: "filter-duration",
+                label: t!("filter-duration"),
+                bounds,
+                value,
+                unit: Unit::Clock,
+            }
+            .clamped(),
+        ]
     }
 
     fn flags(&self, cx: &App) -> Vec<FlagAxis> {

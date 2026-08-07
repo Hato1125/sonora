@@ -113,10 +113,13 @@ impl AlbumSource {
         self.albums(cx).get(row).cloned()
     }
 
-    pub(super) fn years(&self, cx: &App) -> Option<(f32, f32)> {
+    pub(super) fn years(&self, query: &str, cx: &App) -> Option<(f32, f32)> {
         let mut low = f32::MAX;
         let mut high = f32::MIN;
-        for album in self.albums(cx).iter().filter(|album| album.year > 0) {
+        for album in self.albums(cx) {
+            if album.year == 0 || !hits(album, query) {
+                continue;
+            }
             low = low.min(album.year as f32);
             high = high.max(album.year as f32);
         }
@@ -158,8 +161,7 @@ impl GridSource for AlbumSource {
                     return false;
                 }
             }
-            let haystack = format!("{} {} {}", album.name, album.artists, album.year);
-            haystack.to_lowercase().contains(query)
+            hits(&album, query)
         })
     }
 
@@ -229,6 +231,14 @@ impl GridSource for AlbumSource {
             AlbumField::Index | AlbumField::Cover => a.cmp(&b),
         }
     }
+}
+
+fn hits(album: &Album, query: &str) -> bool {
+    if query.is_empty() {
+        return true;
+    }
+    let haystack = format!("{} {} {}", album.name, album.artists, album.year);
+    haystack.to_lowercase().contains(query)
 }
 
 fn year(album: &Album) -> String {
