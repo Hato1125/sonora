@@ -114,6 +114,10 @@ pub trait GridSource: 'static {
         true
     }
 
+    fn filtered(&self, _cx: &App) -> bool {
+        false
+    }
+
     fn playing(&self, _row: usize, _cx: &App) -> bool {
         false
     }
@@ -167,6 +171,10 @@ impl<S: GridSource> GridDelegate<S> {
 
     pub fn source(&self) -> &S {
         &self.source
+    }
+
+    pub fn source_mut(&mut self) -> &mut S {
+        &mut self.source
     }
 
     pub fn with_sort(mut self, field: S::Field, direction: Sort, cx: &App) -> Self {
@@ -242,7 +250,10 @@ impl<S: GridSource> GridDelegate<S> {
 
     fn reorder(&mut self, cx: &App) {
         let mut order: Vec<usize> = (0..self.source.rows(cx))
-            .filter(|row| self.filter.is_empty() || self.source.matches(*row, &self.filter, cx))
+            .filter(|row| {
+                (self.filter.is_empty() && !self.source.filtered(cx))
+                    || self.source.matches(*row, &self.filter, cx)
+            })
             .collect();
 
         if let Some((field, direction)) = self.sort {

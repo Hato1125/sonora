@@ -40,6 +40,7 @@ const FONTS: &[(&str, &[u8])] = fonts!["Inter.ttf", "Inter-Italic.ttf",];
 const ICONS: &[(&str, &[u8])] = icons![
     "chevron-down",
     "columns-3",
+    "sliders-horizontal",
     "chevron-left",
     "chevron-right",
     "chevrons-up-down",

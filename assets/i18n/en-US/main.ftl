@@ -63,6 +63,11 @@ player-percent = { $value }%
 # filters
 filter-library = Filter your library
 filter-album = Filter album tracks
+filter-reset = Reset filters
+filter-duration = Duration
+filter-year = Year
+filter-explicit = Explicit only
+filter-playable = Playable only
 
 # login
 login-signed-out = Sign in to load your Spotify library

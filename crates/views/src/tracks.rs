@@ -280,12 +280,42 @@ pub(crate) fn ordered(table: &Entity<GridState<TrackSource>>, cx: &App) -> Vec<T
         .collect()
 }
 
+#[derive(Clone, Copy, Default, PartialEq)]
+pub(crate) struct TrackSieve {
+    pub duration: Option<(f32, f32)>,
+    pub explicit: bool,
+    pub playable: bool,
+}
+
+impl TrackSieve {
+    pub(crate) fn active(&self) -> bool {
+        self.duration.is_some() || self.explicit || self.playable
+    }
+
+    fn keeps(&self, track: &Track) -> bool {
+        if self.explicit && !track.explicit {
+            return false;
+        }
+        if self.playable && !track.playable {
+            return false;
+        }
+        match self.duration {
+            Some((low, high)) => {
+                let seconds = track.duration.as_secs_f32();
+                seconds >= low - 0.5 && seconds <= high + 0.5
+            }
+            None => true,
+        }
+    }
+}
+
 pub(crate) struct TrackSource {
     columns: &'static [ColumnSpec<TrackField>],
     provider: Rc<dyn Tracks>,
     playback: Entity<Playback>,
     menu: TrackMenu,
     table: Option<WeakEntity<GridState<TrackSource>>>,
+    sieve: TrackSieve,
 }
 
 impl TrackSource {
@@ -301,7 +331,25 @@ impl TrackSource {
             playback,
             menu: TrackMenu::new(playlist_scrollbar),
             table: None,
+            sieve: TrackSieve::default(),
         }
+    }
+
+    pub(crate) fn sieve(&self) -> TrackSieve {
+        self.sieve
+    }
+
+    pub(crate) fn set_sieve(&mut self, sieve: TrackSieve) {
+        self.sieve = sieve;
+    }
+
+    pub(crate) fn longest(&self, cx: &App) -> f32 {
+        self.provider
+            .tracks(cx)
+            .iter()
+            .map(|track| track.duration.as_secs_f32())
+            .fold(0., f32::max)
+            .max(1.)
     }
 
     pub(crate) fn table(mut self, table: WeakEntity<GridState<TrackSource>>) -> Self {
@@ -386,9 +434,16 @@ impl GridSource for TrackSource {
 
     fn matches(&self, row: usize, query: &str, cx: &App) -> bool {
         self.at(row, cx).is_some_and(|track| {
+            if !self.sieve.keeps(&track) {
+                return false;
+            }
             let haystack = format!("{} {} {}", track.name, track.artists, track.album);
             haystack.to_lowercase().contains(query)
         })
+    }
+
+    fn filtered(&self, _cx: &App) -> bool {
+        self.sieve.active()
     }
 
     fn playing(&self, row: usize, cx: &App) -> bool {
@@ -488,5 +543,91 @@ impl GridSource for TrackSource {
                 .cmp(&tracks.get(b).map(|track| track.duration)),
             TrackField::Index | TrackField::Cover => a.cmp(&b),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use spotify::Track;
+
+    use super::TrackSieve;
+
+    fn track(seconds: u64, explicit: bool, playable: bool) -> Track {
+        Track {
+            id: Some("id".to_owned()),
+            name: String::new(),
+            playable,
+            artists: String::new(),
+            artist_refs: Vec::new(),
+            album: String::new(),
+            album_id: None,
+            cover: None,
+            duration: Duration::from_secs(seconds),
+            added_at: None,
+            playcount: None,
+            popularity: 0,
+            explicit,
+            track_number: 0,
+            disc_number: 0,
+            tags: Vec::new(),
+            languages: Vec::new(),
+            credits: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn an_untouched_sieve_keeps_everything() {
+        let sieve = TrackSieve::default();
+
+        assert!(!sieve.active());
+        assert!(sieve.keeps(&track(30, false, false)));
+        assert!(sieve.keeps(&track(6000, true, true)));
+    }
+
+    #[test]
+    fn duration_bounds_are_inclusive() {
+        let sieve = TrackSieve {
+            duration: Some((60., 180.)),
+            ..TrackSieve::default()
+        };
+
+        assert!(sieve.active());
+        assert!(sieve.keeps(&track(60, false, true)));
+        assert!(sieve.keeps(&track(180, false, true)));
+        assert!(sieve.keeps(&track(120, false, true)));
+        assert!(!sieve.keeps(&track(59, false, true)));
+        assert!(!sieve.keeps(&track(181, false, true)));
+    }
+
+    #[test]
+    fn flags_narrow_independently() {
+        let explicit = TrackSieve {
+            explicit: true,
+            ..TrackSieve::default()
+        };
+        assert!(explicit.keeps(&track(60, true, false)));
+        assert!(!explicit.keeps(&track(60, false, true)));
+
+        let playable = TrackSieve {
+            playable: true,
+            ..TrackSieve::default()
+        };
+        assert!(playable.keeps(&track(60, false, true)));
+        assert!(!playable.keeps(&track(60, true, false)));
+    }
+
+    #[test]
+    fn every_axis_must_pass() {
+        let sieve = TrackSieve {
+            duration: Some((60., 180.)),
+            explicit: true,
+            playable: true,
+        };
+
+        assert!(sieve.keeps(&track(120, true, true)));
+        assert!(!sieve.keeps(&track(120, true, false)));
+        assert!(!sieve.keeps(&track(400, true, true)));
     }
 }

@@ -5,6 +5,7 @@ mod button;
 mod card;
 mod controls;
 mod explicit;
+mod filters;
 mod grid;
 mod info_card;
 mod inline_links;
@@ -26,6 +27,7 @@ pub use button::Button;
 pub use card::Card;
 pub use controls::WindowControls;
 pub use explicit::ExplicitBadge;
+pub use filters::{FlagAxis, RangeAxis, RangeScrubber, RangeState, Unit};
 pub use grid::{
     Cell, ColumnSpec, Deselect, GRID_CONTEXT, Grid, GridDelegate, GridEvent, GridSource, GridState,
     ROW_GROUP, SelectNext, SelectPrevious, Sort, Toggle, Viewport, Width, grid,
