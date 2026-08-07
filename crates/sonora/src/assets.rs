@@ -49,6 +49,7 @@ const ICONS: &[(&str, &[u8])] = icons![
     "heart-filled",
     "house",
     "info",
+    "layout-grid",
     "library-big",
     "link",
     "list",
