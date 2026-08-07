@@ -49,6 +49,10 @@ fn select_upcoming<T>(
     true
 }
 
+fn in_order<'a, T: PartialEq + 'a>(sequence: impl Iterator<Item = &'a T>, source: &[T]) -> bool {
+    sequence.eq(source.iter())
+}
+
 fn gap_target(from: usize, gap: usize, len: usize) -> usize {
     let gap = gap.min(len);
     if gap > from { gap - 1 } else { gap }
@@ -58,6 +62,7 @@ pub struct Queue {
     past: Vec<Track>,
     current: Option<Track>,
     upcoming: VecDeque<Track>,
+    source: Vec<Track>,
     revision: u64,
 }
 
@@ -73,6 +78,7 @@ impl Queue {
             past: Vec::new(),
             current: None,
             upcoming: VecDeque::new(),
+            source: Vec::new(),
             revision: 0,
         }
     }
@@ -126,7 +132,32 @@ impl Queue {
         self.past.clear();
         self.current = None;
         self.upcoming.clear();
+        self.source.clear();
         self.changed(cx);
+    }
+
+    pub fn reordered(&self) -> bool {
+        let sequence = self
+            .past
+            .iter()
+            .chain(self.current.as_ref())
+            .chain(self.upcoming.iter());
+
+        !self.source.is_empty() && !in_order(sequence, &self.source)
+    }
+
+    pub fn reset(&mut self, cx: &mut Context<Self>) -> Option<Track> {
+        if self.source.is_empty() {
+            return None;
+        }
+
+        let index = self
+            .current
+            .as_ref()
+            .and_then(|current| self.source.iter().position(|track| track == current))
+            .unwrap_or_default();
+        let source = self.source.clone();
+        self.start(source, index, cx)
     }
 
     pub fn start(
@@ -139,6 +170,7 @@ impl Queue {
             return None;
         }
 
+        self.source = tracks.clone();
         let mut past = tracks;
         self.upcoming = past.split_off(index + 1).into();
         self.current = past.pop();
@@ -230,7 +262,17 @@ impl Queue {
 mod tests {
     use std::collections::VecDeque;
 
-    use super::{gap_target, move_item, select_past, select_upcoming};
+    use super::{gap_target, in_order, move_item, select_past, select_upcoming};
+
+    #[test]
+    fn spots_a_reordered_queue() {
+        let source = [1, 2, 3, 4];
+
+        assert!(in_order([1, 2, 3, 4].iter(), &source));
+        assert!(!in_order([1, 3, 2, 4].iter(), &source));
+        assert!(!in_order([1, 2, 3].iter(), &source));
+        assert!(!in_order([1, 2, 3, 4, 5].iter(), &source));
+    }
 
     #[test]
     fn moves_items_in_both_directions() {

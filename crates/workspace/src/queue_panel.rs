@@ -466,15 +466,32 @@ impl QueuePanel {
             .border_color(theme.border)
             .child(eyebrow("QUEUE", cx))
             .child(
-                Button::new("clear-queue")
-                    .ghost()
-                    .small()
-                    .label("Clear")
-                    .tint(theme.muted_foreground)
-                    .disabled(sections.upcoming == 0)
-                    .on_click(cx.listener(|this, _, _, cx| {
-                        this.queue.update(cx, |queue, cx| queue.clear_upcoming(cx));
-                    })),
+                div()
+                    .flex()
+                    .items_center()
+                    .gap_1()
+                    .child(
+                        Button::new("reset-queue")
+                            .ghost()
+                            .small()
+                            .label("Reset")
+                            .tint(theme.muted_foreground)
+                            .disabled(!self.queue.read(cx).reordered())
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.queue.update(cx, |queue, cx| queue.reset(cx));
+                            })),
+                    )
+                    .child(
+                        Button::new("clear-queue")
+                            .ghost()
+                            .small()
+                            .label("Clear")
+                            .tint(theme.muted_foreground)
+                            .disabled(sections.upcoming == 0)
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.queue.update(cx, |queue, cx| queue.clear_upcoming(cx));
+                            })),
+                    ),
             )
     }
 
