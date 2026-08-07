@@ -1,7 +1,5 @@
 use gpui::prelude::*;
-use gpui::{
-    AnyElement, Context, Entity, FontWeight, Render, SharedString, Window, div, px, relative,
-};
+use gpui::{AnyElement, Context, Entity, FontWeight, Render, SharedString, Window, div, px};
 use router::{Destination, Link as _};
 use spotify::{Credit, Track};
 use state::{Playback, SongDetail};
@@ -33,6 +31,7 @@ impl SongView {
             "tr" => "Turkish",
             "uk" => "Ukrainian",
             "zh" => "Chinese",
+            "zxx" => "No linguistic content",
             _ => code,
         }
     }
@@ -94,6 +93,7 @@ impl SongView {
     fn fact(
         label: impl Into<SharedString>,
         value: impl Into<SharedString>,
+        index: usize,
         cx: &Context<Self>,
     ) -> AnyElement {
         let theme = *cx.theme();
@@ -102,7 +102,12 @@ impl SongView {
             .items_center()
             .justify_between()
             .gap_4()
-            .py_1()
+            .px(theme.metrics.pad)
+            .py(theme.metrics.pad / 2.)
+            .rounded(theme.radius)
+            .when(index % 2 == 1, |this| {
+                this.bg(theme.table_hover.opacity(0.35))
+            })
             .child(div().text_color(theme.muted_foreground).child(label.into()))
             .child(
                 div()
@@ -200,37 +205,17 @@ impl SongView {
             div()
                 .flex()
                 .flex_col()
-                .child(Self::fact("Album", album_name, cx))
-                .child(Self::fact("Released", release, cx))
-                .child(Self::fact("Streams", streams, cx))
-                .child(Self::fact("Position", number, cx))
-                .child(Self::fact("Label", label, cx))
-                .child(
-                    div()
-                        .flex()
-                        .flex_col()
-                        .gap_2()
-                        .pt_2()
-                        .child(Self::fact(
-                            "Popularity",
-                            format!("{} / 100", track.popularity),
-                            cx,
-                        ))
-                        .child(
-                            div()
-                                .w_full()
-                                .h(px(4.))
-                                .rounded_full()
-                                .bg(cx.theme().muted)
-                                .child(
-                                    div()
-                                        .h_full()
-                                        .w(relative(track.popularity.min(100) as f32 / 100.))
-                                        .rounded_full()
-                                        .bg(cx.theme().progress_bar),
-                                ),
-                        ),
-                ),
+                .child(Self::fact("Album", album_name, 0, cx))
+                .child(Self::fact("Released", release, 1, cx))
+                .child(Self::fact("Streams", streams, 2, cx))
+                .child(Self::fact("Position", number, 3, cx))
+                .child(Self::fact("Label", label, 4, cx))
+                .child(Self::fact(
+                    "Popularity",
+                    format!("{}%", track.popularity),
+                    5,
+                    cx,
+                )),
             true,
             cx,
         )
@@ -267,19 +252,27 @@ impl SongView {
                         None => Initials::new(credit.name.clone(), theme.metrics.thumb)
                             .into_any_element(),
                     };
-                    let row = div().flex().items_center().gap_3().child(avatar).child(
-                        div()
-                            .flex()
-                            .flex_col()
-                            .gap_0p5()
-                            .child(div().font_weight(FontWeight::MEDIUM).child(credit.name))
-                            .child(
-                                div()
-                                    .text_size(theme.text(Text::Small))
-                                    .text_color(theme.muted_foreground)
-                                    .child(credit.role),
-                            ),
-                    );
+                    let row = div()
+                        .flex()
+                        .items_center()
+                        .gap_3()
+                        .px(theme.metrics.pad)
+                        .py(theme.metrics.pad / 2.)
+                        .rounded(theme.radius)
+                        .child(avatar)
+                        .child(
+                            div()
+                                .flex()
+                                .flex_col()
+                                .gap_0p5()
+                                .child(div().font_weight(FontWeight::MEDIUM).child(credit.name))
+                                .child(
+                                    div()
+                                        .text_size(theme.text(Text::Small))
+                                        .text_color(theme.muted_foreground)
+                                        .child(credit.role),
+                                ),
+                        );
 
                     match credit.id {
                         Some(id) => row
@@ -316,36 +309,52 @@ impl SongView {
                 .flex()
                 .flex_col()
                 .gap_1()
-                .child(div().flex().flex_wrap().gap_2().when_else(
+                .child(div().when_else(
                     tags.is_empty(),
-                    |this| this.child(Self::fact("Genres", "Not available", cx)),
+                    |this| this.child(Self::fact("Genres", "Not available", 0, cx)),
                     |this| {
                         this.child(
                             div()
                                 .flex()
-                                .flex_wrap()
-                                .justify_end()
-                                .w_full()
-                                .gap_2()
-                                .py_1()
-                                .children(tags.into_iter().map(|tag| {
+                                .items_start()
+                                .justify_between()
+                                .gap_4()
+                                .px(theme.metrics.pad)
+                                .py(theme.metrics.pad / 2.)
+                                .child(
                                     div()
-                                        .px_3()
-                                        .py_1()
-                                        .rounded_full()
-                                        .bg(theme.secondary)
-                                        .border_1()
-                                        .border_color(theme.border)
-                                        .text_size(theme.text(Text::Small))
-                                        .child(tag)
-                                })),
+                                        .flex_none()
+                                        .text_color(theme.muted_foreground)
+                                        .child("Genres"),
+                                )
+                                .child(
+                                    div()
+                                        .flex()
+                                        .flex_1()
+                                        .min_w_0()
+                                        .flex_wrap()
+                                        .justify_end()
+                                        .gap_2()
+                                        .children(tags.into_iter().map(|tag| {
+                                            div()
+                                                .px_3()
+                                                .py_1()
+                                                .rounded_full()
+                                                .bg(theme.secondary)
+                                                .border_1()
+                                                .border_color(theme.border)
+                                                .text_size(theme.text(Text::Small))
+                                                .child(tag)
+                                        })),
+                                ),
                         )
                     },
                 ))
-                .child(Self::fact("Language", languages, cx))
+                .child(Self::fact("Language", languages, 1, cx))
                 .child(Self::fact(
                     "Content",
                     if track.explicit { "Explicit" } else { "Clean" },
+                    2,
                     cx,
                 )),
             false,
@@ -411,8 +420,7 @@ impl SongView {
                     div()
                         .flex_none()
                         .text_size(theme.text(Text::Small))
-                        .font_weight(FontWeight::MEDIUM)
-                        .child("View artist  →"),
+                        .font_weight(FontWeight::MEDIUM),
                 )
                 .into_any_element(),
         )

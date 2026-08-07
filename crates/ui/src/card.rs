@@ -257,7 +257,7 @@ impl RenderOnce for Card {
                     .flex_col()
                     .flex_1()
                     .min_w_0()
-                    .when(match_art_height, |this| this.h(art))
+                    .when(match_art_height, |this| this.h(art).justify_between())
                     .when(listed, |this| this.min_w(TITLE))
                     .when_some(spacing, |this, spacing| this.gap(spacing))
                     .when_else(
@@ -306,12 +306,7 @@ impl RenderOnce for Card {
                                         .child(meta),
                                 }
                             }))
-                            .children(footer.map(|footer| {
-                                div()
-                                    .pt_1()
-                                    .when(match_art_height, |this| this.mt_auto())
-                                    .child(footer)
-                            }))
+                            .children(footer.map(|footer| div().pt_1().child(footer)))
                         },
                     ),
             )

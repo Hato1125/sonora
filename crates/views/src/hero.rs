@@ -1,7 +1,7 @@
 use gpui::prelude::*;
 use gpui::{AnyElement, App, ElementId, Entity, FontWeight, SharedString, Window, div};
 use spotify::Track;
-use state::Playback;
+use state::{Playback, PlaybackState};
 use ui::{ActiveTheme as _, Button, Card, Text};
 
 pub(crate) fn release_date_label(value: &str) -> String {
@@ -55,18 +55,23 @@ impl RenderOnce for HeroMetaStrip {
         let theme = *cx.theme();
         let mut strip = div()
             .flex()
+            .flex_wrap()
             .items_center()
             .min_w_0()
-            .gap_2()
-            .truncate()
+            .gap_1()
             .text_size(theme.text(Text::Small))
             .text_color(theme.muted_foreground);
 
         for (index, item) in self.items.into_iter().enumerate() {
-            if index > 0 {
-                strip = strip.child(div().flex_none().child("•"));
-            }
-            strip = strip.child(div().min_w_0().truncate().child(item));
+            strip = strip.child(
+                div()
+                    .flex()
+                    .flex_none()
+                    .items_center()
+                    .gap_1()
+                    .when(index > 0, |this| this.child("•"))
+                    .child(item),
+            );
         }
 
         strip
@@ -98,22 +103,42 @@ impl HeroPlayButton {
 }
 
 impl RenderOnce for HeroPlayButton {
-    fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
+    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let first_playable = self.tracks.iter().position(|track| track.playable);
-        let disabled = first_playable.is_none();
+        let state = {
+            let playback = self.playback.read(cx);
+            let current = playback.track().and_then(|track| track.id.as_deref());
+            current
+                .filter(|current| {
+                    self.tracks
+                        .iter()
+                        .any(|track| track.id.as_deref() == Some(*current))
+                })
+                .map(|_| playback.state().clone())
+        };
+        let (label, icon, blocked) = match &state {
+            Some(PlaybackState::Playing) => ("Pause".into(), "icons/pause.svg", false),
+            Some(PlaybackState::Paused) => ("Resume".into(), "icons/play.svg", false),
+            Some(PlaybackState::Loading) => ("Loading…".into(), "icons/play.svg", true),
+            _ => (self.label, "icons/play.svg", false),
+        };
+        let disabled = first_playable.is_none() || blocked;
         let first_playable = first_playable.unwrap_or_default();
         let tracks = self.tracks;
         let playback = self.playback;
 
         div().flex().child(
             Button::new(self.id)
-                .label(self.label)
-                .icon("icons/play.svg")
+                .label(label)
+                .icon(icon)
                 .primary()
                 .disabled(disabled)
                 .on_click(move |_, _, cx| {
-                    playback.update(cx, |playback, cx| {
-                        playback.start(tracks.clone(), first_playable, cx)
+                    playback.update(cx, |playback, cx| match &state {
+                        Some(PlaybackState::Playing) => playback.pause(cx),
+                        Some(PlaybackState::Paused) => playback.resume(cx),
+                        Some(PlaybackState::Loading) => {}
+                        _ => playback.start(tracks.clone(), first_playable, cx),
                     });
                 }),
         )
@@ -189,7 +214,6 @@ impl RenderOnce for PageHero {
             .size(Text::Display)
             .weight(FontWeight::BOLD)
             .explicit_gap(theme.metrics.pad * 1.5)
-            .spacing(theme.metrics.pad)
             .flat()
             .flex_none()
             .items_end()

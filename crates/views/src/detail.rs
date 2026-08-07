@@ -84,6 +84,7 @@ impl DetailView {
             }
             this.playback_status = current;
             this.table.update(cx, |table, cx| table.refresh(cx));
+            cx.notify();
         })
         .detach();
 

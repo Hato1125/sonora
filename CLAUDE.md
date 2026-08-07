@@ -256,8 +256,10 @@ Rules:
 
 - **Measure against `Chrome::content`, never `window.viewport_size().width`.** A raw viewport width
   ignores both side panels, so tables overflow under the queue and grids pick a column count that
-  does not fit. The only legitimate viewport-width consumers are elements that genuinely span the
-  window: `PlayerBar` and `TitleBar`.
+  does not fit. Raw viewport width is legitimate in exactly two places: chrome that spans the whole
+  window (`PlayerBar`, `TitleBar`, and `Menu`'s submenu flip), and a side panel deciding *its own*
+  size — `Sidebar` and `QueuePanel` subtract only the other panel, because asking `Chrome` for a
+  width they are themselves a term in would be circular.
 - `Workspace::render` publishes the widths every frame via `Chrome::publish`; it notifies only when
   a width actually changed, so it cannot loop.
 - **A view whose layout depends on width must observe the chrome**, or it will not repaint when a
