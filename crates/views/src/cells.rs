@@ -305,17 +305,21 @@ pub(crate) fn title<F>(
     value: impl Into<SharedString>,
     color: Option<Hsla>,
     explicit: bool,
-    song_id: Option<String>,
+    press: Option<Box<dyn Fn(&mut App)>>,
 ) -> AnyElement {
-    let text = div().min_w_0().truncate().child(value.into());
-    let text = match song_id {
-        Some(id) => text
-            .id(("song", cell.row))
-            .hover(|style| style.underline())
-            .link(Destination::Song(id.into()))
-            .into_any_element(),
-        None => text.into_any_element(),
-    };
+    let text = div()
+        .id(("track-title", cell.row))
+        .min_w_0()
+        .truncate()
+        .child(value.into())
+        .when_some(press, |this, press| {
+            this.cursor_pointer()
+                .hover(|style| style.underline())
+                .on_click(move |_, _, cx| {
+                    cx.stop_propagation();
+                    press(cx);
+                })
+        });
 
     line(cell, color)
         .flex()

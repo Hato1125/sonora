@@ -1,11 +1,12 @@
 use gpui::prelude::*;
 use gpui::{
-    AnyElement, App, Context, ElementId, Entity, FontWeight, Hsla, Pixels, Render, ScrollHandle,
-    SharedString, Window, div, px,
+    AnyElement, App, Context, ElementId, Entity, FontWeight, Hsla, MouseButton, Pixels, Point,
+    Render, ScrollHandle, SharedString, Window, anchored, div, px,
 };
 use i18n::t;
 use input::Input;
 use router::{Destination, navigate};
+use spotify::Track;
 
 use state::{Hit, Kind, Playback, Search};
 use ui::ActiveTheme as _;
@@ -13,7 +14,7 @@ use ui::{Card, Room, Scrollbar, Scroller, Text, Theme, VAST, clock, eyebrow};
 use workspace::Chrome;
 
 use crate::cells;
-use crate::tracks::{PlaybackStatus, playback_status};
+use crate::tracks::{PlaybackStatus, TrackMenu, playback_status};
 
 enum Press {
     Song(usize),
@@ -30,6 +31,8 @@ pub(crate) struct SearchView {
     artists: Entity<Scrollbar>,
     albums: Entity<Scrollbar>,
     mixed: Entity<Scrollbar>,
+    track_menu: TrackMenu,
+    context_menu: Option<(Track, Point<Pixels>)>,
 }
 
 impl SearchView {
@@ -46,7 +49,12 @@ impl SearchView {
         })
         .detach();
 
-        cx.observe(&search, |_, _, cx| cx.notify()).detach();
+        cx.observe(&search, |this, _, cx| {
+            this.track_menu.reset();
+            this.context_menu = None;
+            cx.notify();
+        })
+        .detach();
         let chrome = Chrome::entity(cx);
         cx.observe(&chrome, |_, _, cx| cx.notify()).detach();
         let current_playback = playback_status(&playback, cx);
@@ -62,6 +70,12 @@ impl SearchView {
         let asked = input.read(cx).text().to_owned();
         search.update(cx, |search, cx| search.ask(&asked, cx));
 
+        let playlist_scrollbar = cx.new(|_| {
+            Scrollbar::new(ScrollHandle::new())
+                .always_visible()
+                .track_inset(px(4.))
+        });
+
         Self {
             input,
             search,
@@ -71,6 +85,8 @@ impl SearchView {
             artists: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
             albums: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
             mixed: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
+            track_menu: TrackMenu::new(playlist_scrollbar),
+            context_menu: None,
         }
     }
 
@@ -129,6 +145,8 @@ impl SearchView {
                     true => theme.primary,
                     false => theme.foreground,
                 };
+                let track = track.clone();
+                let view = cx.entity().downgrade();
                 Card::new(("song", place), track.name.clone())
                     .cover(track.cover.clone())
                     .tint(tint)
@@ -142,6 +160,17 @@ impl SearchView {
                             .child(clock(track.duration)),
                     )
                     .press(self.pressed(Press::Song(place), cx))
+                    .on_mouse_down(MouseButton::Right, move |event, window, cx| {
+                        window.prevent_default();
+                        let Some(view) = view.upgrade() else {
+                            return;
+                        };
+                        view.update(cx, |this, cx| {
+                            this.track_menu.reset();
+                            this.context_menu = Some((track.clone(), event.position));
+                            cx.notify();
+                        });
+                    })
                     .into_any_element()
             }
             Hit::Artist(artist) => {
@@ -189,6 +218,11 @@ impl SearchView {
             ),
         };
 
+        let song = match hit {
+            Hit::Song(track) => Some(track.clone()),
+            _ => None,
+        };
+        let view = cx.entity().downgrade();
         let card = Card::new("best", title)
             .art(theme.metrics.cover * 0.45)
             .cover(cover(hit).clone())
@@ -210,6 +244,19 @@ impl SearchView {
             .p_3()
             .bg(theme.secondary)
             .when_some(target, |card, target| card.press(self.pressed(target, cx)))
+            .when_some(song, |card, track| {
+                card.on_mouse_down(MouseButton::Right, move |event, window, cx| {
+                    window.prevent_default();
+                    let Some(view) = view.upgrade() else {
+                        return;
+                    };
+                    view.update(cx, |this, cx| {
+                        this.track_menu.reset();
+                        this.context_menu = Some((track.clone(), event.position));
+                        cx.notify();
+                    });
+                })
+            })
             .into_any_element();
 
         Some(
@@ -380,6 +427,23 @@ impl Render for SearchView {
             false => Pixels::ZERO,
         };
         let asked = !self.search.read(cx).query().trim().is_empty();
+        let context_menu = self.context_menu.clone().map(|(track, position)| {
+            anchored()
+                .position(position)
+                .snap_to_window_with_margin(px(8.))
+                .child(
+                    self.track_menu
+                        .for_track(&track, cx)
+                        .on_action(cx.listener(|this, _, _, cx| {
+                            this.context_menu = None;
+                            cx.notify();
+                        }))
+                        .on_dismiss(cx.listener(|this, _, _, cx| {
+                            this.context_menu = None;
+                            cx.notify();
+                        })),
+                )
+        });
 
         let results = match stacked {
             true => self.everything(cx),
@@ -407,5 +471,6 @@ impl Render for SearchView {
             .children(self.failure(cx))
             .children(self.best(cx))
             .when(asked, |this| this.child(results))
+            .when_some(context_menu, |this, menu| this.child(menu))
     }
 }

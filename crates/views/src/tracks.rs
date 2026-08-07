@@ -160,7 +160,6 @@ pub(crate) fn playback_status(playback: &Entity<Playback>, cx: &App) -> Playback
     let track = playback.track().and_then(|track| track.id.clone());
     (track, playback.state().clone())
 }
-
 pub(crate) trait Tracks: 'static {
     fn tracks<'a>(&self, cx: &'a App) -> &'a [Track];
     fn is_loading(&self, cx: &App) -> bool;
@@ -236,6 +235,28 @@ impl TrackMenu {
                 .icon("icons/list-end.svg")
                 .disabled(),
         };
+        let library = Sonora::global(cx).library.clone();
+        let toggle_library = match track.id.as_deref() {
+            Some(id) if !library.read(cx).pending(id) => {
+                let saved = library.read(cx).saved(id);
+                let track = track.clone();
+                MenuItem::new(
+                    "toggle-library",
+                    match saved {
+                        true => t!("menu-remove-from-library"),
+                        false => t!("menu-add-to-library"),
+                    },
+                )
+                .icon("icons/heart.svg")
+                .on_click(move |_, _, cx| {
+                    library.update(cx, |library, cx| library.toggle(track.clone(), cx));
+                })
+            }
+            _ => MenuItem::new("toggle-library", t!("menu-add-to-library"))
+                .icon("icons/heart.svg")
+                .disabled(),
+        };
+
         let details = match track.id.clone() {
             Some(id) => MenuItem::new("view-details", t!("menu-view-details"))
                 .icon("icons/info.svg")
@@ -253,11 +274,7 @@ impl TrackMenu {
                     .icon("icons/list-plus.svg")
                     .submenu(playlist_menu, self.playlist_submenu.clone()),
             )
-            .item(
-                MenuItem::new("toggle-library", t!("menu-toggle-library"))
-                    .icon("icons/heart.svg")
-                    .disabled(),
-            )
+            .item(toggle_library)
             .item(queue)
             .item(
                 MenuItem::new("song-radio", t!("menu-song-radio"))
@@ -360,6 +377,34 @@ impl TrackSource {
         cells::index(cell, state, track.playable, preload, press, cx)
     }
 
+    fn title_cell(
+        &self,
+        cell: &Cell<TrackField>,
+        track: &Track,
+        color: Option<Hsla>,
+    ) -> AnyElement {
+        let press: Option<Box<dyn Fn(&mut App)>> = match track.playable {
+            true => {
+                let playback = self.playback.clone();
+                let provider = self.provider.clone();
+                let table = self.table.clone();
+                let row = cell.row;
+                let display = cell.display;
+                Some(Box::new(move |cx| {
+                    playback.update(cx, |playback, cx| {
+                        match table.as_ref().and_then(|table| table.upgrade()) {
+                            Some(table) => playback.start(ordered(&table, cx), display, cx),
+                            None => playback.start(provider.tracks(cx).to_vec(), row, cx),
+                        }
+                    });
+                }))
+            }
+            false => None,
+        };
+
+        cells::title(cell, track.name.clone(), color, track.explicit, press)
+    }
+
     fn now_playing(&self, track: &Track, cx: &App) -> Option<PlaybackState> {
         let playback = self.playback.read(cx);
         let current = playback.track()?;
@@ -418,13 +463,7 @@ impl GridSource for TrackSource {
 
         match cell.field {
             TrackField::Cover => cells::artwork(&cell, track.cover.clone()),
-            TrackField::Title => cells::title(
-                &cell,
-                track.name.clone(),
-                title,
-                track.explicit,
-                track.id.clone(),
-            ),
+            TrackField::Title => self.title_cell(&cell, track, title),
             TrackField::Artists => self.artist_cell(&cell, track, detail),
             TrackField::Album => self.album_cell(&cell, track, detail),
             TrackField::AddedAt => cells::dim(
