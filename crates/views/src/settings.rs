@@ -425,6 +425,7 @@ impl SettingsView {
         let small = theme.text(Text::Small);
         let look = self.look(cx);
         let current = look.kind;
+        let adaptive = self.settings.read(cx).adaptive_theme();
         let overrides = self.settings.read(cx).theme_overrides().clone();
 
         let picker = div()
@@ -450,17 +451,22 @@ impl SettingsView {
                             cx.notify();
                         }))
                         .items(ThemeKind::ALL.into_iter().map(|kind| {
-                            let overrides = overrides.clone();
-                            MenuItem::new(kind.id(), kind.label())
-                                .selected(current == kind)
-                                .on_click(cx.listener(move |this, _, _, cx| {
-                                    this.settings.update(cx, |settings, cx| {
-                                        settings.set_theme(kind.id(), cx);
-                                    });
-                                    this.themes_open = false;
-                                    Theme::fade(Look { kind, ..look }, &overrides, cx);
-                                    cx.notify();
-                                }))
+                            let item =
+                                MenuItem::new(kind.id(), kind.label()).selected(current == kind);
+                            match adaptive && !matches!(kind, ThemeKind::Dark | ThemeKind::Light) {
+                                true => item.disabled(),
+                                false => {
+                                    let overrides = overrides.clone();
+                                    item.on_click(cx.listener(move |this, _, _, cx| {
+                                        this.settings.update(cx, |settings, cx| {
+                                            settings.set_theme(kind.id(), cx);
+                                        });
+                                        this.themes_open = false;
+                                        Theme::fade(Look { kind, ..look }, &overrides, cx);
+                                        cx.notify();
+                                    }))
+                                }
+                            }
                         })),
                 )
             });
@@ -498,6 +504,8 @@ impl SettingsView {
         let muted = theme.muted_foreground;
         let small = theme.text(Text::Small);
         let on = self.settings.read(cx).adaptive_theme();
+        let look = self.look(cx);
+        let overrides = self.settings.read(cx).theme_overrides().clone();
 
         self.row(
             t!("settings-adaptive"),
@@ -512,8 +520,22 @@ impl SettingsView {
                 .small()
                 .outline()
                 .on_click(cx.listener(move |this, _, _, cx| {
-                    this.settings
-                        .update(cx, |settings, cx| settings.set_adaptive_theme(!on, cx));
+                    let adaptive = !on;
+                    let kind = match adaptive
+                        && !matches!(look.kind, ThemeKind::Dark | ThemeKind::Light)
+                    {
+                        true => ThemeKind::Dark,
+                        false => look.kind,
+                    };
+                    this.settings.update(cx, |settings, cx| {
+                        settings.set_adaptive_theme(adaptive, cx);
+                        if kind != look.kind {
+                            settings.set_theme(kind.id(), cx);
+                        }
+                    });
+                    if kind != look.kind {
+                        Theme::fade(Look { kind, ..look }, &overrides, cx);
+                    }
                 }))
                 .into_any_element(),
         )
