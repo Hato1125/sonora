@@ -420,8 +420,7 @@ impl SongView {
                     div()
                         .flex_none()
                         .text_size(theme.text(Text::Small))
-                        .font_weight(FontWeight::MEDIUM)
-                        .child("View artist  →"),
+                        .font_weight(FontWeight::MEDIUM),
                 )
                 .into_any_element(),
         )
