@@ -98,9 +98,9 @@ impl TitleBar {
     fn toggle(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let sidebar = self.sidebar.clone();
         let icon = if sidebar.read(cx).is_open() {
-            "icons/panel-right-close.svg"
+            "icons/panel-left-close.svg"
         } else {
-            "icons/panel-right-open.svg"
+            "icons/panel-left-open.svg"
         };
 
         div()
