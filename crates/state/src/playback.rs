@@ -69,6 +69,7 @@ pub struct Playback {
     normalisation: bool,
     shuffle: bool,
     repeat: Repeat,
+    radio: bool,
     task: Option<Task<()>>,
     load: Option<Task<()>>,
     fetch: Option<Task<()>>,
@@ -111,6 +112,7 @@ impl Playback {
             normalisation,
             shuffle: false,
             repeat: Repeat::Off,
+            radio: false,
             task: None,
             load: None,
             fetch: None,
@@ -271,14 +273,16 @@ impl Playback {
 
     pub fn next(&mut self, cx: &mut Context<Self>) {
         self.fetch = None;
-        let shuffle = self.shuffle;
-        let Some(track) = self.queue.update(cx, |queue, cx| match shuffle {
-            true => queue.next_random(cx),
-            false => queue.next(cx),
-        }) else {
-            return;
-        };
-        self.load_after(&track, SKIP_DEBOUNCE, cx);
+        self.follow_queue(cx);
+    }
+
+    pub fn radio(&self) -> bool {
+        self.radio
+    }
+
+    pub fn toggle_radio(&mut self, cx: &mut Context<Self>) {
+        self.radio = !self.radio;
+        cx.notify();
     }
 
     pub fn shuffle(&self) -> bool {
@@ -315,8 +319,57 @@ impl Playback {
                     self.load_after(&track, SKIP_DEBOUNCE, cx);
                 }
             }
+            _ if self.radio && !self.queue.read(cx).has_next() => {
+                match ended.or_else(|| self.track.clone()) {
+                    Some(seed) => self.extend_radio(&seed, cx),
+                    None => self.next(cx),
+                }
+            }
             _ => self.next(cx),
         }
+    }
+
+    fn extend_radio(&mut self, seed: &Track, cx: &mut Context<Self>) {
+        let (Some(id), Some(client)) = (seed.id.clone(), self.session.read(cx).client()) else {
+            return self.next(cx);
+        };
+
+        let io = Io::global(cx);
+        let heard = seed.id.clone();
+        self.fetch = Some(cx.spawn(async move |this, cx| {
+            let loaded = join(io.spawn(async move {
+                let mut tracks = client.track_radio(&id).await?;
+                tracks.retain(|track| track.id != heard && track.playable);
+                fastrand::shuffle(&mut tracks);
+                anyhow::Ok(tracks)
+            }))
+            .await;
+
+            this.update(cx, |this, cx| match loaded {
+                Ok(tracks) if !tracks.is_empty() => {
+                    this.queue.update(cx, |queue, cx| {
+                        for track in tracks {
+                            queue.append(track, cx);
+                        }
+                    });
+                    this.follow_queue(cx);
+                }
+                Ok(_) => log::warn!("playback: radio returned no tracks"),
+                Err(error) => log::warn!("playback: cannot extend radio: {error:#}"),
+            })
+            .ok();
+        }));
+    }
+
+    fn follow_queue(&mut self, cx: &mut Context<Self>) {
+        let shuffle = self.shuffle;
+        let Some(track) = self.queue.update(cx, |queue, cx| match shuffle {
+            true => queue.next_random(cx),
+            false => queue.next(cx),
+        }) else {
+            return;
+        };
+        self.load_after(&track, SKIP_DEBOUNCE, cx);
     }
 
     pub fn previous(&mut self, cx: &mut Context<Self>) {
