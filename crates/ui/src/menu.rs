@@ -511,6 +511,7 @@ impl RenderOnce for Menu {
                         }
                     }
                 })
+                .gap(px(2.))
                 .children(rows)
                 .into_any_element(),
         };
