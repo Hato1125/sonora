@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=sonora
+GenericName=Music Player
+Comment=A minimal native Spotify client
+Exec=sonora
+Terminal=false
+Categories=AudioVideo;Audio;Player;
+Keywords=music;spotify;audio;player;
+StartupWMClass=sonora
+StartupNotify=true

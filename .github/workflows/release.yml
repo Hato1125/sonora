@@ -40,10 +40,11 @@ jobs:
         shell: bash
         run: |
           case "$GITHUB_REF" in
-            refs/tags/*) version="$GITHUB_REF_NAME" ;;
-            *) version="$(git rev-parse --short HEAD)" ;;
+            refs/tags/*) version="$GITHUB_REF_NAME"; number="${GITHUB_REF_NAME#v}" ;;
+            *) version="$(git rev-parse --short HEAD)"; number="0.0.0" ;;
           esac
           echo "name=sonora-$version-${{ matrix.target }}" >> "$GITHUB_OUTPUT"
+          echo "number=$number" >> "$GITHUB_OUTPUT"
 
       - name: system dependencies
         if: runner.os == 'Linux'
@@ -67,13 +68,29 @@ jobs:
         run: cargo build --release --locked --package sonora --target ${{ matrix.target }}
 
       - name: package
-        if: runner.os != 'Windows'
+        if: runner.os == 'Linux'
         shell: bash
         env:
           NAME: ${{ steps.meta.outputs.name }}
         run: |
-          mkdir -p dist
-          tar czf "dist/$NAME.tar.gz" -C "target/${{ matrix.target }}/release" sonora
+          mkdir -p dist stage
+          cp "target/${{ matrix.target }}/release/sonora" stage/
+          cp assets/linux/sonora.desktop stage/
+          tar czf "dist/$NAME.tar.gz" -C stage .
+          cd dist && shasum -a 256 "$NAME.tar.gz" > "$NAME.tar.gz.sha256"
+
+      - name: package
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          NAME: ${{ steps.meta.outputs.name }}
+          NUMBER: ${{ steps.meta.outputs.number }}
+        run: |
+          mkdir -p dist stage/sonora.app/Contents/MacOS
+          cp "target/${{ matrix.target }}/release/sonora" stage/sonora.app/Contents/MacOS/
+          sed "s/@VERSION@/$NUMBER/g" assets/macos/Info.plist \
+            > stage/sonora.app/Contents/Info.plist
+          tar czf "dist/$NAME.tar.gz" -C stage sonora.app
           cd dist && shasum -a 256 "$NAME.tar.gz" > "$NAME.tar.gz.sha256"
 
       - name: package

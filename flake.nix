@@ -48,6 +48,11 @@
 
             buildInputs = runtimeLibraries;
 
+            postInstall = ''
+              install -Dm444 assets/linux/sonora.desktop \
+                -t "$out/share/applications"
+            '';
+
             postFixup = ''
               patchelf \
                 --add-rpath "${pkgs.lib.makeLibraryPath runtimeLibraries}" \
