@@ -70,6 +70,10 @@ filter-year = Year
 filter-explicit = Explicit only
 filter-playable = Playable only
 
+# view
+view-list = List
+view-cards = Cards
+
 # login
 login-signed-out = Sign in to load your Spotify library
 login-restoring = Checking your saved session…

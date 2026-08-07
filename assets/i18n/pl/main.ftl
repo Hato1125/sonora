@@ -70,6 +70,10 @@ filter-year = Rok
 filter-explicit = Tylko z wulgaryzmami
 filter-playable = Tylko dostępne
 
+# view
+view-list = Lista
+view-cards = Kafelki
+
 # login
 login-signed-out = Zaloguj się, aby wczytać bibliotekę Spotify
 login-restoring = Sprawdzanie zapisanej sesji…

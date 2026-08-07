@@ -4,17 +4,21 @@ mod albums;
 mod playlists;
 
 use gpui::prelude::*;
-use gpui::{App, Context, Entity, Pixels, Point, Render, ScrollHandle, SharedString, Window, px};
+use gpui::{
+    AnyElement, App, Context, Entity, FontWeight, Pixels, Point, Render, ScrollHandle,
+    SharedString, Window, div, px,
+};
 use i18n::t;
 use router::{Destination, LibraryTab, navigate};
 use spotify::Track;
 use state::{AppSettings, Library, LibraryState, Playback, Sonora};
 use ui::{
-    FlagAxis, GridDelegate, GridEvent, GridState, RangeAxis, Scrollbar, Scroller, Sort, Toggle,
-    Unit, Viewport, scrolled,
+    ActiveTheme as _, Card, FlagAxis, GridDelegate, GridEvent, GridSource, GridState, Mode,
+    RangeAxis, Scrollbar, Scroller, Sort, Toggle, Unit, Viewport, eyebrow, scrolled,
 };
-use workspace::{Chrome, Columned, Filterable, Searchable, Toolbar, Tooled};
+use workspace::{Chrome, Columned, Filterable, Searchable, Toolbar, Tooled, Viewed};
 
+use crate::release_card::ReleaseCard;
 use crate::tracks::{
     self, LIBRARY_COLUMNS, PlaybackStatus, TrackField, TrackSieve, TrackSource, Tracks,
     playback_status,
@@ -53,11 +57,21 @@ pub enum Section {
 const PINNED: [&str; 3] = ["cover", "title", "name"];
 
 impl Section {
+    const ALL: [Self; 3] = [Self::Tracks, Self::Albums, Self::Playlists];
+
     fn key(self) -> &'static str {
         match self {
             Section::Tracks => "songs",
             Section::Albums => "albums",
             Section::Playlists => "playlists",
+        }
+    }
+
+    fn slot(self) -> usize {
+        match self {
+            Section::Tracks => 0,
+            Section::Albums => 1,
+            Section::Playlists => 2,
         }
     }
 }
@@ -83,6 +97,7 @@ pub struct LibraryView {
     playback: Entity<Playback>,
     playback_status: PlaybackStatus,
     section: Section,
+    views: [Mode; 3],
     width: Pixels,
     scrollbar: Entity<Scrollbar>,
     tracks: Entity<GridState<TrackSource>>,
@@ -107,6 +122,8 @@ impl LibraryView {
                 settings.sorting(section.key()),
             )
         };
+        let viewed = |section: Section, cx: &App| settings.read(cx).view(section.key());
+        let views = Section::ALL.map(|section| viewed(section, cx));
 
         let scrollbar = cx.new(|_| Scrollbar::new(ScrollHandle::new()));
         let scroll = scrollbar.read(cx).scroll().clone();
@@ -198,6 +215,7 @@ impl LibraryView {
             let mut toolbar = Toolbar::new(cx);
             toolbar.bind(&me, cx);
             toolbar.columns(&me, cx);
+            toolbar.views(&me, cx);
             toolbar.filters(&me, cx);
             toolbar
         });
@@ -208,6 +226,7 @@ impl LibraryView {
             playback,
             playback_status: current_playback,
             section: Section::Tracks,
+            views,
             width,
             scrollbar,
             tracks,
@@ -341,6 +360,84 @@ impl LibraryView {
             table.rebuild(cx);
         }
     }
+
+    fn cards(&self, cx: &App) -> AnyElement {
+        let tiles = match self.section {
+            Section::Tracks => deck(&self.tracks, cx, |display, row| {
+                self.track_card(display, row, cx)
+            }),
+            Section::Albums => deck(&self.albums, cx, |display, row| {
+                self.album_card(display, row, cx)
+            }),
+            Section::Playlists => deck(&self.playlists, cx, |display, row| {
+                self.playlist_card(display, row, cx)
+            }),
+        };
+
+        div()
+            .flex()
+            .flex_wrap()
+            .gap_x_8()
+            .gap_y_6()
+            .children(tiles)
+            .into_any_element()
+    }
+
+    fn track_card(&self, display: usize, row: usize, cx: &App) -> Option<AnyElement> {
+        let theme = *cx.theme();
+        let track = self.tracks.read(cx).delegate().source().at(row, cx)?;
+        let playable = track.playable;
+        let pressed = (self.tracks.clone(), self.playback.clone());
+        let played = pressed.clone();
+
+        Some(
+            Card::new(("library-track", display), SharedString::from(track.name))
+                .tile(theme.metrics.cover)
+                .cover(track.cover)
+                .weight(FontWeight::SEMIBOLD)
+                .flat()
+                .underline()
+                .when(track.explicit, Card::explicit)
+                .meta(SharedString::from(track.artists))
+                .when(playable, move |card| {
+                    card.play(move |_, _, cx| page::play(&played.0, &played.1, display, cx))
+                        .press(move |_, _, cx| page::play(&pressed.0, &pressed.1, display, cx))
+                })
+                .into_any_element(),
+        )
+    }
+
+    fn album_card(&self, display: usize, row: usize, cx: &App) -> Option<AnyElement> {
+        let album = self.albums.read(cx).delegate().source().at(row, cx)?;
+
+        Some(ReleaseCard::new(display, album, self.playback.clone()).into_any_element())
+    }
+
+    fn playlist_card(&self, display: usize, row: usize, cx: &App) -> Option<AnyElement> {
+        let theme = *cx.theme();
+        let playlist = self.playlists.read(cx).delegate().source().at(row, cx)?;
+        let playback = self.playback.clone();
+        let played = playlist.id.clone();
+        let opened = SharedString::from(playlist.id);
+
+        Some(
+            Card::new(
+                ("library-playlist", display),
+                SharedString::from(playlist.name),
+            )
+            .tile(theme.metrics.cover)
+            .cover(playlist.cover)
+            .weight(FontWeight::SEMIBOLD)
+            .flat()
+            .underline()
+            .meta(SharedString::from(playlist.owner))
+            .play(move |_, _, cx| {
+                playback.update(cx, |playback, cx| playback.play_playlist(&played, cx));
+            })
+            .press(move |_, _, cx| navigate(Destination::Playlist(opened.clone()), cx))
+            .into_any_element(),
+        )
+    }
 }
 
 impl Render for LibraryView {
@@ -352,7 +449,12 @@ impl Render for LibraryView {
         let table = self.table(self.section);
         table.set_viewport(viewport, cx);
 
-        Scroller::new("library-page", &self.scrollbar).child(table.element())
+        Scroller::new("library-page", &self.scrollbar).child(
+            match self.views[self.section.slot()] {
+                Mode::List => table.element(),
+                Mode::Cards => self.cards(cx),
+            },
+        )
     }
 }
 
@@ -376,6 +478,23 @@ impl Columned for LibraryView {
 
     fn toggle_column(&mut self, key: &'static str, cx: &mut Context<Self>) {
         self.switch_column(key, cx);
+    }
+}
+
+impl Viewed for LibraryView {
+    fn mode(&self, _cx: &App) -> Mode {
+        self.views[self.section.slot()]
+    }
+
+    fn set_mode(&mut self, mode: Mode, cx: &mut Context<Self>) {
+        let section = self.section;
+        self.views[section.slot()] = mode;
+
+        let settings = self.settings.clone();
+        settings.update(cx, |settings, cx| {
+            settings.set_view(section.key(), mode, cx)
+        });
+        cx.notify();
     }
 }
 
@@ -510,4 +629,34 @@ impl Filterable for LibraryView {
         self.sift(TrackSieve::default(), cx);
         self.set_span(None, cx);
     }
+}
+
+fn deck<S: GridSource>(
+    state: &Entity<GridState<S>>,
+    cx: &App,
+    card: impl Fn(usize, usize) -> Option<AnyElement>,
+) -> Vec<AnyElement> {
+    let state = state.read(cx);
+    let delegate = state.delegate();
+    let mut tiles = Vec::new();
+    let mut group: Option<SharedString> = None;
+
+    for display in 0..delegate.row_count() {
+        let Some(card) = card(display, delegate.row(display)) else {
+            continue;
+        };
+        let label = delegate.group(display, cx);
+        match &label {
+            Some(text) if group.as_ref() != Some(text) => tiles.push(head(text.clone(), cx)),
+            _ => {}
+        }
+        group = label;
+        tiles.push(card);
+    }
+
+    tiles
+}
+
+fn head(label: SharedString, cx: &App) -> AnyElement {
+    eyebrow(label, cx).w_full().pt_2().into_any_element()
 }

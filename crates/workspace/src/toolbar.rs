@@ -4,7 +4,7 @@ use gpui::prelude::*;
 use gpui::{App, Context, Entity, Pixels, Render, SharedString, WeakEntity, Window, div, px};
 use input::{Dismiss, Input};
 use ui::{
-    ActiveTheme as _, Button, FlagAxis, Menu, MenuItem, RangeAxis, RangeScrubber, RangeState,
+    ActiveTheme as _, Button, FlagAxis, Menu, MenuItem, Mode, RangeAxis, RangeScrubber, RangeState,
     Toggle, eyebrow,
 };
 
@@ -16,6 +16,8 @@ const MENU_DROP: Pixels = px(30.);
 type Apply = Box<dyn Fn(&str, &mut App)>;
 type Toggles = Box<dyn Fn(&App) -> Vec<Toggle>>;
 type Switch = Box<dyn Fn(&'static str, &mut App)>;
+type Reading = Box<dyn Fn(&App) -> Mode>;
+type Shift = Box<dyn Fn(Mode, &mut App)>;
 
 pub trait Searchable: 'static {
     fn search(&mut self, query: &str, cx: &mut Context<Self>)
@@ -34,6 +36,14 @@ pub trait Columned: 'static {
     fn toggles(&self, cx: &App) -> Vec<Toggle>;
 
     fn toggle_column(&mut self, key: &'static str, cx: &mut Context<Self>)
+    where
+        Self: Sized;
+}
+
+pub trait Viewed: 'static {
+    fn mode(&self, cx: &App) -> Mode;
+
+    fn set_mode(&mut self, mode: Mode, cx: &mut Context<Self>)
     where
         Self: Sized;
 }
@@ -107,6 +117,8 @@ pub struct Toolbar {
     apply: Option<Apply>,
     toggles: Option<Toggles>,
     switch: Option<Switch>,
+    reading: Option<Reading>,
+    shift: Option<Shift>,
     port: Option<Box<dyn Port>>,
     sliders: Vec<(&'static str, RangeState)>,
     open: bool,
@@ -136,6 +148,8 @@ impl Toolbar {
             apply: None,
             toggles: None,
             switch: None,
+            reading: None,
+            shift: None,
             port: None,
             sliders: Vec::new(),
             open: false,
@@ -174,6 +188,23 @@ impl Toolbar {
         cx.notify();
     }
 
+    pub fn views<V: Viewed>(&mut self, view: &Entity<V>, cx: &mut Context<Self>) {
+        let read = view.downgrade();
+        let write = view.downgrade();
+
+        self.reading = Some(Box::new(move |cx| {
+            read.upgrade()
+                .map(|view| view.read(cx).mode(cx))
+                .unwrap_or_default()
+        }));
+        self.shift = Some(Box::new(move |mode, cx| {
+            write.update(cx, |view, cx| view.set_mode(mode, cx)).ok();
+        }));
+
+        cx.observe(view, |_, _, cx| cx.notify()).detach();
+        cx.notify();
+    }
+
     pub fn filters<V: Filterable>(&mut self, view: &Entity<V>, cx: &mut Context<Self>) {
         self.port = Some(Box::new(Wire(view.downgrade())));
         cx.observe(view, |_, _, cx| cx.notify()).detach();
@@ -201,6 +232,32 @@ impl Toolbar {
         self.open = false;
         self.input.update(cx, |input, cx| input.set_text("", cx));
         cx.notify();
+    }
+
+    fn mode(&self, cx: &App) -> Mode {
+        match self.reading.as_ref() {
+            Some(reading) => reading(cx),
+            None => Mode::default(),
+        }
+    }
+
+    fn switcher(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let next = match self.mode(cx) {
+            Mode::List => Mode::Cards,
+            Mode::Cards => Mode::List,
+        };
+
+        Button::new("view-toggle")
+            .icon(next.icon())
+            .small()
+            .ghost()
+            .on_click(cx.listener(move |this, _, _, cx| {
+                this.picker = false;
+                if let Some(shift) = this.shift.as_ref() {
+                    shift(next, cx);
+                }
+                cx.notify();
+            }))
     }
 
     fn menu(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -392,6 +449,7 @@ impl Render for Toolbar {
             true => Some(self.sift(cx).into_any_element()),
             false => None,
         };
+        let listed = self.mode(cx) == Mode::List;
 
         div()
             .flex()
@@ -402,7 +460,10 @@ impl Render for Toolbar {
             .gap_1()
             .on_action(cx.listener(|this, _: &Dismiss, _, cx| this.close(cx)))
             .children(sift)
-            .when(self.toggles.is_some(), |this| this.child(self.menu(cx)))
+            .when(self.reading.is_some(), |this| this.child(self.switcher(cx)))
+            .when(self.toggles.is_some() && listed, |this| {
+                this.child(self.menu(cx))
+            })
             .when(self.apply.is_some(), |this| {
                 this.when(self.open, |this| {
                     this.child(

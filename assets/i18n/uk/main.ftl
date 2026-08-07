@@ -70,6 +70,10 @@ filter-year = Рік
 filter-explicit = Лише з ненормативною лексикою
 filter-playable = Лише доступні
 
+# view
+view-list = Список
+view-cards = Картки
+
 # login
 login-signed-out = Увійдіть, щоб завантажити медіатеку Spotify
 login-restoring = Перевіряємо збережений сеанс…

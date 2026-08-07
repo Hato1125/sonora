@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use gpui::{Context, Task};
 use serde::{Deserialize, Serialize};
-use ui::{Layout, Look, Rounding, Sorting, ThemeKind, ThemeOverrides};
+use ui::{Layout, Look, Mode, Rounding, Sorting, ThemeKind, ThemeOverrides};
 
 const SAVE_DELAY: Duration = Duration::from_millis(300);
 const DEFAULT_VOLUME: f32 = 0.7;
@@ -29,6 +29,7 @@ struct Values {
     hidden_columns: HashMap<String, Vec<String>>,
     tables: HashMap<String, Layout>,
     sorting: HashMap<String, Option<Sorting>>,
+    views: HashMap<String, Mode>,
     appearance: Appearance,
 }
 
@@ -58,6 +59,7 @@ impl Default for Values {
             hidden_columns: HashMap::new(),
             tables: HashMap::new(),
             sorting: HashMap::new(),
+            views: HashMap::new(),
             appearance: Appearance::default(),
         }
     }
@@ -212,6 +214,18 @@ impl AppSettings {
             return;
         }
         self.values.tables.insert(table.to_owned(), layout);
+        self.schedule_save(cx);
+    }
+
+    pub fn view(&self, table: &str) -> Mode {
+        self.values.views.get(table).copied().unwrap_or_default()
+    }
+
+    pub fn set_view(&mut self, table: &str, mode: Mode, cx: &mut Context<Self>) {
+        if self.values.views.get(table) == Some(&mode) {
+            return;
+        }
+        self.values.views.insert(table.to_owned(), mode);
         self.schedule_save(cx);
     }
 
