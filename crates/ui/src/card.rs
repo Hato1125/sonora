@@ -52,6 +52,7 @@ pub struct Card {
     tile: Option<Pixels>,
     play: Option<Press>,
     underline: bool,
+    playing: bool,
     action: Option<AnyElement>,
 }
 
@@ -84,6 +85,7 @@ impl Card {
             tile: None,
             play: None,
             underline: false,
+            playing: false,
             action: None,
         }
     }
@@ -93,8 +95,13 @@ impl Card {
         self
     }
 
-    pub fn play(mut self, handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static) -> Self {
+    pub fn play(
+        mut self,
+        playing: bool,
+        handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+    ) -> Self {
         self.play = Some(Box::new(handler));
+        self.playing = playing;
         self
     }
 
@@ -253,6 +260,7 @@ impl RenderOnce for Card {
             tile,
             play,
             underline,
+            playing,
             action,
         } = self;
 
@@ -297,7 +305,10 @@ impl RenderOnce for Card {
                         .child(
                             Button::new("card-play-button")
                                 .primary()
-                                .icon("icons/play.svg")
+                                .icon(match playing {
+                                    true => "icons/pause.svg",
+                                    false => "icons/play.svg",
+                                })
                                 .size(px((art / px(1.) * PLAY_RATIO).round()).max(PLAY_MIN))
                                 .rounded_full()
                                 .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())

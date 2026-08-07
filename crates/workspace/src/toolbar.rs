@@ -459,11 +459,11 @@ impl Render for Toolbar {
             .justify_end()
             .gap_1()
             .on_action(cx.listener(|this, _: &Dismiss, _, cx| this.close(cx)))
-            .children(sift)
-            .when(self.reading.is_some(), |this| this.child(self.switcher(cx)))
             .when(self.toggles.is_some() && listed, |this| {
                 this.child(self.menu(cx))
             })
+            .children(sift)
+            .when(self.reading.is_some(), |this| this.child(self.switcher(cx)))
             .when(self.apply.is_some(), |this| {
                 this.when(self.open, |this| {
                     this.child(

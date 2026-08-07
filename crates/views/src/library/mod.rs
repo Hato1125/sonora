@@ -11,10 +11,10 @@ use gpui::{
 use i18n::t;
 use router::{Destination, LibraryTab, navigate};
 use spotify::Track;
-use state::{AppSettings, Library, LibraryState, Playback, Sonora};
+use state::{AppSettings, Library, LibraryState, Origin, Playback, PlaybackState, Sonora};
 use ui::{
     ActiveTheme as _, Card, FlagAxis, GridDelegate, GridEvent, GridSource, GridState, Mode,
-    RangeAxis, Scrollbar, Scroller, Sort, Toggle, Unit, Viewport, eyebrow, scrolled,
+    RangeAxis, Scrollbar, Scroller, Sort, Text, Toggle, Unit, Viewport, eyebrow, scrolled,
 };
 use workspace::{Chrome, Columned, Filterable, Searchable, Toolbar, Tooled, Viewed};
 
@@ -389,6 +389,20 @@ impl LibraryView {
         let playable = track.playable;
         let pressed = (self.tracks.clone(), self.playback.clone());
         let played = pressed.clone();
+        let current = self.playback.read(cx);
+        let state = current
+            .track()
+            .filter(|playing| playing.id.is_some() && playing.id == track.id)
+            .map(|_| current.state().clone());
+        let playing = matches!(state, Some(PlaybackState::Playing));
+        let artists = cells::artist_links(
+            SharedString::from(format!("library-track-artist-{display}")),
+            track.artist_refs.clone(),
+            track.artists.clone(),
+            theme.muted_foreground,
+        )
+        .text_size(theme.text(Text::Small))
+        .truncate();
 
         Some(
             Card::new(("library-track", display), SharedString::from(track.name))
@@ -398,10 +412,18 @@ impl LibraryView {
                 .flat()
                 .underline()
                 .when(track.explicit, Card::explicit)
-                .meta(SharedString::from(track.artists))
+                .bare_meta(artists)
                 .when(playable, move |card| {
-                    card.play(move |_, _, cx| page::play(&played.0, &played.1, display, cx))
-                        .press(move |_, _, cx| page::play(&pressed.0, &pressed.1, display, cx))
+                    card.play(playing, move |_, _, cx| match &state {
+                        Some(PlaybackState::Playing) => {
+                            played.1.update(cx, |playback, cx| playback.pause(cx))
+                        }
+                        Some(PlaybackState::Paused) => {
+                            played.1.update(cx, |playback, cx| playback.resume(cx))
+                        }
+                        _ => page::play(&played.0, &played.1, display, cx),
+                    })
+                    .press(move |_, _, cx| page::play(&pressed.0, &pressed.1, display, cx))
                 })
                 .into_any_element(),
         )
@@ -417,6 +439,9 @@ impl LibraryView {
         let theme = *cx.theme();
         let playlist = self.playlists.read(cx).delegate().source().at(row, cx)?;
         let playback = self.playback.clone();
+        let origin = Origin::Playlist(playlist.id.clone());
+        let state = self.playback.read(cx).playing_from(&origin);
+        let playing = matches!(state, Some(PlaybackState::Playing));
         let played = playlist.id.clone();
         let opened = SharedString::from(playlist.id);
 
@@ -431,8 +456,12 @@ impl LibraryView {
             .flat()
             .underline()
             .meta(SharedString::from(playlist.owner))
-            .play(move |_, _, cx| {
-                playback.update(cx, |playback, cx| playback.play_playlist(&played, cx));
+            .play(playing, move |_, _, cx| {
+                playback.update(cx, |playback, cx| match &state {
+                    Some(PlaybackState::Playing) => playback.pause(cx),
+                    Some(PlaybackState::Paused) => playback.resume(cx),
+                    _ => playback.play_playlist(&played, cx),
+                });
             })
             .press(move |_, _, cx| navigate(Destination::Playlist(opened.clone()), cx))
             .into_any_element(),

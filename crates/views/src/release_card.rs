@@ -2,22 +2,10 @@
 
 use gpui::prelude::*;
 use gpui::{App, Entity, FontWeight, SharedString, Window, div};
-use i18n::t;
 use router::{Destination, navigate};
-use spotify::{Album, ReleaseType};
-use state::Playback;
+use spotify::Album;
+use state::{Origin, Playback, PlaybackState};
 use ui::{ActiveTheme as _, Card, Text};
-
-pub(crate) fn release_label(kind: ReleaseType) -> SharedString {
-    match kind {
-        ReleaseType::Album => t!("release-album"),
-        ReleaseType::Single => t!("release-single"),
-        ReleaseType::Compilation => t!("release-compilation"),
-        ReleaseType::Ep => t!("release-ep"),
-        ReleaseType::Audiobook => t!("release-audiobook"),
-        ReleaseType::Podcast => t!("release-podcast"),
-    }
-}
 
 #[derive(IntoElement)]
 pub(crate) struct ReleaseCard {
@@ -46,11 +34,17 @@ impl RenderOnce for ReleaseCard {
 
         let theme = *cx.theme();
         let cover = album.cover_large.clone().or_else(|| album.cover.clone());
-        let release = release_label(album.release_type);
-        let metadata = match album.year > 0 {
-            true => t!("release-meta", year = album.year, kind = &release),
-            false => release,
-        };
+        let artists = crate::cells::artist_links(
+            SharedString::from(format!("release-artist-{index}")),
+            album.artist_refs.clone(),
+            album.artists.clone(),
+            theme.muted_foreground,
+        )
+        .text_size(theme.text(Text::Small))
+        .truncate();
+        let origin = Origin::Album(album.id.clone());
+        let state = playback.read(cx).playing_from(&origin);
+        let playing = matches!(state, Some(PlaybackState::Playing));
         let played = album.id.clone();
         let opened = SharedString::from(album.id);
 
@@ -61,15 +55,13 @@ impl RenderOnce for ReleaseCard {
             .flat()
             .underline()
             .line_height(theme.text(Text::Body))
-            .bare_meta(
-                div()
-                    .text_size(theme.text(Text::Small))
-                    .line_height(theme.text(Text::Small))
-                    .text_color(theme.muted_foreground)
-                    .child(metadata),
-            )
-            .play(move |_, _, cx| {
-                playback.update(cx, |playback, cx| playback.play_album(&played, cx));
+            .bare_meta(div().line_height(theme.text(Text::Small)).child(artists))
+            .play(playing, move |_, _, cx| {
+                playback.update(cx, |playback, cx| match &state {
+                    Some(PlaybackState::Playing) => playback.pause(cx),
+                    Some(PlaybackState::Paused) => playback.resume(cx),
+                    _ => playback.play_album(&played, cx),
+                });
             })
             .press(move |_, _, cx| navigate(Destination::Album(opened.clone()), cx))
     }

@@ -9,7 +9,6 @@ use gpui::{
     AnyElement, App, Entity, Hsla, InteractiveElement as _, IntoElement as _, SharedString,
     Styled as _, TextAlign, WeakEntity,
 };
-use i18n::t;
 use jiff::Timestamp;
 use router::Destination;
 use spotify::Track;
@@ -535,7 +534,6 @@ impl GridSource for TrackSource {
             TrackField::Title => Some(initial(&track.name)),
             TrackField::Artists => Some(initial(&track.artists)),
             TrackField::Album => Some(initial(&track.album)),
-            TrackField::AddedAt => Some(day(track.added_at)),
             _ => None,
         }
     }
@@ -547,13 +545,6 @@ pub(crate) fn initial(text: &str) -> SharedString {
         .filter(|first| first.is_alphabetic())
         .map(|first| SharedString::from(first.to_uppercase().collect::<String>()))
         .unwrap_or_else(|| SharedString::from("#"))
-}
-
-fn day(added_at: Option<i64>) -> SharedString {
-    added_at
-        .and_then(|seconds| Timestamp::new(seconds, 0).ok())
-        .map(|timestamp| release_date_label(&timestamp.strftime("%Y-%m-%d").to_string()))
-        .unwrap_or_else(|| t!("common-unknown"))
 }
 
 fn hits(track: &Track, query: &str) -> bool {
