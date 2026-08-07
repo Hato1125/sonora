@@ -458,18 +458,22 @@ impl Filterable for LibraryView {
     fn ranges(&self, cx: &App) -> Vec<RangeAxis> {
         match self.section {
             Section::Tracks => {
-                let longest = self.tracks.read(cx).delegate().source().longest(cx);
-                let value = self.sieve(cx).duration.unwrap_or((0., longest));
+                let Some(bounds) = self.tracks.read(cx).delegate().source().longest(cx) else {
+                    return Vec::new();
+                };
+                let value = self.sieve(cx).duration.unwrap_or(bounds);
                 vec![RangeAxis {
                     key: "filter-duration",
                     label: t!("filter-duration"),
-                    bounds: (0., longest),
+                    bounds,
                     value,
                     unit: Unit::Clock,
                 }]
             }
             Section::Albums => {
-                let bounds = self.albums.read(cx).delegate().source().years(cx);
+                let Some(bounds) = self.albums.read(cx).delegate().source().years(cx) else {
+                    return Vec::new();
+                };
                 let value = self.span(cx).unwrap_or(bounds);
                 vec![RangeAxis {
                     key: "filter-year",

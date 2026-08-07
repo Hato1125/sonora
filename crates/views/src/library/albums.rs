@@ -113,17 +113,14 @@ impl AlbumSource {
         self.albums(cx).get(row).cloned()
     }
 
-    pub(super) fn years(&self, cx: &App) -> (f32, f32) {
+    pub(super) fn years(&self, cx: &App) -> Option<(f32, f32)> {
         let mut low = f32::MAX;
         let mut high = f32::MIN;
         for album in self.albums(cx).iter().filter(|album| album.year > 0) {
             low = low.min(album.year as f32);
             high = high.max(album.year as f32);
         }
-        match low <= high {
-            true => (low, high),
-            false => (0., 1.),
-        }
+        (low <= high).then_some((low, high))
     }
 
     pub(super) fn span(&self) -> Option<(f32, f32)> {

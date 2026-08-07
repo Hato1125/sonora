@@ -343,13 +343,14 @@ impl TrackSource {
         self.sieve = sieve;
     }
 
-    pub(crate) fn longest(&self, cx: &App) -> f32 {
-        self.provider
+    pub(crate) fn longest(&self, cx: &App) -> Option<(f32, f32)> {
+        let longest = self
+            .provider
             .tracks(cx)
             .iter()
             .map(|track| track.duration.as_secs_f32())
-            .fold(0., f32::max)
-            .max(1.)
+            .fold(0., f32::max);
+        (longest > 0.).then_some((0., longest))
     }
 
     pub(crate) fn table(mut self, table: WeakEntity<GridState<TrackSource>>) -> Self {
