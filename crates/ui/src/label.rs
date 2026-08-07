@@ -12,7 +12,11 @@ pub fn eyebrow(label: impl Into<SharedString>, cx: &App) -> Div {
         .text_size(theme.text(Text::Small))
         .text_color(theme.muted_foreground)
         .font_weight(FontWeight::SEMIBOLD)
-        .child(label.into())
+        .child(upper(label))
+}
+
+pub fn upper(label: impl Into<SharedString>) -> SharedString {
+    label.into().to_uppercase().into()
 }
 
 pub fn heading(label: impl Into<SharedString>, cx: &App) -> Div {

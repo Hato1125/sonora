@@ -123,7 +123,7 @@ impl RenderOnce for QuickPicks {
                             .flex()
                             .flex_col()
                             .gap_0p5()
-                            .child(eyebrow("START FROM A SONG", cx))
+                            .child(eyebrow("Start from a song", cx))
                             .child(heading("Quick picks", cx)),
                     )
                     .child(

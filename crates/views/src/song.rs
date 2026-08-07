@@ -107,7 +107,7 @@ impl SongView {
 
         PageHero::new("song-hero", track.name.clone())
             .cover(cover)
-            .eyebrow("SONG")
+            .eyebrow("Song")
             .meta(meta)
             .actions(actions)
             .explicit(track.explicit)
@@ -150,7 +150,7 @@ impl SongView {
             ("Label", label),
             ("Popularity", format!("{}%", track.popularity)),
         ];
-        InfoCard::new("ABOUT THIS SONG")
+        InfoCard::new("About this song")
             .stretch()
             .child(
                 div().flex().flex_col().children(
@@ -178,7 +178,7 @@ impl SongView {
             track.credits.clone()
         };
         let portraits = self.detail.read(cx).portraits().clone();
-        InfoCard::new("CREDITS")
+        InfoCard::new("Credits")
             .child(
                 div()
                     .flex()
@@ -243,7 +243,7 @@ impl SongView {
                 .collect::<Vec<_>>()
                 .join(", ")
         };
-        InfoCard::new("GENRES & DETAILS")
+        InfoCard::new("Genres & details")
             .child(
                 div()
                     .flex()
@@ -341,7 +341,7 @@ impl SongView {
                         .flex_1()
                         .min_w_0()
                         .gap_2()
-                        .child(eyebrow("ABOUT THE ARTIST", cx))
+                        .child(eyebrow("About the artist", cx))
                         .child(heading(artist.name.clone(), cx))
                         .child(div().text_color(theme.muted_foreground).child(bio)),
                 )

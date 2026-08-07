@@ -6,6 +6,7 @@ use gpui::{
 
 use crate::ExplicitBadge;
 use crate::artwork::{Artwork, Avatar};
+use crate::label::upper;
 use crate::metrics::{Text, snapped};
 use crate::skeleton::Skeleton;
 use crate::theme::ActiveTheme as _;
@@ -273,7 +274,7 @@ impl RenderOnce for Card {
                                     .text_size(theme.text(Text::Small))
                                     .text_color(theme.muted_foreground)
                                     .font_weight(FontWeight::SEMIBOLD)
-                                    .child(eyebrow)
+                                    .child(upper(eyebrow))
                             }))
                             .child(
                                 div()

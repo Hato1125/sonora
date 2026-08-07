@@ -148,7 +148,7 @@ impl ArtistView {
 
         PageHero::new("artist-hero", title)
             .cover(artist.and_then(|artist| artist.cover_large.clone()))
-            .eyebrow("ARTIST")
+            .eyebrow("Artist")
             .actions(HeroPlayButton::new(
                 "play-artist",
                 "Play now",

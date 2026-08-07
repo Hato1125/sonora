@@ -193,7 +193,7 @@ impl SearchView {
             .art(theme.metrics.cover * 0.45)
             .cover(cover(hit).clone())
             .when(matches!(kind, Kind::Artist), Card::circle)
-            .eyebrow(noun(kind).to_uppercase())
+            .eyebrow(noun(kind))
             .size(Text::Title)
             .weight(FontWeight::BOLD)
             .bare_meta(
@@ -218,7 +218,7 @@ impl SearchView {
                 .flex_col()
                 .flex_none()
                 .gap_2()
-                .child(eyebrow("Best match".to_uppercase(), cx).pb_1())
+                .child(eyebrow("Best match", cx).pb_1())
                 .child(card)
                 .into_any_element(),
         )
@@ -276,7 +276,7 @@ impl SearchView {
             .min_w_0()
             .min_h_0()
             .gap_1()
-            .child(div().pl_3().child(eyebrow(title.to_uppercase(), cx).pb_1()))
+            .child(div().pl_3().child(eyebrow(title, cx).pb_1()))
             .child(self.panel(id, bar, rows, cx))
             .into_any_element()
     }

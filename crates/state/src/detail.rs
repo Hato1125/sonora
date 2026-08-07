@@ -156,7 +156,7 @@ fn album_header(album: &Album) -> Header {
     }
 
     Header {
-        kind: "ALBUM",
+        kind: "Album",
         title: album.name.clone(),
         artist: Some(album.artists.clone()),
         artist_refs: album.artist_refs.clone(),
@@ -176,7 +176,7 @@ fn playlist_header(playlist: &Playlist) -> Header {
     }
 
     Header {
-        kind: "PLAYLIST",
+        kind: "Playlist",
         title: playlist.name.clone(),
         artist: None,
         artist_refs: Vec::new(),

@@ -104,18 +104,18 @@ impl Sections {
     fn slot(self, index: usize) -> Slot {
         if index < self.past_end() {
             return match index {
-                0 => Slot::Header("HISTORY"),
+                0 => Slot::Header("History"),
                 _ => Slot::Track(QueuePosition::Past(index - 1)),
             };
         }
         if index < self.current_end() {
             return match index == self.past_end() {
-                true => Slot::Header("NOW PLAYING"),
+                true => Slot::Header("Now playing"),
                 false => Slot::Track(QueuePosition::Current),
             };
         }
         match index == self.current_end() {
-            true => Slot::Header("UP NEXT"),
+            true => Slot::Header("Up next"),
             false => Slot::Track(QueuePosition::Upcoming(index - self.current_end() - 1)),
         }
     }
@@ -464,7 +464,7 @@ impl QueuePanel {
             .px_2()
             .border_b_1()
             .border_color(theme.border)
-            .child(eyebrow("QUEUE", cx))
+            .child(eyebrow("Queue", cx))
             .child(
                 div()
                     .flex()
@@ -694,12 +694,12 @@ mod tests {
         assert_eq!(
             slots(sections),
             [
-                Slot::Header("HISTORY"),
+                Slot::Header("History"),
                 Slot::Track(QueuePosition::Past(0)),
                 Slot::Track(QueuePosition::Past(1)),
-                Slot::Header("NOW PLAYING"),
+                Slot::Header("Now playing"),
                 Slot::Track(QueuePosition::Current),
-                Slot::Header("UP NEXT"),
+                Slot::Header("Up next"),
                 Slot::Track(QueuePosition::Upcoming(0)),
                 Slot::Track(QueuePosition::Upcoming(1)),
             ]
@@ -718,9 +718,9 @@ mod tests {
         assert_eq!(
             slots(sections),
             [
-                Slot::Header("NOW PLAYING"),
+                Slot::Header("Now playing"),
                 Slot::Track(QueuePosition::Current),
-                Slot::Header("UP NEXT"),
+                Slot::Header("Up next"),
                 Slot::Track(QueuePosition::Upcoming(0)),
             ]
         );
@@ -737,7 +737,7 @@ mod tests {
         assert_eq!(sections.current_index(), None);
         assert_eq!(
             slots(sections),
-            [Slot::Header("HISTORY"), Slot::Track(QueuePosition::Past(0))]
+            [Slot::Header("History"), Slot::Track(QueuePosition::Past(0))]
         );
     }
 

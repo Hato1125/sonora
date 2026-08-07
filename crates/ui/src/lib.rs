@@ -30,7 +30,7 @@ pub use grid::{
 };
 pub use info_card::{Fact, InfoCard};
 pub use inline_links::{InlineLink, InlineLinks};
-pub use label::{eyebrow, heading};
+pub use label::{eyebrow, heading, upper};
 pub use layout::{ALWAYS, MIN_CONTENT, ROOMY, Room, SNUG, VAST, WIDE};
 pub use menu::{Menu, MenuItem, SubmenuState};
 pub use metrics::{Metrics, Rounding, Text, snapped};

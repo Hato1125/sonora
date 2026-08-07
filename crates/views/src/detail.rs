@@ -129,7 +129,7 @@ impl DetailView {
         let queued = self.detail.read(cx).tracks().to_vec();
         let duration: std::time::Duration = queued.iter().map(|track| track.duration).sum();
         let label = match kind {
-            "PLAYLIST" => "Play playlist",
+            "Playlist" => "Play playlist",
             _ => "Play album",
         };
 
