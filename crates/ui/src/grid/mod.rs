@@ -13,6 +13,7 @@ use gpui::{
     actions, anchored, div, point, px, svg,
 };
 
+use crate::label::eyebrow;
 use crate::menu::Menu;
 use crate::metrics::{snapped, text_width};
 use crate::theme::ActiveTheme as _;
@@ -65,6 +66,10 @@ pub trait GridSource: 'static {
         a.cmp(&b)
     }
 
+    fn group(&self, _field: Self::Field, _row: usize, _cx: &App) -> Option<SharedString> {
+        None
+    }
+
     fn matches(&self, _row: usize, _query: &str, _cx: &App) -> bool {
         true
     }
@@ -91,6 +96,39 @@ fn frame(width: Pixels, align: TextAlign) -> Div {
         .text_align(align)
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Slot {
+    Header(usize),
+    Row { row: usize, display: usize },
+}
+
+fn ungrouped(order: &[usize]) -> Vec<Slot> {
+    order
+        .iter()
+        .enumerate()
+        .map(|(display, &row)| Slot::Row { row, display })
+        .collect()
+}
+
+fn banded(order: &[usize], group: impl Fn(usize) -> Option<SharedString>) -> Option<Vec<Slot>> {
+    let mut slots = Vec::with_capacity(order.len());
+    let mut current: Option<SharedString> = None;
+    let mut grouped = false;
+
+    for (display, &row) in order.iter().enumerate() {
+        if let Some(label) = group(row) {
+            grouped = true;
+            if current.as_ref() != Some(&label) {
+                slots.push(Slot::Header(row));
+                current = Some(label);
+            }
+        }
+        slots.push(Slot::Row { row, display });
+    }
+
+    grouped.then_some(slots)
+}
+
 pub struct GridDelegate<S: GridSource> {
     source: S,
     columns: Vec<Resolved<S::Field>>,
@@ -101,6 +139,7 @@ pub struct GridDelegate<S: GridSource> {
     sort: Option<(S::Field, Sort)>,
     filter: String,
     order: Vec<usize>,
+    slots: Vec<Slot>,
 }
 
 impl<S: GridSource> GridDelegate<S> {
@@ -123,6 +162,7 @@ impl<S: GridSource> GridDelegate<S> {
             sort: None,
             filter: String::new(),
             order: Vec::new(),
+            slots: Vec::new(),
         };
         delegate.reorder(cx);
         delegate
@@ -274,6 +314,21 @@ impl<S: GridSource> GridDelegate<S> {
         }
 
         self.order = order;
+        self.regroup(cx);
+    }
+
+    fn regroup(&mut self, cx: &App) {
+        self.slots = self
+            .sort
+            .and_then(|(field, _)| banded(&self.order, |row| self.source.group(field, row, cx)))
+            .unwrap_or_else(|| ungrouped(&self.order));
+    }
+
+    fn slot_of(&self, display: usize) -> usize {
+        self.slots
+            .iter()
+            .position(|slot| matches!(slot, Slot::Row { display: at, .. } if *at == display))
+            .unwrap_or(display)
     }
 
     fn inner_width(&self, col_ix: usize) -> Pixels {
@@ -429,7 +484,7 @@ impl<S: GridSource> GridState<S> {
         let metrics = cx.theme().metrics;
         let row = snapped(metrics.row, window);
         let head = snapped(metrics.header, window);
-        let top = head + row * display as f32;
+        let top = head + row * self.delegate.slot_of(display) as f32;
         let above = self.viewport.top + head;
         let below = self.viewport.top + self.viewport.height;
 
@@ -446,7 +501,7 @@ impl<S: GridSource> GridState<S> {
     }
 
     fn height(&self, head: Pixels, row: Pixels) -> Pixels {
-        head + row * self.delegate.row_count() as f32
+        head + row * self.delegate.slots.len() as f32
     }
 
     pub fn delegate(&self) -> &GridDelegate<S> {
@@ -691,90 +746,139 @@ impl<S: GridSource> GridState<S> {
     }
 
     fn rows(&self, head: Pixels, row_height: Pixels, cx: &mut Context<Self>) -> Vec<AnyElement> {
-        let theme = *cx.theme();
-        let count = self.delegate.order.len();
+        let count = self.delegate.slots.len();
         let first = self.viewport.first(head, row_height);
         let last = (first + self.viewport.rows(row_height)).min(count);
-        let bottom = self.corners.bottom_left.max(self.corners.bottom_right);
+        let visible: Vec<(usize, Slot)> = (first..last)
+            .map(|slot| (slot, self.delegate.slots[slot]))
+            .collect();
 
-        (first..last)
-            .map(|display| {
-                let row = self.delegate.row(display);
-                let tail = display + 1 == count;
-                let selected = self.delegate.selected == Some(row);
-                let playing = self.delegate.source.playing(row, cx);
-                let cells: Vec<AnyElement> = (0..self.delegate.columns.len())
-                    .map(|ix| {
-                        let column = &self.delegate.columns[ix];
-                        let cell = Cell {
-                            field: column.spec.field,
-                            width: self.delegate.inner_width(ix),
-                            align: column.spec.align,
-                            display,
-                            row,
-                        };
-                        let width = column.width;
-                        div()
-                            .flex_none()
-                            .w(width)
-                            .h_full()
-                            .px(PADDING)
-                            .overflow_hidden()
-                            .whitespace_nowrap()
-                            .line_height(row_height)
-                            .child(self.delegate.source.cell(cell, cx))
-                            .into_any_element()
-                    })
-                    .collect();
-
-                div()
-                    .id(("row", display))
-                    .group(ROW_GROUP)
-                    .absolute()
-                    .top(head + row_height * display as f32)
-                    .left_0()
-                    .w_full()
-                    .flex()
-                    .items_center()
-                    .h(row_height)
-                    .when(tail, |this| {
-                        this.rounded_bl(self.corners.bottom_left)
-                            .rounded_br(self.corners.bottom_right)
-                    })
-                    .when(!tail || bottom == Pixels::ZERO, |this| {
-                        this.border_b_1().border_color(theme.table_row_border)
-                    })
-                    .when(playing, |this| this.bg(theme.muted))
-                    .when(selected, |this| this.bg(theme.table_active))
-                    .when(!selected, |this| {
-                        this.hover(move |style| style.bg(theme.table_hover))
-                    })
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(move |this, event: &MouseDownEvent, window, cx| {
-                            window.focus(&this.focus.clone(), cx);
-                            this.delegate.selected = Some(row);
-                            if event.click_count >= 2 {
-                                cx.emit(GridEvent::DoubleClicked(display));
-                            }
-                            cx.notify();
-                        }),
-                    )
-                    .on_mouse_down(
-                        MouseButton::Right,
-                        cx.listener(move |this, event: &MouseDownEvent, window, cx| {
-                            if this.delegate.source.context_menu(row, cx).is_some() {
-                                this.delegate.source.context_menu_will_open(row, cx);
-                                window.prevent_default();
-                                this.context_menu = Some((row, event.position));
-                                cx.notify();
-                            }
-                        }),
-                    )
-                    .children(cells)
-                    .into_any_element()
+        visible
+            .into_iter()
+            .map(|(slot, kind)| {
+                let top = head + row_height * slot as f32;
+                let tail = slot + 1 == count;
+                match kind {
+                    Slot::Header(row) => self.band(row, top, row_height, cx),
+                    Slot::Row { row, display } => self.row(row, display, top, row_height, tail, cx),
+                }
             })
             .collect()
+    }
+
+    fn band(
+        &self,
+        row: usize,
+        top: Pixels,
+        row_height: Pixels,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let theme = *cx.theme();
+        let label = self
+            .delegate
+            .sort
+            .and_then(|(field, _)| self.delegate.source.group(field, row, cx))
+            .unwrap_or_default();
+
+        div()
+            .absolute()
+            .top(top)
+            .left_0()
+            .w_full()
+            .flex()
+            .items_center()
+            .h(row_height)
+            .px(PADDING)
+            .bg(theme.table_head)
+            .border_b_1()
+            .border_color(theme.table_row_border)
+            .child(eyebrow(label, cx))
+            .into_any_element()
+    }
+
+    fn row(
+        &self,
+        row: usize,
+        display: usize,
+        top: Pixels,
+        row_height: Pixels,
+        tail: bool,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let theme = *cx.theme();
+        let bottom = self.corners.bottom_left.max(self.corners.bottom_right);
+        let selected = self.delegate.selected == Some(row);
+        let playing = self.delegate.source.playing(row, cx);
+        let cells: Vec<AnyElement> = (0..self.delegate.columns.len())
+            .map(|ix| {
+                let column = &self.delegate.columns[ix];
+                let cell = Cell {
+                    field: column.spec.field,
+                    width: self.delegate.inner_width(ix),
+                    align: column.spec.align,
+                    display,
+                    row,
+                };
+                let width = column.width;
+                div()
+                    .flex_none()
+                    .w(width)
+                    .h_full()
+                    .px(PADDING)
+                    .overflow_hidden()
+                    .whitespace_nowrap()
+                    .line_height(row_height)
+                    .child(self.delegate.source.cell(cell, cx))
+                    .into_any_element()
+            })
+            .collect();
+
+        div()
+            .id(("row", display))
+            .group(ROW_GROUP)
+            .absolute()
+            .top(top)
+            .left_0()
+            .w_full()
+            .flex()
+            .items_center()
+            .h(row_height)
+            .when(tail, |this| {
+                this.rounded_bl(self.corners.bottom_left)
+                    .rounded_br(self.corners.bottom_right)
+            })
+            .when(!tail || bottom == Pixels::ZERO, |this| {
+                this.border_b_1().border_color(theme.table_row_border)
+            })
+            .when(playing, |this| this.bg(theme.muted))
+            .when(selected, |this| this.bg(theme.table_active))
+            .when(!selected, |this| {
+                this.hover(move |style| style.bg(theme.table_hover))
+            })
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(move |this, event: &MouseDownEvent, window, cx| {
+                    window.focus(&this.focus.clone(), cx);
+                    this.delegate.selected = Some(row);
+                    if event.click_count >= 2 {
+                        cx.emit(GridEvent::DoubleClicked(display));
+                    }
+                    cx.notify();
+                }),
+            )
+            .on_mouse_down(
+                MouseButton::Right,
+                cx.listener(move |this, event: &MouseDownEvent, window, cx| {
+                    if this.delegate.source.context_menu(row, cx).is_some() {
+                        this.delegate.source.context_menu_will_open(row, cx);
+                        window.prevent_default();
+                        this.context_menu = Some((row, event.position));
+                        cx.notify();
+                    }
+                }),
+            )
+            .children(cells)
+            .into_any_element()
     }
 }
 
@@ -1006,5 +1110,83 @@ impl<S: GridSource> Table for Entity<GridState<S>> {
 
     fn element(&self) -> AnyElement {
         grid(self).into_any_element()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Slot, banded, ungrouped};
+
+    fn labelled(labels: &[&'static str]) -> impl Fn(usize) -> Option<gpui::SharedString> {
+        let labels: Vec<&'static str> = labels.to_vec();
+        move |row| labels.get(row).map(|label| (*label).into())
+    }
+
+    #[test]
+    fn an_ungrouped_order_maps_display_onto_slot() {
+        assert_eq!(
+            ungrouped(&[7, 3, 5]),
+            [
+                Slot::Row { row: 7, display: 0 },
+                Slot::Row { row: 3, display: 1 },
+                Slot::Row { row: 5, display: 2 },
+            ]
+        );
+    }
+
+    #[test]
+    fn a_header_opens_every_run_of_equal_labels() {
+        let slots = banded(&[0, 1, 2, 3], labelled(&["A", "A", "B", "C"])).expect("grouped");
+
+        assert_eq!(
+            slots,
+            [
+                Slot::Header(0),
+                Slot::Row { row: 0, display: 0 },
+                Slot::Row { row: 1, display: 1 },
+                Slot::Header(2),
+                Slot::Row { row: 2, display: 2 },
+                Slot::Header(3),
+                Slot::Row { row: 3, display: 3 },
+            ]
+        );
+    }
+
+    #[test]
+    fn a_repeated_label_after_a_gap_opens_a_second_header() {
+        let slots = banded(&[0, 1, 2], labelled(&["A", "B", "A"])).expect("grouped");
+
+        assert_eq!(
+            slots
+                .iter()
+                .filter(|slot| matches!(slot, Slot::Header(_)))
+                .count(),
+            3
+        );
+    }
+
+    #[test]
+    fn display_indices_ignore_headers() {
+        let slots = banded(&[2, 0, 1], labelled(&["B", "B", "A"])).expect("grouped");
+        let displays: Vec<usize> = slots
+            .iter()
+            .filter_map(|slot| match slot {
+                Slot::Row { display, .. } => Some(*display),
+                Slot::Header(_) => None,
+            })
+            .collect();
+
+        assert_eq!(displays, [0, 1, 2]);
+    }
+
+    #[test]
+    fn a_source_that_groups_nothing_stays_flat() {
+        assert!(banded(&[0, 1, 2], |_| None).is_none());
+    }
+
+    #[test]
+    fn an_empty_order_groups_nothing() {
+        assert!(banded(&[], labelled(&["A"])).is_none());
+        assert!(ungrouped(&[]).is_empty());
     }
 }

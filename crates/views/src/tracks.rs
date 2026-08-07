@@ -6,9 +6,10 @@ use ui::ActiveTheme as _;
 
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
-    AnyElement, App, Entity, Hsla, InteractiveElement as _, IntoElement as _, Styled as _,
-    TextAlign, WeakEntity,
+    AnyElement, App, Entity, Hsla, InteractiveElement as _, IntoElement as _, SharedString,
+    Styled as _, TextAlign, WeakEntity,
 };
+use i18n::t;
 use jiff::Timestamp;
 use router::Destination;
 use spotify::Track;
@@ -526,6 +527,33 @@ impl GridSource for TrackSource {
             TrackField::Index | TrackField::Cover => a.cmp(&b),
         }
     }
+
+    fn group(&self, field: TrackField, row: usize, cx: &App) -> Option<SharedString> {
+        let track = self.provider.tracks(cx).get(row)?;
+
+        match field {
+            TrackField::Title => Some(initial(&track.name)),
+            TrackField::Artists => Some(initial(&track.artists)),
+            TrackField::Album => Some(initial(&track.album)),
+            TrackField::AddedAt => Some(day(track.added_at)),
+            _ => None,
+        }
+    }
+}
+
+pub(crate) fn initial(text: &str) -> SharedString {
+    text.chars()
+        .next()
+        .filter(|first| first.is_alphabetic())
+        .map(|first| SharedString::from(first.to_uppercase().collect::<String>()))
+        .unwrap_or_else(|| SharedString::from("#"))
+}
+
+fn day(added_at: Option<i64>) -> SharedString {
+    added_at
+        .and_then(|seconds| Timestamp::new(seconds, 0).ok())
+        .map(|timestamp| release_date_label(&timestamp.strftime("%Y-%m-%d").to_string()))
+        .unwrap_or_else(|| t!("common-unknown"))
 }
 
 fn hits(track: &Track, query: &str) -> bool {
@@ -542,7 +570,7 @@ mod tests {
 
     use spotify::Track;
 
-    use super::{TrackSieve, hits};
+    use super::{TrackSieve, hits, initial};
 
     fn track(seconds: u64, explicit: bool, playable: bool) -> Track {
         Track {
@@ -629,5 +657,30 @@ mod tests {
         assert!(sieve.keeps(&track(120, true, true)));
         assert!(!sieve.keeps(&track(120, true, false)));
         assert!(!sieve.keeps(&track(400, true, true)));
+    }
+
+    #[test]
+    fn letters_bucket_under_their_uppercase_form() {
+        assert_eq!(initial("bark at the moon"), "B");
+        assert_eq!(initial("Bark at the Moon"), "B");
+    }
+
+    #[test]
+    fn cyrillic_keeps_its_own_letter() {
+        assert_eq!(initial("прощай"), "П");
+        assert_eq!(initial("Ялта"), "Я");
+    }
+
+    #[test]
+    fn digits_punctuation_and_emptiness_share_one_bucket() {
+        assert_eq!(initial("99 Luftballons"), "#");
+        assert_eq!(initial("!!!"), "#");
+        assert_eq!(initial(" leading space"), "#");
+        assert_eq!(initial(""), "#");
+    }
+
+    #[test]
+    fn multi_char_uppercase_is_kept_whole() {
+        assert_eq!(initial("ßeta"), "SS");
     }
 }
