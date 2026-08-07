@@ -216,12 +216,62 @@ theme.metrics.row / .header / .pad / .inset / .control / .field
 - Every metric scales off the user's font size (`Metrics::new(base)`), so **never** hardcode a
   height for a row, control, or bar — read it from `theme.metrics`.
 - A literal `px(…)` is acceptable only for a local, non-scaling detail, declared as a `const` at
-  module top (see `NUMBER`, `DATE`, `WIDE` in `views/src/cells.rs`).
+  module top (see `NUMBER`, `DATE` in `views/src/cells.rs`). Responsive thresholds are **not** a
+  local detail — see [Breakpoints and content width](#breakpoints-and-content-width).
 - Adding a color token means adding it to `Theme`, to every `Theme::*()` constructor, to
   `ThemeOverrides`, and to the `apply_color!` list — all four, or overrides break.
 - Eight themes exist (`ThemeKind::ALL`). `ocean`/`rose`/`lavender`/`amber` are derived by mutating
   `midnight()`/`dark()`; follow that pattern rather than writing a full palette.
 - Users can override any token via `settings.json`; `Theme::set` re-renders all windows.
+
+## Breakpoints and content width
+
+Every responsive decision in the app uses one ladder, defined in `ui/src/layout.rs`. **Never write a
+bare `px(…)` breakpoint** — no `width < px(640.)`, no per-view `NARROW`/`STACK_BREAKPOINT` const.
+
+```rust
+use ui::{Room, ALWAYS, SNUG, ROOMY, WIDE, VAST};   // 0 · 420 · 620 · 740 · 1180
+
+Room::of(width)              // Tight | Snug | Roomy | Wide | Vast
+Room::of(width).fits(Room::Roomy)   // ">= Roomy", the only comparison you need
+```
+
+`Room` is `Ord`, so `fits` is just `>=`. The raw `Pixels` consts exist for the places that need a
+number rather than a step: `ColumnSpec::hide_below` and centering maths.
+
+Two crates own the measurement:
+
+- **`ui::layout`** — the ladder itself. Pure `gpui`; knows nothing about panels.
+- **`workspace::Chrome`** — how much horizontal room content actually has, after the left sidebar
+  and the right queue panel take their cut.
+
+```rust
+use workspace::Chrome;
+Chrome::content(window, cx)   // viewport width − sidebar − queue, floored at ui::MIN_CONTENT
+Chrome::room(window, cx)      // the same, classified into a Room
+Chrome::sidebar(cx) / Chrome::queue(cx)
+```
+
+Rules:
+
+- **Measure against `Chrome::content`, never `window.viewport_size().width`.** A raw viewport width
+  ignores both side panels, so tables overflow under the queue and grids pick a column count that
+  does not fit. The only legitimate viewport-width consumers are elements that genuinely span the
+  window: `PlayerBar` and `TitleBar`.
+- `Workspace::render` publishes the widths every frame via `Chrome::publish`; it notifies only when
+  a width actually changed, so it cannot loop.
+- **A view whose layout depends on width must observe the chrome**, or it will not repaint when a
+  panel is resized or toggled:
+  ```rust
+  let chrome = Chrome::entity(cx);
+  cx.observe(&chrome, |_, _, cx| cx.notify()).detach();
+  ```
+  Views take no `Entity<Sidebar>` for this — that is what `Chrome` replaced.
+- `views::cells::content_width(window, inset, cx)` is the shortcut for grid pages: `Chrome::content`
+  minus the page's own padding.
+
+Both side panels are resizable and persist their width in `settings.json` (`sidebar_width`,
+`queue_width`); each clamps to its own `MIN_WIDTH`/`MAX_WIDTH` and snaps to the device pixel grid.
 
 ## Async: two runtimes
 

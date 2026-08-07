@@ -1,5 +1,7 @@
 use gpui::prelude::*;
-use gpui::{AnyElement, App, Context, Entity, Pixels, Render, ScrollHandle, SharedString, Window};
+use gpui::{
+    AnyElement, App, Context, Entity, Pixels, Render, ScrollHandle, SharedString, Window, px,
+};
 
 use spotify::Track;
 use state::{Detail, Playback};
@@ -9,7 +11,7 @@ use ui::{ColumnSpec, GridDelegate, GridEvent, GridState, Scrollbar, Scroller, cl
 use crate::hero::{HeroMetaStrip, HeroPlayButton, PageHero, release_date_label};
 use crate::tracks::{PlaybackStatus, TrackField, TrackSource, Tracks, playback_status};
 use crate::{cells, page};
-use workspace::{Searchable, Sidebar};
+use workspace::{Chrome, Searchable};
 
 struct DetailTracks(Entity<Detail>);
 
@@ -27,7 +29,6 @@ pub(crate) struct DetailView {
     detail: Entity<Detail>,
     playback: Entity<Playback>,
     playback_status: PlaybackStatus,
-    sidebar: Entity<Sidebar>,
     width: Pixels,
     scrollbar: Entity<Scrollbar>,
     table: Entity<GridState<TrackSource>>,
@@ -37,23 +38,28 @@ impl DetailView {
     pub(crate) fn new(
         detail: Entity<Detail>,
         playback: Entity<Playback>,
-        sidebar: Entity<Sidebar>,
         columns: &'static [ColumnSpec<TrackField>],
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
         let inset = cx.theme().metrics.inset;
-        let width = cells::content_width(
-            window,
-            sidebar.read(cx).occupied_width(),
-            page::reserved(inset),
-        );
+        let width = cells::content_width(window, page::reserved(inset), cx);
 
         let scrollbar = cx.new(|_| Scrollbar::new(ScrollHandle::new()));
         let scroll = scrollbar.read(cx).scroll().clone();
 
         let table = cx.new(|cx| {
-            let source = TrackSource::new(columns, DetailTracks(detail.clone()), playback.clone());
+            let playlist_scrollbar = cx.new(|_| {
+                Scrollbar::new(ScrollHandle::new())
+                    .always_visible()
+                    .track_inset(px(4.))
+            });
+            let source = TrackSource::new(
+                columns,
+                DetailTracks(detail.clone()),
+                playback.clone(),
+                playlist_scrollbar,
+            );
             GridState::new(GridDelegate::new(source, width, cx), cx).follow(scroll)
         });
 
@@ -67,7 +73,8 @@ impl DetailView {
         })
         .detach();
 
-        cx.observe(&sidebar, |_, _, cx| cx.notify()).detach();
+        let chrome = Chrome::entity(cx);
+        cx.observe(&chrome, |_, _, cx| cx.notify()).detach();
 
         let current_playback = playback_status(&playback, cx);
         cx.observe(&playback, |this, playback, cx| {
@@ -90,7 +97,6 @@ impl DetailView {
             detail,
             playback,
             playback_status: current_playback,
-            sidebar,
             width,
             scrollbar,
             table,
@@ -100,8 +106,7 @@ impl DetailView {
     fn rebuild(&mut self, cx: &mut Context<Self>) {
         self.table.update(cx, |table, cx| {
             table.delegate_mut().clear_selection();
-            table.delegate_mut().rebuild(cx);
-            table.refresh(cx);
+            table.rebuild(cx);
         });
     }
 
@@ -163,14 +168,7 @@ impl Render for DetailView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
         let inset = theme.metrics.inset;
-        page::resize(
-            &self.table,
-            &self.sidebar,
-            &mut self.width,
-            inset,
-            window,
-            cx,
-        );
+        page::resize(&self.table, &mut self.width, inset, window, cx);
 
         let scroll = self.scrollbar.read(cx).scroll().clone();
         let viewport = page::viewport(&scroll, inset, window);

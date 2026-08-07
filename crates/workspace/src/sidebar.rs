@@ -1,10 +1,13 @@
 use std::cell::Cell;
-use ui::{ActiveTheme as _, Button};
+use ui::{ActiveTheme as _, Button, Room, Shield};
 
 use gpui::prelude::*;
-use gpui::{AnyElement, Context, DragMoveEvent, ElementId, Empty, Entity, Hsla, Pixels, Render};
+use gpui::{
+    AnyElement, Context, DragMoveEvent, ElementId, Empty, Entity, Hsla, MouseButton,
+    MouseDownEvent, Pixels, Render,
+};
 use gpui::{Window, div, px};
-use router::{Destination, LibraryTab, Navigation, navigate};
+use router::{Destination, LibraryTab, Navigation, NavigationEvent, navigate};
 use state::{AppSettings, Sonora};
 
 const NAV: [(&str, &str, Option<Destination>); 4] = [
@@ -30,7 +33,6 @@ const TABS: [(&str, LibraryTab); 3] = [
 
 const MIN_WIDTH: Pixels = px(130.);
 const MAX_WIDTH: Pixels = px(400.);
-const NARROW: Pixels = px(520.);
 
 struct SidebarResize {
     start_width: Pixels,
@@ -55,6 +57,8 @@ impl Sidebar {
         let trail = router::trail(cx);
 
         cx.observe(&trail, |_, _, cx| cx.notify()).detach();
+        cx.subscribe(&trail, |this, _, _: &NavigationEvent, cx| this.dismiss(cx))
+            .detach();
 
         Self {
             settings,
@@ -71,11 +75,22 @@ impl Sidebar {
         self.forced.unwrap_or(self.open && !self.cramped)
     }
 
+    pub fn overlays(&self) -> bool {
+        self.cramped && self.is_open()
+    }
+
+    fn dismiss(&mut self, cx: &mut Context<Self>) {
+        if !self.overlays() {
+            return;
+        }
+        self.forced = Some(false);
+        cx.notify();
+    }
+
     pub fn occupied_width(&self) -> Pixels {
-        if self.is_open() {
-            self.width
-        } else {
-            Pixels::ZERO
+        match self.is_open() && !self.overlays() {
+            true => self.width,
+            false => Pixels::ZERO,
         }
     }
 
@@ -95,7 +110,7 @@ impl Sidebar {
 
         let auto_hide = self.settings.read(cx).auto_hide_sidebar();
         let space_left = window.viewport_size().width - self.width;
-        let cramped = auto_hide && space_left < NARROW;
+        let cramped = auto_hide && !Room::of(space_left).fits(Room::Wide);
         if cramped != self.cramped {
             self.cramped = cramped;
             self.forced = None;
@@ -211,7 +226,8 @@ impl Render for Sidebar {
             );
         }
 
-        div()
+        let overlaid = self.overlays();
+        let panel = div()
             .flex()
             .flex_col()
             .when(!self.is_open(), |this| this.hidden())
@@ -222,6 +238,9 @@ impl Render for Sidebar {
             .bg(sidebar_bg)
             .border_r_1()
             .border_color(sidebar_border)
+            .when(overlaid, |this| {
+                this.occlude().absolute().left_0().top_0().bottom_0()
+            })
             .child(div().flex().flex_col().gap_1().p_3().children(rows))
             .child(
                 div()
@@ -253,7 +272,31 @@ impl Render for Sidebar {
                             cx.new(|_| Empty)
                         },
                     ),
-            )
+            );
+
+        match overlaid {
+            false => panel.into_any_element(),
+            true => div()
+                .absolute()
+                .top_0()
+                .left_0()
+                .right_0()
+                .bottom_0()
+                .child(
+                    Shield::new("sidebar-shield")
+                        .absolute()
+                        .top_0()
+                        .left_0()
+                        .right_0()
+                        .bottom_0()
+                        .on_mouse_down(
+                            MouseButton::Left,
+                            cx.listener(|this, _: &MouseDownEvent, _, cx| this.dismiss(cx)),
+                        ),
+                )
+                .child(panel)
+                .into_any_element(),
+        }
     }
 }
 

@@ -1,19 +1,45 @@
+use std::ops::Range;
+
 use gpui::prelude::*;
+use std::cell::Cell;
+
 use gpui::{
-    Context, DragMoveEvent, Entity, FontWeight, MouseButton, MouseDownEvent, Pixels, Point, Render,
-    ScrollStrategy, SharedString, UniformListScrollHandle, Window, div, px, uniform_list,
+    App, Context, Div, DragMoveEvent, Empty, Entity, FontWeight, MouseButton, MouseDownEvent,
+    Pixels, Point, Render, ScrollStrategy, SharedString, UniformListScrollHandle, Window, anchored,
+    div, px, uniform_list,
 };
 use spotify::Track;
-use state::{Playback, Queue};
-use ui::{ActiveTheme as _, Card, Menu, MenuItem, snapped};
+use state::{AppSettings, Playback, Queue, Sonora};
+use ui::{ActiveTheme as _, Card, Menu, MenuItem, Room, Scrollbar, eyebrow, snapped};
 
 use crate::Sidebar;
 
-const PANEL_WIDTH: f32 = 380.;
-const FULLSCREEN_BREAKPOINT: f32 = 680.;
+const MENU_WIDTH: f32 = 210.;
+const MIN_WIDTH: Pixels = px(240.);
+const MAX_WIDTH: Pixels = px(560.);
+const PINNED_SHARE: f32 = 0.25;
 
 fn fills_content(width: Pixels) -> bool {
-    width < px(FULLSCREEN_BREAKPOINT)
+    !Room::of(width).fits(Room::Wide)
+}
+
+fn section_label(label: &'static str, window: &Window, cx: &App) -> Div {
+    div()
+        .flex()
+        .flex_none()
+        .items_end()
+        .h(snapped(cx.theme().metrics.list_row, window))
+        .px_2()
+        .pb_1()
+        .child(eyebrow(label, cx))
+}
+
+fn track(queue: &Queue, position: QueuePosition) -> Option<Track> {
+    match position {
+        QueuePosition::Past(index) => queue.past().nth(index).cloned(),
+        QueuePosition::Current => queue.current().cloned(),
+        QueuePosition::Upcoming(index) => queue.upcoming().nth(index).cloned(),
+    }
 }
 
 #[derive(Clone)]
@@ -31,11 +57,68 @@ impl DraggedTrack {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 enum QueuePosition {
     Past(usize),
     Current,
     Upcoming(usize),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Slot {
+    Header(&'static str),
+    Track(QueuePosition),
+}
+
+#[derive(Clone, Copy)]
+struct Sections {
+    past: usize,
+    current: bool,
+    upcoming: usize,
+}
+
+impl Sections {
+    fn past_end(self) -> usize {
+        match self.past {
+            0 => 0,
+            count => count + 1,
+        }
+    }
+
+    fn current_end(self) -> usize {
+        self.past_end() + 2 * usize::from(self.current)
+    }
+
+    fn len(self) -> usize {
+        self.current_end()
+            + match self.upcoming {
+                0 => 0,
+                count => count + 1,
+            }
+    }
+
+    fn current_index(self) -> Option<usize> {
+        self.current.then(|| self.past_end() + 1)
+    }
+
+    fn slot(self, index: usize) -> Slot {
+        if index < self.past_end() {
+            return match index {
+                0 => Slot::Header("HISTORY"),
+                _ => Slot::Track(QueuePosition::Past(index - 1)),
+            };
+        }
+        if index < self.current_end() {
+            return match index == self.past_end() {
+                true => Slot::Header("NOW PLAYING"),
+                false => Slot::Track(QueuePosition::Current),
+            };
+        }
+        match index == self.current_end() {
+            true => Slot::Header("UP NEXT"),
+            false => Slot::Track(QueuePosition::Upcoming(index - self.current_end() - 1)),
+        }
+    }
 }
 
 /// Which edge of a row the drop indicator line is drawn at.
@@ -46,23 +129,10 @@ enum DropLine {
 }
 
 #[derive(Clone, Copy)]
-enum MenuPlacement {
-    Above,
-    Below,
-}
-
-#[derive(Clone, Copy)]
 struct ContextMenuState {
     index: usize,
     revision: u64,
-    placement: MenuPlacement,
-}
-
-/// Transient per-row decorations.
-#[derive(Clone, Copy, Default)]
-struct RowState {
-    menu: Option<MenuPlacement>,
-    drop_line: Option<DropLine>,
+    position: Point<Pixels>,
 }
 
 impl QueuePosition {
@@ -77,14 +147,6 @@ impl QueuePosition {
         match self {
             Self::Upcoming(index) => Some(index),
             Self::Past(_) | Self::Current => None,
-        }
-    }
-
-    fn label(self) -> Option<&'static str> {
-        match self {
-            Self::Past(_) => None,
-            Self::Current => Some("Playing"),
-            Self::Upcoming(_) => None,
         }
     }
 }
@@ -117,8 +179,17 @@ pub(crate) struct QueuePanel {
     context_menu: Option<ContextMenuState>,
     drop_gap: Option<usize>,
     scroll: UniformListScrollHandle,
-    scroll_to_playing: bool,
+    scrollbar: Entity<Scrollbar>,
+    settings: Entity<AppSettings>,
+    width: Pixels,
+    past_len: usize,
+    anchor: bool,
     open: bool,
+}
+
+struct QueueResize {
+    start_width: Pixels,
+    start_x: Cell<Pixels>,
 }
 
 impl QueuePanel {
@@ -141,14 +212,23 @@ impl QueuePanel {
         .detach();
         cx.observe(&sidebar, |_, _, cx| cx.notify()).detach();
 
+        let scroll = UniformListScrollHandle::new();
+        let scrollbar = cx.new(|_| Scrollbar::new(scroll.0.borrow().base_handle.clone()));
+        let settings = Sonora::global(cx).settings.clone();
+        let width = px(settings.read(cx).queue_width()).clamp(MIN_WIDTH, MAX_WIDTH);
+
         Self {
             queue,
             playback,
             sidebar,
             context_menu: None,
             drop_gap: None,
-            scroll: UniformListScrollHandle::new(),
-            scroll_to_playing: false,
+            scroll,
+            scrollbar,
+            settings,
+            width,
+            past_len: 0,
+            anchor: false,
             open: false,
         }
     }
@@ -157,9 +237,62 @@ impl QueuePanel {
         self.open
     }
 
+    pub(crate) fn covers_content(&self, window: &Window, cx: &App) -> bool {
+        let content = window.viewport_size().width - self.sidebar.read(cx).occupied_width();
+        self.open && fills_content(content)
+    }
+
+    pub(crate) fn occupied_width(&self, window: &Window, cx: &App) -> Pixels {
+        match self.open {
+            false => Pixels::ZERO,
+            true if self.covers_content(window, cx) => {
+                window.viewport_size().width - self.sidebar.read(cx).occupied_width()
+            }
+            true => self.width,
+        }
+    }
+
+    fn persist(&self, cx: &mut Context<Self>) {
+        let width = self.width / px(1.);
+        self.settings
+            .update(cx, |settings, cx| settings.set_queue_width(width, cx));
+    }
+
+    fn grip(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        div()
+            .id("queue-resize-handle")
+            .absolute()
+            .top_0()
+            .left(px(-4.))
+            .w(px(8.))
+            .h_full()
+            .cursor_col_resize()
+            .on_drag_move(
+                cx.listener(|this, event: &DragMoveEvent<QueueResize>, window, cx| {
+                    let resize = event.drag(cx);
+                    let dragged = (resize.start_width + resize.start_x.get()
+                        - event.event.position.x)
+                        .clamp(MIN_WIDTH, MAX_WIDTH);
+                    this.width = snapped(dragged, window);
+                    this.persist(cx);
+                    cx.notify();
+                }),
+            )
+            .on_drag(
+                QueueResize {
+                    start_width: self.width,
+                    start_x: Cell::new(Pixels::ZERO),
+                },
+                |resize, _, window, cx| {
+                    resize.start_x.set(window.mouse_position().x);
+                    cx.new(|_| Empty)
+                },
+            )
+    }
+
     pub(crate) fn toggle(&mut self, cx: &mut Context<Self>) {
         self.open = !self.open;
-        self.scroll_to_playing = self.open;
+        self.anchor = self.open;
         cx.notify();
     }
 
@@ -179,12 +312,10 @@ impl QueuePanel {
         index: usize,
         position: QueuePosition,
         queue_revision: u64,
-        state: RowState,
-        window: &Window,
+        drop_line: Option<DropLine>,
         cx: &Context<Self>,
     ) -> gpui::Stateful<gpui::Div> {
         let theme = *cx.theme();
-        let height = snapped(theme.metrics.list_row, window);
         let past_index = position.past();
         let queue_index = position.upcoming();
         let title = match position {
@@ -205,15 +336,6 @@ impl QueuePanel {
             .weight(FontWeight::SEMIBOLD)
             .tint(title)
             .when(track.explicit, Card::explicit)
-            .when_some(position.label(), |this, label| {
-                this.trailing(
-                    div()
-                        .flex_none()
-                        .text_xs()
-                        .text_color(theme.muted_foreground)
-                        .child(label),
-                )
-            })
             .when_some(past_index, |this, index| {
                 this.press(cx.listener(move |this, _, _, cx| {
                     if this.queue.read(cx).revision() == queue_revision {
@@ -260,15 +382,11 @@ impl QueuePanel {
                 .on_mouse_down(
                     MouseButton::Right,
                     cx.listener(move |this, event: &MouseDownEvent, window, cx| {
-                        let placement = if event.position.y > window.viewport_size().height / 2. {
-                            MenuPlacement::Above
-                        } else {
-                            MenuPlacement::Below
-                        };
+                        window.prevent_default();
                         this.context_menu = Some(ContextMenuState {
                             index: target,
                             revision: queue_revision,
-                            placement,
+                            position: event.position,
                         });
                         cx.stop_propagation();
                         cx.notify();
@@ -286,7 +404,7 @@ impl QueuePanel {
             .relative()
             .min_w_0()
             .child(card)
-            .when_some(state.drop_line, |this, edge| {
+            .when_some(drop_line, |this, edge| {
                 let line = div()
                     .absolute()
                     .left_2()
@@ -299,30 +417,108 @@ impl QueuePanel {
                     DropLine::Below => line.bottom_0(),
                 })
             })
-            .when_some(state.menu.zip(queue_index), |this, (placement, index)| {
-                this.child(
-                    Menu::new(("queue-track-menu", index))
-                        .right_2()
-                        .w(px(180.))
-                        .when_else(
-                            matches!(placement, MenuPlacement::Above),
-                            |menu| menu.bottom(height - px(4.)),
-                            |menu| menu.top(height - px(4.)),
-                        )
+    }
+
+    fn menu(&self, cx: &mut Context<Self>) -> Option<impl IntoElement> {
+        let ContextMenuState {
+            index,
+            revision,
+            position,
+        } = self.context_menu?;
+
+        Some(
+            anchored()
+                .position(position)
+                .snap_to_window_with_margin(px(8.))
+                .child(
+                    Menu::new("queue-track-menu")
+                        .relative()
+                        .w(px(MENU_WIDTH))
+                        .on_action(cx.listener(|this, _, _, cx| this.dismiss_menu(cx)))
                         .on_dismiss(cx.listener(|this, _, _, cx| this.dismiss_menu(cx)))
                         .item(
-                            MenuItem::new(("remove-queued-track", index), "Remove from queue")
+                            MenuItem::new("remove-queued-track", "Remove from queue")
+                                .icon("icons/x.svg")
                                 .on_click(cx.listener(move |this, _, _, cx| {
                                     this.queue.update(cx, |queue, cx| {
-                                        if queue.revision() == queue_revision {
+                                        if queue.revision() == revision {
                                             queue.remove_upcoming(index, cx);
                                         }
                                     });
-                                    this.dismiss_menu(cx);
                                 })),
                         ),
-                )
-            })
+                ),
+        )
+    }
+
+    fn pin(&mut self, sections: Sections, window: &Window, cx: &Context<Self>) {
+        let Some(index) = sections.current_index() else {
+            self.anchor = false;
+            return;
+        };
+
+        let viewport = self.scroll.0.borrow().base_handle.bounds().size.height;
+        if viewport <= px(0.) {
+            window.request_animation_frame();
+            return;
+        }
+
+        let row = snapped(cx.theme().metrics.list_row, window);
+        let above = (viewport * PINNED_SHARE / row).round() as usize;
+        self.scroll
+            .scroll_to_item_strict_with_offset(index, ScrollStrategy::Top, above);
+        self.anchor = false;
+    }
+
+    fn rows(&self, sections: Sections, cx: &mut Context<Self>) -> gpui::UniformList {
+        let queue = self.queue.clone();
+        let drop_gap = self.drop_gap;
+        let upcoming = sections.upcoming;
+
+        uniform_list(
+            "queue-rows",
+            sections.len(),
+            cx.processor(move |_, range: Range<usize>, window, cx| {
+                let (revision, slots) = {
+                    let queue = queue.read(cx);
+                    let slots = range
+                        .clone()
+                        .map(|index| {
+                            let slot = sections.slot(index);
+                            let found = match slot {
+                                Slot::Header(_) => None,
+                                Slot::Track(position) => track(queue, position),
+                            };
+                            (index, slot, found)
+                        })
+                        .collect::<Vec<_>>();
+                    (queue.revision(), slots)
+                };
+
+                slots
+                    .into_iter()
+                    .map(|(index, slot, found)| match (slot, found) {
+                        (Slot::Header(label), _) => {
+                            section_label(label, window, cx).into_any_element()
+                        }
+                        (Slot::Track(position), Some(found)) => {
+                            let drop_line = match (position.upcoming(), drop_gap) {
+                                (Some(queued), Some(gap)) if gap == queued => Some(DropLine::Above),
+                                (Some(queued), Some(gap))
+                                    if gap == upcoming && queued + 1 == upcoming =>
+                                {
+                                    Some(DropLine::Below)
+                                }
+                                _ => None,
+                            };
+                            Self::row(found, index, position, revision, drop_line, cx)
+                                .into_any_element()
+                        }
+                        (Slot::Track(_), None) => div().into_any_element(),
+                    })
+                    .collect()
+            }),
+        )
     }
 }
 
@@ -336,43 +532,42 @@ impl Render for QueuePanel {
         let content_width = window.viewport_size().width - self.sidebar.read(cx).occupied_width();
         let fullscreen = fills_content(content_width);
         let queue = self.queue.read(cx);
-        let past_count = queue.past().len();
-        let has_current = queue.current().is_some();
-        let current_count = usize::from(has_current);
-        let upcoming_count = queue.upcoming().len();
-        let total_count = past_count + current_count + upcoming_count;
-        let context_menu = self.context_menu;
-        let empty = total_count == 0;
+        let sections = Sections {
+            past: queue.past().len(),
+            current: queue.current().is_some(),
+            upcoming: queue.upcoming().len(),
+        };
+        let empty = sections.len() == 0;
         if !cx.has_active_drag() {
             self.drop_gap = None;
         }
-        let drop_gap = self.drop_gap;
 
-        if self.scroll_to_playing && has_current {
-            self.scroll
-                .scroll_to_item(past_count, ScrollStrategy::Center);
-            self.scroll_to_playing = false;
+        if self.past_len != sections.past {
+            self.past_len = sections.past;
+            self.anchor = true;
+        }
+        if self.anchor {
+            self.pin(sections, window, cx);
         }
 
         div()
             .id("queue-panel")
-            .occlude()
             .on_drag_move(cx.listener(|this, _: &DragMoveEvent<DraggedTrack>, _, cx| {
                 if this.drop_gap.take().is_some() {
                     cx.notify();
                 }
             }))
-            .absolute()
-            .top_0()
-            .right_0()
-            .bottom_0()
+            .relative()
             .flex()
             .flex_col()
+            .h_full()
             .bg(theme.background)
             .border_l_1()
             .border_color(theme.border)
-            .when(fullscreen, |this| this.left_0())
-            .when(!fullscreen, |this| this.w(px(PANEL_WIDTH)))
+            .when(fullscreen, |this| this.flex_1().min_w_0())
+            .when(!fullscreen, |this| {
+                this.flex_none().w(self.width).child(self.grip(cx))
+            })
             .child(
                 div()
                     .flex()
@@ -380,86 +575,6 @@ impl Render for QueuePanel {
                     .flex_1()
                     .min_h_0()
                     .p_2()
-                    .when(!empty, |this| {
-                        let queue = self.queue.clone();
-                        this.child(
-                            uniform_list(
-                                "queue-tracks",
-                                total_count,
-                                cx.processor(
-                                    move |_, range: std::ops::Range<usize>, window, cx| {
-                                        let (revision, visible) = {
-                                            let queue = queue.read(cx);
-                                            let visible = queue
-                                                .past()
-                                                .cloned()
-                                                .enumerate()
-                                                .map(|(index, track)| {
-                                                    (track, QueuePosition::Past(index))
-                                                })
-                                                .chain(
-                                                    queue.current().cloned().map(|track| {
-                                                        (track, QueuePosition::Current)
-                                                    }),
-                                                )
-                                                .chain(queue.upcoming().cloned().enumerate().map(
-                                                    |(index, track)| {
-                                                        (track, QueuePosition::Upcoming(index))
-                                                    },
-                                                ))
-                                                .skip(range.start)
-                                                .take(range.len())
-                                                .collect::<Vec<_>>();
-                                            (queue.revision(), visible)
-                                        };
-                                        visible
-                                            .into_iter()
-                                            .enumerate()
-                                            .map(|(offset, (track, position))| {
-                                                let row_state = RowState {
-                                                    menu: position.upcoming().and_then(|index| {
-                                                        context_menu
-                                                            .filter(|menu| {
-                                                                menu.index == index
-                                                                    && menu.revision == revision
-                                                            })
-                                                            .map(|menu| menu.placement)
-                                                    }),
-                                                    drop_line: match (position.upcoming(), drop_gap)
-                                                    {
-                                                        (Some(index), Some(gap))
-                                                            if gap == index =>
-                                                        {
-                                                            Some(DropLine::Above)
-                                                        }
-                                                        (Some(index), Some(gap))
-                                                            if gap == upcoming_count
-                                                                && index + 1 == upcoming_count =>
-                                                        {
-                                                            Some(DropLine::Below)
-                                                        }
-                                                        _ => None,
-                                                    },
-                                                };
-                                                Self::row(
-                                                    track,
-                                                    range.start + offset,
-                                                    position,
-                                                    revision,
-                                                    row_state,
-                                                    window,
-                                                    cx,
-                                                )
-                                            })
-                                            .collect()
-                                    },
-                                ),
-                            )
-                            .track_scroll(&self.scroll)
-                            .flex_1()
-                            .min_h_0(),
-                        )
-                    })
                     .when(empty, |this| {
                         this.child(
                             div()
@@ -470,8 +585,23 @@ impl Render for QueuePanel {
                                 .text_color(theme.muted_foreground)
                                 .child("Your queue is empty"),
                         )
+                    })
+                    .when(!empty, |this| {
+                        this.child(
+                            div()
+                                .relative()
+                                .flex_1()
+                                .min_h_0()
+                                .child(
+                                    self.rows(sections, cx)
+                                        .track_scroll(&self.scroll)
+                                        .size_full(),
+                                )
+                                .child(self.scrollbar.clone()),
+                        )
                     }),
             )
+            .children(self.menu(cx))
             .into_any_element()
     }
 }
@@ -480,11 +610,86 @@ impl Render for QueuePanel {
 mod tests {
     use gpui::px;
 
-    use super::fills_content;
+    use super::{QueuePosition, Sections, Slot, fills_content};
+
+    fn slots(sections: Sections) -> Vec<Slot> {
+        (0..sections.len()).map(|i| sections.slot(i)).collect()
+    }
 
     #[test]
     fn fills_narrow_content_area() {
-        assert!(fills_content(px(679.)));
-        assert!(!fills_content(px(680.)));
+        assert!(fills_content(ui::WIDE - px(1.)));
+        assert!(!fills_content(ui::WIDE));
+    }
+
+    #[test]
+    fn lays_out_every_section() {
+        let sections = Sections {
+            past: 2,
+            current: true,
+            upcoming: 2,
+        };
+
+        assert_eq!(sections.current_index(), Some(4));
+        assert_eq!(
+            slots(sections),
+            [
+                Slot::Header("HISTORY"),
+                Slot::Track(QueuePosition::Past(0)),
+                Slot::Track(QueuePosition::Past(1)),
+                Slot::Header("NOW PLAYING"),
+                Slot::Track(QueuePosition::Current),
+                Slot::Header("UP NEXT"),
+                Slot::Track(QueuePosition::Upcoming(0)),
+                Slot::Track(QueuePosition::Upcoming(1)),
+            ]
+        );
+    }
+
+    #[test]
+    fn drops_headers_for_empty_sections() {
+        let sections = Sections {
+            past: 0,
+            current: true,
+            upcoming: 1,
+        };
+
+        assert_eq!(sections.current_index(), Some(1));
+        assert_eq!(
+            slots(sections),
+            [
+                Slot::Header("NOW PLAYING"),
+                Slot::Track(QueuePosition::Current),
+                Slot::Header("UP NEXT"),
+                Slot::Track(QueuePosition::Upcoming(0)),
+            ]
+        );
+    }
+
+    #[test]
+    fn lays_out_history_without_a_current_track() {
+        let sections = Sections {
+            past: 1,
+            current: false,
+            upcoming: 0,
+        };
+
+        assert_eq!(sections.current_index(), None);
+        assert_eq!(
+            slots(sections),
+            [Slot::Header("HISTORY"), Slot::Track(QueuePosition::Past(0))]
+        );
+    }
+
+    #[test]
+    fn an_empty_queue_has_no_rows() {
+        let sections = Sections {
+            past: 0,
+            current: false,
+            upcoming: 0,
+        };
+
+        assert_eq!(sections.len(), 0);
+        assert_eq!(sections.current_index(), None);
     }
 }

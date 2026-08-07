@@ -1,10 +1,11 @@
 use std::cell::Cell as Slot;
+use std::rc::Rc;
 use std::time::Duration;
 
 use gpui::prelude::*;
 use gpui::{
-    Context, DragMoveEvent, Empty, EntityId, MouseButton, MouseDownEvent, Pixels, Render,
-    ScrollHandle, Task, Window, div, point, px,
+    AnyWindowHandle, App, Context, DragMoveEvent, Empty, EntityId, MouseButton, MouseDownEvent,
+    Pixels, Render, ScrollHandle, Task, Window, div, point, px,
 };
 
 use crate::theme::ActiveTheme as _;
@@ -15,6 +16,8 @@ const LINGER: Duration = Duration::from_secs(2);
 const IDLE: f32 = 0.;
 const RESTING: f32 = 0.35;
 const ACTIVE: f32 = 0.55;
+
+type HoverGuard = Rc<dyn Fn(bool, AnyWindowHandle, &mut App)>;
 
 #[derive(Clone)]
 struct Grab {
@@ -38,6 +41,9 @@ pub struct Scrollbar {
     seen: Pixels,
     awake: bool,
     hovered: bool,
+    always_visible: bool,
+    track_inset: Pixels,
+    hover_guard: Option<HoverGuard>,
     linger: Option<Task<()>>,
 }
 
@@ -48,12 +54,32 @@ impl Scrollbar {
             seen: Pixels::ZERO,
             awake: false,
             hovered: false,
+            always_visible: false,
+            track_inset: Pixels::ZERO,
+            hover_guard: None,
             linger: None,
         }
     }
 
+    pub fn always_visible(mut self) -> Self {
+        self.always_visible = true;
+        self
+    }
+
+    pub fn track_inset(mut self, inset: Pixels) -> Self {
+        self.track_inset = inset;
+        self
+    }
+
     pub fn scroll(&self) -> &ScrollHandle {
         &self.scroll
+    }
+
+    pub(crate) fn set_hover_guard(
+        &mut self,
+        guard: impl Fn(bool, AnyWindowHandle, &mut App) + 'static,
+    ) {
+        self.hover_guard = Some(Rc::new(guard));
     }
 
     fn wake(&mut self, cx: &mut Context<Self>) {
@@ -88,9 +114,10 @@ impl Render for Scrollbar {
         let theme = *cx.theme();
         let content = viewport + hidden;
         let progress = (offset / hidden).clamp(0., 1.);
-        let thumb = (viewport * (viewport / content)).max(MIN_THUMB);
-        let travel = viewport - thumb;
-        let resting = match self.awake || self.hovered {
+        let track = (viewport - self.track_inset * 2.).max(Pixels::ZERO);
+        let thumb = (track * (viewport / content)).max(MIN_THUMB).min(track);
+        let travel = track - thumb;
+        let resting = match self.always_visible || self.awake || self.hovered {
             true => RESTING,
             false => IDLE,
         };
@@ -98,23 +125,28 @@ impl Render for Scrollbar {
         let jump = self.scroll.clone();
         let drag = self.scroll.clone();
         let owner = cx.entity_id();
+        let hover_guard = self.hover_guard.clone();
 
         div()
             .id("scrollbar")
             .occlude()
             .absolute()
-            .top_0()
+            .top(self.track_inset)
             .right_0()
             .w(BAR)
-            .h_full()
-            .on_hover(cx.listener(|this, hovered: &bool, _, cx| {
+            .h(track)
+            .on_hover(cx.listener(move |this, hovered: &bool, window, cx| {
                 this.hovered = *hovered;
                 this.wake(cx);
+                if let Some(guard) = hover_guard.as_ref() {
+                    guard(*hovered, window.window_handle(), cx);
+                }
             }))
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |this, event: &MouseDownEvent, _, cx| {
-                    let local = event.position.y - jump.bounds().origin.y - thumb / 2.;
+                    let local =
+                        event.position.y - jump.bounds().origin.y - this.track_inset - thumb / 2.;
                     let fraction = (local / travel).clamp(0., 1.);
                     jump.set_offset(point(Pixels::ZERO, Pixels::ZERO - hidden * fraction));
                     this.wake(cx);

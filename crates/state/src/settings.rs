@@ -10,6 +10,7 @@ use ui::{Look, Rounding, ThemeKind, ThemeOverrides};
 const SAVE_DELAY: Duration = Duration::from_millis(300);
 const DEFAULT_VOLUME: f32 = 0.7;
 const DEFAULT_SIDEBAR_WIDTH: f32 = 220.;
+const DEFAULT_QUEUE_WIDTH: f32 = 380.;
 const DEFAULT_FONT_SIZE: f32 = 14.;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -20,6 +21,7 @@ struct Values {
     normalisation: bool,
     sidebar_width: f32,
     sidebar_open: bool,
+    queue_width: f32,
     hidden_columns: HashMap<String, Vec<String>>,
     appearance: Appearance,
 }
@@ -45,6 +47,7 @@ impl Default for Values {
             normalisation: true,
             sidebar_width: DEFAULT_SIDEBAR_WIDTH,
             sidebar_open: true,
+            queue_width: DEFAULT_QUEUE_WIDTH,
             hidden_columns: HashMap::new(),
             appearance: Appearance::default(),
         }
@@ -108,6 +111,10 @@ impl AppSettings {
 
     pub fn sidebar_open(&self) -> bool {
         self.values.sidebar_open
+    }
+
+    pub fn queue_width(&self) -> f32 {
+        self.values.queue_width
     }
 
     pub fn auto_hide_sidebar(&self) -> bool {
@@ -194,6 +201,11 @@ impl AppSettings {
     pub fn set_sidebar(&mut self, width: f32, open: bool, cx: &mut Context<Self>) {
         self.values.sidebar_width = width;
         self.values.sidebar_open = open;
+        self.schedule_save(cx);
+    }
+
+    pub fn set_queue_width(&mut self, width: f32, cx: &mut Context<Self>) {
+        self.values.queue_width = width;
         self.schedule_save(cx);
     }
 

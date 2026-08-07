@@ -1,9 +1,11 @@
+mod chrome;
 mod player_bar;
 mod queue_panel;
 mod searchable;
 mod sidebar;
 mod title_bar;
 
+pub use chrome::Chrome;
 pub use player_bar::PlayerBar;
 pub use searchable::{Filter, Searchable};
 pub use sidebar::Sidebar;
@@ -82,6 +84,11 @@ impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.sidebar
             .update(cx, |sidebar, cx| sidebar.adapt(window, cx));
+        let sidebar = self.sidebar.read(cx).occupied_width();
+        let queue = self.queue_panel.read(cx).occupied_width(window, cx);
+        Chrome::publish(sidebar, queue, cx);
+        let covered = self.queue_panel.read(cx).covers_content(window, cx);
+        let overlay = self.sidebar.read(cx).overlays();
 
         div()
             .flex()
@@ -93,10 +100,11 @@ impl Render for Workspace {
             .child(self.title_bar.clone())
             .child(
                 div()
+                    .relative()
                     .flex()
                     .flex_1()
                     .min_h_0()
-                    .child(self.sidebar.clone())
+                    .when(!overlay, |this| this.child(self.sidebar.clone()))
                     .child(
                         div()
                             .relative()
@@ -104,9 +112,11 @@ impl Render for Workspace {
                             .flex_col()
                             .flex_1()
                             .min_w_0()
-                            .child(self.content.clone())
-                            .child(self.queue_panel.clone()),
-                    ),
+                            .when(covered, |this| this.hidden())
+                            .child(self.content.clone()),
+                    )
+                    .child(self.queue_panel.clone())
+                    .when(overlay, |this| this.child(self.sidebar.clone())),
             )
             .child(self.player_bar.clone())
     }
