@@ -6,8 +6,7 @@ use gpui::prelude::*;
 use gpui::{Context, Entity, MouseMoveEvent, MouseUpEvent, Pixels, Render, SharedString};
 use gpui::{Window, div, px};
 use i18n::t;
-use state::{Playback, PlaybackState, Queue, Repeat};
-
+use state::{Library, Playback, PlaybackState, Queue, Repeat, Sonora};
 use ui::{Artwork, Button, InlineLink, InlineLinks, Room, Scrubber, ScrubberState, clock};
 
 use crate::sidebar_right::QueuePanel;
@@ -21,6 +20,7 @@ const STEP: f32 = 0.004;
 pub struct PlayerBar {
     playback: Entity<Playback>,
     queue: Entity<Queue>,
+    library: Entity<Library>,
     queue_panel: Option<Entity<QueuePanel>>,
     seek: ScrubberState,
     volume: ScrubberState,
@@ -50,8 +50,10 @@ impl PlayerBar {
         queue_panel: Option<Entity<QueuePanel>>,
         cx: &mut Context<Self>,
     ) -> Self {
+        let library = Sonora::global(cx).library.clone();
         cx.observe(&playback, |_, _, cx| cx.notify()).detach();
         cx.observe(&queue, |_, _, cx| cx.notify()).detach();
+        cx.observe(&library, |_, _, cx| cx.notify()).detach();
         if let Some(queue_panel) = &queue_panel {
             cx.observe(queue_panel, |_, _, cx| cx.notify()).detach();
         }
@@ -59,6 +61,7 @@ impl PlayerBar {
         Self {
             playback,
             queue,
+            library,
             queue_panel,
             seek: ScrubberState::new("seek"),
             volume: ScrubberState::new("volume"),
@@ -252,6 +255,34 @@ impl PlayerBar {
             }))
     }
 
+    fn like(&self, track: Option<spotify::Track>, cx: &mut Context<Self>) -> Button {
+        let theme = *cx.theme();
+        let id = track.as_ref().and_then(|track| track.id.as_deref());
+        let library = self.library.read(cx);
+        let saved = id.is_some_and(|id| library.saved(id));
+        let pending = id.is_some_and(|id| library.pending(id));
+
+        Button::new("toggle-liked-track")
+            .ghost()
+            .backgroundless()
+            .small()
+            .icon(match saved {
+                true => "icons/heart-filled.svg",
+                false => "icons/heart.svg",
+            })
+            .tint(match saved {
+                true => theme.primary,
+                false => theme.muted_foreground,
+            })
+            .disabled(id.is_none() || pending)
+            .on_click(cx.listener(move |this, _, _, cx| {
+                if let Some(track) = track.clone() {
+                    this.library
+                        .update(cx, |library, cx| library.toggle(track, cx));
+                }
+            }))
+    }
+
     fn now_playing(&self, room: bool, window: &Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
         let muted = theme.muted_foreground;
@@ -259,6 +290,7 @@ impl PlayerBar {
         let artists = theme.text(ui::Text::Small);
         let track = self.playback.read(cx).track().cloned();
         let cover = track.as_ref().and_then(|track| track.cover.clone());
+        let like = self.like(track.clone(), cx);
 
         div()
             .flex()
@@ -266,7 +298,15 @@ impl PlayerBar {
             .gap_3()
             .flex_1()
             .min_w_0()
-            .child(Artwork::new(cover).size(artwork))
+            .child(
+                div()
+                    .id("now-playing-artwork")
+                    .when_some(
+                        track.as_ref().and_then(|track| track.album_id.clone()),
+                        |this, album| this.link(Destination::Album(album.into())),
+                    )
+                    .child(Artwork::new(cover).size(artwork)),
+            )
             .when(room, |this| {
                 this.child(
                     div()
@@ -276,25 +316,31 @@ impl PlayerBar {
                         .flex_1()
                         .min_w_0()
                         .child(
-                            div().flex().min_w_0().child(match &track {
-                                Some(track) => div()
-                                    .id("now-playing-album")
-                                    .when_some(track.album_id.clone(), |this, album| {
-                                        this.hover(|style| style.underline())
-                                            .link(Destination::Album(album.into()))
-                                    })
-                                    .child(SharedString::from(track.name.clone()))
-                                    .min_w_0()
-                                    .truncate(),
-                                None => div()
-                                    .id("now-playing-album")
-                                    .child(t!("player-nothing-playing"))
-                                    .min_w_0()
-                                    .text_color(muted)
-                                    .truncate(),
-                            }),
+                            div()
+                                .flex()
+                                .min_w_0()
+                                .items_center()
+                                .gap_1()
+                                .child(match &track {
+                                    Some(track) => div()
+                                        .id("now-playing-track")
+                                        .when_some(track.id.clone(), |this, id| {
+                                            this.hover(|style| style.underline())
+                                                .link(Destination::Song(id.into()))
+                                        })
+                                        .child(SharedString::from(track.name.clone()))
+                                        .min_w_0()
+                                        .truncate(),
+                                    None => div()
+                                        .id("now-playing-album")
+                                        .child(t!("player-nothing-playing"))
+                                        .min_w_0()
+                                        .text_color(muted)
+                                        .truncate(),
+                                })
+                                .child(like),
                         )
-                        .when_some(track, |this, track| {
+                        .when_some(track.clone(), |this, track| {
                             this.child(
                                 InlineLinks::new(
                                     "now-playing-artist",
