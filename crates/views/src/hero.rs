@@ -55,18 +55,23 @@ impl RenderOnce for HeroMetaStrip {
         let theme = *cx.theme();
         let mut strip = div()
             .flex()
+            .flex_wrap()
             .items_center()
             .min_w_0()
-            .gap_2()
-            .truncate()
+            .gap_1()
             .text_size(theme.text(Text::Small))
             .text_color(theme.muted_foreground);
 
         for (index, item) in self.items.into_iter().enumerate() {
-            if index > 0 {
-                strip = strip.child(div().flex_none().child("•"));
-            }
-            strip = strip.child(div().min_w_0().truncate().child(item));
+            strip = strip.child(
+                div()
+                    .flex()
+                    .flex_none()
+                    .items_center()
+                    .gap_1()
+                    .when(index > 0, |this| this.child("•"))
+                    .child(item),
+            );
         }
 
         strip
@@ -209,7 +214,6 @@ impl RenderOnce for PageHero {
             .size(Text::Display)
             .weight(FontWeight::BOLD)
             .explicit_gap(theme.metrics.pad * 1.5)
-            .spacing(theme.metrics.pad)
             .flat()
             .flex_none()
             .items_end()
