@@ -28,6 +28,19 @@ impl Writer {
         self.varint(value as i64 as u64);
     }
 
+    pub(crate) fn bool(&mut self, field: u32, value: bool) {
+        if value {
+            self.tag(field, VARINT);
+            self.varint(1);
+        }
+    }
+
+    pub(crate) fn message(&mut self, field: u32, value: &[u8]) {
+        self.tag(field, LENGTH);
+        self.varint(value.len() as u64);
+        self.bytes.extend_from_slice(value);
+    }
+
     pub(crate) fn finish(self) -> Vec<u8> {
         self.bytes
     }
