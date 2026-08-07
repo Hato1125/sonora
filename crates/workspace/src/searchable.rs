@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use gpui::prelude::*;
 use gpui::{AnyView, App, Context, Entity, Pixels, Render, SharedString, Window, div, px};
 use input::{Dismiss, Input};

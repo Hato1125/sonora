@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use std::cell::Cell;
 use ui::{ActiveTheme as _, Button, Room, Shield};
 

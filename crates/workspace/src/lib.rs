@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 mod chrome;
 mod player_bar;
 mod searchable;

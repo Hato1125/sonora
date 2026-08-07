@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use gpui::{AnyView, Context, Entity, MouseButton, NavigationDirection, Render};
 use gpui::{Window, div};
 use gpui::{font, prelude::*};

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use anyhow::{Context as _, Result};
 use librespot_core::{Session, SpotifyId};
 use librespot_protocol::playlist4_external::SelectedListContent;

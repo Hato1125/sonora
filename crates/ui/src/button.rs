@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use gpui::prelude::*;
 use gpui::{
     App, ClickEvent, Div, ElementId, Hsla, Interactivity, MouseButton, SharedString, Stateful,
