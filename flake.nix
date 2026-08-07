@@ -14,6 +14,20 @@
       ];
 
       forEachSystem = fn: nixpkgs.lib.genAttrs systems (system: fn nixpkgs.legacyPackages.${system});
+
+      release = {
+        version = "0.1.1";
+        assets = {
+          x86_64-linux = {
+            target = "x86_64-unknown-linux-gnu";
+            hash = "sha256-dMlnGAzde/A37FZKgdjB+WA5KI7/hopwfaPIacmiRnQ=";
+          };
+          aarch64-linux = {
+            target = "aarch64-unknown-linux-gnu";
+            hash = "sha256-DC1NXRpGdCnZknw22puiEhce85uCq7tDlYTe9DYShQQ=";
+          };
+        };
+      };
     in
     {
       packages = forEachSystem (
@@ -72,9 +86,51 @@
               platforms = pkgs.lib.platforms.linux;
             };
           };
+
+          asset = release.assets.${pkgs.stdenv.hostPlatform.system};
+
+          sonora-bin = pkgs.stdenv.mkDerivation {
+            pname = "sonora-bin";
+            inherit (release) version;
+
+            src = pkgs.fetchurl {
+              url = "https://github.com/nolight132/sonora/releases/download/v${release.version}/sonora-v${release.version}-${asset.target}";
+              inherit (asset) hash;
+            };
+
+            dontUnpack = true;
+            dontPatchELF = true;
+            dontStrip = true;
+
+            nativeBuildInputs = [ pkgs.makeWrapper ];
+
+            installPhase = ''
+              runHook preInstall
+              install -Dm755 "$src" "$out/libexec/sonora"
+              makeWrapper ${pkgs.stdenv.cc.bintools.dynamicLinker} "$out/bin/sonora" \
+                --add-flags "--library-path ${
+                  pkgs.lib.makeLibraryPath (runtimeLibraries ++ [ pkgs.stdenv.cc.cc.lib ])
+                }" \
+                --add-flags "$out/libexec/sonora"
+              install -Dm444 ${./assets/linux/sonora.desktop} \
+                "$out/share/applications/sonora.desktop"
+              install -Dm444 ${./assets/linux/sonora.svg} \
+                "$out/share/icons/hicolor/scalable/apps/sonora.svg"
+              for icon in ${./assets/linux/icons}/hicolor/*/apps/sonora.png; do
+                size="$(basename "$(dirname "$(dirname "$icon")")")"
+                install -Dm444 "$icon" \
+                  "$out/share/icons/hicolor/$size/apps/sonora.png"
+              done
+              runHook postInstall
+            '';
+
+            meta = sonora.meta // {
+              description = "A minimal native Spotify client built with GPUI (prebuilt release binary)";
+            };
+          };
         in
         {
-          inherit sonora;
+          inherit sonora sonora-bin;
           default = sonora;
         }
       );

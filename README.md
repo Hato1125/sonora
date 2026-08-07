@@ -62,6 +62,17 @@ so it can take a few minutes.
 
 ## Nix
 
+Build from source:
+
 ```sh
 nix run
 ```
+
+Or run the prebuilt release binary, which skips compiling GPUI entirely:
+
+```sh
+nix run github:nolight132/sonora#sonora-bin
+```
+
+`sonora-bin` tracks the latest tagged release rather than the working tree, so its version is pinned
+in `flake.nix` and only moves when a release is cut.
