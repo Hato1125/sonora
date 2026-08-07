@@ -6,7 +6,7 @@ const BINS: usize = 24;
 const SAMPLES: usize = 6000;
 const MIN_ALPHA: u8 = 128;
 const MIN_SATURATION: f32 = 0.14;
-const MIN_LIGHTNESS: f32 = 0.08;
+const MIN_LIGHTNESS: f32 = 0.20;
 const MAX_LIGHTNESS: f32 = 0.94;
 const MIN_SHARE: f32 = 0.05;
 
