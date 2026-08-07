@@ -1,21 +1,21 @@
 mod chrome;
 mod player_bar;
-mod queue_panel;
 mod searchable;
-mod sidebar;
+mod sidebar_left;
+mod sidebar_right;
 mod title_bar;
 
 pub use chrome::Chrome;
 pub use player_bar::PlayerBar;
 pub use searchable::{Filter, Searchable};
-pub use sidebar::Sidebar;
+pub use sidebar_left::Sidebar;
 pub use title_bar::TitleBar;
 
 use gpui::prelude::*;
 use gpui::{AnyView, App, Context, Entity, FocusHandle, Render};
 use gpui::{Window, div};
 use input::{Dismiss, WORKSPACE_CONTEXT};
-use queue_panel::QueuePanel;
+use sidebar_right::QueuePanel;
 use state::{Playback, Queue};
 
 pub struct Workspace {

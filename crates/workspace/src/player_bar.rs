@@ -9,7 +9,7 @@ use state::{Playback, PlaybackState, Queue, Repeat};
 
 use ui::{Artwork, Button, InlineLink, InlineLinks, Room, Scrubber, ScrubberState, clock};
 
-use crate::queue_panel::QueuePanel;
+use crate::sidebar_right::QueuePanel;
 
 const SEEK_MAX: f32 = 560.;
 const VOLUME_WIDTH: f32 = 110.;
