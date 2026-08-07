@@ -471,6 +471,20 @@ impl QueuePanel {
                     .items_center()
                     .gap_1()
                     .child(
+                        Button::new("toggle-radio")
+                            .ghost()
+                            .small()
+                            .icon("icons/radio.svg")
+                            .tint(match self.playback.read(cx).radio() {
+                                true => theme.primary,
+                                false => theme.muted_foreground,
+                            })
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.playback
+                                    .update(cx, |playback, cx| playback.toggle_radio(cx));
+                            })),
+                    )
+                    .child(
                         Button::new("reset-queue")
                             .ghost()
                             .small()
