@@ -305,22 +305,25 @@ pub(crate) fn title<F>(
     explicit: bool,
     song_id: Option<String>,
 ) -> AnyElement {
-    let content = line(cell, color)
-        .flex()
-        .items_center()
-        .gap_1p5()
-        .child(div().min_w_0().truncate().child(value.into()))
-        .when(explicit, |this| {
-            this.child(div().flex_none().child(ExplicitBadge::new()))
-        });
-    match song_id {
-        Some(id) => content
+    let text = div().min_w_0().truncate().child(value.into());
+    let text = match song_id {
+        Some(id) => text
             .id(("song", cell.row))
             .hover(|style| style.underline())
             .link(Destination::Song(id.into()))
             .into_any_element(),
-        None => content.into_any_element(),
-    }
+        None => text.into_any_element(),
+    };
+
+    line(cell, color)
+        .flex()
+        .items_center()
+        .gap_1p5()
+        .child(text)
+        .when(explicit, |this| {
+            this.child(div().flex_none().child(ExplicitBadge::new()))
+        })
+        .into_any_element()
 }
 
 pub(crate) fn artwork<F>(cell: &Cell<F>, url: Option<String>) -> AnyElement {
