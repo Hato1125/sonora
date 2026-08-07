@@ -8,6 +8,7 @@ edition = "2024"
 
 [workspace.dependencies]
 audio = { path = "crates/audio" }
+i18n = { path = "crates/i18n" }
 spotify = { path = "crates/spotify" }
 state = { path = "crates/state" }
 input = { path = "crates/input" }
@@ -23,6 +24,7 @@ cpal = "0.16"
 dirs = "6.0"
 env_logger = "0.11"
 fastrand = "2.5"
+fluent-bundle = "0.16"
 gpui = { git = "https://github.com/zed-industries/zed", rev = "f25b256f2c10e1b638031a3d8d5a524056ebf268" }
 gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "f25b256f2c10e1b638031a3d8d5a524056ebf268", features = [
   "font-kit",
@@ -39,6 +41,8 @@ reqwest = { version = "0.12", default-features = false, features = [
 rodio = { version = "0.21", default-features = false, features = ["playback"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+sys-locale = "0.3"
+unic-langid = { version = "0.9", features = ["macros"] }
 
 librespot-core = { version = "0.8.0", default-features = false, features = [
   "rustls-tls-native-roots",
