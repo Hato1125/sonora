@@ -20,7 +20,15 @@ impl Home {
         let quick_picks = picks(&library, quick_picks_seed, cx);
 
         cx.observe(&library, |this, library, cx| {
-            this.quick_picks = picks(&library, this.quick_picks_seed, cx);
+            match library.read(cx).state() {
+                LibraryState::Ready { .. } if this.quick_picks.is_empty() => {
+                    this.quick_picks = picks(&library, this.quick_picks_seed, cx);
+                }
+                LibraryState::Empty | LibraryState::Failed(_) => {
+                    this.quick_picks = Rc::new(Vec::new());
+                }
+                _ => return,
+            }
             cx.notify();
         })
         .detach();
