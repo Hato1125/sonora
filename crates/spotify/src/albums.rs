@@ -9,7 +9,7 @@ use librespot_protocol::metadata::album::Type as AlbumType;
 use protobuf::{EnumOrUnknown, Message as _};
 
 use crate::models::{Album, AlbumDetail, ReleaseType, Track};
-use crate::{collection, collection2, wire};
+use crate::{collection, collection2, pathfinder, wire};
 
 const ALBUM_PREFIX: &str = "spotify:album:";
 const TRACK_PREFIX: &str = "spotify:track:";
@@ -26,6 +26,15 @@ pub async fn saved_albums(session: &Session, limit: u32) -> Result<Vec<Album>> {
 }
 
 pub async fn album(session: &Session, album_id: &str) -> Result<AlbumDetail> {
+    match pathfinder::album(session, album_id).await {
+        Ok(album) => return Ok(album),
+        Err(error) => log::warn!("albums: cannot load Pathfinder album: {error:#}"),
+    }
+
+    legacy_album(session, album_id).await
+}
+
+async fn legacy_album(session: &Session, album_id: &str) -> Result<AlbumDetail> {
     let uri = format!("{ALBUM_PREFIX}{album_id}");
     let request = batched(std::slice::from_ref(&uri));
     let response = session
@@ -52,7 +61,6 @@ pub async fn album(session: &Session, album_id: &str) -> Result<AlbumDetail> {
             uris.iter().filter_map(|uri| known.remove(uri)).collect()
         }
     };
-
     Ok(AlbumDetail { album, tracks })
 }
 

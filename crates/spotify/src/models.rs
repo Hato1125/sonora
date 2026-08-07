@@ -16,6 +16,7 @@ pub struct ArtistRef {
 pub struct Credit {
     pub name: String,
     pub role: String,
+    pub id: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -30,6 +31,7 @@ pub struct Track {
     pub cover: Option<String>,
     pub duration: Duration,
     pub added_at: Option<i64>,
+    pub playcount: Option<u64>,
     pub popularity: u32,
     pub explicit: bool,
     pub track_number: u32,

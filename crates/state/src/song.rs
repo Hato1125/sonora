@@ -1,3 +1,5 @@
+use std::collections::{HashMap, HashSet};
+
 use gpui::{Context, Entity, Task};
 use spotify::{AlbumDetail, Artist, Track};
 use tokio::task::AbortHandle;
@@ -9,6 +11,8 @@ pub struct SongDetail {
     track: Option<Track>,
     album: Option<AlbumDetail>,
     artist: Option<Artist>,
+    portraits: HashMap<String, String>,
+    playcount: Option<u64>,
     loading: bool,
     error: Option<String>,
     session: Entity<Session>,
@@ -31,6 +35,8 @@ impl SongDetail {
             track: None,
             album: None,
             artist: None,
+            portraits: HashMap::new(),
+            playcount: None,
             loading: false,
             error: None,
             session,
@@ -48,6 +54,12 @@ impl SongDetail {
     }
     pub fn artist(&self) -> Option<&Artist> {
         self.artist.as_ref()
+    }
+    pub fn portraits(&self) -> &HashMap<String, String> {
+        &self.portraits
+    }
+    pub fn playcount(&self) -> Option<u64> {
+        self.playcount
     }
     pub fn is_loading(&self) -> bool {
         self.loading
@@ -73,19 +85,57 @@ impl SongDetail {
             let id = id.clone();
             async move {
                 let track = client.track(&id).await?;
-                let album = match track.album_id.as_deref() {
-                    Some(album_id) => client.album(album_id).await.ok(),
-                    None => None,
-                };
-                let artist = match track
+                let album_id = track.album_id.clone();
+                let artist_id = track
                     .artist_refs
                     .first()
-                    .and_then(|artist| artist.id.as_deref())
-                {
-                    Some(artist_id) => client.artist(artist_id).await.ok(),
-                    None => None,
+                    .and_then(|artist| artist.id.clone());
+                let credit_ids = track
+                    .credits
+                    .iter()
+                    .filter_map(|credit| credit.id.clone())
+                    .chain(
+                        track
+                            .artist_refs
+                            .iter()
+                            .filter_map(|artist| artist.id.clone()),
+                    )
+                    .collect::<HashSet<_>>()
+                    .into_iter()
+                    .collect::<Vec<_>>();
+                let album = async {
+                    match album_id {
+                        Some(album_id) => client.album(&album_id).await.ok(),
+                        None => None,
+                    }
                 };
-                anyhow::Ok((track, album, artist))
+                let artist = async {
+                    match artist_id {
+                        Some(artist_id) => client.artist(&artist_id).await.ok(),
+                        None => None,
+                    }
+                };
+                let portraits = async {
+                    match credit_ids.is_empty() {
+                        true => HashMap::new(),
+                        false => client.artist_images(credit_ids).await.unwrap_or_default(),
+                    }
+                };
+                let playcount = async {
+                    match track.id.as_deref() {
+                        Some(track_id) => match client.track_playcount(track_id).await {
+                            Ok(playcount) => playcount,
+                            Err(error) => {
+                                log::warn!("song: cannot read track play count: {error:#}");
+                                None
+                            }
+                        },
+                        None => None,
+                    }
+                };
+                let (album, artist, portraits, playcount) =
+                    tokio::join!(album, artist, portraits, playcount);
+                anyhow::Ok((track, album, artist, portraits, playcount))
             }
         });
         self.request = Some(request.abort_handle());
@@ -98,10 +148,12 @@ impl SongDetail {
                 this.loading = false;
                 this.request = None;
                 match loaded {
-                    Ok((track, album, artist)) => {
+                    Ok((track, album, artist, portraits, playcount)) => {
                         this.track = Some(track);
                         this.album = album;
                         this.artist = artist;
+                        this.portraits = portraits;
+                        this.playcount = playcount;
                     }
                     Err(error) => this.error = Some(format!("{error:#}")),
                 }
@@ -120,6 +172,8 @@ impl SongDetail {
         self.track = None;
         self.album = None;
         self.artist = None;
+        self.portraits.clear();
+        self.playcount = None;
         self.loading = false;
         self.error = None;
     }

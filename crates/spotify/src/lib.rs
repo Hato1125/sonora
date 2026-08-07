@@ -6,6 +6,7 @@ mod client;
 mod collection;
 mod collection2;
 mod models;
+mod pathfinder;
 mod pb;
 mod playlists;
 mod profiles;

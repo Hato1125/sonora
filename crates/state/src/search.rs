@@ -578,6 +578,7 @@ mod tests {
             cover: None,
             duration: Duration::ZERO,
             added_at: None,
+            playcount: None,
             popularity: 0,
             explicit: false,
             track_number: 0,
