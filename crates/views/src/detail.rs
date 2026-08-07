@@ -284,6 +284,7 @@ impl DetailView {
     fn sift(&mut self, sieve: TrackSieve, cx: &mut Context<Self>) {
         self.table.update(cx, |table, cx| {
             table.delegate_mut().source_mut().set_sieve(sieve);
+            table.delegate_mut().resift(cx);
             table.refresh(cx);
         });
         cx.notify();

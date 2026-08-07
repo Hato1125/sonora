@@ -248,6 +248,10 @@ impl<S: GridSource> GridDelegate<S> {
         self.reorder(cx);
     }
 
+    pub fn resift(&mut self, cx: &App) {
+        self.reorder(cx);
+    }
+
     fn reorder(&mut self, cx: &App) {
         let mut order: Vec<usize> = (0..self.source.rows(cx))
             .filter(|row| {

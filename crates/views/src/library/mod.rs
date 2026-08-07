@@ -434,6 +434,7 @@ impl LibraryView {
     fn sift(&mut self, sieve: TrackSieve, cx: &mut Context<Self>) {
         self.tracks.update(cx, |table, cx| {
             table.delegate_mut().source_mut().set_sieve(sieve);
+            table.delegate_mut().resift(cx);
             table.refresh(cx);
         });
         cx.notify();
@@ -446,6 +447,7 @@ impl LibraryView {
     fn set_span(&mut self, span: Option<(f32, f32)>, cx: &mut Context<Self>) {
         self.albums.update(cx, |table, cx| {
             table.delegate_mut().source_mut().set_span(span);
+            table.delegate_mut().resift(cx);
             table.refresh(cx);
         });
         cx.notify();
