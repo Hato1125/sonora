@@ -11,7 +11,7 @@ use state::{AppSettings, Library, LibraryState, Playback, Sonora};
 use ui::{
     GridDelegate, GridEvent, GridState, Scrollbar, Scroller, Sort, Toggle, Viewport, grid, scrolled,
 };
-use workspace::{Chrome, Searchable};
+use workspace::{Chrome, Columned, Searchable, Toolbar, Tooled};
 
 use crate::cells;
 use crate::tracks::{
@@ -85,6 +85,7 @@ pub struct LibraryView {
     tracks: Entity<GridState<TrackSource>>,
     albums: Entity<GridState<AlbumSource>>,
     playlists: Entity<GridState<PlaylistSource>>,
+    toolbar: Entity<Toolbar>,
 }
 
 impl LibraryView {
@@ -175,6 +176,14 @@ impl LibraryView {
         })
         .detach();
 
+        let me = cx.entity();
+        let toolbar = cx.new(|cx| {
+            let mut toolbar = Toolbar::new(cx);
+            toolbar.bind(&me, cx);
+            toolbar.columns(&me, cx);
+            toolbar
+        });
+
         Self {
             library,
             settings,
@@ -186,6 +195,7 @@ impl LibraryView {
             tracks,
             albums,
             playlists,
+            toolbar,
         }
     }
 
@@ -193,7 +203,7 @@ impl LibraryView {
         self.section
     }
 
-    pub fn toggles(&self, cx: &App) -> Vec<Toggle> {
+    fn column_toggles(&self, cx: &App) -> Vec<Toggle> {
         let all = match self.section {
             Section::Tracks => self.tracks.read(cx).delegate().toggles(),
             Section::Albums => self.albums.read(cx).delegate().toggles(),
@@ -205,7 +215,7 @@ impl LibraryView {
             .collect()
     }
 
-    pub fn toggle_column(&mut self, key: &str, cx: &mut Context<Self>) {
+    fn switch_column(&mut self, key: &str, cx: &mut Context<Self>) {
         if PINNED.contains(&key) {
             return;
         }
@@ -393,5 +403,21 @@ impl Searchable for LibraryView {
 
     fn hint() -> SharedString {
         "filter-library".into()
+    }
+}
+
+impl Columned for LibraryView {
+    fn toggles(&self, cx: &App) -> Vec<Toggle> {
+        self.column_toggles(cx)
+    }
+
+    fn toggle_column(&mut self, key: &'static str, cx: &mut Context<Self>) {
+        self.switch_column(key, cx);
+    }
+}
+
+impl Tooled for LibraryView {
+    fn toolbar(&self) -> Entity<Toolbar> {
+        self.toolbar.clone()
     }
 }

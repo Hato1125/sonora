@@ -3,7 +3,6 @@
 mod adaptive;
 mod artist;
 mod cells;
-mod columns;
 mod detail;
 mod hero;
 mod home;
@@ -20,7 +19,6 @@ mod tracks;
 
 use adaptive::Adaptive;
 use artist::ArtistView;
-pub use columns::ColumnPicker;
 use detail::DetailView;
 use home::HomeView;
 pub use library::LibraryView;
