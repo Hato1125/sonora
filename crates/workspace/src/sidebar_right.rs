@@ -633,7 +633,6 @@ impl Render for QueuePanel {
                     .flex_col()
                     .flex_1()
                     .min_h_0()
-                    .p_2()
                     .when(empty, |this| {
                         this.child(
                             div()
@@ -653,6 +652,8 @@ impl Render for QueuePanel {
                                 .min_h_0()
                                 .child(
                                     self.rows(sections, cx)
+                                        .px_2()
+                                        .pb_2()
                                         .track_scroll(&self.scroll)
                                         .size_full(),
                                 )
