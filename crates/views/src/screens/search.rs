@@ -418,10 +418,10 @@ impl Render for SearchView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
         let pad = theme.metrics.inset;
-        let room = cells::content_width(window, pad * 2., cx);
-        let stacked = !Room::of(room).fits(Room::Wide);
-        let inset = match room > VAST {
-            true => (room - VAST) / 2.,
+        let width = cells::content_width(window, pad * 2., cx);
+        let stacked = !Chrome::room(window, cx).fits(Room::Wide);
+        let inset = match width > VAST {
+            true => (width - VAST) / 2.,
             false => Pixels::ZERO,
         };
         let asked = !self.search.read(cx).query().trim().is_empty();

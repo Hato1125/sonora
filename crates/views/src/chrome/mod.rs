@@ -71,7 +71,6 @@ impl Chrome {
         (window.viewport_size().width - chrome.sidebar_left - chrome.sidebar_right).max(MIN_CONTENT)
     }
 
-    #[allow(dead_code)]
     pub fn room(window: &Window, cx: &App) -> Room {
         Room::of(Self::content(window, cx))
     }

@@ -16,6 +16,7 @@ use ui::{
 use crate::shared::cells;
 use crate::shared::hero::{HeroMetaStrip, HeroPlayButton, PageHero, release_date_label};
 
+const PANEL: Pixels = px(300.);
 const TITLE_SKELETON: Pixels = px(240.);
 const META_SKELETON: Pixels = px(180.);
 const ACTION_SKELETON: Pixels = px(96.);
@@ -324,7 +325,7 @@ impl SongView {
                 .flex()
                 .flex_col()
                 .gap_3()
-                .min_w(px(300.))
+                .min_w(PANEL)
                 .flex_1()
                 .p(theme.metrics.pad)
                 .rounded(theme.radius)
@@ -462,13 +463,13 @@ impl Render for SongView {
                                     .gap_5()
                                     .child(
                                         div()
-                                            .min_w(px(300.))
+                                            .min_w(PANEL)
                                             .flex_1()
                                             .child(self.overview(&track, cx)),
                                     )
                                     .child(
                                         div()
-                                            .min_w(px(300.))
+                                            .min_w(PANEL)
                                             .flex_1()
                                             .flex()
                                             .flex_col()
