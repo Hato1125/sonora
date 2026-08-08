@@ -13,7 +13,7 @@ pub use chrome::Chrome;
 pub use links::artist_links;
 pub use player_bar::PlayerBar;
 pub use sidebar_left::Sidebar;
-pub use title_bar::TitleBar;
+pub use title_bar::{TitleBar, TitleBarEvent, TitleBarOptions};
 pub use toolbar::{Columned, Filterable, Searchable, Sortable, Toolbar, Tooled, Viewed};
 pub use track_menu::TrackMenu;
 
@@ -25,7 +25,6 @@ use sidebar_right::QueuePanel;
 use state::{Playback, Queue};
 
 pub struct Workspace {
-    title_bar: Entity<TitleBar>,
     sidebar: Entity<Sidebar>,
     player_bar: Entity<PlayerBar>,
     queue_panel: Entity<QueuePanel>,
@@ -41,14 +40,12 @@ impl Workspace {
         content: AnyView,
         cx: &mut Context<Self>,
     ) -> Self {
-        let title_bar = cx.new(|cx| TitleBar::new(sidebar.clone(), cx));
         let queue_panel =
             cx.new(|cx| QueuePanel::new(queue.clone(), playback.clone(), sidebar.clone(), cx));
         let player_bar =
             cx.new(|cx| PlayerBar::with_queue_panel(playback, queue, queue_panel.clone(), cx));
 
         Self {
-            title_bar,
             sidebar,
             player_bar,
             queue_panel,
@@ -68,11 +65,6 @@ impl Workspace {
     pub fn set_content(&mut self, content: AnyView, cx: &mut Context<Self>) {
         self.content = content;
         cx.notify();
-    }
-
-    pub fn set_toolbar(&mut self, toolbar: Option<AnyView>, cx: &mut Context<Self>) {
-        self.title_bar
-            .update(cx, |bar, cx| bar.set_content(toolbar, cx));
     }
 
     pub fn player_bar(&self) -> &Entity<PlayerBar> {
@@ -99,11 +91,12 @@ impl Render for Workspace {
         div()
             .flex()
             .flex_col()
-            .size_full()
+            .w_full()
+            .flex_1()
+            .min_h_0()
             .key_context(WORKSPACE_CONTEXT)
             .track_focus(&self.focus)
             .on_action(cx.listener(|this, _: &Dismiss, _, cx| this.close_queue(cx)))
-            .child(self.title_bar.clone())
             .child(
                 div()
                     .relative()

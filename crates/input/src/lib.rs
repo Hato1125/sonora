@@ -16,7 +16,8 @@ actions!(
         TogglePlayback,
         OpenFilter,
         OpenSearch,
-        OpenSettings
+        OpenSettings,
+        ToggleFullscreen
     ]
 );
 
