@@ -19,12 +19,12 @@ use ui::{
 };
 use workspace::{Chrome, Columned, Filterable, Searchable, Sortable, Toolbar, Tooled, Viewed};
 
-use crate::release_card::ReleaseCard;
-use crate::tracks::{
+use crate::shared::release_card::ReleaseCard;
+use crate::shared::tracks::{
     self, LIBRARY_COLUMNS, PlaybackStatus, TrackField, TrackSieve, TrackSource, Tracks,
     playback_status,
 };
-use crate::{cells, page};
+use crate::shared::{cells, page};
 use albums::AlbumSource;
 use playlists::PlaylistSource;
 

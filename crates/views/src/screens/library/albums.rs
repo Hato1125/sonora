@@ -10,8 +10,8 @@ use spotify::Album;
 use state::{Library, LibraryState, Origin, Playback};
 use ui::{Cell, ColumnSpec, GridSource, Width};
 
-use crate::cells::{self, ALWAYS, NUMBER, ROOMY, TRAILING, WIDE, YEAR};
-use crate::tracks::initial;
+use crate::shared::cells::{self, ALWAYS, NUMBER, ROOMY, TRAILING, WIDE, YEAR};
+use crate::shared::tracks::initial;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum AlbumField {

@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+mod quick_picks;
+
 use gpui::prelude::*;
 use gpui::{Context, Entity, Pixels, Point, Render, ScrollHandle, Window, div, px};
 use state::{Home, Playback};
 use ui::{ActiveTheme as _, Popup, Scrollbar, Scroller};
 use workspace::{Chrome, TrackMenu};
 
-use crate::cells;
-use crate::quick_picks::{QuickPicks, column_count, page_count};
-use crate::tracks::{PlaybackStatus, playback_status};
+use crate::shared::cells;
+use crate::shared::tracks::{PlaybackStatus, playback_status};
+use quick_picks::{QuickPicks, column_count, page_count};
 
 pub(crate) struct HomeView {
     home: Entity<Home>,
