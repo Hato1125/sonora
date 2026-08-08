@@ -3,6 +3,7 @@
 mod albums;
 mod playlists;
 
+use crate::chrome::{Chrome, Columned, Filterable, Searchable, Sortable, Toolbar, Tooled, Viewed};
 use gpui::prelude::*;
 use gpui::{
     AnyElement, App, Context, Entity, FontWeight, Pixels, Point, Render, ScrollHandle,
@@ -17,7 +18,6 @@ use ui::{
     RangeAxis, Scrollbar, Scroller, Sort, SortAxis, Text, Toggle, Unit, Viewport, heading,
     scrolled,
 };
-use workspace::{Chrome, Columned, Filterable, Searchable, Sortable, Toolbar, Tooled, Viewed};
 
 use crate::shared::release_card::ReleaseCard;
 use crate::shared::tracks::{

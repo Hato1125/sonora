@@ -25,7 +25,7 @@ type Shift = Box<dyn Fn(Mode, &mut App)>;
 type Axes = Box<dyn Fn(&App) -> Vec<SortAxis>>;
 type Rank = Box<dyn Fn(&'static str, &mut App)>;
 
-pub trait Searchable: 'static {
+pub(crate) trait Searchable: 'static {
     fn search(&mut self, query: &str, cx: &mut Context<Self>)
     where
         Self: Sized;
@@ -38,7 +38,7 @@ pub trait Searchable: 'static {
     }
 }
 
-pub trait Columned: 'static {
+pub(crate) trait Columned: 'static {
     fn toggles(&self, cx: &App) -> Vec<Toggle>;
 
     fn toggle_column(&mut self, key: &'static str, cx: &mut Context<Self>)
@@ -46,7 +46,7 @@ pub trait Columned: 'static {
         Self: Sized;
 }
 
-pub trait Viewed: 'static {
+pub(crate) trait Viewed: 'static {
     fn mode(&self, cx: &App) -> Mode;
 
     fn set_mode(&mut self, mode: Mode, cx: &mut Context<Self>)
@@ -54,7 +54,7 @@ pub trait Viewed: 'static {
         Self: Sized;
 }
 
-pub trait Filterable: 'static {
+pub(crate) trait Filterable: 'static {
     fn ranges(&self, cx: &App) -> Vec<RangeAxis>;
 
     fn flags(&self, cx: &App) -> Vec<FlagAxis>;
@@ -72,7 +72,7 @@ pub trait Filterable: 'static {
         Self: Sized;
 }
 
-pub trait Sortable: 'static {
+pub(crate) trait Sortable: 'static {
     fn sorts(&self, cx: &App) -> Vec<SortAxis>;
 
     fn set_sort(&mut self, key: &'static str, cx: &mut Context<Self>)
@@ -122,11 +122,11 @@ impl<V: Filterable> Port for Wire<V> {
     }
 }
 
-pub trait Tooled: 'static {
+pub(crate) trait Tooled: 'static {
     fn toolbar(&self) -> Entity<Toolbar>;
 }
 
-pub struct Toolbar {
+pub(crate) struct Toolbar {
     input: Entity<Input>,
     apply: Option<Apply>,
     toggles: Option<Toggles>,

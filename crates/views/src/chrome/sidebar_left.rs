@@ -34,7 +34,7 @@ const TABS: [(&str, LibraryTab); 3] = [
 const MIN_WIDTH: Pixels = px(130.);
 const MAX_WIDTH: Pixels = px(400.);
 
-pub struct SidebarLeft {
+pub(crate) struct SidebarLeft {
     settings: Entity<AppSettings>,
     trail: Entity<Navigation>,
     width: Pixels,

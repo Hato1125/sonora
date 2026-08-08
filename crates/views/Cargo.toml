@@ -13,4 +13,3 @@ input.workspace = true
 router.workspace = true
 ui.workspace = true
 state.workspace = true
-workspace.workspace = true

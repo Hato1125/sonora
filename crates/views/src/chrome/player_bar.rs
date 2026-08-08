@@ -18,8 +18,8 @@ use ui::{
     clock,
 };
 
-use crate::sidebar_right::SidebarRight;
-use crate::track_menu::TrackMenu;
+use crate::chrome::SidebarRight;
+use crate::chrome::TrackMenu;
 
 const SEEK_MAX: f32 = 560.;
 const VOLUME_WIDTH: f32 = 110.;
@@ -27,7 +27,7 @@ const VOLUME_TIGHT: f32 = 72.;
 const CLOCK_CHARS: f32 = 3.4;
 const STEP: f32 = 0.004;
 
-pub struct PlayerBar {
+pub(crate) struct PlayerBar {
     playback: Entity<Playback>,
     queue: Entity<Queue>,
     library: Entity<Library>,
@@ -43,6 +43,7 @@ pub struct PlayerBar {
 }
 
 impl PlayerBar {
+    #[allow(dead_code)]
     pub fn new(playback: Entity<Playback>, queue: Entity<Queue>, cx: &mut Context<Self>) -> Self {
         Self::build(playback, queue, None, cx)
     }

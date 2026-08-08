@@ -8,7 +8,7 @@ use state::{LibraryState, Sonora};
 use ui::{Menu, MenuItem, Scrollbar, SubmenuState};
 
 #[derive(Clone)]
-pub struct TrackMenu {
+pub(crate) struct TrackMenu {
     playlist_submenu: SubmenuState,
     artist_submenu: SubmenuState,
     playlist_scrollbar: Entity<Scrollbar>,

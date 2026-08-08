@@ -17,7 +17,6 @@ input = { path = "crates/input" }
 router = { path = "crates/router" }
 ui = { path = "crates/ui" }
 views = { path = "crates/views" }
-workspace = { path = "crates/workspace" }
 
 anyhow = "1.0"
 async-trait = "0.1"
