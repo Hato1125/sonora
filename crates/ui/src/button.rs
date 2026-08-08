@@ -27,6 +27,7 @@ pub struct Button {
     disabled: bool,
     selected: bool,
     backgroundless: bool,
+    hoverless: bool,
     hovered: Option<StyleRefinement>,
     pressed: Option<StyleRefinement>,
     tint: Option<Hsla>,
@@ -45,6 +46,7 @@ impl Button {
             disabled: false,
             selected: false,
             backgroundless: false,
+            hoverless: false,
             hovered: None,
             pressed: None,
             tint: None,
@@ -107,6 +109,11 @@ impl Button {
         self
     }
 
+    pub fn hoverless(mut self) -> Self {
+        self.hoverless = true;
+        self
+    }
+
     pub fn on_click(
         mut self,
         handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
@@ -159,6 +166,7 @@ impl RenderOnce for Button {
             disabled,
             selected,
             backgroundless,
+            hoverless,
             hovered,
             pressed,
             tint,
@@ -210,7 +218,10 @@ impl RenderOnce for Button {
             true => (palette.hover, palette.active),
             false => (None, None),
         };
-        let hovered = state_style(hover, hovered);
+        let hovered = match hoverless {
+            true => None,
+            false => state_style(hover, hovered),
+        };
         let pressed = state_style(active, pressed);
         let overrides = std::mem::take(base.style());
 
