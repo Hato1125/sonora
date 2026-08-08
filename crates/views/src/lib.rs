@@ -3,6 +3,7 @@
 mod root;
 mod screens;
 mod shared;
+mod shells;
 
 pub use root::Root;
 use screens::artist::ArtistView;
@@ -13,3 +14,4 @@ pub use screens::login::LoginView;
 pub use screens::settings::SettingsView;
 use screens::song::SongView;
 use shared::adaptive::Adaptive;
+use shells::fullscreen::FullscreenView;

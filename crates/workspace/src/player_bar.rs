@@ -11,6 +11,7 @@ use gpui::{
 };
 use gpui::{Window, div, px};
 use i18n::t;
+use input::ToggleFullscreen;
 use state::{Library, Playback, PlaybackState, Queue, Repeat, Sonora};
 use ui::{
     Artwork, Button, InlineLink, InlineLinks, Popup, Room, Scrollbar, Scrubber, ScrubberState,
@@ -262,6 +263,14 @@ impl PlayerBar {
                     }
                 })),
         )
+    }
+
+    fn fullscreen_button(&self) -> Button {
+        Button::new("toggle-fullscreen")
+            .ghost()
+            .small()
+            .icon("icons/maximize.svg")
+            .on_click(|_, window, cx| window.dispatch_action(Box::new(ToggleFullscreen), cx))
     }
 
     fn toggle(&self, cx: &mut Context<Self>) -> Button {
@@ -533,6 +542,7 @@ impl Render for PlayerBar {
                         .w_full()
                         .child(div().flex_1().min_w_0().child(seek))
                         .child(self.sound(px(VOLUME_TIGHT), cx))
+                        .child(self.fullscreen_button())
                         .when_some(self.queue_button(cx), |this, button| this.child(button)),
                 ),
             false => base
@@ -560,6 +570,7 @@ impl Render for PlayerBar {
                         .flex_1()
                         .min_w_0()
                         .child(self.sound(px(VOLUME_WIDTH), cx))
+                        .child(self.fullscreen_button())
                         .when_some(self.queue_button(cx), |this, button| this.child(button)),
                 ),
         };

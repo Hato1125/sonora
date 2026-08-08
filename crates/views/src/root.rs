@@ -3,19 +3,20 @@
 use gpui::{AnyView, Context, Entity, MouseButton, NavigationDirection, Render};
 use gpui::{Window, div};
 use gpui::{font, prelude::*};
-use input::{OpenFilter, OpenSearch, OpenSettings};
+use input::{OpenFilter, OpenSearch, OpenSettings, ToggleFullscreen};
 use router::{Destination, NavigationEvent, back, forward, navigate};
 use state::{
     ArtistDetail, Detail, Home, Io, Library, Playback, Queue, Search, Session, SessionState,
     SongDetail,
 };
 use ui::ActiveTheme as _;
-use workspace::{Sidebar, Toolbar, Tooled, Workspace};
+use workspace::{Sidebar, TitleBar, TitleBarEvent, TitleBarOptions, Toolbar, Tooled, Workspace};
 
 use crate::screens::search::SearchView;
 use crate::shared::tracks::{ALBUM_COLUMNS, LIBRARY_COLUMNS};
 use crate::{
-    Adaptive, ArtistView, DetailView, HomeView, LibraryView, LoginView, SettingsView, SongView,
+    Adaptive, ArtistView, DetailView, FullscreenView, HomeView, LibraryView, LoginView,
+    SettingsView, SongView,
 };
 
 struct Screens {
@@ -33,9 +34,20 @@ struct Screens {
     settings: Entity<SettingsView>,
 }
 
+struct Shells {
+    workspace: Entity<Workspace>,
+    fullscreen: Entity<FullscreenView>,
+}
+
+enum RootView {
+    Workspace,
+    Fullscreen,
+}
+
 enum Focus {
     Search,
     Workspace,
+    Fullscreen,
 }
 
 pub struct Root {
@@ -43,7 +55,10 @@ pub struct Root {
     playback: Entity<Playback>,
     io: Io,
     login: Entity<LoginView>,
-    workspace: Entity<Workspace>,
+    sidebar: Entity<Sidebar>,
+    title_bar: Entity<TitleBar>,
+    shells: Shells,
+    view: RootView,
     toolbar: Option<Entity<Toolbar>>,
     pending: Option<Focus>,
     screens: Screens,
@@ -125,6 +140,15 @@ impl Root {
                 cx,
             )
         });
+        let fullscreen = cx.new(|cx| FullscreenView::new(playback.clone(), cx));
+
+        let title_bar = cx.new(TitleBar::new);
+        cx.subscribe(&title_bar, |this, _, event, cx| match event {
+            TitleBarEvent::ToggleSidebar => {
+                this.sidebar.update(cx, |sidebar, cx| sidebar.toggle(cx))
+            }
+        })
+        .detach();
 
         let adaptive = cx.new(|cx| Adaptive::new(playback.clone(), cx));
 
@@ -133,7 +157,13 @@ impl Root {
             playback,
             io,
             login,
-            workspace,
+            sidebar,
+            title_bar,
+            shells: Shells {
+                workspace: workspace.clone(),
+                fullscreen,
+            },
+            view: RootView::Workspace,
             toolbar: None,
             pending: None,
             screens: Screens {
@@ -180,6 +210,31 @@ impl Root {
             return;
         };
         toolbar.update(cx, |toolbar, cx| toolbar.focus(window, cx));
+    }
+
+    fn toggle_fullscreen(&mut self, cx: &mut Context<Self>) {
+        let entering = matches!(self.view, RootView::Workspace);
+        self.view = match entering {
+            true => RootView::Fullscreen,
+            false => RootView::Workspace,
+        };
+        self.pending = Some(match entering {
+            true => Focus::Fullscreen,
+            false => Focus::Workspace,
+        });
+        cx.notify();
+    }
+
+    fn options(&self, cx: &Context<Self>) -> TitleBarOptions {
+        match self.view {
+            RootView::Workspace => TitleBarOptions {
+                navigation: true,
+                sidebar_open: self.sidebar.read(cx).is_open(),
+                offset: self.sidebar.read(cx).occupied_width(),
+                content: self.toolbar.clone().map(Into::into),
+            },
+            RootView::Fullscreen => TitleBarOptions::default(),
+        }
     }
 
     fn open_settings(&mut self, cx: &mut Context<Self>) {
@@ -237,12 +292,11 @@ impl Root {
             Destination::Settings => self.screens.settings.clone().into(),
         };
 
-        self.toolbar = toolbar.clone();
+        self.toolbar = toolbar;
 
-        self.workspace.update(cx, |workspace, cx| {
-            workspace.set_content(content, cx);
-            workspace.set_toolbar(toolbar.map(Into::into), cx);
-        });
+        self.shells
+            .workspace
+            .update(cx, |workspace, cx| workspace.set_content(content, cx));
         cx.notify();
     }
 }
@@ -260,10 +314,19 @@ impl Render for Root {
                 .search
                 .update(cx, |search, cx| search.focus(window, cx)),
             Some(Focus::Workspace) => self
+                .shells
                 .workspace
                 .update(cx, |workspace, cx| workspace.focus(window, cx)),
+            Some(Focus::Fullscreen) => self
+                .shells
+                .fullscreen
+                .update(cx, |fullscreen, cx| fullscreen.focus(window, cx)),
             None => {}
         }
+
+        let options = self.options(cx);
+        self.title_bar
+            .update(cx, |bar, cx| bar.set_options(options, cx));
 
         let theme = *cx.theme();
         window.set_rem_size(theme.font_size);
@@ -286,10 +349,16 @@ impl Render for Root {
             .on_action(cx.listener(|this, _: &OpenFilter, window, cx| this.open_filter(window, cx)))
             .on_action(cx.listener(|this, _: &OpenSearch, _, cx| this.open_search(cx)))
             .on_action(cx.listener(|this, _: &OpenSettings, _, cx| this.open_settings(cx)))
+            .on_action(cx.listener(|this, _: &ToggleFullscreen, _, cx| this.toggle_fullscreen(cx)))
             .when_else(
                 show_sign_in,
                 |this| this.child(self.login.clone()),
-                |this| this.child(self.workspace.clone()),
+                |this| {
+                    this.child(self.title_bar.clone()).child(match self.view {
+                        RootView::Workspace => self.shells.workspace.clone().into_any_element(),
+                        RootView::Fullscreen => self.shells.fullscreen.clone().into_any_element(),
+                    })
+                },
             )
     }
 }
