@@ -8,7 +8,7 @@ use gpui::{
 use i18n::t;
 use spotify::Track;
 use state::{AppSettings, Collection, Detail, Playback, Sonora};
-use ui::ActiveTheme as _;
+use ui::{ActiveTheme as _, SortAxis};
 use ui::{
     ColumnSpec, FlagAxis, GridDelegate, GridEvent, GridState, RangeAxis, Scrollbar, Scroller,
     Table as _, Toggle, Unit, clock, grid,
@@ -17,7 +17,7 @@ use ui::{
 use crate::hero::{HeroMetaStrip, HeroPlayButton, PageHero, release_date_label};
 use crate::tracks::{PlaybackStatus, TrackField, TrackSieve, TrackSource, Tracks, playback_status};
 use crate::{cells, page};
-use workspace::{Chrome, Columned, Filterable, Searchable, Toolbar, Tooled};
+use workspace::{Chrome, Columned, Filterable, Searchable, Sortable, Toolbar, Tooled};
 
 const PINNED: [&str; 3] = ["cover", "title", "name"];
 
@@ -134,6 +134,7 @@ impl DetailView {
             toolbar.bind(&me, cx);
             toolbar.columns(&me, cx);
             toolbar.filters(&me, cx);
+            toolbar.sorts(&me, cx);
             toolbar
         });
 
@@ -279,6 +280,17 @@ impl Searchable for DetailView {
 
     fn hint() -> SharedString {
         "filter-album".into()
+    }
+}
+
+impl Sortable for DetailView {
+    fn sorts(&self, cx: &App) -> Vec<SortAxis> {
+        self.table.sortables(cx)
+    }
+
+    fn set_sort(&mut self, key: &'static str, cx: &mut Context<Self>) {
+        self.table.clone().cycle_sort(key, cx);
+        cx.notify();
     }
 }
 

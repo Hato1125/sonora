@@ -7,7 +7,7 @@ use std::time::Duration;
 use gpui::prelude::*;
 use gpui::{
     Anchor, AnyElement, AnyWindowHandle, App, Bounds, ClickEvent, Div, ElementId, Entity,
-    Interactivity, MouseButton, MouseDownEvent, Pixels, Point, SharedString, Size, Stateful,
+    Interactivity, MouseButton, MouseUpEvent, Pixels, Point, SharedString, Size, Stateful,
     StyleRefinement, Window, anchored, deferred, div, point, px, svg,
 };
 
@@ -24,8 +24,24 @@ const SCROLLBAR_GUTTER: Pixels = px(8.);
 const WINDOW_MARGIN: Pixels = px(8.);
 
 type Press = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
-type Dismiss = Box<dyn Fn(&MouseDownEvent, &mut Window, &mut App) + 'static>;
+type Dismiss = Box<dyn Fn(&MouseUpEvent, &mut Window, &mut App) + 'static>;
 type Action = Rc<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
+
+#[derive(Clone, Default)]
+pub(crate) struct Trigger(Rc<Cell<Option<Bounds<Pixels>>>>);
+
+impl Trigger {
+    pub(crate) fn observe(&self, bounds: Vec<Bounds<Pixels>>) {
+        self.0
+            .set(bounds.into_iter().reduce(|one, other| one.union(&other)));
+    }
+
+    fn contains(&self, position: Point<Pixels>) -> bool {
+        self.0
+            .get()
+            .is_some_and(|bounds| bounds.contains(&position))
+    }
+}
 
 #[derive(Clone, Default)]
 pub struct SubmenuState {
@@ -133,6 +149,8 @@ pub struct MenuItem {
     submenu: Option<Submenu>,
 }
 
+impl FluentBuilder for MenuItem {}
+
 impl MenuItem {
     pub fn new(id: impl Into<ElementId>, label: impl Into<SharedString>) -> Self {
         Self {
@@ -219,6 +237,7 @@ pub struct Menu {
     deferred: bool,
     scrollbar: Option<Entity<Scrollbar>>,
     hover_guard: Option<SubmenuState>,
+    trigger: Option<Trigger>,
 }
 
 impl Menu {
@@ -233,6 +252,7 @@ impl Menu {
             deferred: true,
             scrollbar: None,
             hover_guard: None,
+            trigger: None,
         }
     }
 
@@ -246,9 +266,14 @@ impl Menu {
         self
     }
 
+    pub(crate) fn trigger(mut self, trigger: Trigger) -> Self {
+        self.trigger = Some(trigger);
+        self
+    }
+
     pub fn on_dismiss(
         mut self,
-        handler: impl Fn(&MouseDownEvent, &mut Window, &mut App) + 'static,
+        handler: impl Fn(&MouseUpEvent, &mut Window, &mut App) + 'static,
     ) -> Self {
         self.dismiss = Some(Box::new(handler));
         self
@@ -303,6 +328,7 @@ impl RenderOnce for Menu {
             deferred: should_defer,
             scrollbar,
             hover_guard,
+            trigger,
         } = self;
 
         if let (Some(scrollbar), Some(guard)) = (scrollbar.as_ref(), hover_guard.clone()) {
@@ -542,13 +568,20 @@ impl RenderOnce for Menu {
             .text_color(theme.popover_foreground)
             .occlude()
             .when_some(dismiss, |this, dismiss| {
-                this.on_mouse_down_out(move |event, window, cx| {
-                    if !dismiss_guards
+                this.on_mouse_up_out(MouseButton::Left, move |event, window, cx| {
+                    if dismiss_guards
                         .iter()
                         .any(|guard| guard.contains(event.position))
                     {
-                        dismiss(event, window, cx);
+                        return;
                     }
+                    if trigger
+                        .as_ref()
+                        .is_some_and(|trigger| trigger.contains(event.position))
+                    {
+                        return;
+                    }
+                    dismiss(event, window, cx);
                 })
             })
             .when(should_defer, |this| {

@@ -4,8 +4,8 @@ use gpui::prelude::*;
 use gpui::{App, Context, Entity, Pixels, Render, SharedString, WeakEntity, Window, div, px};
 use input::{Dismiss, Input};
 use ui::{
-    ActiveTheme as _, Button, FlagAxis, Menu, MenuItem, Mode, RangeAxis, RangeScrubber, RangeState,
-    Toggle, eyebrow,
+    ActiveTheme as _, Button, FlagAxis, Menu, MenuItem, Mode, Popover, Popovers, RangeAxis,
+    RangeScrubber, RangeState, Sort, SortAxis, Toggle, eyebrow,
 };
 
 const WIDEST: Pixels = px(280.);
@@ -13,11 +13,17 @@ const MENU_WIDTH: Pixels = px(190.);
 const FILTER_WIDTH: Pixels = px(260.);
 const MENU_DROP: Pixels = px(30.);
 
+const COLUMNS: &str = "columns";
+const FILTERS: &str = "filters";
+const SORTS: &str = "sorts";
+
 type Apply = Box<dyn Fn(&str, &mut App)>;
 type Toggles = Box<dyn Fn(&App) -> Vec<Toggle>>;
 type Switch = Box<dyn Fn(&'static str, &mut App)>;
 type Reading = Box<dyn Fn(&App) -> Mode>;
 type Shift = Box<dyn Fn(Mode, &mut App)>;
+type Axes = Box<dyn Fn(&App) -> Vec<SortAxis>>;
+type Rank = Box<dyn Fn(&'static str, &mut App)>;
 
 pub trait Searchable: 'static {
     fn search(&mut self, query: &str, cx: &mut Context<Self>)
@@ -62,6 +68,14 @@ pub trait Filterable: 'static {
         Self: Sized;
 
     fn reset_filters(&mut self, cx: &mut Context<Self>)
+    where
+        Self: Sized;
+}
+
+pub trait Sortable: 'static {
+    fn sorts(&self, cx: &App) -> Vec<SortAxis>;
+
+    fn set_sort(&mut self, key: &'static str, cx: &mut Context<Self>)
     where
         Self: Sized;
 }
@@ -119,11 +133,12 @@ pub struct Toolbar {
     switch: Option<Switch>,
     reading: Option<Reading>,
     shift: Option<Shift>,
+    axes: Option<Axes>,
+    rank: Option<Rank>,
     port: Option<Box<dyn Port>>,
     sliders: Vec<(&'static str, RangeState)>,
+    popovers: Popovers,
     open: bool,
-    picker: bool,
-    sifting: bool,
 }
 
 impl Toolbar {
@@ -150,11 +165,12 @@ impl Toolbar {
             switch: None,
             reading: None,
             shift: None,
+            axes: None,
+            rank: None,
             port: None,
             sliders: Vec::new(),
+            popovers: Popovers::default(),
             open: false,
-            picker: false,
-            sifting: false,
         }
     }
 
@@ -211,6 +227,23 @@ impl Toolbar {
         cx.notify();
     }
 
+    pub fn sorts<V: Sortable>(&mut self, view: &Entity<V>, cx: &mut Context<Self>) {
+        let read = view.downgrade();
+        let write = view.downgrade();
+
+        self.axes = Some(Box::new(move |cx| {
+            read.upgrade()
+                .map(|view| view.read(cx).sorts(cx))
+                .unwrap_or_default()
+        }));
+        self.rank = Some(Box::new(move |key, cx| {
+            write.update(cx, |view, cx| view.set_sort(key, cx)).ok();
+        }));
+
+        cx.observe(view, |_, _, cx| cx.notify()).detach();
+        cx.notify();
+    }
+
     pub fn focus(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.apply.is_none() {
             return;
@@ -252,12 +285,56 @@ impl Toolbar {
             .small()
             .ghost()
             .on_click(cx.listener(move |this, _, _, cx| {
-                this.picker = false;
+                this.popovers.close();
                 if let Some(shift) = this.shift.as_ref() {
                     shift(next, cx);
                 }
                 cx.notify();
             }))
+    }
+
+    fn ranks(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let axes = match self.axes.as_ref() {
+            Some(axes) => axes(cx),
+            None => Vec::new(),
+        };
+        let sorted = axes.iter().any(|axis| axis.order.is_some());
+        let theme = *cx.theme();
+
+        Popover::new(SORTS, self.popovers.clone())
+            .button(
+                Button::new("sort-toggle")
+                    .icon("icons/arrow-up-down.svg")
+                    .small()
+                    .ghost()
+                    .tint(match sorted {
+                        true => theme.primary,
+                        false => theme.muted_foreground,
+                    }),
+            )
+            .menu(
+                Menu::new("sort-menu")
+                    .top(MENU_DROP)
+                    .right_0()
+                    .w(MENU_WIDTH)
+                    .items(axes.into_iter().map(|axis| {
+                        let key = axis.key;
+                        let arrow = axis.order.map(|order| match order {
+                            Sort::Ascending => "icons/chevron-up.svg",
+                            Sort::Descending => "icons/chevron-down.svg",
+                        });
+
+                        MenuItem::new(key, axis.label)
+                            .selected(axis.order.is_some())
+                            .when_some(arrow, MenuItem::icon)
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                if let Some(rank) = this.rank.as_ref() {
+                                    rank(key, cx);
+                                }
+                                cx.notify();
+                            }))
+                    })),
+            )
     }
 
     fn menu(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -266,45 +343,30 @@ impl Toolbar {
             None => Vec::new(),
         };
 
-        div()
-            .relative()
-            .flex()
-            .flex_none()
-            .items_center()
-            .child(
+        Popover::new(COLUMNS, self.popovers.clone())
+            .button(
                 Button::new("columns-toggle")
                     .icon("icons/columns-3.svg")
                     .small()
-                    .ghost()
-                    .selected(self.picker)
-                    .on_click(cx.listener(|this, _, _, cx| {
-                        this.picker = !this.picker;
-                        cx.notify();
+                    .ghost(),
+            )
+            .menu(
+                Menu::new("columns-menu")
+                    .top(MENU_DROP)
+                    .right_0()
+                    .w(MENU_WIDTH)
+                    .items(toggles.into_iter().map(|toggle| {
+                        let key = toggle.key;
+                        MenuItem::new(key, toggle.label)
+                            .selected(toggle.visible)
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                if let Some(switch) = this.switch.as_ref() {
+                                    switch(key, cx);
+                                }
+                                cx.notify();
+                            }))
                     })),
             )
-            .when(self.picker, |this| {
-                this.child(
-                    Menu::new("columns-menu")
-                        .top(MENU_DROP)
-                        .right_0()
-                        .w(MENU_WIDTH)
-                        .on_dismiss(cx.listener(|this, _, _, cx| {
-                            this.picker = false;
-                            cx.notify();
-                        }))
-                        .items(toggles.into_iter().map(|toggle| {
-                            let key = toggle.key;
-                            MenuItem::new(key, toggle.label)
-                                .selected(toggle.visible)
-                                .on_click(cx.listener(move |this, _, _, cx| {
-                                    if let Some(switch) = this.switch.as_ref() {
-                                        switch(key, cx);
-                                    }
-                                    cx.notify();
-                                }))
-                        })),
-                )
-            })
     }
 }
 
@@ -395,51 +457,36 @@ impl Toolbar {
             })
             .collect();
 
-        div()
-            .relative()
-            .flex()
-            .flex_none()
-            .items_center()
-            .child(
+        Popover::new(FILTERS, self.popovers.clone())
+            .button(
                 Button::new("filters-toggle")
                     .icon("icons/sliders-horizontal.svg")
                     .small()
                     .ghost()
-                    .selected(self.sifting)
                     .tint(match narrowed {
                         true => theme.primary,
                         false => theme.muted_foreground,
-                    })
-                    .on_click(cx.listener(|this, _, _, cx| {
-                        this.sifting = !this.sifting;
-                        cx.notify();
-                    })),
+                    }),
             )
-            .when(self.sifting, |this| {
-                this.child(
-                    Menu::new("filters-menu")
-                        .top(MENU_DROP)
-                        .right_0()
-                        .w(FILTER_WIDTH)
-                        .on_dismiss(cx.listener(|this, _, _, cx| {
-                            this.sifting = false;
-                            cx.notify();
-                        }))
-                        .items(sliders)
-                        .items(switches)
-                        .item(MenuItem::separator("filters-end"))
-                        .item(
-                            MenuItem::new("filters-reset", i18n::t!("filter-reset")).on_click(
-                                cx.listener(|this, _, _, cx| {
-                                    if let Some(port) = this.port.as_ref() {
-                                        port.reset(cx);
-                                    }
-                                    cx.notify();
-                                }),
-                            ),
+            .menu(
+                Menu::new("filters-menu")
+                    .top(MENU_DROP)
+                    .right_0()
+                    .w(FILTER_WIDTH)
+                    .items(sliders)
+                    .items(switches)
+                    .item(MenuItem::separator("filters-end"))
+                    .item(
+                        MenuItem::new("filters-reset", i18n::t!("filter-reset")).on_click(
+                            cx.listener(|this, _, _, cx| {
+                                if let Some(port) = this.port.as_ref() {
+                                    port.reset(cx);
+                                }
+                                cx.notify();
+                            }),
                         ),
-                )
-            })
+                    ),
+            )
     }
 }
 
@@ -463,6 +510,7 @@ impl Render for Toolbar {
                 this.child(self.menu(cx))
             })
             .children(sift)
+            .when(self.axes.is_some(), |this| this.child(self.ranks(cx)))
             .when(self.reading.is_some(), |this| this.child(self.switcher(cx)))
             .when(self.apply.is_some(), |this| {
                 this.when(self.open, |this| {

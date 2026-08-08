@@ -13,6 +13,7 @@ use gpui::{
     actions, anchored, div, point, px, svg,
 };
 
+use crate::SortAxis;
 use crate::menu::Menu;
 use crate::metrics::{snapped, text_width};
 use crate::theme::ActiveTheme as _;
@@ -254,6 +255,40 @@ impl<S: GridSource> GridDelegate<S> {
             .collect()
     }
 
+    pub fn cycle(&mut self, column: &str, cx: &App) {
+        let next = match self.sorting() {
+            Some(current) if current.column == column => match current.order {
+                Sort::Ascending => Some(Sort::Descending),
+                Sort::Descending => None,
+            },
+            _ => Some(Sort::Ascending),
+        };
+        self.set_sorting(
+            next.map(|order| Sorting {
+                column: column.to_owned(),
+                order,
+            }),
+            cx,
+        );
+    }
+
+    pub fn sortables(&self) -> Vec<SortAxis> {
+        let active = self.sorting();
+        self.source
+            .columns()
+            .iter()
+            .filter(|spec| spec.sortable)
+            .map(|spec| SortAxis {
+                key: spec.key,
+                label: spec.label(),
+                order: active
+                    .as_ref()
+                    .filter(|it| it.column == spec.key)
+                    .map(|it| it.order),
+            })
+            .collect()
+    }
+
     pub fn set_filter(&mut self, query: &str, cx: &App) {
         self.filter = query.trim().to_lowercase();
         self.reorder(cx);
@@ -484,12 +519,8 @@ impl<S: GridSource> GridState<S> {
             return;
         }
 
-        let field = column.spec.field;
-        self.delegate.sort = match self.delegate.direction(field) {
-            None => Some((field, Sort::Ascending)),
-            Some(Sort::Ascending) => Some((field, Sort::Descending)),
-            Some(Sort::Descending) => None,
-        };
+        let key = column.spec.key;
+        self.delegate.cycle(key, cx);
         self.delegate.rebuild(cx);
         cx.emit(GridEvent::SortChanged);
         cx.notify();
@@ -951,6 +982,8 @@ pub trait Table {
     fn set_layout(&self, layout: Layout, cx: &mut App);
     fn sorting(&self, cx: &App) -> Option<Sorting>;
     fn set_sorting(&self, sorting: Option<Sorting>, cx: &mut App);
+    fn sortables(&self, cx: &App) -> Vec<SortAxis>;
+    fn cycle_sort(&self, column: &str, cx: &mut App);
     fn toggles(&self, cx: &App) -> Vec<Toggle>;
     fn set_width(&self, width: Pixels, cx: &mut App);
     fn set_filter(&self, query: &str, cx: &mut App);
@@ -980,6 +1013,19 @@ impl<S: GridSource> Table for Entity<GridState<S>> {
         self.update(cx, |table, cx| {
             table.delegate_mut().set_sorting(sorting, cx);
             table.refresh(cx);
+        });
+    }
+
+    fn sortables(&self, cx: &App) -> Vec<SortAxis> {
+        self.read(cx).delegate().sortables()
+    }
+
+    fn cycle_sort(&self, column: &str, cx: &mut App) {
+        let column = column.to_owned();
+        self.update(cx, |table, cx| {
+            table.delegate_mut().cycle(&column, cx);
+            table.refresh(cx);
+            cx.emit(GridEvent::SortChanged);
         });
     }
 

@@ -14,9 +14,10 @@ use spotify::Track;
 use state::{AppSettings, Library, LibraryState, Origin, Playback, PlaybackState, Sonora};
 use ui::{
     ActiveTheme as _, Card, FlagAxis, GridDelegate, GridEvent, GridSource, GridState, Mode,
-    RangeAxis, Scrollbar, Scroller, Sort, Text, Toggle, Unit, Viewport, eyebrow, scrolled,
+    RangeAxis, Scrollbar, Scroller, Sort, SortAxis, Text, Toggle, Unit, Viewport, heading,
+    scrolled,
 };
-use workspace::{Chrome, Columned, Filterable, Searchable, Toolbar, Tooled, Viewed};
+use workspace::{Chrome, Columned, Filterable, Searchable, Sortable, Toolbar, Tooled, Viewed};
 
 use crate::release_card::ReleaseCard;
 use crate::tracks::{
@@ -217,6 +218,7 @@ impl LibraryView {
             toolbar.columns(&me, cx);
             toolbar.views(&me, cx);
             toolbar.filters(&me, cx);
+            toolbar.sorts(&me, cx);
             toolbar
         });
 
@@ -379,6 +381,7 @@ impl LibraryView {
             .flex_wrap()
             .gap_x_8()
             .gap_y_6()
+            .px_8()
             .children(tiles)
             .into_any_element()
     }
@@ -497,6 +500,17 @@ impl Searchable for LibraryView {
 
     fn hint() -> SharedString {
         "filter-library".into()
+    }
+}
+
+impl Sortable for LibraryView {
+    fn sorts(&self, cx: &App) -> Vec<SortAxis> {
+        self.table(self.section).sortables(cx)
+    }
+
+    fn set_sort(&mut self, key: &'static str, cx: &mut Context<Self>) {
+        self.table(self.section).cycle_sort(key, cx);
+        cx.notify();
     }
 }
 
@@ -687,5 +701,5 @@ fn deck<S: GridSource>(
 }
 
 fn head(label: SharedString, cx: &App) -> AnyElement {
-    eyebrow(label, cx).w_full().pt_2().into_any_element()
+    heading(label, cx).w_full().pt_2().into_any_element()
 }

@@ -14,7 +14,7 @@ pub use links::artist_links;
 pub use player_bar::PlayerBar;
 pub use sidebar_left::Sidebar;
 pub use title_bar::TitleBar;
-pub use toolbar::{Columned, Filterable, Searchable, Toolbar, Tooled, Viewed};
+pub use toolbar::{Columned, Filterable, Searchable, Sortable, Toolbar, Tooled, Viewed};
 pub use track_menu::TrackMenu;
 
 use gpui::prelude::*;

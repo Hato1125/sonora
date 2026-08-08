@@ -14,6 +14,7 @@ mod layout;
 mod menu;
 mod metrics;
 mod palette;
+mod popover;
 mod scrollbar;
 mod scroller;
 mod scrubber;
@@ -29,7 +30,7 @@ pub use card::CARD_GROUP;
 pub use card::Card;
 pub use controls::WindowControls;
 pub use explicit::ExplicitBadge;
-pub use filters::{FlagAxis, RangeAxis, RangeScrubber, RangeState, Unit};
+pub use filters::{FlagAxis, RangeAxis, RangeScrubber, RangeState, SortAxis, Unit};
 pub use grid::{
     Cell, ColumnSpec, Deselect, GRID_CONTEXT, Grid, GridDelegate, GridEvent, GridSource, GridState,
     Layout, ROW_GROUP, SelectNext, SelectPrevious, Sort, Sorting, Table, Toggle, Viewport, Width,
@@ -42,6 +43,7 @@ pub use layout::{ALWAYS, MIN_CONTENT, ROOMY, Room, SNUG, VAST, WIDE};
 pub use menu::{Menu, MenuItem, SubmenuState};
 pub use metrics::{Metrics, Rounding, Text, snapped};
 pub use palette::tint;
+pub use popover::{Popover, Popovers};
 pub use scrollbar::{Scrollbar, scrolled};
 pub use scroller::Scroller;
 pub use scrubber::{Scrubber, ScrubberState};
