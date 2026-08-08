@@ -315,22 +315,22 @@ Rules:
   that does not fit. Raw viewport width is legitimate in exactly two places: chrome that spans the
   whole window (`PlayerBar`, `TitleBar`, and `Menu`'s submenu flip), and a side panel deciding *its
   own* size — `SidebarLeft` measures the room left over once its own width is taken, `SidebarRight`
-  subtracts the left panel, because asking `Chrome` for a width they are themselves a term in would
-  be circular.
+  subtracts `Chrome::sidebar_left`. `Chrome::content` would be circular for either, because each is
+  a term in it; reading the *other* panel's cut is not.
 - `Workspace::render` publishes the widths every frame via `Chrome::publish`; it notifies only when
   a width actually changed, so it cannot loop.
-- **`Chrome` is only current after that publish.** `Root` and `Workspace` render *before* it, so
-  they read the panel entities directly; everything they render into — content views and both
-  panels — sees this frame's values.
+- **`Chrome` is only current after that publish.** `Workspace` renders *before* it and owns both
+  panels, so it reads them directly; everything it renders into — content views and both panels —
+  sees this frame's values. `SidebarRight` is the one exception: it reads `Chrome::sidebar_left`
+  while `Workspace` is still assembling this frame's publish, so a left-panel change reaches it one
+  frame late, and its `Chrome` observation repaints it on the next.
 - **A view whose layout depends on width must observe the chrome**, or it will not repaint when a
   panel is resized or toggled:
   ```rust
   let chrome = Chrome::entity(cx);
   cx.observe(&chrome, |_, _, cx| cx.notify()).detach();
   ```
-  Content views take no `Entity<SidebarLeft>` for this — that is what `Chrome` replaced. The shell
-  (`Root`, `Workspace`, `SidebarRight`) still holds one, because it needs the width before
-  `Chrome::publish` has run.
+  Nothing outside `Workspace` holds an `Entity<SidebarLeft>` — that is what `Chrome` replaced.
 - `views::cells::content_width(window, inset, cx)` is the shortcut for grid pages: `Chrome::content`
   minus the page's own padding.
 
@@ -442,6 +442,12 @@ caches Spotify data, subscribe to `Session` and clear on `SignedOut`.
 `forward`. `Root` subscribes to `NavigationEvent::Moved` and swaps the workspace content. For a
 clickable region, use the `Link` trait (`div().id(..).link(Destination::Album(id))`) instead of a
 manual click handler.
+
+**Shells.** `crates/views/src/shells/` holds the two top-level layouts, `Workspace` and
+`FullscreenView`; `Root` swaps between them. A shell owns its own chrome — `Workspace` builds both
+sidebars and the player bar — and answers for its title bar through the `shells::Shell` trait
+(`title_bar(content, cx) -> TitleBarOptions`). `Root` supplies only the current screen's toolbar and
+asks the active shell; it never reaches into a panel.
 
 **New screen checklist:** add a `Destination` variant → add a state entity if it loads data → add
 the view under `crates/views/src/` → construct it in `Root::new` and wire it in `Root::show` →

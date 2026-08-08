@@ -16,7 +16,7 @@ use ui::{
     ActiveTheme as _, Button, Card, Panel, Popup, Room, Scrollbar, Side, Text, eyebrow, snapped,
 };
 
-use crate::chrome::{SidebarLeft, TrackMenu};
+use crate::chrome::{Chrome, TrackMenu};
 
 const MIN_WIDTH: Pixels = px(240.);
 const MAX_WIDTH: Pixels = px(560.);
@@ -178,7 +178,6 @@ impl Render for DraggedTrack {
 pub(crate) struct SidebarRight {
     queue: Entity<Queue>,
     playback: Entity<Playback>,
-    sidebar: Entity<SidebarLeft>,
     context_menu: Option<ContextMenuState>,
     track_menu: TrackMenu,
     drop_gap: Option<usize>,
@@ -195,7 +194,6 @@ impl SidebarRight {
     pub(crate) fn new(
         queue: Entity<Queue>,
         playback: Entity<Playback>,
-        sidebar: Entity<SidebarLeft>,
         cx: &mut Context<Self>,
     ) -> Self {
         cx.observe(&queue, |this, queue, cx| {
@@ -211,7 +209,8 @@ impl SidebarRight {
             cx.notify();
         })
         .detach();
-        cx.observe(&sidebar, |_, _, cx| cx.notify()).detach();
+        let chrome = Chrome::entity(cx);
+        cx.observe(&chrome, |_, _, cx| cx.notify()).detach();
 
         let scroll = UniformListScrollHandle::new();
         let scrollbar = cx.new(|_| Scrollbar::new(scroll.0.borrow().base_handle.clone()));
@@ -226,7 +225,6 @@ impl SidebarRight {
         Self {
             queue,
             playback,
-            sidebar,
             context_menu: None,
             track_menu: TrackMenu::new(playlist_scrollbar),
             drop_gap: None,
@@ -245,7 +243,7 @@ impl SidebarRight {
     }
 
     pub(crate) fn covers_content(&self, window: &Window, cx: &App) -> bool {
-        let content = window.viewport_size().width - self.sidebar.read(cx).occupied_width();
+        let content = window.viewport_size().width - Chrome::sidebar_left(cx);
         self.open && fills_content(content)
     }
 
@@ -253,7 +251,7 @@ impl SidebarRight {
         match self.open {
             false => Pixels::ZERO,
             true if self.covers_content(window, cx) => {
-                window.viewport_size().width - self.sidebar.read(cx).occupied_width()
+                window.viewport_size().width - Chrome::sidebar_left(cx)
             }
             true => self.width,
         }
@@ -571,7 +569,7 @@ impl Render for SidebarRight {
         }
 
         let theme = *cx.theme();
-        let content_width = window.viewport_size().width - self.sidebar.read(cx).occupied_width();
+        let content_width = window.viewport_size().width - Chrome::sidebar_left(cx);
         let fullscreen = fills_content(content_width);
         let queue = self.queue.read(cx);
         let sections = Sections {
