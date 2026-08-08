@@ -8,16 +8,16 @@ use gpui::{
 use i18n::t;
 use spotify::Track;
 use state::{AppSettings, Collection, Detail, Playback, Sonora};
-use ui::ActiveTheme as _;
+use ui::{ActiveTheme as _, SortAxis};
 use ui::{
     ColumnSpec, FlagAxis, GridDelegate, GridEvent, GridState, RangeAxis, Scrollbar, Scroller,
-    Toggle, Unit, clock, grid,
+    Table as _, Toggle, Unit, clock, grid,
 };
 
 use crate::hero::{HeroMetaStrip, HeroPlayButton, PageHero, release_date_label};
 use crate::tracks::{PlaybackStatus, TrackField, TrackSieve, TrackSource, Tracks, playback_status};
 use crate::{cells, page};
-use workspace::{Chrome, Columned, Filterable, Searchable, Toolbar, Tooled};
+use workspace::{Chrome, Columned, Filterable, Searchable, Sortable, Toolbar, Tooled};
 
 const PINNED: [&str; 3] = ["cover", "title", "name"];
 
@@ -42,6 +42,7 @@ pub(crate) struct DetailView {
     table: Entity<GridState<TrackSource>>,
     settings: Entity<AppSettings>,
     section: &'static str,
+    sorted: Option<String>,
     toolbar: Entity<Toolbar>,
 }
 
@@ -50,13 +51,14 @@ impl DetailView {
         detail: Entity<Detail>,
         playback: Entity<Playback>,
         columns: &'static [ColumnSpec<TrackField>],
+        show_liked: bool,
         section: &'static str,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
         let inset = cx.theme().metrics.inset;
         let settings = Sonora::global(cx).settings.clone();
-        let saved = settings.read(cx).hidden_columns(section);
+        let saved = settings.read(cx).table(section);
         let width = cells::content_width(window, page::reserved(inset), cx);
 
         let scrollbar = cx.new(|_| Scrollbar::new(ScrollHandle::new()));
@@ -74,9 +76,13 @@ impl DetailView {
                 playback.clone(),
                 playlist_scrollbar,
             );
+            let source = match show_liked {
+                true => source.with_liked(Sonora::global(cx).library.clone()),
+                false => source,
+            };
             let source = source.table(cx.weak_entity());
             let mut delegate = GridDelegate::new(source, width, cx);
-            delegate.set_hidden(saved, cx);
+            delegate.set_layout(saved, cx);
             GridState::new(delegate, cx).follow(scroll)
         });
 
@@ -85,10 +91,19 @@ impl DetailView {
                 .read(cx)
                 .scroll()
                 .set_offset(gpui::Point::default());
+            this.restore_sorting(cx);
             this.rebuild(cx);
             cx.notify();
         })
         .detach();
+
+        if show_liked {
+            let library = Sonora::global(cx).library.clone();
+            cx.observe(&library, |this, _, cx| {
+                this.table.update(cx, |table, cx| table.refresh(cx));
+            })
+            .detach();
+        }
 
         let chrome = Chrome::entity(cx);
         cx.observe(&chrome, |_, _, cx| cx.notify()).detach();
@@ -105,9 +120,11 @@ impl DetailView {
         })
         .detach();
 
-        cx.subscribe(&table, |this, _, event, cx| {
-            let GridEvent::DoubleClicked(display) = event;
-            page::play(&this.table, &this.playback, *display, cx);
+        cx.subscribe(&table, |this, _, event, cx| match event {
+            GridEvent::DoubleClicked(display) => {
+                page::play(&this.table, &this.playback, *display, cx)
+            }
+            _ => this.persist(cx),
         })
         .detach();
 
@@ -117,6 +134,7 @@ impl DetailView {
             toolbar.bind(&me, cx);
             toolbar.columns(&me, cx);
             toolbar.filters(&me, cx);
+            toolbar.sorts(&me, cx);
             toolbar
         });
 
@@ -129,6 +147,7 @@ impl DetailView {
             table,
             settings,
             section,
+            sorted: None,
             toolbar,
         }
     }
@@ -138,6 +157,35 @@ impl DetailView {
             table.delegate_mut().clear_selection();
             table.rebuild(cx);
         });
+    }
+
+    fn sort_key(&self, cx: &App) -> String {
+        match self.detail.read(cx).id() {
+            Some(id) if self.section == "playlist" => format!("{}:{id}", self.section),
+            _ => self.section.to_owned(),
+        }
+    }
+
+    fn restore_sorting(&mut self, cx: &mut Context<Self>) {
+        let key = self.sort_key(cx);
+        if self.sorted.as_deref() == Some(key.as_str()) {
+            return;
+        }
+        self.sorted = Some(key.clone());
+
+        let sorting = self.settings.read(cx).sorting(&key);
+        self.table.clone().set_sorting(sorting.flatten(), cx);
+    }
+
+    fn persist(&mut self, cx: &mut Context<Self>) {
+        let key = self.sort_key(cx);
+        page::store(
+            &self.settings.clone(),
+            &self.table.clone(),
+            self.section,
+            &key,
+            cx,
+        );
     }
 
     fn header(&self, cx: &Context<Self>) -> AnyElement {
@@ -235,6 +283,17 @@ impl Searchable for DetailView {
     }
 }
 
+impl Sortable for DetailView {
+    fn sorts(&self, cx: &App) -> Vec<SortAxis> {
+        self.table.sortables(cx)
+    }
+
+    fn set_sort(&mut self, key: &'static str, cx: &mut Context<Self>) {
+        self.table.clone().cycle_sort(key, cx);
+        cx.notify();
+    }
+}
+
 impl Columned for DetailView {
     fn toggles(&self, cx: &App) -> Vec<Toggle> {
         self.table
@@ -251,21 +310,10 @@ impl Columned for DetailView {
             return;
         }
 
-        let mut hidden = self.table.read(cx).delegate().hidden().to_vec();
-        match hidden.iter().position(|hidden| hidden == key) {
-            Some(at) => {
-                hidden.remove(at);
-            }
-            None => hidden.push(key.to_owned()),
-        }
-
-        self.settings.update(cx, |settings, cx| {
-            settings.set_hidden_columns(self.section, hidden.clone(), cx);
-        });
-        self.table.update(cx, |table, cx| {
-            table.delegate_mut().set_hidden(hidden, cx);
-            table.refresh(cx);
-        });
+        let mut layout = self.table.layout(cx);
+        layout.toggle(key);
+        self.table.clone().set_layout(layout, cx);
+        self.persist(cx);
         cx.notify();
     }
 }

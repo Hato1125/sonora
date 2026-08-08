@@ -40,9 +40,12 @@ column-tracks = Tracks
 menu-add-to-playlist = Add to playlist
 menu-new-playlist = New playlist
 menu-no-playlists = No playlists
-menu-toggle-library = Add or remove from Library
+menu-add-to-library = Add to Library
+menu-remove-from-library = Remove from Library
 menu-add-to-queue = Add to queue
 menu-song-radio = Go to song radio
+menu-go-to-album = Go to album
+menu-go-to-artist = Go to artist
 menu-view-details = View details
 menu-copy-link = Copy link
 menu-remove-from-queue = Remove from queue
@@ -68,6 +71,10 @@ filter-duration = Duration
 filter-year = Year
 filter-explicit = Explicit only
 filter-playable = Playable only
+
+# view
+view-list = List
+view-cards = Cards
 
 # login
 login-signed-out = Sign in to load your Spotify library

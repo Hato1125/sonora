@@ -1,17 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 mod chrome;
+mod links;
 mod player_bar;
 mod sidebar_left;
 mod sidebar_right;
 mod title_bar;
 mod toolbar;
+mod track_menu;
 
 pub use chrome::Chrome;
+pub use links::artist_links;
 pub use player_bar::PlayerBar;
 pub use sidebar_left::Sidebar;
 pub use title_bar::TitleBar;
-pub use toolbar::{Columned, Filterable, Searchable, Toolbar, Tooled};
+pub use toolbar::{Columned, Filterable, Searchable, Sortable, Toolbar, Tooled, Viewed};
+pub use track_menu::TrackMenu;
 
 use gpui::prelude::*;
 use gpui::{AnyView, App, Context, Entity, FocusHandle, Render};

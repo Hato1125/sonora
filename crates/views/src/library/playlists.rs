@@ -4,6 +4,7 @@ use std::cmp::Ordering;
 use ui::ActiveTheme as _;
 
 use gpui::{AnyElement, App, Entity, TextAlign};
+use router::Destination;
 use spotify::Playlist;
 use state::{Library, LibraryState, Origin, Playback};
 use ui::{Cell, ColumnSpec, GridSource, Width};
@@ -26,7 +27,7 @@ pub(super) const COLUMNS: &[ColumnSpec<PlaylistField>] = &[
         header: "column-index",
         align: TextAlign::Center,
         width: Width::Fixed(NUMBER),
-        flush: false,
+        anchored: true,
         sortable: false,
         hide_below: ALWAYS,
     },
@@ -36,7 +37,7 @@ pub(super) const COLUMNS: &[ColumnSpec<PlaylistField>] = &[
         header: "",
         align: TextAlign::Left,
         width: Width::Thumb,
-        flush: true,
+        anchored: true,
         sortable: false,
         hide_below: ALWAYS,
     },
@@ -46,7 +47,7 @@ pub(super) const COLUMNS: &[ColumnSpec<PlaylistField>] = &[
         header: "column-name",
         align: TextAlign::Left,
         width: Width::Fill(0.55),
-        flush: false,
+        anchored: false,
         sortable: true,
         hide_below: ALWAYS,
     },
@@ -56,7 +57,7 @@ pub(super) const COLUMNS: &[ColumnSpec<PlaylistField>] = &[
         header: "column-owner",
         align: TextAlign::Left,
         width: Width::Fill(0.45),
-        flush: false,
+        anchored: false,
         sortable: true,
         hide_below: ROOMY,
     },
@@ -66,7 +67,7 @@ pub(super) const COLUMNS: &[ColumnSpec<PlaylistField>] = &[
         header: "column-tracks",
         align: TextAlign::Right,
         width: Width::Fixed(TRAILING),
-        flush: false,
+        anchored: false,
         sortable: true,
         hide_below: SNUG,
     },
@@ -135,7 +136,8 @@ impl GridSource for PlaylistSource {
     }
 
     fn cell(&self, cell: Cell<PlaylistField>, cx: &mut App) -> AnyElement {
-        let muted = cx.theme().muted_foreground;
+        let theme = *cx.theme();
+        let muted = theme.muted_foreground;
 
         let Some(playlist) = self.playlists(cx).get(cell.row) else {
             return cells::blank(&cell);
@@ -147,7 +149,13 @@ impl GridSource for PlaylistSource {
 
         match cell.field {
             PlaylistField::Cover => cells::artwork(&cell, playlist.cover.clone()),
-            PlaylistField::Name => cells::text(&cell, playlist.name.clone()),
+            PlaylistField::Name => cells::link(
+                &cell,
+                "playlist-name",
+                playlist.name.clone(),
+                theme.foreground,
+                Destination::Playlist(playlist.id.clone().into()),
+            ),
             PlaylistField::Owner => cells::dim(&cell, playlist.owner.clone(), muted),
             PlaylistField::TrackCount => {
                 cells::dim(&cell, format!("{}", playlist.track_count), muted)

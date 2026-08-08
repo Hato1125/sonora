@@ -11,13 +11,17 @@ use i18n::{Language, t};
 use state::{AppSettings, Playback, Session, SessionState, Sonora};
 use ui::{ActiveTheme as _, Scrollbar, Scroller};
 use ui::{
-    Button, Initials, Look, MAX_FONT, MIN_FONT, Menu, MenuItem, Rounding, Skeleton, Text, Theme,
-    ThemeKind,
+    Button, Initials, Look, MAX_FONT, MIN_FONT, Menu, MenuItem, Popover, Popovers, Rounding,
+    Skeleton, Text, Theme, ThemeKind,
 };
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const LICENSE_URL: &str = "https://www.gnu.org/licenses/gpl-3.0.html";
 const SOURCE_URL: &str = "https://github.com/nolight132/sonora";
+
+const THEMES: &str = "themes";
+const CORNERS: &str = "corners";
+const LANGUAGES: &str = "languages";
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Tab {
@@ -55,9 +59,7 @@ pub struct SettingsView {
     settings: Entity<AppSettings>,
     tab: Tab,
     scrollbar: Entity<Scrollbar>,
-    themes_open: bool,
-    corners_open: bool,
-    languages_open: bool,
+    popovers: Popovers,
 }
 
 impl SettingsView {
@@ -75,9 +77,7 @@ impl SettingsView {
             settings,
             tab: Tab::Appearance,
             scrollbar: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
-            themes_open: false,
-            corners_open: false,
-            languages_open: false,
+            popovers: Popovers::default(),
         }
     }
 
@@ -89,9 +89,7 @@ impl SettingsView {
                 .selected(self.tab == tab)
                 .on_click(cx.listener(move |this, _, _, cx| {
                     this.tab = tab;
-                    this.themes_open = false;
-                    this.corners_open = false;
-                    this.languages_open = false;
+                    this.popovers.close();
                     cx.notify();
                 }))
         }))
@@ -154,40 +152,29 @@ impl SettingsView {
                 .map(|language| (language.id(), SharedString::from(language.label()))),
         );
 
-        let picker = div()
-            .relative()
-            .child(
+        let picker = Popover::new(LANGUAGES, self.popovers.clone())
+            .button(
                 Button::new("language-picker")
                     .label(format!("{current}  ▾"))
                     .small()
-                    .outline()
-                    .on_click(cx.listener(|this, _, _, cx| {
-                        this.languages_open = !this.languages_open;
-                        cx.notify();
-                    })),
+                    .outline(),
             )
-            .when(self.languages_open, |this| {
-                this.child(
-                    Menu::new("language-dropdown")
-                        .top(px(30.))
-                        .right_0()
-                        .w(px(170.))
-                        .on_dismiss(cx.listener(|this, _, _, cx| {
-                            this.languages_open = false;
-                            cx.notify();
-                        }))
-                        .items(entries.map(|(id, label)| {
-                            MenuItem::new(id, label)
-                                .selected(chosen == id)
-                                .on_click(cx.listener(move |this, _, _, cx| {
-                                    this.settings
-                                        .update(cx, |settings, cx| settings.set_language(id, cx));
-                                    this.languages_open = false;
-                                    cx.notify();
-                                }))
-                        })),
-                )
-            });
+            .menu(
+                Menu::new("language-dropdown")
+                    .top(px(30.))
+                    .right_0()
+                    .w(px(170.))
+                    .items(entries.map(|(id, label)| {
+                        MenuItem::new(id, label)
+                            .selected(chosen == id)
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                this.settings
+                                    .update(cx, |settings, cx| settings.set_language(id, cx));
+                                this.popovers.close();
+                                cx.notify();
+                            }))
+                    })),
+            );
 
         self.row(
             t!("settings-language"),
@@ -205,43 +192,32 @@ impl SettingsView {
         let look = self.look(cx);
         let overrides = self.settings.read(cx).theme_overrides().clone();
 
-        let picker = div()
-            .relative()
-            .child(
+        let picker = Popover::new(CORNERS, self.popovers.clone())
+            .button(
                 Button::new("corners-picker")
                     .label(format!("{}  ▾", look.rounding.label()))
                     .small()
-                    .outline()
-                    .on_click(cx.listener(|this, _, _, cx| {
-                        this.corners_open = !this.corners_open;
-                        cx.notify();
-                    })),
+                    .outline(),
             )
-            .when(self.corners_open, |this| {
-                this.child(
-                    Menu::new("corners-dropdown")
-                        .top(px(30.))
-                        .right_0()
-                        .w(px(170.))
-                        .on_dismiss(cx.listener(|this, _, _, cx| {
-                            this.corners_open = false;
-                            cx.notify();
-                        }))
-                        .items(Rounding::ALL.into_iter().map(|rounding| {
-                            let overrides = overrides.clone();
-                            MenuItem::new(rounding.id(), rounding.label())
-                                .selected(look.rounding == rounding)
-                                .on_click(cx.listener(move |this, _, _, cx| {
-                                    this.settings.update(cx, |settings, cx| {
-                                        settings.set_rounding(rounding.id(), cx);
-                                    });
-                                    this.corners_open = false;
-                                    Theme::set(Look { rounding, ..look }, &overrides, cx);
-                                    cx.notify();
-                                }))
-                        })),
-                )
-            });
+            .menu(
+                Menu::new("corners-dropdown")
+                    .top(px(30.))
+                    .right_0()
+                    .w(px(170.))
+                    .items(Rounding::ALL.into_iter().map(|rounding| {
+                        let overrides = overrides.clone();
+                        MenuItem::new(rounding.id(), rounding.label())
+                            .selected(look.rounding == rounding)
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                this.settings.update(cx, |settings, cx| {
+                                    settings.set_rounding(rounding.id(), cx);
+                                });
+                                this.popovers.close();
+                                Theme::set(Look { rounding, ..look }, &overrides, cx);
+                                cx.notify();
+                            }))
+                    })),
+            );
 
         self.row(
             t!("settings-corners"),
@@ -428,48 +404,36 @@ impl SettingsView {
         let adaptive = self.settings.read(cx).adaptive_theme();
         let overrides = self.settings.read(cx).theme_overrides().clone();
 
-        let picker = div()
-            .relative()
-            .child(
+        let picker = Popover::new(THEMES, self.popovers.clone())
+            .button(
                 Button::new("theme-picker")
                     .label(format!("{}  ▾", current.label()))
                     .small()
-                    .outline()
-                    .on_click(cx.listener(|this, _, _, cx| {
-                        this.themes_open = !this.themes_open;
-                        cx.notify();
-                    })),
+                    .outline(),
             )
-            .when(self.themes_open, |this| {
-                this.child(
-                    Menu::new("theme-dropdown")
-                        .top(px(30.))
-                        .right_0()
-                        .w(px(170.))
-                        .on_dismiss(cx.listener(|this, _, _, cx| {
-                            this.themes_open = false;
-                            cx.notify();
-                        }))
-                        .items(ThemeKind::ALL.into_iter().map(|kind| {
-                            let item =
-                                MenuItem::new(kind.id(), kind.label()).selected(current == kind);
-                            match adaptive && !matches!(kind, ThemeKind::Dark | ThemeKind::Light) {
-                                true => item.disabled(),
-                                false => {
-                                    let overrides = overrides.clone();
-                                    item.on_click(cx.listener(move |this, _, _, cx| {
-                                        this.settings.update(cx, |settings, cx| {
-                                            settings.set_theme(kind.id(), cx);
-                                        });
-                                        this.themes_open = false;
-                                        Theme::fade(Look { kind, ..look }, &overrides, cx);
-                                        cx.notify();
-                                    }))
-                                }
+            .menu(
+                Menu::new("theme-dropdown")
+                    .top(px(30.))
+                    .right_0()
+                    .w(px(170.))
+                    .items(ThemeKind::ALL.into_iter().map(|kind| {
+                        let item = MenuItem::new(kind.id(), kind.label()).selected(current == kind);
+                        match adaptive && !matches!(kind, ThemeKind::Dark | ThemeKind::Light) {
+                            true => item.disabled(),
+                            false => {
+                                let overrides = overrides.clone();
+                                item.on_click(cx.listener(move |this, _, _, cx| {
+                                    this.settings.update(cx, |settings, cx| {
+                                        settings.set_theme(kind.id(), cx);
+                                    });
+                                    this.popovers.close();
+                                    Theme::fade(Look { kind, ..look }, &overrides, cx);
+                                    cx.notify();
+                                }))
                             }
-                        })),
-                )
-            });
+                        }
+                    })),
+            );
 
         let settings = self.settings.clone();
         let actions = div()

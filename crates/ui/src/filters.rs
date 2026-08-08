@@ -7,6 +7,7 @@ use gpui::{
     SharedString, Window, canvas, div, px,
 };
 
+use crate::Sort;
 use crate::theme::ActiveTheme as _;
 use crate::time::clock;
 
@@ -110,6 +111,13 @@ pub struct FlagAxis {
     pub key: &'static str,
     pub label: SharedString,
     pub on: bool,
+}
+
+#[derive(Clone)]
+pub struct SortAxis {
+    pub key: &'static str,
+    pub label: SharedString,
+    pub order: Option<Sort>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

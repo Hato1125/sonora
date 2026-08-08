@@ -4,15 +4,19 @@ use std::cmp::Ordering;
 use std::rc::Rc;
 use ui::ActiveTheme as _;
 
-use gpui::{AnyElement, App, ClipboardItem, Entity, Hsla, Styled as _, TextAlign, WeakEntity};
-use i18n::t;
-use jiff::Timestamp;
-use router::{Destination, navigate};
-use spotify::Track;
-use state::{LibraryState, Playback, PlaybackState, Sonora};
-use ui::{
-    Cell, ColumnSpec, GridSource, GridState, Menu, MenuItem, Scrollbar, SubmenuState, Width, clock,
+use gpui::prelude::FluentBuilder as _;
+use gpui::{
+    AnyElement, App, Entity, Hsla, InteractiveElement as _, IntoElement as _, SharedString,
+    Styled as _, TextAlign, WeakEntity,
 };
+use jiff::Timestamp;
+use router::Destination;
+use spotify::Track;
+use state::{Library, Playback, PlaybackState};
+use ui::{
+    Button, Cell, ColumnSpec, GridSource, GridState, Menu, ROW_GROUP, Scrollbar, Width, clock,
+};
+use workspace::TrackMenu;
 
 use crate::cells::{self, ALWAYS, DATE, NUMBER, ROOMY, SNUG, TRAILING, WIDE};
 use crate::hero::release_date_label;
@@ -36,7 +40,7 @@ pub(crate) const LIBRARY_COLUMNS: &[ColumnSpec<TrackField>] = &[
         header: "column-index",
         align: TextAlign::Center,
         width: Width::Fixed(NUMBER),
-        flush: false,
+        anchored: true,
         sortable: false,
         hide_below: ALWAYS,
     },
@@ -46,7 +50,7 @@ pub(crate) const LIBRARY_COLUMNS: &[ColumnSpec<TrackField>] = &[
         header: "",
         align: TextAlign::Left,
         width: Width::Thumb,
-        flush: true,
+        anchored: true,
         sortable: false,
         hide_below: ALWAYS,
     },
@@ -56,7 +60,7 @@ pub(crate) const LIBRARY_COLUMNS: &[ColumnSpec<TrackField>] = &[
         header: "column-title",
         align: TextAlign::Left,
         width: Width::Fill(0.42),
-        flush: false,
+        anchored: false,
         sortable: true,
         hide_below: ALWAYS,
     },
@@ -66,7 +70,7 @@ pub(crate) const LIBRARY_COLUMNS: &[ColumnSpec<TrackField>] = &[
         header: "column-artist",
         align: TextAlign::Left,
         width: Width::Fill(0.29),
-        flush: false,
+        anchored: false,
         sortable: true,
         hide_below: ROOMY,
     },
@@ -76,7 +80,7 @@ pub(crate) const LIBRARY_COLUMNS: &[ColumnSpec<TrackField>] = &[
         header: "column-album",
         align: TextAlign::Left,
         width: Width::Fill(0.29),
-        flush: false,
+        anchored: false,
         sortable: true,
         hide_below: WIDE,
     },
@@ -86,7 +90,7 @@ pub(crate) const LIBRARY_COLUMNS: &[ColumnSpec<TrackField>] = &[
         header: "column-date-added",
         align: TextAlign::Left,
         width: Width::Fixed(DATE),
-        flush: false,
+        anchored: false,
         sortable: true,
         hide_below: WIDE,
     },
@@ -96,7 +100,7 @@ pub(crate) const LIBRARY_COLUMNS: &[ColumnSpec<TrackField>] = &[
         header: "column-length",
         align: TextAlign::Right,
         width: Width::Fixed(TRAILING),
-        flush: false,
+        anchored: false,
         sortable: true,
         hide_below: SNUG,
     },
@@ -109,7 +113,7 @@ pub(crate) const ALBUM_COLUMNS: &[ColumnSpec<TrackField>] = &[
         header: "column-index",
         align: TextAlign::Center,
         width: Width::Fixed(NUMBER),
-        flush: false,
+        anchored: true,
         sortable: false,
         hide_below: ALWAYS,
     },
@@ -119,7 +123,7 @@ pub(crate) const ALBUM_COLUMNS: &[ColumnSpec<TrackField>] = &[
         header: "column-title",
         align: TextAlign::Left,
         width: Width::Fill(0.62),
-        flush: false,
+        anchored: false,
         sortable: true,
         hide_below: ALWAYS,
     },
@@ -129,7 +133,7 @@ pub(crate) const ALBUM_COLUMNS: &[ColumnSpec<TrackField>] = &[
         header: "column-artist",
         align: TextAlign::Left,
         width: Width::Fill(0.38),
-        flush: false,
+        anchored: false,
         sortable: true,
         hide_below: ROOMY,
     },
@@ -139,7 +143,7 @@ pub(crate) const ALBUM_COLUMNS: &[ColumnSpec<TrackField>] = &[
         header: "column-plays",
         align: TextAlign::Left,
         width: Width::Fixed(DATE),
-        flush: false,
+        anchored: false,
         sortable: true,
         hide_below: WIDE,
     },
@@ -149,7 +153,7 @@ pub(crate) const ALBUM_COLUMNS: &[ColumnSpec<TrackField>] = &[
         header: "column-length",
         align: TextAlign::Right,
         width: Width::Fixed(TRAILING),
-        flush: false,
+        anchored: false,
         sortable: true,
         hide_below: SNUG,
     },
@@ -162,113 +166,9 @@ pub(crate) fn playback_status(playback: &Entity<Playback>, cx: &App) -> Playback
     let track = playback.track().and_then(|track| track.id.clone());
     (track, playback.state().clone())
 }
-
 pub(crate) trait Tracks: 'static {
     fn tracks<'a>(&self, cx: &'a App) -> &'a [Track];
     fn is_loading(&self, cx: &App) -> bool;
-}
-
-#[derive(Clone)]
-pub(crate) struct TrackMenu {
-    playlist_submenu: SubmenuState,
-    playlist_scrollbar: Entity<Scrollbar>,
-}
-
-impl TrackMenu {
-    pub(crate) fn new(playlist_scrollbar: Entity<Scrollbar>) -> Self {
-        Self {
-            playlist_submenu: SubmenuState::default(),
-            playlist_scrollbar,
-        }
-    }
-
-    pub(crate) fn reset(&self) {
-        self.playlist_submenu.reset();
-    }
-
-    pub(crate) fn for_track(&self, track: &Track, cx: &App) -> Menu {
-        let playlists = match Sonora::global(cx).library.read(cx).state() {
-            LibraryState::Ready { playlists, .. } => playlists.clone(),
-            _ => Vec::new(),
-        };
-        let playlist_menu = if playlists.is_empty() {
-            Menu::new("playlist-submenu")
-                .w(gpui::px(220.))
-                .item(MenuItem::new("no-playlists", t!("menu-no-playlists")).disabled())
-        } else {
-            Menu::new("playlist-submenu")
-                .w(gpui::px(220.))
-                .max_h(gpui::px(360.))
-                .scrollbar(self.playlist_scrollbar.clone())
-                .item(
-                    MenuItem::new("new-playlist", t!("menu-new-playlist"))
-                        .icon("icons/plus.svg")
-                        .disabled(),
-                )
-                .item(MenuItem::separator("playlist-separator"))
-                .items(playlists.into_iter().map(|playlist| {
-                    MenuItem::new(format!("playlist-{}", playlist.id), playlist.name)
-                        .artwork(playlist.cover)
-                        .disabled()
-                }))
-        };
-        let copy = match track.id.clone() {
-            Some(id) => MenuItem::new("copy-track-link", t!("menu-copy-link"))
-                .icon("icons/link.svg")
-                .on_click(move |_, _, cx| {
-                    cx.write_to_clipboard(ClipboardItem::new_string(format!(
-                        "https://open.spotify.com/track/{id}"
-                    )));
-                }),
-            None => MenuItem::new("copy-track-link", t!("menu-copy-link"))
-                .icon("icons/link.svg")
-                .disabled(),
-        };
-        let queue = match track.playable {
-            true => {
-                let track = track.clone();
-                MenuItem::new("add-to-queue", t!("menu-add-to-queue"))
-                    .icon("icons/list-end.svg")
-                    .on_click(move |_, _, cx| {
-                        let queue = Sonora::global(cx).queue.clone();
-                        queue.update(cx, |queue, cx| queue.append(track.clone(), cx));
-                    })
-            }
-            false => MenuItem::new("add-to-queue", t!("menu-add-to-queue"))
-                .icon("icons/list-end.svg")
-                .disabled(),
-        };
-        let details = match track.id.clone() {
-            Some(id) => MenuItem::new("view-details", t!("menu-view-details"))
-                .icon("icons/info.svg")
-                .on_click(move |_, _, cx| navigate(Destination::Song(id.clone().into()), cx)),
-            None => MenuItem::new("view-details", t!("menu-view-details"))
-                .icon("icons/info.svg")
-                .disabled(),
-        };
-
-        Menu::new("track-context-menu")
-            .relative()
-            .w(gpui::px(210.))
-            .item(
-                MenuItem::new("add-to-playlist", t!("menu-add-to-playlist"))
-                    .icon("icons/list-plus.svg")
-                    .submenu(playlist_menu, self.playlist_submenu.clone()),
-            )
-            .item(
-                MenuItem::new("toggle-library", t!("menu-toggle-library"))
-                    .icon("icons/heart.svg")
-                    .disabled(),
-            )
-            .item(queue)
-            .item(
-                MenuItem::new("song-radio", t!("menu-song-radio"))
-                    .icon("icons/radio.svg")
-                    .disabled(),
-            )
-            .item(details)
-            .item(copy)
-    }
 }
 
 pub(crate) fn ordered(table: &Entity<GridState<TrackSource>>, cx: &App) -> Vec<Track> {
@@ -313,6 +213,7 @@ pub(crate) struct TrackSource {
     columns: &'static [ColumnSpec<TrackField>],
     provider: Rc<dyn Tracks>,
     playback: Entity<Playback>,
+    is_liked: Option<Entity<Library>>,
     menu: TrackMenu,
     table: Option<WeakEntity<GridState<TrackSource>>>,
     sieve: TrackSieve,
@@ -329,6 +230,7 @@ impl TrackSource {
             columns,
             provider: Rc::new(provider),
             playback,
+            is_liked: None,
             menu: TrackMenu::new(playlist_scrollbar),
             table: None,
             sieve: TrackSieve::default(),
@@ -363,6 +265,11 @@ impl TrackSource {
 
     pub(crate) fn table(mut self, table: WeakEntity<GridState<TrackSource>>) -> Self {
         self.table = Some(table);
+        self
+    }
+
+    pub(crate) fn with_liked(mut self, library: Entity<Library>) -> Self {
+        self.is_liked = Some(library);
         self
     }
 
@@ -417,6 +324,79 @@ impl TrackSource {
         };
 
         cells::index(cell, state, track.playable, preload, press, cx)
+    }
+
+    fn title_cell(
+        &self,
+        cell: &Cell<TrackField>,
+        track: &Track,
+        color: Option<Hsla>,
+        cx: &App,
+    ) -> AnyElement {
+        let press: Option<Box<dyn Fn(&mut App)>> = match track.playable {
+            true => {
+                let playback = self.playback.clone();
+                let provider = self.provider.clone();
+                let table = self.table.clone();
+                let row = cell.row;
+                let display = cell.display;
+                Some(Box::new(move |cx| {
+                    playback.update(cx, |playback, cx| {
+                        match table.as_ref().and_then(|table| table.upgrade()) {
+                            Some(table) => playback.start(ordered(&table, cx), display, cx),
+                            None => playback.start(provider.tracks(cx).to_vec(), row, cx),
+                        }
+                    });
+                }))
+            }
+            false => None,
+        };
+
+        let is_liked = self.liked_button(cell, track, cx);
+
+        cells::title(
+            cell,
+            track.name.clone(),
+            color,
+            track.explicit,
+            press,
+            is_liked,
+        )
+    }
+
+    fn liked_button(&self, cell: &Cell<TrackField>, track: &Track, cx: &App) -> Option<AnyElement> {
+        let library = self.is_liked.as_ref()?;
+        let id = track.id.clone()?;
+        let theme = *cx.theme();
+        let state = library.read(cx);
+        let saved = state.saved(&id);
+        let pending = state.pending(&id);
+        let library = library.clone();
+        let track = track.clone();
+
+        Some(
+            Button::new(("toggle-liked-track", cell.row))
+                .ghost()
+                .backgroundless()
+                .small()
+                .icon(match saved {
+                    true => "icons/heart-filled.svg",
+                    false => "icons/heart.svg",
+                })
+                .tint(match saved {
+                    true => theme.primary,
+                    false => theme.muted_foreground,
+                })
+                .when(!saved, |this| {
+                    this.invisible()
+                        .group_hover(ROW_GROUP, |style| style.visible())
+                })
+                .disabled(pending)
+                .on_click(move |_, _, cx| {
+                    library.update(cx, |library, cx| library.toggle(track.clone(), cx));
+                })
+                .into_any_element(),
+        )
     }
 
     fn now_playing(&self, track: &Track, cx: &App) -> Option<PlaybackState> {
@@ -483,13 +463,7 @@ impl GridSource for TrackSource {
 
         match cell.field {
             TrackField::Cover => cells::artwork(&cell, track.cover.clone()),
-            TrackField::Title => cells::title(
-                &cell,
-                track.name.clone(),
-                title,
-                track.explicit,
-                track.id.clone(),
-            ),
+            TrackField::Title => self.title_cell(&cell, track, title, cx),
             TrackField::Artists => self.artist_cell(&cell, track, detail),
             TrackField::Album => self.album_cell(&cell, track, detail),
             TrackField::AddedAt => cells::dim(
@@ -552,6 +526,25 @@ impl GridSource for TrackSource {
             TrackField::Index | TrackField::Cover => a.cmp(&b),
         }
     }
+
+    fn group(&self, field: TrackField, row: usize, cx: &App) -> Option<SharedString> {
+        let track = self.provider.tracks(cx).get(row)?;
+
+        match field {
+            TrackField::Title => Some(initial(&track.name)),
+            TrackField::Artists => Some(initial(&track.artists)),
+            TrackField::Album => Some(initial(&track.album)),
+            _ => None,
+        }
+    }
+}
+
+pub(crate) fn initial(text: &str) -> SharedString {
+    text.chars()
+        .next()
+        .filter(|first| first.is_alphabetic())
+        .map(|first| SharedString::from(first.to_uppercase().collect::<String>()))
+        .unwrap_or_else(|| SharedString::from("#"))
 }
 
 fn hits(track: &Track, query: &str) -> bool {
@@ -568,7 +561,7 @@ mod tests {
 
     use spotify::Track;
 
-    use super::{TrackSieve, hits};
+    use super::{TrackSieve, hits, initial};
 
     fn track(seconds: u64, explicit: bool, playable: bool) -> Track {
         Track {
@@ -655,5 +648,30 @@ mod tests {
         assert!(sieve.keeps(&track(120, true, true)));
         assert!(!sieve.keeps(&track(120, true, false)));
         assert!(!sieve.keeps(&track(400, true, true)));
+    }
+
+    #[test]
+    fn letters_bucket_under_their_uppercase_form() {
+        assert_eq!(initial("bark at the moon"), "B");
+        assert_eq!(initial("Bark at the Moon"), "B");
+    }
+
+    #[test]
+    fn cyrillic_keeps_its_own_letter() {
+        assert_eq!(initial("прощай"), "П");
+        assert_eq!(initial("Ялта"), "Я");
+    }
+
+    #[test]
+    fn digits_punctuation_and_emptiness_share_one_bucket() {
+        assert_eq!(initial("99 Luftballons"), "#");
+        assert_eq!(initial("!!!"), "#");
+        assert_eq!(initial(" leading space"), "#");
+        assert_eq!(initial(""), "#");
+    }
+
+    #[test]
+    fn multi_char_uppercase_is_kept_whole() {
+        assert_eq!(initial("ßeta"), "SS");
     }
 }

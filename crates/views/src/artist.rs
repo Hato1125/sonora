@@ -8,7 +8,7 @@ use gpui::{
 
 use i18n::t;
 use spotify::{ReleaseType, Track};
-use state::{ArtistDetail, Playback};
+use state::{AppSettings, ArtistDetail, Playback, Sonora};
 use ui::ActiveTheme as _;
 use ui::{Button, ColumnSpec, GridDelegate, GridEvent, GridState, Scrollbar, Scroller, Text, grid};
 use workspace::Chrome;
@@ -78,7 +78,10 @@ pub(crate) struct ArtistView {
     width: Pixels,
     scrollbar: Entity<Scrollbar>,
     table: Entity<GridState<TrackSource>>,
+    settings: Entity<AppSettings>,
 }
+
+const SECTION: &str = "artist";
 
 impl ArtistView {
     pub(crate) fn new(
@@ -88,6 +91,9 @@ impl ArtistView {
         cx: &mut Context<Self>,
     ) -> Self {
         let width = px(200.);
+        let settings = Sonora::global(cx).settings.clone();
+        let saved = settings.read(cx).table(SECTION);
+        let sorting = settings.read(cx).sorting(SECTION);
         let scrollbar = cx.new(|_| Scrollbar::new(ScrollHandle::new()));
         let scroll = scrollbar.read(cx).scroll().clone();
         let table = cx.new(|cx| {
@@ -101,9 +107,13 @@ impl ArtistView {
                 ArtistTracks(detail.clone()),
                 playback.clone(),
                 playlist_scrollbar,
-            );
+            )
+            .with_liked(Sonora::global(cx).library.clone());
             let source = source.table(cx.weak_entity());
-            GridState::new(GridDelegate::new(source, width, cx), cx).follow(scroll)
+            let mut delegate = GridDelegate::new(source, width, cx);
+            delegate.set_layout(saved, cx);
+            delegate.set_sorting(sorting.flatten(), cx);
+            GridState::new(delegate, cx).follow(scroll)
         });
 
         cx.observe(&detail, |this, _, cx| {
@@ -118,6 +128,12 @@ impl ArtistView {
         .detach();
         let chrome = Chrome::entity(cx);
         cx.observe(&chrome, |_, _, cx| cx.notify()).detach();
+
+        let library = Sonora::global(cx).library.clone();
+        cx.observe(&library, |this, _, cx| {
+            this.table.update(cx, |table, cx| table.refresh(cx));
+        })
+        .detach();
         let current_playback = playback_status(&playback, cx);
         cx.observe(&playback, |this, playback, cx| {
             let current = playback_status(&playback, cx);
@@ -129,9 +145,11 @@ impl ArtistView {
             cx.notify();
         })
         .detach();
-        cx.subscribe(&table, |this, _, event, cx| {
-            let GridEvent::DoubleClicked(display) = event;
-            page::play(&this.table, &this.playback, *display, cx);
+        cx.subscribe(&table, |this, _, event, cx| match event {
+            GridEvent::DoubleClicked(display) => {
+                page::play(&this.table, &this.playback, *display, cx)
+            }
+            _ => this.persist(cx),
         })
         .detach();
 
@@ -143,7 +161,18 @@ impl ArtistView {
             width,
             scrollbar,
             table,
+            settings,
         }
+    }
+
+    fn persist(&mut self, cx: &mut Context<Self>) {
+        page::store(
+            &self.settings.clone(),
+            &self.table.clone(),
+            SECTION,
+            SECTION,
+            cx,
+        );
     }
 
     fn rebuild(&mut self, cx: &mut Context<Self>) {
@@ -213,7 +242,9 @@ impl ArtistView {
                             .filter(|album| self.release_filter.matches(album.release_type))
                             .cloned()
                             .enumerate()
-                            .map(|(index, album)| ReleaseCard::new(index, album)),
+                            .map(|(index, album)| {
+                                ReleaseCard::new(index, album, self.playback.clone())
+                            }),
                     ),
                 )
                 .into_any_element(),

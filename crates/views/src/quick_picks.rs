@@ -231,6 +231,7 @@ fn pick(
     )
     .cover(track.cover.clone())
     .weight(FontWeight::SEMIBOLD)
+    .underline()
     .tint(tint)
     .when(track.explicit, |card| card.explicit())
     .bare_meta(
@@ -240,7 +241,8 @@ fn pick(
             track.artists.clone(),
             theme.muted_foreground,
         )
-        .text_size(theme.text(Text::Small)),
+        .text_size(theme.text(Text::Small))
+        .truncate(),
     )
     .when_some(on_context_menu, |card, handler| {
         card.on_mouse_down(MouseButton::Right, move |event, window, cx| {

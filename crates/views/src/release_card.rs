@@ -1,77 +1,67 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use gpui::prelude::*;
-use gpui::{App, FontWeight, SharedString, Window, div};
-use i18n::t;
-use router::{Destination, Link as _};
-use spotify::{Album, ReleaseType};
-use ui::{ActiveTheme as _, Artwork, Text};
-
-pub(crate) fn release_label(kind: ReleaseType) -> SharedString {
-    match kind {
-        ReleaseType::Album => t!("release-album"),
-        ReleaseType::Single => t!("release-single"),
-        ReleaseType::Compilation => t!("release-compilation"),
-        ReleaseType::Ep => t!("release-ep"),
-        ReleaseType::Audiobook => t!("release-audiobook"),
-        ReleaseType::Podcast => t!("release-podcast"),
-    }
-}
+use gpui::{App, Entity, FontWeight, SharedString, Window, div};
+use router::{Destination, navigate};
+use spotify::Album;
+use state::{Origin, Playback, PlaybackState};
+use ui::{ActiveTheme as _, Card, Text};
 
 #[derive(IntoElement)]
 pub(crate) struct ReleaseCard {
     index: usize,
     album: Album,
+    playback: Entity<Playback>,
 }
 
 impl ReleaseCard {
-    pub(crate) fn new(index: usize, album: Album) -> Self {
-        Self { index, album }
+    pub(crate) fn new(index: usize, album: Album, playback: Entity<Playback>) -> Self {
+        Self {
+            index,
+            album,
+            playback,
+        }
     }
 }
 
 impl RenderOnce for ReleaseCard {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
-        let theme = *cx.theme();
-        let cover = self
-            .album
-            .cover_large
-            .clone()
-            .or_else(|| self.album.cover.clone());
-        let release = release_label(self.album.release_type);
-        let metadata = match self.album.year > 0 {
-            true => t!("release-meta", year = self.album.year, kind = &release),
-            false => release,
-        };
+        let Self {
+            index,
+            album,
+            playback,
+        } = self;
 
-        div()
-            .id(("artist-release", self.index))
-            .w(theme.metrics.cover)
-            .flex()
-            .flex_col()
-            .gap_2()
-            .cursor_pointer()
-            .link(Destination::Album(self.album.id.into()))
-            .child(Artwork::new(cover).size(theme.metrics.cover))
-            .child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .gap_1()
-                    .child(
-                        div()
-                            .truncate()
-                            .line_height(theme.text(Text::Body))
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .child(SharedString::from(self.album.name)),
-                    )
-                    .child(
-                        div()
-                            .text_size(theme.text(Text::Small))
-                            .line_height(theme.text(Text::Small))
-                            .text_color(theme.muted_foreground)
-                            .child(metadata),
-                    ),
-            )
+        let theme = *cx.theme();
+        let cover = album.cover_large.clone().or_else(|| album.cover.clone());
+        let artists = crate::cells::artist_links(
+            SharedString::from(format!("release-artist-{index}")),
+            album.artist_refs.clone(),
+            album.artists.clone(),
+            theme.muted_foreground,
+        )
+        .text_size(theme.text(Text::Small))
+        .truncate();
+        let origin = Origin::Album(album.id.clone());
+        let state = playback.read(cx).playing_from(&origin);
+        let playing = matches!(state, Some(PlaybackState::Playing));
+        let played = album.id.clone();
+        let opened = SharedString::from(album.id);
+
+        Card::new(("artist-release", index), SharedString::from(album.name))
+            .tile(theme.metrics.cover)
+            .cover(cover)
+            .weight(FontWeight::SEMIBOLD)
+            .flat()
+            .underline()
+            .bare_meta(div().child(artists))
+            .play(playing, move |_, _, cx| {
+                playback.update(cx, |playback, cx| match &state {
+                    Some(PlaybackState::Playing) => playback.pause(cx),
+                    Some(PlaybackState::Paused) => playback.resume(cx),
+                    _ => playback.play_album(&played, cx),
+                });
+            })
+            .press(move |_, _, cx| navigate(Destination::Album(opened.clone()), cx))
     }
 }

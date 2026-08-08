@@ -26,6 +26,8 @@ pub struct Button {
     small: bool,
     disabled: bool,
     selected: bool,
+    backgroundless: bool,
+    hoverless: bool,
     hovered: Option<StyleRefinement>,
     pressed: Option<StyleRefinement>,
     tint: Option<Hsla>,
@@ -43,6 +45,8 @@ impl Button {
             small: false,
             disabled: false,
             selected: false,
+            backgroundless: false,
+            hoverless: false,
             hovered: None,
             pressed: None,
             tint: None,
@@ -100,6 +104,16 @@ impl Button {
         self
     }
 
+    pub fn backgroundless(mut self) -> Self {
+        self.backgroundless = true;
+        self
+    }
+
+    pub fn hoverless(mut self) -> Self {
+        self.hoverless = true;
+        self
+    }
+
     pub fn on_click(
         mut self,
         handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
@@ -151,6 +165,8 @@ impl RenderOnce for Button {
             small,
             disabled,
             selected,
+            backgroundless,
+            hoverless,
             hovered,
             pressed,
             tint,
@@ -160,7 +176,7 @@ impl RenderOnce for Button {
         let theme = cx.theme();
         let subtle = |border| Palette {
             background: None,
-            hover: Some(theme.secondary),
+            hover: Some(theme.secondary_hover),
             active: Some(theme.secondary_active),
             foreground: theme.foreground,
             border,
@@ -172,7 +188,7 @@ impl RenderOnce for Button {
             foreground,
             border: None,
         };
-        let palette = match variant {
+        let mut palette = match variant {
             Variant::Secondary => Palette {
                 background: Some(theme.secondary),
                 hover: Some(theme.secondary_hover),
@@ -185,6 +201,11 @@ impl RenderOnce for Button {
             Variant::Primary => solid(theme.primary, theme.primary_hover, theme.primary_foreground),
             Variant::Danger => solid(theme.danger, theme.danger_hover, theme.danger_foreground),
         };
+        if backgroundless {
+            palette.background = None;
+            palette.hover = None;
+            palette.active = None;
+        }
 
         let selected_background = theme.secondary_active;
         let radius = theme.radius;
@@ -197,7 +218,10 @@ impl RenderOnce for Button {
             true => (palette.hover, palette.active),
             false => (None, None),
         };
-        let hovered = state_style(hover, hovered);
+        let hovered = match hoverless {
+            true => None,
+            false => state_style(hover, hovered),
+        };
         let pressed = state_style(active, pressed);
         let overrides = std::mem::take(base.style());
 
@@ -214,7 +238,9 @@ impl RenderOnce for Button {
             .when(small, |this| this.text_size(theme.text(Text::Label)))
             .when(disabled, |this| this.opacity(0.4))
             .when_some(palette.background, |this, background| this.bg(background))
-            .when(selected, |this| this.bg(selected_background))
+            .when(selected && !backgroundless, |this| {
+                this.bg(selected_background)
+            })
             .when_some(palette.border, |this, border| {
                 this.border_1().border_color(border)
             })
