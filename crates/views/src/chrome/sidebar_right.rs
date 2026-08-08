@@ -16,7 +16,7 @@ use ui::{
     ActiveTheme as _, Button, Card, Panel, Popup, Room, Scrollbar, Side, Text, eyebrow, snapped,
 };
 
-use crate::{SidebarLeft, TrackMenu};
+use crate::chrome::{SidebarLeft, TrackMenu};
 
 const MIN_WIDTH: Pixels = px(240.);
 const MAX_WIDTH: Pixels = px(560.);
@@ -315,7 +315,7 @@ impl SidebarRight {
         )
         .cover(track.cover.clone())
         .bare_meta(
-            crate::artist_links(
+            crate::shared::cells::artist_links(
                 SharedString::from(format!("queue-track-artist-{index}")),
                 track.artist_refs.clone(),
                 track.artists.clone(),

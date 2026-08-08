@@ -2,11 +2,11 @@
 
 mod quick_picks;
 
+use crate::chrome::{Chrome, TrackMenu};
 use gpui::prelude::*;
 use gpui::{Context, Entity, Pixels, Point, Render, ScrollHandle, Window, div, px};
 use state::{Home, Playback};
 use ui::{ActiveTheme as _, Popup, Scrollbar, Scroller};
-use workspace::{Chrome, TrackMenu};
 
 use crate::shared::cells;
 use crate::shared::tracks::{PlaybackStatus, playback_status};

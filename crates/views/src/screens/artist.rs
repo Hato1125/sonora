@@ -6,12 +6,12 @@ use gpui::{
     Window, div, px,
 };
 
+use crate::chrome::Chrome;
 use i18n::t;
 use spotify::{ReleaseType, Track};
 use state::{AppSettings, ArtistDetail, Playback, Sonora};
 use ui::ActiveTheme as _;
 use ui::{Button, ColumnSpec, GridDelegate, GridEvent, GridState, Scrollbar, Scroller, Text, grid};
-use workspace::Chrome;
 
 use crate::shared::hero::{HeroPlayButton, PageHero};
 use crate::shared::page;

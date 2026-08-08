@@ -14,12 +14,12 @@ use ui::{
     Table as _, Toggle, Unit, clock, grid,
 };
 
+use crate::chrome::{Chrome, Columned, Filterable, Searchable, Sortable, Toolbar, Tooled};
 use crate::shared::hero::{HeroMetaStrip, HeroPlayButton, PageHero, release_date_label};
 use crate::shared::tracks::{
     PlaybackStatus, TrackField, TrackSieve, TrackSource, Tracks, playback_status,
 };
 use crate::shared::{cells, page};
-use workspace::{Chrome, Columned, Filterable, Searchable, Sortable, Toolbar, Tooled};
 
 const PINNED: [&str; 3] = ["cover", "title", "name"];
 

@@ -21,8 +21,7 @@ Linux-only today. Cargo workspace, edition 2024, resolver 3.
 ```
 crates/
   sonora/     binary: main, window, actions, asset registry, HTTP client shim
-  views/      screens: home, library, detail, artist, search, settings, login
-  workspace/  app chrome: title bar, sidebar, player bar, filter/search field
+  views/      screens plus app chrome: title bar, sidebar, player bar, filter/search field
   state/      GPUI entities holding app state; owns all async orchestration
   spotify/    Spotify data access over librespot spclient (no GPUI)
   audio/      librespot playback engine + custom rodio sink (no GPUI)
@@ -35,8 +34,8 @@ crates/
 Dependency direction is strict; do not create a back edge:
 
 ```
-sonora → views → workspace → state → spotify
-                                   → audio
+sonora → views → state → spotify
+                       → audio
          all ui-side crates → ui, router, input → ui → gpui
          every ui-side crate → i18n → gpui
 ```
@@ -45,7 +44,7 @@ sonora → views → workspace → state → spotify
   playback.
 - `spotify` and `audio` must never depend on `gpui`. They are plain async Rust.
 - `state` depends on `ui` only for `ThemeOverrides`, `MIN_FONT`, `MAX_FONT` (settings persistence).
-- Widgets that need app state (player bar, sidebar) live in `workspace`, not `ui`.
+- Widgets that need app state (player bar, sidebar) live in `views/src/chrome/`, not `ui`.
 - `i18n` is a leaf: it depends on `fluent-bundle`, `unic-langid`, `sys-locale` and `gpui` (for
   `SharedString`) and on nothing else in the workspace.
 
@@ -150,8 +149,8 @@ them unless the task is about them.
 ## Before you build a component
 
 Grep first. In order: `crates/ui/src/lib.rs` (exports), `crates/views/src/cells.rs` (grid cell
-renderers), `crates/workspace/src/` (chrome). Extend what's there — add a builder method to `Button`
-rather than writing `IconButton`.
+renderers), `crates/views/src/chrome/` (chrome). Extend what's there — add a builder method to
+`Button` rather than writing `IconButton`.
 
 ### `ui` — reusable elements
 
@@ -288,14 +287,14 @@ Room::of(width).fits(Room::Roomy)   // ">= Roomy", the only comparison you need
 `Room` is `Ord`, so `fits` is just `>=`. The raw `Pixels` consts exist for the places that need a
 number rather than a step: `ColumnSpec::hide_below` and centering maths.
 
-Two crates own the measurement:
+Two modules own the measurement:
 
 - **`ui::layout`** — the ladder itself. Pure `gpui`; knows nothing about panels.
-- **`workspace::Chrome`** — how much horizontal room content actually has, after the left and right
-  sidebars take their cut.
+- **`views::chrome::Chrome`** — how much horizontal room content actually has, after the left and
+  right sidebars take their cut.
 
 ```rust
-use workspace::Chrome;
+use crate::chrome::Chrome;
 Chrome::content(window, cx)   // viewport width − both sidebars, floored at ui::MIN_CONTENT
 Chrome::room(window, cx)      // the same, classified into a Room
 Chrome::sidebar_left(cx) / Chrome::sidebar_right(cx)
@@ -432,7 +431,7 @@ manual click handler.
 
 **New screen checklist:** add a `Destination` variant → add a state entity if it loads data → add
 the view under `crates/views/src/` → construct it in `Root::new` and wire it in `Root::show` →
-add a sidebar entry in `workspace/src/sidebar.rs` if it's top-level.
+add a sidebar entry in `views/src/chrome/sidebar_left.rs` if it's top-level.
 
 **Tables.** Implement `GridSource` (`columns`, `rows`, `cell`, and optionally `compare`, `matches`,
 `playing`, `is_loading`), define a `&'static [ColumnSpec<Field>]`, hold a
@@ -440,7 +439,7 @@ add a sidebar entry in `workspace/src/sidebar.rs` if it's top-level.
 and `hide_below` for responsive dropping. Hidden columns persist through
 `AppSettings::{hidden_columns, set_hidden_columns}`.
 
-**Filtering.** Implement `workspace::Searchable` on the view; `Root` binds it to the shared `Filter`
+**Filtering.** Implement `chrome::Searchable` on the view; `Root` binds it to the shared `Filter`
 in the title bar. Don't build a second search box.
 
 **Actions and keys.** Declare actions in `crates/input/src/lib.rs` (`actions!` macro), bind them in

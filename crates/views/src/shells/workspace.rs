@@ -1,30 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-mod chrome;
-mod links;
-mod player_bar;
-mod sidebar_left;
-mod sidebar_right;
-mod title_bar;
-mod toolbar;
-mod track_menu;
-
-pub use chrome::Chrome;
-pub use links::artist_links;
-pub use player_bar::PlayerBar;
-pub use sidebar_left::SidebarLeft;
-pub use title_bar::{TitleBar, TitleBarEvent, TitleBarOptions};
-pub use toolbar::{Columned, Filterable, Searchable, Sortable, Toolbar, Tooled, Viewed};
-pub use track_menu::TrackMenu;
-
 use gpui::prelude::*;
 use gpui::{AnyView, App, Context, Entity, FocusHandle, Render};
 use gpui::{Window, div};
 use input::{Dismiss, WORKSPACE_CONTEXT};
-use sidebar_right::SidebarRight;
 use state::{Playback, Queue};
 
-pub struct Workspace {
+use crate::chrome::{Chrome, PlayerBar, SidebarLeft, SidebarRight};
+
+pub(crate) struct Workspace {
     sidebar: Entity<SidebarLeft>,
     player_bar: Entity<PlayerBar>,
     sidebar_right: Entity<SidebarRight>,
@@ -58,6 +42,7 @@ impl Workspace {
         window.focus(&self.focus, cx);
     }
 
+    #[allow(dead_code)]
     pub fn content(&self) -> &AnyView {
         &self.content
     }
@@ -67,6 +52,7 @@ impl Workspace {
         cx.notify();
     }
 
+    #[allow(dead_code)]
     pub fn player_bar(&self) -> &Entity<PlayerBar> {
         &self.player_bar
     }

@@ -15,7 +15,7 @@ const TITLE_BAR_LEFT_INSET: f32 = 74.;
 const TITLE_BAR_LEFT_INSET: f32 = 12.;
 
 #[derive(Clone, PartialEq)]
-pub struct TitleBarOptions {
+pub(crate) struct TitleBarOptions {
     pub navigation: bool,
     pub sidebar_open: bool,
     pub offset: Pixels,
@@ -33,11 +33,11 @@ impl Default for TitleBarOptions {
     }
 }
 
-pub enum TitleBarEvent {
+pub(crate) enum TitleBarEvent {
     ToggleSidebar,
 }
 
-pub struct TitleBar {
+pub(crate) struct TitleBar {
     navigation: Entity<Navigation>,
     settings: Entity<AppSettings>,
     options: TitleBarOptions,

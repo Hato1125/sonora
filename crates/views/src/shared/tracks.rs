@@ -4,6 +4,7 @@ use std::cmp::Ordering;
 use std::rc::Rc;
 use ui::ActiveTheme as _;
 
+use crate::chrome::TrackMenu;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
     AnyElement, App, Entity, Hsla, InteractiveElement as _, IntoElement as _, SharedString,
@@ -16,7 +17,6 @@ use state::{Library, Playback, PlaybackState};
 use ui::{
     Button, Cell, ColumnSpec, GridSource, GridState, Menu, ROW_GROUP, Scrollbar, Width, clock,
 };
-use workspace::TrackMenu;
 
 use crate::shared::cells::{self, ALWAYS, DATE, NUMBER, ROOMY, SNUG, TRAILING, WIDE};
 use crate::shared::hero::release_date_label;

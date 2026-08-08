@@ -16,7 +16,6 @@ input.workspace = true
 router.workspace = true
 ui.workspace = true
 views.workspace = true
-workspace.workspace = true
 reqwest.workspace = true
 tokio = { workspace = true, features = ["rt"] }
 

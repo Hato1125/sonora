@@ -10,10 +10,10 @@ use input::Input;
 use router::{Destination, navigate};
 use spotify::Track;
 
+use crate::chrome::{Chrome, TrackMenu};
 use state::{Hit, Kind, Playback, Search};
 use ui::ActiveTheme as _;
 use ui::{Card, Popup, Room, Scrollbar, Scroller, Text, Theme, VAST, clock, eyebrow};
-use workspace::{Chrome, TrackMenu};
 
 use crate::shared::cells;
 use crate::shared::tracks::{PlaybackStatus, playback_status};

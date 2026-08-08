@@ -10,12 +10,11 @@ use state::{
     SongDetail,
 };
 use ui::ActiveTheme as _;
-use workspace::{
-    SidebarLeft, TitleBar, TitleBarEvent, TitleBarOptions, Toolbar, Tooled, Workspace,
-};
 
+use crate::chrome::{SidebarLeft, TitleBar, TitleBarEvent, TitleBarOptions, Toolbar, Tooled};
 use crate::screens::search::SearchView;
 use crate::shared::tracks::{ALBUM_COLUMNS, LIBRARY_COLUMNS};
+use crate::shells::workspace::Workspace;
 use crate::{
     Adaptive, ArtistView, DetailView, FullscreenView, HomeView, LibraryView, LoginView,
     SettingsView, SongView,

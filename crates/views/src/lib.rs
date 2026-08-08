@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+mod chrome;
 mod root;
 mod screens;
 mod shared;

@@ -1,10 +1,24 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+mod player_bar;
+mod sidebar_left;
+mod sidebar_right;
+mod title_bar;
+mod toolbar;
+mod track_menu;
+
+pub(crate) use player_bar::PlayerBar;
+pub(crate) use sidebar_left::SidebarLeft;
+pub(crate) use sidebar_right::SidebarRight;
+pub(crate) use title_bar::{TitleBar, TitleBarEvent, TitleBarOptions};
+pub(crate) use toolbar::{Columned, Filterable, Searchable, Sortable, Toolbar, Tooled, Viewed};
+pub(crate) use track_menu::TrackMenu;
+
 use gpui::{App, AppContext as _, Entity, Global, Pixels, Window};
 use ui::{MIN_CONTENT, Room};
 
 #[derive(Clone, Copy, Default, PartialEq)]
-pub struct Chrome {
+pub(crate) struct Chrome {
     sidebar_left: Pixels,
     sidebar_right: Pixels,
 }
@@ -42,10 +56,12 @@ impl Chrome {
             .unwrap_or_default()
     }
 
+    #[allow(dead_code)]
     pub fn sidebar_left(cx: &App) -> Pixels {
         Self::get(cx).sidebar_left
     }
 
+    #[allow(dead_code)]
     pub fn sidebar_right(cx: &App) -> Pixels {
         Self::get(cx).sidebar_right
     }
@@ -55,6 +71,7 @@ impl Chrome {
         (window.viewport_size().width - chrome.sidebar_left - chrome.sidebar_right).max(MIN_CONTENT)
     }
 
+    #[allow(dead_code)]
     pub fn room(window: &Window, cx: &App) -> Room {
         Room::of(Self::content(window, cx))
     }
