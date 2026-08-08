@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::cell::Cell;
-use ui::{ActiveTheme as _, Button, Room, Shield};
+use ui::{ActiveTheme as _, Button, Panel, Room, Shield, Side};
 
 use gpui::prelude::*;
 use gpui::{
-    AnyElement, Context, DragMoveEvent, ElementId, Empty, Entity, Hsla, MouseButton,
-    MouseDownEvent, Pixels, Render,
+    AnyElement, Context, ElementId, Entity, Hsla, MouseButton, MouseDownEvent, Pixels, Render,
 };
 use gpui::{Window, div, px};
 use router::{Destination, LibraryTab, Navigation, NavigationEvent, navigate};
@@ -36,12 +34,7 @@ const TABS: [(&str, LibraryTab); 3] = [
 const MIN_WIDTH: Pixels = px(130.);
 const MAX_WIDTH: Pixels = px(400.);
 
-struct SidebarResize {
-    start_width: Pixels,
-    start_x: Cell<Pixels>,
-}
-
-pub struct Sidebar {
+pub(crate) struct SidebarLeft {
     settings: Entity<AppSettings>,
     trail: Entity<Navigation>,
     width: Pixels,
@@ -51,7 +44,7 @@ pub struct Sidebar {
     library_open: bool,
 }
 
-impl Sidebar {
+impl SidebarLeft {
     pub fn new(cx: &mut Context<Self>) -> Self {
         let settings = Sonora::global(cx).settings.clone();
         let width = px(settings.read(cx).sidebar_width()).clamp(MIN_WIDTH, MAX_WIDTH);
@@ -127,7 +120,7 @@ impl Sidebar {
     }
 }
 
-impl Render for Sidebar {
+impl Render for SidebarLeft {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
         let sidebar_accent = theme.sidebar_accent;
@@ -230,52 +223,20 @@ impl Render for Sidebar {
         }
 
         let overlaid = self.overlays();
-        let panel = div()
-            .flex()
-            .flex_col()
+        let panel = Panel::new("sidebar-left", Side::Left, self.width)
+            .limits(MIN_WIDTH, MAX_WIDTH)
+            .on_resize(cx.listener(|this, width: &Pixels, _, cx| {
+                this.width = *width;
+                this.persist(cx);
+                cx.notify();
+            }))
             .when(!self.is_open(), |this| this.hidden())
-            .relative()
-            .w(self.width)
-            .flex_none()
-            .h_full()
             .bg(sidebar_bg)
-            .border_r_1()
             .border_color(sidebar_border)
             .when(overlaid, |this| {
                 this.occlude().absolute().left_0().top_0().bottom_0()
             })
-            .child(div().flex().flex_col().gap_1().p_3().children(rows))
-            .child(
-                div()
-                    .id("sidebar-resize-handle")
-                    .absolute()
-                    .top_0()
-                    .right(px(-4.))
-                    .w(px(8.))
-                    .h_full()
-                    .cursor_col_resize()
-                    .on_drag_move(cx.listener(
-                        |this, event: &DragMoveEvent<SidebarResize>, window, cx| {
-                            let resize = event.drag(cx);
-                            let dragged = (resize.start_width + event.event.position.x
-                                - resize.start_x.get())
-                            .clamp(MIN_WIDTH, MAX_WIDTH);
-                            this.width = ui::snapped(dragged, window);
-                            this.persist(cx);
-                            cx.notify();
-                        },
-                    ))
-                    .on_drag(
-                        SidebarResize {
-                            start_width: self.width,
-                            start_x: Cell::new(Pixels::ZERO),
-                        },
-                        |resize, _, window, cx| {
-                            resize.start_x.set(window.mouse_position().x);
-                            cx.new(|_| Empty)
-                        },
-                    ),
-            );
+            .child(div().flex().flex_col().gap_1().p_3().children(rows));
 
         match overlaid {
             false => panel.into_any_element(),

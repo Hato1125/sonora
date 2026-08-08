@@ -10,16 +10,16 @@ use input::Input;
 use router::{Destination, navigate};
 use spotify::Track;
 
+use crate::chrome::{Chrome, TrackMenu};
 use state::{Hit, Kind, Playback, Search};
 use ui::ActiveTheme as _;
 use ui::{Card, Popup, Room, Scrollbar, Scroller, Text, Theme, VAST, clock, eyebrow};
-use workspace::{Chrome, TrackMenu};
 
-use crate::cells;
-use crate::tracks::{PlaybackStatus, playback_status};
+use crate::shared::cells;
+use crate::shared::tracks::{PlaybackStatus, playback_status};
 
 enum Press {
-    Song(usize),
+    Song(Track),
     Artist(String),
     Album(String),
 }
@@ -96,22 +96,15 @@ impl SearchView {
         self.input.update(cx, |input, cx| input.focus(window, cx));
     }
 
-    fn play(&mut self, index: usize, cx: &mut Context<Self>) {
-        let queued = self.search.read(cx).queue();
-        if index >= queued.len() {
-            return;
-        }
-        self.playback
-            .update(cx, |playback, cx| playback.start(queued, index, cx));
-    }
-
     fn pressed(
         &self,
         target: Press,
         cx: &Context<Self>,
     ) -> impl Fn(&gpui::ClickEvent, &mut Window, &mut App) + 'static {
         cx.listener(move |this, _, _, cx| match &target {
-            Press::Song(index) => this.play(*index, cx),
+            Press::Song(track) => this
+                .playback
+                .update(cx, |playback, cx| playback.play_radio(track, cx)),
             Press::Artist(id) => navigate(Destination::Artist(id.clone().into()), cx),
             Press::Album(id) => navigate(Destination::Album(id.clone().into()), cx),
         })
@@ -163,7 +156,7 @@ impl SearchView {
                             .text_color(theme.muted_foreground)
                             .child(clock(track.duration)),
                     )
-                    .press(self.pressed(Press::Song(place), cx))
+                    .press(self.pressed(Press::Song(track.clone()), cx))
                     .on_mouse_down(MouseButton::Right, move |event, window, cx| {
                         window.prevent_default();
                         let Some(view) = view.upgrade() else {
@@ -206,7 +199,7 @@ impl SearchView {
                 Kind::Song,
                 track.name.clone(),
                 track.artist_refs.clone(),
-                Some(Press::Song(0)),
+                Some(Press::Song(track.clone())),
             ),
             Hit::Artist(artist) => (
                 Kind::Artist,
@@ -425,10 +418,10 @@ impl Render for SearchView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
         let pad = theme.metrics.inset;
-        let room = cells::content_width(window, pad * 2., cx);
-        let stacked = !Room::of(room).fits(Room::Wide);
-        let inset = match room > VAST {
-            true => (room - VAST) / 2.,
+        let width = cells::content_width(window, pad * 2., cx);
+        let stacked = !Chrome::room(window, cx).fits(Room::Wide);
+        let inset = match width > VAST {
+            true => (width - VAST) / 2.,
             false => Pixels::ZERO,
         };
         let asked = !self.search.read(cx).query().trim().is_empty();

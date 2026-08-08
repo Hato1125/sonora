@@ -1,57 +1,38 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-mod chrome;
-mod links;
-mod player_bar;
-mod sidebar_left;
-mod sidebar_right;
-mod title_bar;
-mod toolbar;
-mod track_menu;
-
-pub use chrome::Chrome;
-pub use links::artist_links;
-pub use player_bar::PlayerBar;
-pub use sidebar_left::Sidebar;
-pub use title_bar::TitleBar;
-pub use toolbar::{Columned, Filterable, Searchable, Sortable, Toolbar, Tooled, Viewed};
-pub use track_menu::TrackMenu;
-
 use gpui::prelude::*;
 use gpui::{AnyView, App, Context, Entity, FocusHandle, Render};
 use gpui::{Window, div};
 use input::{Dismiss, WORKSPACE_CONTEXT};
-use sidebar_right::QueuePanel;
 use state::{Playback, Queue};
 
-pub struct Workspace {
-    title_bar: Entity<TitleBar>,
-    sidebar: Entity<Sidebar>,
+use crate::chrome::{Chrome, PlayerBar, SidebarLeft, SidebarRight, TitleBarOptions};
+use crate::shells::Shell;
+
+pub(crate) struct Workspace {
+    sidebar: Entity<SidebarLeft>,
     player_bar: Entity<PlayerBar>,
-    queue_panel: Entity<QueuePanel>,
+    sidebar_right: Entity<SidebarRight>,
     content: AnyView,
     focus: FocusHandle,
 }
 
 impl Workspace {
     pub fn new(
-        sidebar: Entity<Sidebar>,
         playback: Entity<Playback>,
         queue: Entity<Queue>,
         content: AnyView,
         cx: &mut Context<Self>,
     ) -> Self {
-        let title_bar = cx.new(|cx| TitleBar::new(sidebar.clone(), cx));
-        let queue_panel =
-            cx.new(|cx| QueuePanel::new(queue.clone(), playback.clone(), sidebar.clone(), cx));
+        let sidebar = cx.new(SidebarLeft::new);
+        let sidebar_right = cx.new(|cx| SidebarRight::new(queue.clone(), playback.clone(), cx));
         let player_bar =
-            cx.new(|cx| PlayerBar::with_queue_panel(playback, queue, queue_panel.clone(), cx));
+            cx.new(|cx| PlayerBar::with_sidebar_right(playback, queue, sidebar_right.clone(), cx));
 
         Self {
-            title_bar,
             sidebar,
             player_bar,
-            queue_panel,
+            sidebar_right,
             content,
             focus: cx.focus_handle(),
         }
@@ -61,6 +42,11 @@ impl Workspace {
         window.focus(&self.focus, cx);
     }
 
+    pub fn toggle_sidebar(&self, cx: &mut Context<Self>) {
+        self.sidebar.update(cx, |sidebar, cx| sidebar.toggle(cx));
+    }
+
+    #[allow(dead_code)]
     pub fn content(&self) -> &AnyView {
         &self.content
     }
@@ -70,18 +56,27 @@ impl Workspace {
         cx.notify();
     }
 
-    pub fn set_toolbar(&mut self, toolbar: Option<AnyView>, cx: &mut Context<Self>) {
-        self.title_bar
-            .update(cx, |bar, cx| bar.set_content(toolbar, cx));
-    }
-
+    #[allow(dead_code)]
     pub fn player_bar(&self) -> &Entity<PlayerBar> {
         &self.player_bar
     }
 
     fn close_queue(&mut self, cx: &mut Context<Self>) {
-        if self.queue_panel.read(cx).is_open() {
-            self.queue_panel.update(cx, |panel, cx| panel.close(cx));
+        if self.sidebar_right.read(cx).is_open() {
+            self.sidebar_right.update(cx, |panel, cx| panel.close(cx));
+        }
+    }
+}
+
+impl Shell for Workspace {
+    fn title_bar(&self, content: Option<AnyView>, cx: &App) -> TitleBarOptions {
+        let sidebar = self.sidebar.read(cx);
+
+        TitleBarOptions {
+            navigation: true,
+            sidebar_open: sidebar.is_open(),
+            offset: sidebar.occupied_width(),
+            content,
         }
     }
 }
@@ -90,20 +85,21 @@ impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.sidebar
             .update(cx, |sidebar, cx| sidebar.adapt(window, cx));
-        let sidebar = self.sidebar.read(cx).occupied_width();
-        let queue = self.queue_panel.read(cx).occupied_width(window, cx);
-        Chrome::publish(sidebar, queue, cx);
-        let covered = self.queue_panel.read(cx).covers_content(window, cx);
+        let left = self.sidebar.read(cx).occupied_width();
+        let right = self.sidebar_right.read(cx).occupied_width(window, cx);
+        Chrome::publish(left, right, cx);
+        let covered = self.sidebar_right.read(cx).covers_content(window, cx);
         let overlay = self.sidebar.read(cx).overlays();
 
         div()
             .flex()
             .flex_col()
-            .size_full()
+            .w_full()
+            .flex_1()
+            .min_h_0()
             .key_context(WORKSPACE_CONTEXT)
             .track_focus(&self.focus)
             .on_action(cx.listener(|this, _: &Dismiss, _, cx| this.close_queue(cx)))
-            .child(self.title_bar.clone())
             .child(
                 div()
                     .relative()
@@ -121,7 +117,7 @@ impl Render for Workspace {
                             .when(covered, |this| this.hidden())
                             .child(self.content.clone()),
                     )
-                    .child(self.queue_panel.clone())
+                    .child(self.sidebar_right.clone())
                     .when(overlay, |this| this.child(self.sidebar.clone())),
             )
             .child(self.player_bar.clone())

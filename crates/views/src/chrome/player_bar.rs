@@ -11,14 +11,15 @@ use gpui::{
 };
 use gpui::{Window, div, px};
 use i18n::t;
+use input::ToggleFullscreen;
 use state::{Library, Playback, PlaybackState, Queue, Repeat, Sonora};
 use ui::{
     Artwork, Button, InlineLink, InlineLinks, Popup, Room, Scrollbar, Scrubber, ScrubberState,
     clock,
 };
 
-use crate::sidebar_right::QueuePanel;
-use crate::track_menu::TrackMenu;
+use crate::chrome::SidebarRight;
+use crate::chrome::TrackMenu;
 
 const SEEK_MAX: f32 = 560.;
 const VOLUME_WIDTH: f32 = 110.;
@@ -26,11 +27,11 @@ const VOLUME_TIGHT: f32 = 72.;
 const CLOCK_CHARS: f32 = 3.4;
 const STEP: f32 = 0.004;
 
-pub struct PlayerBar {
+pub(crate) struct PlayerBar {
     playback: Entity<Playback>,
     queue: Entity<Queue>,
     library: Entity<Library>,
-    queue_panel: Option<Entity<QueuePanel>>,
+    sidebar_right: Option<Entity<SidebarRight>>,
     track_menu: TrackMenu,
     context_menu: Option<(spotify::Track, Point<Pixels>)>,
     seek: ScrubberState,
@@ -42,31 +43,32 @@ pub struct PlayerBar {
 }
 
 impl PlayerBar {
+    #[allow(dead_code)]
     pub fn new(playback: Entity<Playback>, queue: Entity<Queue>, cx: &mut Context<Self>) -> Self {
         Self::build(playback, queue, None, cx)
     }
 
-    pub(crate) fn with_queue_panel(
+    pub(crate) fn with_sidebar_right(
         playback: Entity<Playback>,
         queue: Entity<Queue>,
-        queue_panel: Entity<QueuePanel>,
+        sidebar_right: Entity<SidebarRight>,
         cx: &mut Context<Self>,
     ) -> Self {
-        Self::build(playback, queue, Some(queue_panel), cx)
+        Self::build(playback, queue, Some(sidebar_right), cx)
     }
 
     fn build(
         playback: Entity<Playback>,
         queue: Entity<Queue>,
-        queue_panel: Option<Entity<QueuePanel>>,
+        sidebar_right: Option<Entity<SidebarRight>>,
         cx: &mut Context<Self>,
     ) -> Self {
         let library = Sonora::global(cx).library.clone();
         cx.observe(&playback, |_, _, cx| cx.notify()).detach();
         cx.observe(&queue, |_, _, cx| cx.notify()).detach();
         cx.observe(&library, |_, _, cx| cx.notify()).detach();
-        if let Some(queue_panel) = &queue_panel {
-            cx.observe(queue_panel, |_, _, cx| cx.notify()).detach();
+        if let Some(sidebar_right) = &sidebar_right {
+            cx.observe(sidebar_right, |_, _, cx| cx.notify()).detach();
         }
 
         let playlist_scrollbar = cx.new(|_| {
@@ -79,7 +81,7 @@ impl PlayerBar {
             playback,
             queue,
             library,
-            queue_panel,
+            sidebar_right,
             track_menu: TrackMenu::new(playlist_scrollbar),
             context_menu: None,
             seek: ScrubberState::new("seek"),
@@ -246,8 +248,8 @@ impl PlayerBar {
     }
 
     fn queue_button(&self, cx: &mut Context<Self>) -> Option<Button> {
-        let queue_panel = self.queue_panel.as_ref()?;
-        let open = queue_panel.read(cx).is_open();
+        let sidebar_right = self.sidebar_right.as_ref()?;
+        let open = sidebar_right.read(cx).is_open();
 
         Some(
             Button::new("toggle-queue")
@@ -257,11 +259,19 @@ impl PlayerBar {
                 .icon("icons/list.svg")
                 .selected(open)
                 .on_click(cx.listener(|this, _, _, cx| {
-                    if let Some(queue_panel) = &this.queue_panel {
-                        queue_panel.update(cx, |panel, cx| panel.toggle(cx));
+                    if let Some(sidebar_right) = &this.sidebar_right {
+                        sidebar_right.update(cx, |panel, cx| panel.toggle(cx));
                     }
                 })),
         )
+    }
+
+    fn fullscreen_button(&self) -> Button {
+        Button::new("toggle-fullscreen")
+            .ghost()
+            .small()
+            .icon("icons/maximize.svg")
+            .on_click(|_, window, cx| window.dispatch_action(Box::new(ToggleFullscreen), cx))
     }
 
     fn toggle(&self, cx: &mut Context<Self>) -> Button {
@@ -533,6 +543,7 @@ impl Render for PlayerBar {
                         .w_full()
                         .child(div().flex_1().min_w_0().child(seek))
                         .child(self.sound(px(VOLUME_TIGHT), cx))
+                        .child(self.fullscreen_button())
                         .when_some(self.queue_button(cx), |this, button| this.child(button)),
                 ),
             false => base
@@ -560,6 +571,7 @@ impl Render for PlayerBar {
                         .flex_1()
                         .min_w_0()
                         .child(self.sound(px(VOLUME_WIDTH), cx))
+                        .child(self.fullscreen_button())
                         .when_some(self.queue_button(cx), |this, button| this.child(button)),
                 ),
         };

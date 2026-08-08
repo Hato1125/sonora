@@ -12,7 +12,7 @@ use spotify::Track;
 use state::Playback;
 use ui::{ActiveTheme as _, Button, Card, Text, eyebrow, heading};
 
-use crate::cells;
+use crate::shared::cells;
 
 const ROWS_PER_COLUMN: usize = 6;
 const MAX_COLUMNS: usize = 3;

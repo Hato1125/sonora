@@ -3,19 +3,20 @@
 use std::ops::Range;
 
 use gpui::prelude::*;
-use std::cell::Cell;
 
 use gpui::{
-    App, Context, Div, DragMoveEvent, Empty, Entity, FontWeight, MouseButton, MouseDownEvent,
-    Pixels, Point, Render, ScrollHandle, ScrollStrategy, SharedString, UniformListScrollHandle,
-    Window, div, px, uniform_list,
+    App, Context, Div, DragMoveEvent, Entity, FontWeight, MouseButton, MouseDownEvent, Pixels,
+    Point, Render, ScrollHandle, ScrollStrategy, SharedString, UniformListScrollHandle, Window,
+    div, px, uniform_list,
 };
 use i18n::t;
 use spotify::Track;
 use state::{AppSettings, Playback, Queue, Sonora};
-use ui::{ActiveTheme as _, Button, Card, Popup, Room, Scrollbar, Text, eyebrow, snapped};
+use ui::{
+    ActiveTheme as _, Button, Card, Panel, Popup, Room, Scrollbar, Side, Text, eyebrow, snapped,
+};
 
-use crate::{Sidebar, TrackMenu};
+use crate::chrome::{Chrome, TrackMenu};
 
 const MIN_WIDTH: Pixels = px(240.);
 const MAX_WIDTH: Pixels = px(560.);
@@ -174,10 +175,9 @@ impl Render for DraggedTrack {
     }
 }
 
-pub(crate) struct QueuePanel {
+pub(crate) struct SidebarRight {
     queue: Entity<Queue>,
     playback: Entity<Playback>,
-    sidebar: Entity<Sidebar>,
     context_menu: Option<ContextMenuState>,
     track_menu: TrackMenu,
     drop_gap: Option<usize>,
@@ -190,16 +190,10 @@ pub(crate) struct QueuePanel {
     open: bool,
 }
 
-struct QueueResize {
-    start_width: Pixels,
-    start_x: Cell<Pixels>,
-}
-
-impl QueuePanel {
+impl SidebarRight {
     pub(crate) fn new(
         queue: Entity<Queue>,
         playback: Entity<Playback>,
-        sidebar: Entity<Sidebar>,
         cx: &mut Context<Self>,
     ) -> Self {
         cx.observe(&queue, |this, queue, cx| {
@@ -215,7 +209,8 @@ impl QueuePanel {
             cx.notify();
         })
         .detach();
-        cx.observe(&sidebar, |_, _, cx| cx.notify()).detach();
+        let chrome = Chrome::entity(cx);
+        cx.observe(&chrome, |_, _, cx| cx.notify()).detach();
 
         let scroll = UniformListScrollHandle::new();
         let scrollbar = cx.new(|_| Scrollbar::new(scroll.0.borrow().base_handle.clone()));
@@ -225,12 +220,11 @@ impl QueuePanel {
                 .track_inset(px(4.))
         });
         let settings = Sonora::global(cx).settings.clone();
-        let width = px(settings.read(cx).queue_width()).clamp(MIN_WIDTH, MAX_WIDTH);
+        let width = px(settings.read(cx).sidebar_right_width()).clamp(MIN_WIDTH, MAX_WIDTH);
 
         Self {
             queue,
             playback,
-            sidebar,
             context_menu: None,
             track_menu: TrackMenu::new(playlist_scrollbar),
             drop_gap: None,
@@ -249,7 +243,7 @@ impl QueuePanel {
     }
 
     pub(crate) fn covers_content(&self, window: &Window, cx: &App) -> bool {
-        let content = window.viewport_size().width - self.sidebar.read(cx).occupied_width();
+        let content = window.viewport_size().width - Chrome::sidebar_left(cx);
         self.open && fills_content(content)
     }
 
@@ -257,7 +251,7 @@ impl QueuePanel {
         match self.open {
             false => Pixels::ZERO,
             true if self.covers_content(window, cx) => {
-                window.viewport_size().width - self.sidebar.read(cx).occupied_width()
+                window.viewport_size().width - Chrome::sidebar_left(cx)
             }
             true => self.width,
         }
@@ -265,40 +259,9 @@ impl QueuePanel {
 
     fn persist(&self, cx: &mut Context<Self>) {
         let width = self.width / px(1.);
-        self.settings
-            .update(cx, |settings, cx| settings.set_queue_width(width, cx));
-    }
-
-    fn grip(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        div()
-            .id("queue-resize-handle")
-            .absolute()
-            .top_0()
-            .left(px(-4.))
-            .w(px(8.))
-            .h_full()
-            .cursor_col_resize()
-            .on_drag_move(
-                cx.listener(|this, event: &DragMoveEvent<QueueResize>, window, cx| {
-                    let resize = event.drag(cx);
-                    let dragged = (resize.start_width + resize.start_x.get()
-                        - event.event.position.x)
-                        .clamp(MIN_WIDTH, MAX_WIDTH);
-                    this.width = snapped(dragged, window);
-                    this.persist(cx);
-                    cx.notify();
-                }),
-            )
-            .on_drag(
-                QueueResize {
-                    start_width: self.width,
-                    start_x: Cell::new(Pixels::ZERO),
-                },
-                |resize, _, window, cx| {
-                    resize.start_x.set(window.mouse_position().x);
-                    cx.new(|_| Empty)
-                },
-            )
+        self.settings.update(cx, |settings, cx| {
+            settings.set_sidebar_right_width(width, cx)
+        });
     }
 
     pub(crate) fn toggle(&mut self, cx: &mut Context<Self>) {
@@ -350,7 +313,7 @@ impl QueuePanel {
         )
         .cover(track.cover.clone())
         .bare_meta(
-            crate::artist_links(
+            crate::shared::cells::artist_links(
                 SharedString::from(format!("queue-track-artist-{index}")),
                 track.artist_refs.clone(),
                 track.artists.clone(),
@@ -599,14 +562,14 @@ impl QueuePanel {
     }
 }
 
-impl Render for QueuePanel {
+impl Render for SidebarRight {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         if !self.open {
             return div().into_any_element();
         }
 
         let theme = *cx.theme();
-        let content_width = window.viewport_size().width - self.sidebar.read(cx).occupied_width();
+        let content_width = window.viewport_size().width - Chrome::sidebar_left(cx);
         let fullscreen = fills_content(content_width);
         let queue = self.queue.read(cx);
         let sections = Sections {
@@ -627,24 +590,21 @@ impl Render for QueuePanel {
             self.pin(sections, window, cx);
         }
 
-        div()
-            .id("queue-panel")
+        Panel::new("sidebar-right", Side::Right, self.width)
+            .limits(MIN_WIDTH, MAX_WIDTH)
+            .fill(fullscreen)
+            .on_resize(cx.listener(|this, width: &Pixels, _, cx| {
+                this.width = *width;
+                this.persist(cx);
+                cx.notify();
+            }))
             .on_drag_move(cx.listener(|this, _: &DragMoveEvent<DraggedTrack>, _, cx| {
                 if this.drop_gap.take().is_some() {
                     cx.notify();
                 }
             }))
-            .relative()
-            .flex()
-            .flex_col()
-            .h_full()
             .bg(theme.background)
-            .border_l_1()
             .border_color(theme.border)
-            .when(fullscreen, |this| this.flex_1().min_w_0())
-            .when(!fullscreen, |this| {
-                this.flex_none().w(self.width).child(self.grip(cx))
-            })
             .child(self.header(sections, cx))
             .child(
                 div()

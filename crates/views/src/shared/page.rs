@@ -5,8 +5,8 @@ use gpui::{App, Entity, Pixels, ScrollHandle, Window, px};
 use state::{AppSettings, Playback};
 use ui::{GridState, Table, Viewport, scrolled};
 
-use crate::cells;
-use crate::tracks::{self, TrackSource};
+use crate::shared::cells;
+use crate::shared::tracks::{self, TrackSource};
 
 const FRAME: Pixels = px(1.);
 

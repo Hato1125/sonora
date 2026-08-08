@@ -21,8 +21,7 @@ Linux-only today. Cargo workspace, edition 2024, resolver 3.
 ```
 crates/
   sonora/     binary: main, window, actions, asset registry, HTTP client shim
-  views/      screens: home, library, detail, artist, search, settings, login
-  workspace/  app chrome: title bar, sidebar, player bar, filter/search field
+  views/      screens plus app chrome: title bar, sidebar, player bar, filter/search field
   state/      GPUI entities holding app state; owns all async orchestration
   spotify/    Spotify data access over librespot spclient (no GPUI)
   audio/      librespot playback engine + custom rodio sink (no GPUI)
@@ -35,8 +34,8 @@ crates/
 Dependency direction is strict; do not create a back edge:
 
 ```
-sonora → views → workspace → state → spotify
-                                   → audio
+sonora → views → state → spotify
+                       → audio
          all ui-side crates → ui, router, input → ui → gpui
          every ui-side crate → i18n → gpui
 ```
@@ -45,7 +44,7 @@ sonora → views → workspace → state → spotify
   playback.
 - `spotify` and `audio` must never depend on `gpui`. They are plain async Rust.
 - `state` depends on `ui` only for `ThemeOverrides`, `MIN_FONT`, `MAX_FONT` (settings persistence).
-- Widgets that need app state (player bar, sidebar) live in `workspace`, not `ui`.
+- Widgets that need app state (player bar, sidebar) live in `views/src/chrome/`, not `ui`.
 - `i18n` is a leaf: it depends on `fluent-bundle`, `unic-langid`, `sys-locale` and `gpui` (for
   `SharedString`) and on nothing else in the workspace.
 
@@ -150,8 +149,8 @@ them unless the task is about them.
 ## Before you build a component
 
 Grep first. In order: `crates/ui/src/lib.rs` (exports), `crates/views/src/cells.rs` (grid cell
-renderers), `crates/workspace/src/` (chrome). Extend what's there — add a builder method to `Button`
-rather than writing `IconButton`.
+renderers), `crates/views/src/chrome/` (chrome). Extend what's there — add a builder method to
+`Button` rather than writing `IconButton`.
 
 ### `ui` — reusable elements
 
@@ -164,6 +163,7 @@ rather than writing `IconButton`.
 | `Grid`, `GridSource`, `GridDelegate`, `GridState`, `ColumnSpec`, `Cell` | every table. Virtualized, sortable, filterable, hideable columns, responsive `hide_below`                                              |
 | `Scroller` + `Scrollbar`                                                | any scrolling region. Do not use bare `overflow_y_scroll`                                                                              |
 | `Scrubber` + `ScrubberState`                                            | any draggable 0..1 track (seek bar, volume)                                                                                            |
+| `Panel` + `Side`                                                        | a resizable side panel shell: clamped width, drag grip, pixel snapping. `.limits()`, `.fill()`, `.on_resize()`                         |
 | `Menu`, `MenuItem`                                                      | dropdowns (deferred + occluded, with `on_dismiss`)                                                                                     |
 | `InlineLinks`, `InlineLink`                                             | comma-joined clickable artist lists                                                                                                    |
 | `eyebrow()`, `heading()`                                                | the two standard text styles                                                                                                           |
@@ -287,41 +287,56 @@ Room::of(width).fits(Room::Roomy)   // ">= Roomy", the only comparison you need
 `Room` is `Ord`, so `fits` is just `>=`. The raw `Pixels` consts exist for the places that need a
 number rather than a step: `ColumnSpec::hide_below` and centering maths.
 
-Two crates own the measurement:
+A breakpoint is a branch — "below this width, lay the page out differently". A packing minimum is
+not: `MIN_COLUMN_WIDTH` in `home/quick_picks.rs`, `PANEL` in `screens/song.rs`, the column widths in
+`shared/cells.rs`. Those stay plain `px` consts at module top; forcing them onto a five-step ladder
+would change how content packs.
+
+Two modules own the measurement:
 
 - **`ui::layout`** — the ladder itself. Pure `gpui`; knows nothing about panels.
-- **`workspace::Chrome`** — how much horizontal room content actually has, after the left sidebar
-  and the right queue panel take their cut.
+- **`views::chrome::Chrome`** — how much horizontal room content actually has, after the left and
+  right sidebars take their cut.
 
 ```rust
-use workspace::Chrome;
-Chrome::content(window, cx)   // viewport width − sidebar − queue, floored at ui::MIN_CONTENT
+use crate::chrome::Chrome;
+Chrome::content(window, cx)   // viewport width − both sidebars, floored at ui::MIN_CONTENT
 Chrome::room(window, cx)      // the same, classified into a Room
-Chrome::sidebar(cx) / Chrome::queue(cx)
+Chrome::sidebar_left(cx) / Chrome::sidebar_right(cx)   // one panel's cut, for the other panel
 ```
+
+`Chrome::room` is how a view classifies its width: never rebuild `Room::of(…)` from a width you
+derived yourself.
 
 Rules:
 
 - **Measure against `Chrome::content`, never `window.viewport_size().width`.** A raw viewport width
-  ignores both side panels, so tables overflow under the queue and grids pick a column count that
-  does not fit. Raw viewport width is legitimate in exactly two places: chrome that spans the whole
-  window (`PlayerBar`, `TitleBar`, and `Menu`'s submenu flip), and a side panel deciding *its own*
-  size — `Sidebar` and `QueuePanel` subtract only the other panel, because asking `Chrome` for a
-  width they are themselves a term in would be circular.
+  ignores both side panels, so tables overflow under the right sidebar and grids pick a column count
+  that does not fit. Raw viewport width is legitimate in exactly two places: chrome that spans the
+  whole window (`PlayerBar`, `TitleBar`, and `Menu`'s submenu flip), and a side panel deciding *its
+  own* size — `SidebarLeft` measures the room left over once its own width is taken, `SidebarRight`
+  subtracts `Chrome::sidebar_left`. `Chrome::content` would be circular for either, because each is
+  a term in it; reading the *other* panel's cut is not.
 - `Workspace::render` publishes the widths every frame via `Chrome::publish`; it notifies only when
   a width actually changed, so it cannot loop.
+- **`Chrome` is only current after that publish.** `Workspace` renders *before* it and owns both
+  panels, so it reads them directly; everything it renders into — content views and both panels —
+  sees this frame's values. `SidebarRight` is the one exception: it reads `Chrome::sidebar_left`
+  while `Workspace` is still assembling this frame's publish, so a left-panel change reaches it one
+  frame late, and its `Chrome` observation repaints it on the next.
 - **A view whose layout depends on width must observe the chrome**, or it will not repaint when a
   panel is resized or toggled:
   ```rust
   let chrome = Chrome::entity(cx);
   cx.observe(&chrome, |_, _, cx| cx.notify()).detach();
   ```
-  Views take no `Entity<Sidebar>` for this — that is what `Chrome` replaced.
+  Nothing outside `Workspace` holds an `Entity<SidebarLeft>` — that is what `Chrome` replaced.
 - `views::cells::content_width(window, inset, cx)` is the shortcut for grid pages: `Chrome::content`
   minus the page's own padding.
 
-Both side panels are resizable and persist their width in `settings.json` (`sidebar_width`,
-`queue_width`); each clamps to its own `MIN_WIDTH`/`MAX_WIDTH` and snaps to the device pixel grid.
+Both side panels are built on `ui::Panel` (`Side::Left` / `Side::Right`), which owns the width
+clamping, the drag grip and the snap to the device pixel grid; each reports its new width through
+`on_resize` and persists it in `settings.json` (`sidebar_width`, `sidebar_right_width`).
 
 ## Async: two runtimes
 
@@ -428,9 +443,15 @@ caches Spotify data, subscribe to `Session` and clear on `SignedOut`.
 clickable region, use the `Link` trait (`div().id(..).link(Destination::Album(id))`) instead of a
 manual click handler.
 
+**Shells.** `crates/views/src/shells/` holds the two top-level layouts, `Workspace` and
+`FullscreenView`; `Root` swaps between them. A shell owns its own chrome — `Workspace` builds both
+sidebars and the player bar — and answers for its title bar through the `shells::Shell` trait
+(`title_bar(content, cx) -> TitleBarOptions`). `Root` supplies only the current screen's toolbar and
+asks the active shell; it never reaches into a panel.
+
 **New screen checklist:** add a `Destination` variant → add a state entity if it loads data → add
 the view under `crates/views/src/` → construct it in `Root::new` and wire it in `Root::show` →
-add a sidebar entry in `workspace/src/sidebar.rs` if it's top-level.
+add a sidebar entry in `views/src/chrome/sidebar_left.rs` if it's top-level.
 
 **Tables.** Implement `GridSource` (`columns`, `rows`, `cell`, and optionally `compare`, `matches`,
 `playing`, `is_loading`), define a `&'static [ColumnSpec<Field>]`, hold a
@@ -438,8 +459,17 @@ add a sidebar entry in `workspace/src/sidebar.rs` if it's top-level.
 and `hide_below` for responsive dropping. Hidden columns persist through
 `AppSettings::{hidden_columns, set_hidden_columns}`.
 
-**Filtering.** Implement `workspace::Searchable` on the view; `Root` binds it to the shared `Filter`
-in the title bar. Don't build a second search box.
+**Toolbar.** `chrome::Toolbar` owns only the search field and lays out whatever a screen hands it.
+A screen implements `chrome::Tooled` — `toolbar()` returns its `Entity<Toolbar>`, `tools(&self, cx)`
+returns the finished `Vec<AnyElement>` — and wires itself once with `Toolbar::wire`. Adding a
+control to a screen never touches `toolbar.rs`. Build the standard controls with the shared builders
+in `chrome::tools` (`columns`, `filters`, `sorts`, `views`) rather than writing a menu twice; each
+screen owns one `ui::Popovers` so only one of its popovers is open at a time, and holds its own
+`tools::Sliders` cache so scrubber positions survive across frames (`LibraryView` keeps one per
+section, so tab switches cannot bleed).
+
+**Filtering.** Implement `chrome::Searchable` on the view; `Toolbar::bind` binds it to the search
+field in the title bar. Don't build a second search box.
 
 **Actions and keys.** Declare actions in `crates/input/src/lib.rs` (`actions!` macro), bind them in
 `bindings()`, handle them with `cx.on_action` (global, in `sonora/src/actions.rs`) or

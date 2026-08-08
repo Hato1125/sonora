@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use gpui::prelude::*;
-use gpui::{AnyView, Context, Entity, MouseButton, Pixels, Render};
+use gpui::{AnyView, Context, Entity, EventEmitter, MouseButton, Pixels, Render};
 use gpui::{Window, div, px};
 use ui::WindowControls;
 use ui::{ActiveTheme as _, Button};
@@ -9,38 +9,61 @@ use ui::{ActiveTheme as _, Button};
 use router::Navigation;
 use state::{AppSettings, Sonora};
 
-use crate::Sidebar;
-
 #[cfg(target_os = "macos")]
 const TITLE_BAR_LEFT_INSET: f32 = 74.;
 #[cfg(not(target_os = "macos"))]
 const TITLE_BAR_LEFT_INSET: f32 = 12.;
 
-pub struct TitleBar {
-    sidebar: Entity<Sidebar>,
-    navigation: Entity<Navigation>,
-    settings: Entity<AppSettings>,
-    content: Option<AnyView>,
+#[derive(Clone, PartialEq)]
+pub(crate) struct TitleBarOptions {
+    pub navigation: bool,
+    pub sidebar_open: bool,
+    pub offset: Pixels,
+    pub content: Option<AnyView>,
 }
 
-impl TitleBar {
-    pub fn new(sidebar: Entity<Sidebar>, cx: &mut Context<Self>) -> Self {
-        let navigation = router::trail(cx);
-        let settings = Sonora::global(cx).settings.clone();
-
-        cx.observe(&sidebar, |_, _, cx| cx.notify()).detach();
-        cx.observe(&navigation, |_, _, cx| cx.notify()).detach();
-        cx.observe(&settings, |_, _, cx| cx.notify()).detach();
+impl Default for TitleBarOptions {
+    fn default() -> Self {
         Self {
-            sidebar,
-            navigation,
-            settings,
+            navigation: false,
+            sidebar_open: false,
+            offset: Pixels::ZERO,
             content: None,
         }
     }
+}
 
-    pub fn set_content(&mut self, content: Option<AnyView>, cx: &mut Context<Self>) {
-        self.content = content;
+pub(crate) enum TitleBarEvent {
+    ToggleSidebar,
+}
+
+pub(crate) struct TitleBar {
+    navigation: Entity<Navigation>,
+    settings: Entity<AppSettings>,
+    options: TitleBarOptions,
+}
+
+impl EventEmitter<TitleBarEvent> for TitleBar {}
+
+impl TitleBar {
+    pub fn new(cx: &mut Context<Self>) -> Self {
+        let navigation = router::trail(cx);
+        let settings = Sonora::global(cx).settings.clone();
+
+        cx.observe(&navigation, |_, _, cx| cx.notify()).detach();
+        cx.observe(&settings, |_, _, cx| cx.notify()).detach();
+        Self {
+            navigation,
+            settings,
+            options: TitleBarOptions::default(),
+        }
+    }
+
+    pub fn set_options(&mut self, options: TitleBarOptions, cx: &mut Context<Self>) {
+        if self.options == options {
+            return;
+        }
+        self.options = options;
         cx.notify();
     }
 
@@ -96,11 +119,9 @@ impl TitleBar {
     }
 
     fn toggle(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let sidebar = self.sidebar.clone();
-        let icon = if sidebar.read(cx).is_open() {
-            "icons/panel-left-close.svg"
-        } else {
-            "icons/panel-left-open.svg"
+        let icon = match self.options.sidebar_open {
+            true => "icons/panel-left-close.svg",
+            false => "icons/panel-left-open.svg",
         };
 
         div()
@@ -115,9 +136,7 @@ impl TitleBar {
                     .flex()
                     .small()
                     .icon(icon)
-                    .on_click(move |_, _, cx| {
-                        sidebar.update(cx, |sidebar, cx| sidebar.toggle(cx));
-                    }),
+                    .on_click(cx.listener(|_, _, _, cx| cx.emit(TitleBarEvent::ToggleSidebar))),
             )
     }
 }
@@ -126,7 +145,12 @@ impl Render for TitleBar {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
         let height = ui::snapped(theme.metrics.title_bar, window);
-        let offset = self.sidebar.read(cx).occupied_width();
+        let navigation = self.options.navigation;
+        let offset = match navigation {
+            true => self.options.offset,
+            false => Pixels::ZERO,
+        };
+        let content = self.options.content.clone();
         let settings = self.settings.read(cx);
         let decorated = cfg!(not(target_os = "macos")) && settings.window_controls();
         let leading = decorated && settings.controls_on_left();
@@ -156,7 +180,7 @@ impl Render for TitleBar {
                     .pr_3()
                     .gap_1()
                     .when(offset > Pixels::ZERO, |this| this.w(offset))
-                    .child(self.toggle(cx)),
+                    .when(navigation, |this| this.child(self.toggle(cx))),
             )
             .child(
                 div()
@@ -165,8 +189,8 @@ impl Render for TitleBar {
                     .min_w_0()
                     .gap_1()
                     .items_center()
-                    .child(self.history(cx))
-                    .children(self.content.clone())
+                    .when(navigation, |this| this.child(self.history(cx)))
+                    .children(content)
                     .pr_3(),
             )
             .when(decorated && !leading, |this| {

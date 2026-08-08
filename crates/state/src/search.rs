@@ -159,16 +159,6 @@ impl Search {
         self.hits.first()
     }
 
-    pub fn queue(&self) -> Vec<Track> {
-        self.hits
-            .iter()
-            .filter_map(|hit| match hit {
-                Hit::Song(track) => Some(track.clone()),
-                _ => None,
-            })
-            .collect()
-    }
-
     pub fn is_loading(&self) -> bool {
         self.loading
     }
