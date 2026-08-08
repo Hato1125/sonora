@@ -18,7 +18,7 @@ use ui::{
     clock,
 };
 
-use crate::sidebar_right::QueuePanel;
+use crate::sidebar_right::SidebarRight;
 use crate::track_menu::TrackMenu;
 
 const SEEK_MAX: f32 = 560.;
@@ -31,7 +31,7 @@ pub struct PlayerBar {
     playback: Entity<Playback>,
     queue: Entity<Queue>,
     library: Entity<Library>,
-    queue_panel: Option<Entity<QueuePanel>>,
+    sidebar_right: Option<Entity<SidebarRight>>,
     track_menu: TrackMenu,
     context_menu: Option<(spotify::Track, Point<Pixels>)>,
     seek: ScrubberState,
@@ -47,27 +47,27 @@ impl PlayerBar {
         Self::build(playback, queue, None, cx)
     }
 
-    pub(crate) fn with_queue_panel(
+    pub(crate) fn with_sidebar_right(
         playback: Entity<Playback>,
         queue: Entity<Queue>,
-        queue_panel: Entity<QueuePanel>,
+        sidebar_right: Entity<SidebarRight>,
         cx: &mut Context<Self>,
     ) -> Self {
-        Self::build(playback, queue, Some(queue_panel), cx)
+        Self::build(playback, queue, Some(sidebar_right), cx)
     }
 
     fn build(
         playback: Entity<Playback>,
         queue: Entity<Queue>,
-        queue_panel: Option<Entity<QueuePanel>>,
+        sidebar_right: Option<Entity<SidebarRight>>,
         cx: &mut Context<Self>,
     ) -> Self {
         let library = Sonora::global(cx).library.clone();
         cx.observe(&playback, |_, _, cx| cx.notify()).detach();
         cx.observe(&queue, |_, _, cx| cx.notify()).detach();
         cx.observe(&library, |_, _, cx| cx.notify()).detach();
-        if let Some(queue_panel) = &queue_panel {
-            cx.observe(queue_panel, |_, _, cx| cx.notify()).detach();
+        if let Some(sidebar_right) = &sidebar_right {
+            cx.observe(sidebar_right, |_, _, cx| cx.notify()).detach();
         }
 
         let playlist_scrollbar = cx.new(|_| {
@@ -80,7 +80,7 @@ impl PlayerBar {
             playback,
             queue,
             library,
-            queue_panel,
+            sidebar_right,
             track_menu: TrackMenu::new(playlist_scrollbar),
             context_menu: None,
             seek: ScrubberState::new("seek"),
@@ -247,8 +247,8 @@ impl PlayerBar {
     }
 
     fn queue_button(&self, cx: &mut Context<Self>) -> Option<Button> {
-        let queue_panel = self.queue_panel.as_ref()?;
-        let open = queue_panel.read(cx).is_open();
+        let sidebar_right = self.sidebar_right.as_ref()?;
+        let open = sidebar_right.read(cx).is_open();
 
         Some(
             Button::new("toggle-queue")
@@ -258,8 +258,8 @@ impl PlayerBar {
                 .icon("icons/list.svg")
                 .selected(open)
                 .on_click(cx.listener(|this, _, _, cx| {
-                    if let Some(queue_panel) = &this.queue_panel {
-                        queue_panel.update(cx, |panel, cx| panel.toggle(cx));
+                    if let Some(sidebar_right) = &this.sidebar_right {
+                        sidebar_right.update(cx, |panel, cx| panel.toggle(cx));
                     }
                 })),
         )

@@ -164,6 +164,7 @@ rather than writing `IconButton`.
 | `Grid`, `GridSource`, `GridDelegate`, `GridState`, `ColumnSpec`, `Cell` | every table. Virtualized, sortable, filterable, hideable columns, responsive `hide_below`                                              |
 | `Scroller` + `Scrollbar`                                                | any scrolling region. Do not use bare `overflow_y_scroll`                                                                              |
 | `Scrubber` + `ScrubberState`                                            | any draggable 0..1 track (seek bar, volume)                                                                                            |
+| `Panel` + `Side`                                                        | a resizable side panel shell: clamped width, drag grip, pixel snapping. `.limits()`, `.fill()`, `.on_resize()`                         |
 | `Menu`, `MenuItem`                                                      | dropdowns (deferred + occluded, with `on_dismiss`)                                                                                     |
 | `InlineLinks`, `InlineLink`                                             | comma-joined clickable artist lists                                                                                                    |
 | `eyebrow()`, `heading()`                                                | the two standard text styles                                                                                                           |
@@ -290,24 +291,24 @@ number rather than a step: `ColumnSpec::hide_below` and centering maths.
 Two crates own the measurement:
 
 - **`ui::layout`** — the ladder itself. Pure `gpui`; knows nothing about panels.
-- **`workspace::Chrome`** — how much horizontal room content actually has, after the left sidebar
-  and the right queue panel take their cut.
+- **`workspace::Chrome`** — how much horizontal room content actually has, after the left and right
+  sidebars take their cut.
 
 ```rust
 use workspace::Chrome;
-Chrome::content(window, cx)   // viewport width − sidebar − queue, floored at ui::MIN_CONTENT
+Chrome::content(window, cx)   // viewport width − both sidebars, floored at ui::MIN_CONTENT
 Chrome::room(window, cx)      // the same, classified into a Room
-Chrome::sidebar(cx) / Chrome::queue(cx)
+Chrome::sidebar_left(cx) / Chrome::sidebar_right(cx)
 ```
 
 Rules:
 
 - **Measure against `Chrome::content`, never `window.viewport_size().width`.** A raw viewport width
-  ignores both side panels, so tables overflow under the queue and grids pick a column count that
-  does not fit. Raw viewport width is legitimate in exactly two places: chrome that spans the whole
-  window (`PlayerBar`, `TitleBar`, and `Menu`'s submenu flip), and a side panel deciding *its own*
-  size — `Sidebar` and `QueuePanel` subtract only the other panel, because asking `Chrome` for a
-  width they are themselves a term in would be circular.
+  ignores both side panels, so tables overflow under the right sidebar and grids pick a column count
+  that does not fit. Raw viewport width is legitimate in exactly two places: chrome that spans the
+  whole window (`PlayerBar`, `TitleBar`, and `Menu`'s submenu flip), and a side panel deciding *its
+  own* size — `SidebarLeft` and `SidebarRight` subtract only the other panel, because asking
+  `Chrome` for a width they are themselves a term in would be circular.
 - `Workspace::render` publishes the widths every frame via `Chrome::publish`; it notifies only when
   a width actually changed, so it cannot loop.
 - **A view whose layout depends on width must observe the chrome**, or it will not repaint when a
@@ -316,12 +317,13 @@ Rules:
   let chrome = Chrome::entity(cx);
   cx.observe(&chrome, |_, _, cx| cx.notify()).detach();
   ```
-  Views take no `Entity<Sidebar>` for this — that is what `Chrome` replaced.
+  Views take no `Entity<SidebarLeft>` for this — that is what `Chrome` replaced.
 - `views::cells::content_width(window, inset, cx)` is the shortcut for grid pages: `Chrome::content`
   minus the page's own padding.
 
-Both side panels are resizable and persist their width in `settings.json` (`sidebar_width`,
-`queue_width`); each clamps to its own `MIN_WIDTH`/`MAX_WIDTH` and snaps to the device pixel grid.
+Both side panels are built on `ui::Panel` (`Side::Left` / `Side::Right`), which owns the width
+clamping, the drag grip and the snap to the device pixel grid; each reports its new width through
+`on_resize` and persists it in `settings.json` (`sidebar_width`, `sidebar_right_width`).
 
 ## Async: two runtimes
 
