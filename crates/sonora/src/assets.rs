@@ -40,7 +40,8 @@ const FONTS: &[(&str, &[u8])] = fonts!["Inter.ttf", "Inter-Italic.ttf",];
 const ICONS: &[(&str, &[u8])] = icons![
     "chevron-down",
     "columns-3",
-    "sliders-horizontal",
+    "disc-3",
+    "funnel",
     "chevron-left",
     "chevron-right",
     "chevrons-up-down",
@@ -68,6 +69,7 @@ const ICONS: &[(&str, &[u8])] = icons![
     "radio",
     "refresh-cw",
     "search",
+    "user",
     "repeat",
     "repeat-one",
     "settings",

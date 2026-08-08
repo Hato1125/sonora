@@ -460,7 +460,7 @@ impl Toolbar {
         Popover::new(FILTERS, self.popovers.clone())
             .button(
                 Button::new("filters-toggle")
-                    .icon("icons/sliders-horizontal.svg")
+                    .icon("icons/funnel.svg")
                     .small()
                     .ghost()
                     .tint(match narrowed {
