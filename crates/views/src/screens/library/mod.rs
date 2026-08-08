@@ -3,11 +3,12 @@
 mod albums;
 mod playlists;
 
-use crate::chrome::{Chrome, Columned, Filterable, Searchable, Sortable, Toolbar, Tooled, Viewed};
+use crate::chrome::tools::{self, Sift, Sliders};
+use crate::chrome::{Chrome, Searchable, Toolbar, Tooled};
 use gpui::prelude::*;
 use gpui::{
     AnyElement, App, Context, Entity, FontWeight, Pixels, Point, Render, ScrollHandle,
-    SharedString, Window, div, px,
+    SharedString, WeakEntity, Window, div, px,
 };
 use i18n::t;
 use router::{Destination, LibraryTab, navigate};
@@ -15,8 +16,8 @@ use spotify::Track;
 use state::{AppSettings, Library, LibraryState, Origin, Playback, PlaybackState, Sonora};
 use ui::{
     ActiveTheme as _, Card, FlagAxis, GridDelegate, GridEvent, GridSource, GridState, Mode,
-    RangeAxis, Scrollbar, Scroller, Sort, SortAxis, Text, Toggle, Unit, Viewport, heading,
-    scrolled,
+    Popovers, RangeAxis, Scrollbar, Scroller, Sort, SortAxis, Text, Toggle, Unit, Viewport,
+    heading, scrolled,
 };
 
 use crate::shared::release_card::ReleaseCard;
@@ -105,6 +106,9 @@ pub struct LibraryView {
     albums: Entity<GridState<AlbumSource>>,
     playlists: Entity<GridState<PlaylistSource>>,
     toolbar: Entity<Toolbar>,
+    popovers: Popovers,
+    sliders: [Sliders; 3],
+    me: WeakEntity<Self>,
 }
 
 impl LibraryView {
@@ -215,10 +219,7 @@ impl LibraryView {
         let toolbar = cx.new(|cx| {
             let mut toolbar = Toolbar::new(cx);
             toolbar.bind(&me, cx);
-            toolbar.columns(&me, cx);
-            toolbar.views(&me, cx);
-            toolbar.filters(&me, cx);
-            toolbar.sorts(&me, cx);
+            toolbar.wire(&me, cx);
             toolbar
         });
 
@@ -235,6 +236,9 @@ impl LibraryView {
             albums,
             playlists,
             toolbar,
+            popovers: Popovers::default(),
+            sliders: Section::ALL.map(|_| Sliders::default()),
+            me: me.downgrade(),
         }
     }
 
@@ -481,12 +485,10 @@ impl Render for LibraryView {
         let table = self.table(self.section);
         table.set_viewport(viewport, cx);
 
-        Scroller::new("library-page", &self.scrollbar).child(
-            match self.views[self.section.slot()] {
-                Mode::List => table.element(),
-                Mode::Cards => self.cards(cx),
-            },
-        )
+        Scroller::new("library-page", &self.scrollbar).child(match self.mode() {
+            Mode::List => table.element(),
+            Mode::Cards => self.cards(cx),
+        })
     }
 }
 
@@ -503,7 +505,7 @@ impl Searchable for LibraryView {
     }
 }
 
-impl Sortable for LibraryView {
+impl LibraryView {
     fn sorts(&self, cx: &App) -> Vec<SortAxis> {
         self.table(self.section).sortables(cx)
     }
@@ -512,20 +514,8 @@ impl Sortable for LibraryView {
         self.table(self.section).cycle_sort(key, cx);
         cx.notify();
     }
-}
 
-impl Columned for LibraryView {
-    fn toggles(&self, cx: &App) -> Vec<Toggle> {
-        self.column_toggles(cx)
-    }
-
-    fn toggle_column(&mut self, key: &'static str, cx: &mut Context<Self>) {
-        self.switch_column(key, cx);
-    }
-}
-
-impl Viewed for LibraryView {
-    fn mode(&self, _cx: &App) -> Mode {
+    fn mode(&self) -> Mode {
         self.views[self.section.slot()]
     }
 
@@ -544,6 +534,50 @@ impl Viewed for LibraryView {
 impl Tooled for LibraryView {
     fn toolbar(&self) -> Entity<Toolbar> {
         self.toolbar.clone()
+    }
+
+    fn tools(&self, cx: &App) -> Vec<AnyElement> {
+        let columned = self.me.clone();
+        let sifted = self.me.clone();
+        let sorted = self.me.clone();
+        let viewed = self.me.clone();
+
+        let columns = matches!(self.mode(), Mode::List).then(|| {
+            tools::columns(&self.popovers, self.column_toggles(cx), move |key, cx| {
+                columned
+                    .update(cx, |view, cx| view.switch_column(key, cx))
+                    .ok();
+            })
+        });
+
+        let mut tools = Vec::new();
+        tools.extend(columns);
+        tools.push(tools::filters(
+            &self.popovers,
+            &self.sliders[self.section.slot()],
+            self.ranges(cx),
+            self.flags(cx),
+            move |change, cx| {
+                sifted.update(cx, |view, cx| view.narrow(change, cx)).ok();
+            },
+            cx,
+        ));
+        tools.push(tools::sorts(
+            &self.popovers,
+            self.sorts(cx),
+            move |key, cx| {
+                sorted.update(cx, |view, cx| view.set_sort(key, cx)).ok();
+            },
+            cx,
+        ));
+        tools.push(tools::views(
+            &self.popovers,
+            self.mode(),
+            move |mode, cx| {
+                viewed.update(cx, |view, cx| view.set_mode(mode, cx)).ok();
+            },
+        ));
+        tools
     }
 }
 
@@ -573,9 +607,7 @@ impl LibraryView {
         });
         cx.notify();
     }
-}
 
-impl Filterable for LibraryView {
     fn ranges(&self, cx: &App) -> Vec<RangeAxis> {
         match self.section {
             Section::Tracks => {
@@ -647,30 +679,28 @@ impl Filterable for LibraryView {
         ]
     }
 
-    fn set_range(&mut self, key: &'static str, value: (f32, f32), cx: &mut Context<Self>) {
-        match key {
-            "filter-year" => self.set_span(Some(value), cx),
-            _ => {
+    fn narrow(&mut self, change: Sift, cx: &mut Context<Self>) {
+        match change {
+            Sift::Range("filter-year", value) => self.set_span(Some(value), cx),
+            Sift::Range(_, value) => {
                 let mut sieve = self.sieve(cx);
                 sieve.duration = Some(value);
                 self.sift(sieve, cx);
             }
+            Sift::Flag(key, on) => {
+                let mut sieve = self.sieve(cx);
+                match key {
+                    "filter-explicit" => sieve.explicit = on,
+                    "filter-playable" => sieve.playable = on,
+                    _ => return,
+                }
+                self.sift(sieve, cx);
+            }
+            Sift::Reset => {
+                self.sift(TrackSieve::default(), cx);
+                self.set_span(None, cx);
+            }
         }
-    }
-
-    fn set_flag(&mut self, key: &'static str, on: bool, cx: &mut Context<Self>) {
-        let mut sieve = self.sieve(cx);
-        match key {
-            "filter-explicit" => sieve.explicit = on,
-            "filter-playable" => sieve.playable = on,
-            _ => return,
-        }
-        self.sift(sieve, cx);
-    }
-
-    fn reset_filters(&mut self, cx: &mut Context<Self>) {
-        self.sift(TrackSieve::default(), cx);
-        self.set_span(None, cx);
     }
 }
 

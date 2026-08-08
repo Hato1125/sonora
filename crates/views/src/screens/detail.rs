@@ -2,19 +2,21 @@
 
 use gpui::prelude::*;
 use gpui::{
-    AnyElement, App, Context, Entity, Pixels, Render, ScrollHandle, SharedString, Window, px,
+    AnyElement, App, Context, Entity, Pixels, Render, ScrollHandle, SharedString, WeakEntity,
+    Window, px,
 };
 
 use i18n::t;
 use spotify::Track;
 use state::{AppSettings, Collection, Detail, Playback, Sonora};
-use ui::{ActiveTheme as _, SortAxis};
+use ui::{ActiveTheme as _, Popovers, SortAxis};
 use ui::{
     ColumnSpec, FlagAxis, GridDelegate, GridEvent, GridState, RangeAxis, Scrollbar, Scroller,
     Table as _, Toggle, Unit, clock, grid,
 };
 
-use crate::chrome::{Chrome, Columned, Filterable, Searchable, Sortable, Toolbar, Tooled};
+use crate::chrome::tools::{self, Sift, Sliders};
+use crate::chrome::{Chrome, Searchable, Toolbar, Tooled};
 use crate::shared::hero::{HeroMetaStrip, HeroPlayButton, PageHero, release_date_label};
 use crate::shared::tracks::{
     PlaybackStatus, TrackField, TrackSieve, TrackSource, Tracks, playback_status,
@@ -46,6 +48,9 @@ pub(crate) struct DetailView {
     section: &'static str,
     sorted: Option<String>,
     toolbar: Entity<Toolbar>,
+    popovers: Popovers,
+    sliders: Sliders,
+    me: WeakEntity<Self>,
 }
 
 impl DetailView {
@@ -134,9 +139,7 @@ impl DetailView {
         let toolbar = cx.new(|cx| {
             let mut toolbar = Toolbar::new(cx);
             toolbar.bind(&me, cx);
-            toolbar.columns(&me, cx);
-            toolbar.filters(&me, cx);
-            toolbar.sorts(&me, cx);
+            toolbar.wire(&me, cx);
             toolbar
         });
 
@@ -151,6 +154,9 @@ impl DetailView {
             section,
             sorted: None,
             toolbar,
+            popovers: Popovers::default(),
+            sliders: Sliders::default(),
+            me: me.downgrade(),
         }
     }
 
@@ -285,7 +291,7 @@ impl Searchable for DetailView {
     }
 }
 
-impl Sortable for DetailView {
+impl DetailView {
     fn sorts(&self, cx: &App) -> Vec<SortAxis> {
         self.table.sortables(cx)
     }
@@ -294,9 +300,7 @@ impl Sortable for DetailView {
         self.table.clone().cycle_sort(key, cx);
         cx.notify();
     }
-}
 
-impl Columned for DetailView {
     fn toggles(&self, cx: &App) -> Vec<Toggle> {
         self.table
             .read(cx)
@@ -324,6 +328,38 @@ impl Tooled for DetailView {
     fn toolbar(&self) -> Entity<Toolbar> {
         self.toolbar.clone()
     }
+
+    fn tools(&self, cx: &App) -> Vec<AnyElement> {
+        let columned = self.me.clone();
+        let sifted = self.me.clone();
+        let sorted = self.me.clone();
+
+        vec![
+            tools::columns(&self.popovers, self.toggles(cx), move |key, cx| {
+                columned
+                    .update(cx, |view, cx| view.toggle_column(key, cx))
+                    .ok();
+            }),
+            tools::filters(
+                &self.popovers,
+                &self.sliders,
+                self.ranges(cx),
+                self.flags(cx),
+                move |change, cx| {
+                    sifted.update(cx, |view, cx| view.narrow(change, cx)).ok();
+                },
+                cx,
+            ),
+            tools::sorts(
+                &self.popovers,
+                self.sorts(cx),
+                move |key, cx| {
+                    sorted.update(cx, |view, cx| view.set_sort(key, cx)).ok();
+                },
+                cx,
+            ),
+        ]
+    }
 }
 
 impl DetailView {
@@ -339,9 +375,7 @@ impl DetailView {
         });
         cx.notify();
     }
-}
 
-impl Filterable for DetailView {
     fn ranges(&self, cx: &App) -> Vec<RangeAxis> {
         let table = self.table.read(cx);
         let Some(bounds) = table
@@ -381,23 +415,15 @@ impl Filterable for DetailView {
         ]
     }
 
-    fn set_range(&mut self, _key: &'static str, value: (f32, f32), cx: &mut Context<Self>) {
+    fn narrow(&mut self, change: Sift, cx: &mut Context<Self>) {
         let mut sieve = self.sieve(cx);
-        sieve.duration = Some(value);
-        self.sift(sieve, cx);
-    }
-
-    fn set_flag(&mut self, key: &'static str, on: bool, cx: &mut Context<Self>) {
-        let mut sieve = self.sieve(cx);
-        match key {
-            "filter-explicit" => sieve.explicit = on,
-            "filter-playable" => sieve.playable = on,
-            _ => return,
+        match change {
+            Sift::Range(_, value) => sieve.duration = Some(value),
+            Sift::Flag("filter-explicit", on) => sieve.explicit = on,
+            Sift::Flag("filter-playable", on) => sieve.playable = on,
+            Sift::Flag(..) => return,
+            Sift::Reset => sieve = TrackSieve::default(),
         }
         self.sift(sieve, cx);
-    }
-
-    fn reset_filters(&mut self, cx: &mut Context<Self>) {
-        self.sift(TrackSieve::default(), cx);
     }
 }

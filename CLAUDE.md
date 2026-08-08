@@ -459,8 +459,17 @@ add a sidebar entry in `views/src/chrome/sidebar_left.rs` if it's top-level.
 and `hide_below` for responsive dropping. Hidden columns persist through
 `AppSettings::{hidden_columns, set_hidden_columns}`.
 
-**Filtering.** Implement `chrome::Searchable` on the view; `Root` binds it to the shared `Filter`
-in the title bar. Don't build a second search box.
+**Toolbar.** `chrome::Toolbar` owns only the search field and lays out whatever a screen hands it.
+A screen implements `chrome::Tooled` — `toolbar()` returns its `Entity<Toolbar>`, `tools(&self, cx)`
+returns the finished `Vec<AnyElement>` — and wires itself once with `Toolbar::wire`. Adding a
+control to a screen never touches `toolbar.rs`. Build the standard controls with the shared builders
+in `chrome::tools` (`columns`, `filters`, `sorts`, `views`) rather than writing a menu twice; each
+screen owns one `ui::Popovers` so only one of its popovers is open at a time, and holds its own
+`tools::Sliders` cache so scrubber positions survive across frames (`LibraryView` keeps one per
+section, so tab switches cannot bleed).
+
+**Filtering.** Implement `chrome::Searchable` on the view; `Toolbar::bind` binds it to the search
+field in the title bar. Don't build a second search box.
 
 **Actions and keys.** Declare actions in `crates/input/src/lib.rs` (`actions!` macro), bind them in
 `bindings()`, handle them with `cx.on_action` (global, in `sonora/src/actions.rs`) or
