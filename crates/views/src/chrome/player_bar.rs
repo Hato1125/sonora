@@ -266,6 +266,7 @@ impl PlayerBar {
         )
     }
 
+    #[allow(dead_code)]
     fn fullscreen_button(&self) -> Button {
         Button::new("toggle-fullscreen")
             .ghost()
@@ -543,7 +544,6 @@ impl Render for PlayerBar {
                         .w_full()
                         .child(div().flex_1().min_w_0().child(seek))
                         .child(self.sound(px(VOLUME_TIGHT), cx))
-                        .child(self.fullscreen_button())
                         .when_some(self.queue_button(cx), |this, button| this.child(button)),
                 ),
             false => base
@@ -571,7 +571,6 @@ impl Render for PlayerBar {
                         .flex_1()
                         .min_w_0()
                         .child(self.sound(px(VOLUME_WIDTH), cx))
-                        .child(self.fullscreen_button())
                         .when_some(self.queue_button(cx), |this, button| this.child(button)),
                 ),
         };
