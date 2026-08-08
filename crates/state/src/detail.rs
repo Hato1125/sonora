@@ -67,6 +67,10 @@ impl Detail {
         }
     }
 
+    pub fn id(&self) -> Option<&str> {
+        self.id.as_deref()
+    }
+
     pub fn header(&self) -> Option<&Header> {
         self.header.as_ref()
     }

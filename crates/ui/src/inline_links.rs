@@ -5,6 +5,9 @@ use std::rc::Rc;
 use gpui::prelude::*;
 use gpui::{App, Hsla, MouseButton, Pixels, SharedString, Window, div};
 
+const RAMP: f32 = 6.;
+const DEPTH: usize = 5;
+
 #[derive(Clone, Debug)]
 pub struct InlineLink {
     pub label: SharedString,
@@ -67,6 +70,10 @@ impl InlineLinks {
     }
 }
 
+fn eagerness(index: usize) -> f32 {
+    RAMP.powi(index.min(DEPTH) as i32)
+}
+
 impl RenderOnce for InlineLinks {
     fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
         let Self {
@@ -116,7 +123,11 @@ impl RenderOnce for InlineLinks {
                     div()
                         .flex()
                         .min_w_0()
-                        .when(!clip, |this| this.flex_none())
+                        .when_else(
+                            clip,
+                            |this| this.flex_shrink(eagerness(index)),
+                            |this| this.flex_none(),
+                        )
                         .when(index > 0, |this| this.child(div().flex_none().child(", ")))
                         .child(item)
                 }))

@@ -3,13 +3,15 @@
 use std::cmp::Ordering;
 use ui::ActiveTheme as _;
 
-use gpui::{AnyElement, App, Entity, TextAlign};
+use gpui::{AnyElement, App, Entity, SharedString, TextAlign};
+use i18n::t;
 use router::Destination;
 use spotify::Album;
 use state::{Library, LibraryState, Origin, Playback};
 use ui::{Cell, ColumnSpec, GridSource, Width};
 
 use crate::cells::{self, ALWAYS, NUMBER, ROOMY, TRAILING, WIDE, YEAR};
+use crate::tracks::initial;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum AlbumField {
@@ -28,7 +30,7 @@ pub(super) const COLUMNS: &[ColumnSpec<AlbumField>] = &[
         header: "column-index",
         align: TextAlign::Center,
         width: Width::Fixed(NUMBER),
-        flush: false,
+        anchored: true,
         sortable: false,
         hide_below: ALWAYS,
     },
@@ -38,7 +40,7 @@ pub(super) const COLUMNS: &[ColumnSpec<AlbumField>] = &[
         header: "",
         align: TextAlign::Left,
         width: Width::Thumb,
-        flush: true,
+        anchored: true,
         sortable: false,
         hide_below: ALWAYS,
     },
@@ -48,7 +50,7 @@ pub(super) const COLUMNS: &[ColumnSpec<AlbumField>] = &[
         header: "column-album",
         align: TextAlign::Left,
         width: Width::Fill(0.55),
-        flush: false,
+        anchored: false,
         sortable: true,
         hide_below: ALWAYS,
     },
@@ -58,7 +60,7 @@ pub(super) const COLUMNS: &[ColumnSpec<AlbumField>] = &[
         header: "column-artist",
         align: TextAlign::Left,
         width: Width::Fill(0.45),
-        flush: false,
+        anchored: false,
         sortable: true,
         hide_below: ALWAYS,
     },
@@ -68,7 +70,7 @@ pub(super) const COLUMNS: &[ColumnSpec<AlbumField>] = &[
         header: "column-year",
         align: TextAlign::Right,
         width: Width::Fixed(YEAR),
-        flush: false,
+        anchored: false,
         sortable: true,
         hide_below: ROOMY,
     },
@@ -78,7 +80,7 @@ pub(super) const COLUMNS: &[ColumnSpec<AlbumField>] = &[
         header: "column-tracks",
         align: TextAlign::Right,
         width: Width::Fixed(TRAILING),
-        flush: false,
+        anchored: false,
         sortable: true,
         hide_below: WIDE,
     },
@@ -236,6 +238,20 @@ impl GridSource for AlbumSource {
                 .map(|album| album.track_count)
                 .cmp(&albums.get(b).map(|album| album.track_count)),
             AlbumField::Index | AlbumField::Cover => a.cmp(&b),
+        }
+    }
+
+    fn group(&self, field: AlbumField, row: usize, cx: &App) -> Option<SharedString> {
+        let album = self.albums(cx).get(row)?;
+
+        match field {
+            AlbumField::Name => Some(initial(&album.name)),
+            AlbumField::Artists => Some(initial(&album.artists)),
+            AlbumField::Year => Some(match album.year {
+                0 => t!("common-unknown"),
+                year => SharedString::from(year.to_string()),
+            }),
+            _ => None,
         }
     }
 }

@@ -10,6 +10,7 @@ use ui::{Menu, MenuItem, Scrollbar, SubmenuState};
 #[derive(Clone)]
 pub struct TrackMenu {
     playlist_submenu: SubmenuState,
+    artist_submenu: SubmenuState,
     playlist_scrollbar: Entity<Scrollbar>,
 }
 
@@ -17,12 +18,14 @@ impl TrackMenu {
     pub fn new(playlist_scrollbar: Entity<Scrollbar>) -> Self {
         Self {
             playlist_submenu: SubmenuState::default(),
+            artist_submenu: SubmenuState::default(),
             playlist_scrollbar,
         }
     }
 
     pub fn reset(&self) {
         self.playlist_submenu.reset();
+        self.artist_submenu.reset();
     }
 
     pub fn for_track(&self, track: &Track, cx: &App) -> Menu {
@@ -99,6 +102,48 @@ impl TrackMenu {
                 .disabled(),
         };
 
+        let album = match track.album_id.clone() {
+            Some(id) => MenuItem::new("go-to-album", t!("menu-go-to-album"))
+                .icon("icons/disc-3.svg")
+                .on_click(move |_, _, cx| navigate(Destination::Album(id.clone().into()), cx)),
+            None => MenuItem::new("go-to-album", t!("menu-go-to-album"))
+                .icon("icons/disc-3.svg")
+                .disabled(),
+        };
+
+        let artists = track
+            .artist_refs
+            .iter()
+            .filter_map(|artist| {
+                let id = artist.id.clone()?;
+                Some((artist.name.clone(), id))
+            })
+            .collect::<Vec<_>>();
+        let artist = match artists.len() {
+            0 => MenuItem::new("go-to-artist", t!("menu-go-to-artist"))
+                .icon("icons/user.svg")
+                .disabled(),
+            1 => {
+                let id = artists[0].1.clone();
+                MenuItem::new("go-to-artist", t!("menu-go-to-artist"))
+                    .icon("icons/user.svg")
+                    .on_click(move |_, _, cx| navigate(Destination::Artist(id.clone().into()), cx))
+            }
+            _ => {
+                let artist_menu = Menu::new("artist-submenu")
+                    .w(gpui::px(220.))
+                    .max_h(gpui::px(360.))
+                    .items(artists.into_iter().map(|(name, id)| {
+                        MenuItem::new(format!("artist-{id}"), name).on_click(move |_, _, cx| {
+                            navigate(Destination::Artist(id.clone().into()), cx)
+                        })
+                    }));
+                MenuItem::new("go-to-artist", t!("menu-go-to-artist"))
+                    .icon("icons/user.svg")
+                    .submenu(artist_menu, self.artist_submenu.clone())
+            }
+        };
+
         let details = match track.id.clone() {
             Some(id) => MenuItem::new("view-details", t!("menu-view-details"))
                 .icon("icons/info.svg")
@@ -123,6 +168,8 @@ impl TrackMenu {
                     .icon("icons/radio.svg")
                     .disabled(),
             )
+            .item(album)
+            .item(artist)
             .item(details)
             .item(copy)
     }

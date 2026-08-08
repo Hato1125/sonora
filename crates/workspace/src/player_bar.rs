@@ -7,13 +7,14 @@ use ui::ActiveTheme as _;
 use gpui::prelude::*;
 use gpui::{
     Context, Entity, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, Point,
-    Render, ScrollHandle, SharedString, anchored,
+    Render, ScrollHandle, SharedString,
 };
 use gpui::{Window, div, px};
 use i18n::t;
 use state::{Library, Playback, PlaybackState, Queue, Repeat, Sonora};
 use ui::{
-    Artwork, Button, InlineLink, InlineLinks, Room, Scrollbar, Scrubber, ScrubberState, clock,
+    Artwork, Button, InlineLink, InlineLinks, Popup, Room, Scrollbar, Scrubber, ScrubberState,
+    clock,
 };
 
 use crate::sidebar_right::QueuePanel;
@@ -251,6 +252,7 @@ impl PlayerBar {
         Some(
             Button::new("toggle-queue")
                 .ghost()
+                .hoverless()
                 .small()
                 .icon("icons/list.svg")
                 .selected(open)
@@ -501,21 +503,12 @@ impl Render for PlayerBar {
             .on_mouse_move(cx.listener(Self::hover));
 
         let context_menu = self.context_menu.clone().map(|(track, position)| {
-            anchored()
-                .position(position)
-                .snap_to_window_with_margin(px(8.))
-                .child(
-                    self.track_menu
-                        .for_track(&track, cx)
-                        .on_action(cx.listener(|this, _, _, cx| {
-                            this.context_menu = None;
-                            cx.notify();
-                        }))
-                        .on_dismiss(cx.listener(|this, _, _, cx| {
-                            this.context_menu = None;
-                            cx.notify();
-                        })),
-                )
+            Popup::new(position, self.track_menu.for_track(&track, cx)).on_close(cx.listener(
+                |this, _, _, cx| {
+                    this.context_menu = None;
+                    cx.notify();
+                },
+            ))
         });
 
         let content = match stacked {

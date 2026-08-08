@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use gpui::{Pixels, SharedString, Window, px};
+use gpui::{Pixels, SharedString, TextRun, Window, px};
 use i18n::t;
 
 const HEADER: f32 = 0.75;
@@ -126,4 +126,27 @@ impl Text {
 pub fn snapped(value: Pixels, window: &Window) -> Pixels {
     let scale = window.scale_factor();
     px((value / px(1.) * scale).round() / scale)
+}
+
+pub fn text_width(text: impl Into<SharedString>, window: &Window) -> Pixels {
+    let text = text.into();
+    if text.is_empty() {
+        return Pixels::ZERO;
+    }
+
+    let style = window.text_style();
+    let run = TextRun {
+        len: text.len(),
+        font: style.font(),
+        color: style.color,
+        background_color: None,
+        underline: None,
+        strikethrough: None,
+    };
+    let size = style.font_size.to_pixels(window.rem_size());
+
+    window
+        .text_system()
+        .shape_line(text, size, &[run], None)
+        .width
 }

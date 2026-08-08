@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use gpui::{Context, Task};
 use serde::{Deserialize, Serialize};
-use ui::{Look, Rounding, ThemeKind, ThemeOverrides};
+use ui::{Layout, Look, Mode, Rounding, Sorting, ThemeKind, ThemeOverrides};
 
 const SAVE_DELAY: Duration = Duration::from_millis(300);
 const DEFAULT_VOLUME: f32 = 0.7;
@@ -25,7 +25,11 @@ struct Values {
     sidebar_open: bool,
     queue_width: f32,
     language: String,
+    #[serde(skip_serializing_if = "HashMap::is_empty")]
     hidden_columns: HashMap<String, Vec<String>>,
+    tables: HashMap<String, Layout>,
+    sorting: HashMap<String, Option<Sorting>>,
+    views: HashMap<String, Mode>,
     appearance: Appearance,
 }
 
@@ -53,7 +57,21 @@ impl Default for Values {
             queue_width: DEFAULT_QUEUE_WIDTH,
             language: i18n::AUTO.to_owned(),
             hidden_columns: HashMap::new(),
+            tables: HashMap::new(),
+            sorting: HashMap::new(),
+            views: HashMap::new(),
             appearance: Appearance::default(),
+        }
+    }
+}
+
+impl Values {
+    fn migrate(&mut self) {
+        for (table, hidden) in self.hidden_columns.drain() {
+            self.tables.entry(table).or_insert_with(|| Layout {
+                hidden,
+                ..Layout::default()
+            });
         }
     }
 }
@@ -82,7 +100,7 @@ pub struct AppSettings {
 impl AppSettings {
     pub fn load() -> Self {
         let path = settings_path();
-        let values = match fs::read(&path) {
+        let mut values = match fs::read(&path) {
             Ok(bytes) => serde_json::from_slice::<Values>(&bytes).unwrap_or_else(|error| {
                 log::warn!("settings: cannot parse {}: {error}", path.display());
                 Values::default()
@@ -93,6 +111,7 @@ impl AppSettings {
                 Values::default()
             }
         };
+        values.migrate();
 
         Self {
             values,
@@ -186,23 +205,39 @@ impl AppSettings {
         self.schedule_save(cx);
     }
 
-    pub fn hidden_columns(&self, section: &str) -> Vec<String> {
-        self.values
-            .hidden_columns
-            .get(section)
-            .cloned()
-            .unwrap_or_default()
+    pub fn table(&self, table: &str) -> Layout {
+        self.values.tables.get(table).cloned().unwrap_or_default()
     }
 
-    pub fn set_hidden_columns(
-        &mut self,
-        section: &str,
-        hidden: Vec<String>,
-        cx: &mut Context<Self>,
-    ) {
-        self.values
-            .hidden_columns
-            .insert(section.to_owned(), hidden);
+    pub fn set_table(&mut self, table: &str, layout: Layout, cx: &mut Context<Self>) {
+        if self.values.tables.get(table) == Some(&layout) {
+            return;
+        }
+        self.values.tables.insert(table.to_owned(), layout);
+        self.schedule_save(cx);
+    }
+
+    pub fn view(&self, table: &str) -> Mode {
+        self.values.views.get(table).copied().unwrap_or_default()
+    }
+
+    pub fn set_view(&mut self, table: &str, mode: Mode, cx: &mut Context<Self>) {
+        if self.values.views.get(table) == Some(&mode) {
+            return;
+        }
+        self.values.views.insert(table.to_owned(), mode);
+        self.schedule_save(cx);
+    }
+
+    pub fn sorting(&self, table: &str) -> Option<Option<Sorting>> {
+        self.values.sorting.get(table).cloned()
+    }
+
+    pub fn set_sorting(&mut self, table: &str, sorting: Option<Sorting>, cx: &mut Context<Self>) {
+        if self.values.sorting.get(table) == Some(&sorting) {
+            return;
+        }
+        self.values.sorting.insert(table.to_owned(), sorting);
         self.schedule_save(cx);
     }
 

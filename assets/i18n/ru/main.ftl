@@ -44,6 +44,8 @@ menu-add-to-library = Добавить в медиатеку
 menu-remove-from-library = Удалить из медиатеки
 menu-add-to-queue = Добавить в очередь
 menu-song-radio = Радио по треку
+menu-go-to-album = Перейти к альбому
+menu-go-to-artist = Перейти к исполнителю
 menu-view-details = Подробнее
 menu-copy-link = Копировать ссылку
 menu-remove-from-queue = Убрать из очереди
@@ -69,6 +71,10 @@ filter-duration = Длительность
 filter-year = Год
 filter-explicit = Только с ненормативной лексикой
 filter-playable = Только доступные
+
+# view
+view-list = Список
+view-cards = Карточки
 
 # login
 login-signed-out = Войдите, чтобы загрузить медиатеку Spotify

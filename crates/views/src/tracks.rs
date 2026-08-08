@@ -6,8 +6,8 @@ use ui::ActiveTheme as _;
 
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
-    AnyElement, App, Entity, Hsla, InteractiveElement as _, IntoElement as _, Styled as _,
-    TextAlign, WeakEntity,
+    AnyElement, App, Entity, Hsla, InteractiveElement as _, IntoElement as _, SharedString,
+    Styled as _, TextAlign, WeakEntity,
 };
 use jiff::Timestamp;
 use router::Destination;
@@ -40,7 +40,7 @@ pub(crate) const LIBRARY_COLUMNS: &[ColumnSpec<TrackField>] = &[
         header: "column-index",
         align: TextAlign::Center,
         width: Width::Fixed(NUMBER),
-        flush: false,
+        anchored: true,
         sortable: false,
         hide_below: ALWAYS,
     },
@@ -50,7 +50,7 @@ pub(crate) const LIBRARY_COLUMNS: &[ColumnSpec<TrackField>] = &[
         header: "",
         align: TextAlign::Left,
         width: Width::Thumb,
-        flush: true,
+        anchored: true,
         sortable: false,
         hide_below: ALWAYS,
     },
@@ -60,7 +60,7 @@ pub(crate) const LIBRARY_COLUMNS: &[ColumnSpec<TrackField>] = &[
         header: "column-title",
         align: TextAlign::Left,
         width: Width::Fill(0.42),
-        flush: false,
+        anchored: false,
         sortable: true,
         hide_below: ALWAYS,
     },
@@ -70,7 +70,7 @@ pub(crate) const LIBRARY_COLUMNS: &[ColumnSpec<TrackField>] = &[
         header: "column-artist",
         align: TextAlign::Left,
         width: Width::Fill(0.29),
-        flush: false,
+        anchored: false,
         sortable: true,
         hide_below: ROOMY,
     },
@@ -80,7 +80,7 @@ pub(crate) const LIBRARY_COLUMNS: &[ColumnSpec<TrackField>] = &[
         header: "column-album",
         align: TextAlign::Left,
         width: Width::Fill(0.29),
-        flush: false,
+        anchored: false,
         sortable: true,
         hide_below: WIDE,
     },
@@ -90,7 +90,7 @@ pub(crate) const LIBRARY_COLUMNS: &[ColumnSpec<TrackField>] = &[
         header: "column-date-added",
         align: TextAlign::Left,
         width: Width::Fixed(DATE),
-        flush: false,
+        anchored: false,
         sortable: true,
         hide_below: WIDE,
     },
@@ -100,7 +100,7 @@ pub(crate) const LIBRARY_COLUMNS: &[ColumnSpec<TrackField>] = &[
         header: "column-length",
         align: TextAlign::Right,
         width: Width::Fixed(TRAILING),
-        flush: false,
+        anchored: false,
         sortable: true,
         hide_below: SNUG,
     },
@@ -113,7 +113,7 @@ pub(crate) const ALBUM_COLUMNS: &[ColumnSpec<TrackField>] = &[
         header: "column-index",
         align: TextAlign::Center,
         width: Width::Fixed(NUMBER),
-        flush: false,
+        anchored: true,
         sortable: false,
         hide_below: ALWAYS,
     },
@@ -123,7 +123,7 @@ pub(crate) const ALBUM_COLUMNS: &[ColumnSpec<TrackField>] = &[
         header: "column-title",
         align: TextAlign::Left,
         width: Width::Fill(0.62),
-        flush: false,
+        anchored: false,
         sortable: true,
         hide_below: ALWAYS,
     },
@@ -133,7 +133,7 @@ pub(crate) const ALBUM_COLUMNS: &[ColumnSpec<TrackField>] = &[
         header: "column-artist",
         align: TextAlign::Left,
         width: Width::Fill(0.38),
-        flush: false,
+        anchored: false,
         sortable: true,
         hide_below: ROOMY,
     },
@@ -143,7 +143,7 @@ pub(crate) const ALBUM_COLUMNS: &[ColumnSpec<TrackField>] = &[
         header: "column-plays",
         align: TextAlign::Left,
         width: Width::Fixed(DATE),
-        flush: false,
+        anchored: false,
         sortable: true,
         hide_below: WIDE,
     },
@@ -153,7 +153,7 @@ pub(crate) const ALBUM_COLUMNS: &[ColumnSpec<TrackField>] = &[
         header: "column-length",
         align: TextAlign::Right,
         width: Width::Fixed(TRAILING),
-        flush: false,
+        anchored: false,
         sortable: true,
         hide_below: SNUG,
     },
@@ -526,6 +526,25 @@ impl GridSource for TrackSource {
             TrackField::Index | TrackField::Cover => a.cmp(&b),
         }
     }
+
+    fn group(&self, field: TrackField, row: usize, cx: &App) -> Option<SharedString> {
+        let track = self.provider.tracks(cx).get(row)?;
+
+        match field {
+            TrackField::Title => Some(initial(&track.name)),
+            TrackField::Artists => Some(initial(&track.artists)),
+            TrackField::Album => Some(initial(&track.album)),
+            _ => None,
+        }
+    }
+}
+
+pub(crate) fn initial(text: &str) -> SharedString {
+    text.chars()
+        .next()
+        .filter(|first| first.is_alphabetic())
+        .map(|first| SharedString::from(first.to_uppercase().collect::<String>()))
+        .unwrap_or_else(|| SharedString::from("#"))
 }
 
 fn hits(track: &Track, query: &str) -> bool {
@@ -542,7 +561,7 @@ mod tests {
 
     use spotify::Track;
 
-    use super::{TrackSieve, hits};
+    use super::{TrackSieve, hits, initial};
 
     fn track(seconds: u64, explicit: bool, playable: bool) -> Track {
         Track {
@@ -629,5 +648,30 @@ mod tests {
         assert!(sieve.keeps(&track(120, true, true)));
         assert!(!sieve.keeps(&track(120, true, false)));
         assert!(!sieve.keeps(&track(400, true, true)));
+    }
+
+    #[test]
+    fn letters_bucket_under_their_uppercase_form() {
+        assert_eq!(initial("bark at the moon"), "B");
+        assert_eq!(initial("Bark at the Moon"), "B");
+    }
+
+    #[test]
+    fn cyrillic_keeps_its_own_letter() {
+        assert_eq!(initial("прощай"), "П");
+        assert_eq!(initial("Ялта"), "Я");
+    }
+
+    #[test]
+    fn digits_punctuation_and_emptiness_share_one_bucket() {
+        assert_eq!(initial("99 Luftballons"), "#");
+        assert_eq!(initial("!!!"), "#");
+        assert_eq!(initial(" leading space"), "#");
+        assert_eq!(initial(""), "#");
+    }
+
+    #[test]
+    fn multi_char_uppercase_is_kept_whole() {
+        assert_eq!(initial("ßeta"), "SS");
     }
 }

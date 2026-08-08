@@ -1,0 +1,105 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
+use std::rc::Rc;
+
+use gpui::prelude::*;
+use gpui::{App, Div, Window, div};
+
+use crate::button::Button;
+use crate::menu::{Menu, Trigger};
+
+#[derive(Clone, Default)]
+pub struct Popovers {
+    open: Rc<Cell<Option<&'static str>>>,
+    triggers: Rc<RefCell<HashMap<&'static str, Trigger>>>,
+}
+
+impl Popovers {
+    pub fn close(&self) {
+        self.open.set(None);
+    }
+
+    pub fn shows(&self, key: &'static str) -> bool {
+        self.open.get() == Some(key)
+    }
+
+    fn toggle(&self, key: &'static str) {
+        let next = match self.shows(key) {
+            true => None,
+            false => Some(key),
+        };
+        self.open.set(next);
+    }
+
+    fn trigger(&self, key: &'static str) -> Trigger {
+        self.triggers.borrow_mut().entry(key).or_default().clone()
+    }
+}
+
+#[derive(IntoElement)]
+pub struct Popover {
+    key: &'static str,
+    group: Popovers,
+    button: Option<Button>,
+    menu: Option<Menu>,
+}
+
+impl Popover {
+    pub fn new(key: &'static str, group: Popovers) -> Self {
+        Self {
+            key,
+            group,
+            button: None,
+            menu: None,
+        }
+    }
+
+    pub fn button(mut self, button: Button) -> Self {
+        self.button = Some(button);
+        self
+    }
+
+    pub fn menu(mut self, menu: Menu) -> Self {
+        self.menu = Some(menu);
+        self
+    }
+}
+
+impl RenderOnce for Popover {
+    fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
+        let Self {
+            key,
+            group,
+            button,
+            menu,
+        } = self;
+
+        let open = group.shows(key);
+        let trigger = group.trigger(key);
+        let head = button.map(|button| {
+            let group = group.clone();
+            let observed = trigger.clone();
+
+            head(observed).child(button.selected(open).on_click(move |_, _, cx| {
+                group.toggle(key);
+                cx.refresh_windows();
+            }))
+        });
+        let body = menu.filter(|_| open).map(|menu| {
+            let group = group.clone();
+
+            menu.trigger(trigger).on_dismiss(move |_, _, cx| {
+                group.close();
+                cx.refresh_windows();
+            })
+        });
+
+        div().relative().children(head).children(body)
+    }
+}
+
+fn head(trigger: Trigger) -> Div {
+    div().on_children_prepainted(move |bounds, _, _| trigger.observe(bounds))
+}

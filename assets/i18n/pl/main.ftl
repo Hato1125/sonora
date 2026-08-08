@@ -44,6 +44,8 @@ menu-add-to-library = Dodaj do biblioteki
 menu-remove-from-library = Usuń z biblioteki
 menu-add-to-queue = Dodaj do kolejki
 menu-song-radio = Radio utworu
+menu-go-to-album = Przejdź do albumu
+menu-go-to-artist = Przejdź do wykonawcy
 menu-view-details = Szczegóły
 menu-copy-link = Kopiuj link
 menu-remove-from-queue = Usuń z kolejki
@@ -69,6 +71,10 @@ filter-duration = Czas trwania
 filter-year = Rok
 filter-explicit = Tylko z wulgaryzmami
 filter-playable = Tylko dostępne
+
+# view
+view-list = Lista
+view-cards = Kafelki
 
 # login
 login-signed-out = Zaloguj się, aby wczytać bibliotekę Spotify

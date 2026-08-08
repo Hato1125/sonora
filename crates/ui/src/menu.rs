@@ -7,8 +7,8 @@ use std::time::Duration;
 use gpui::prelude::*;
 use gpui::{
     Anchor, AnyElement, AnyWindowHandle, App, Bounds, ClickEvent, Div, ElementId, Entity,
-    Interactivity, MouseButton, MouseDownEvent, Pixels, Point, SharedString, Size, Stateful,
-    StyleRefinement, Window, anchored, deferred, div, point, px, svg,
+    Interactivity, MouseButton, Pixels, Point, SharedString, Size, Stateful, StyleRefinement,
+    Window, anchored, deferred, div, point, px, svg,
 };
 
 use crate::Artwork;
@@ -22,10 +22,37 @@ const SUBMENU_FALLBACK_WIDTH: Pixels = px(236.);
 const SUBMENU_TOP: Pixels = px(-14.);
 const SCROLLBAR_GUTTER: Pixels = px(8.);
 const WINDOW_MARGIN: Pixels = px(8.);
+const PANEL_SLACK: Pixels = px(6.);
 
 type Press = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
-type Dismiss = Box<dyn Fn(&MouseDownEvent, &mut Window, &mut App) + 'static>;
+type Dismiss = Box<dyn Fn(&(), &mut Window, &mut App) + 'static>;
 type Action = Rc<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
+
+#[derive(Clone, Default)]
+pub(crate) struct Trigger(Rc<Cell<Option<Bounds<Pixels>>>>);
+
+impl Trigger {
+    pub(crate) fn observe(&self, bounds: Vec<Bounds<Pixels>>) {
+        self.0
+            .set(bounds.into_iter().reduce(|one, other| one.union(&other)));
+    }
+
+    fn contains(&self, position: Point<Pixels>, slack: Pixels) -> bool {
+        self.0.get().is_some_and(|bounds| {
+            Bounds {
+                origin: Point {
+                    x: bounds.origin.x - slack,
+                    y: bounds.origin.y - slack,
+                },
+                size: Size {
+                    width: bounds.size.width + slack * 2.,
+                    height: bounds.size.height + slack * 2.,
+                },
+            }
+            .contains(&position)
+        })
+    }
+}
 
 #[derive(Clone, Default)]
 pub struct SubmenuState {
@@ -102,9 +129,11 @@ impl SubmenuState {
     }
 
     fn contains(&self, position: Point<Pixels>) -> bool {
-        self.safe_bounds
-            .get()
-            .is_some_and(|bounds| bounds.contains(&position))
+        self.is_open()
+            && self
+                .safe_bounds
+                .get()
+                .is_some_and(|bounds| bounds.contains(&position))
     }
 
     pub fn reset(&self) {
@@ -132,6 +161,8 @@ pub struct MenuItem {
     press: Option<Press>,
     submenu: Option<Submenu>,
 }
+
+impl FluentBuilder for MenuItem {}
 
 impl MenuItem {
     pub fn new(id: impl Into<ElementId>, label: impl Into<SharedString>) -> Self {
@@ -219,6 +250,7 @@ pub struct Menu {
     deferred: bool,
     scrollbar: Option<Entity<Scrollbar>>,
     hover_guard: Option<SubmenuState>,
+    trigger: Option<Trigger>,
 }
 
 impl Menu {
@@ -233,6 +265,7 @@ impl Menu {
             deferred: true,
             scrollbar: None,
             hover_guard: None,
+            trigger: None,
         }
     }
 
@@ -246,15 +279,17 @@ impl Menu {
         self
     }
 
-    pub fn on_dismiss(
-        mut self,
-        handler: impl Fn(&MouseDownEvent, &mut Window, &mut App) + 'static,
-    ) -> Self {
+    pub(crate) fn trigger(mut self, trigger: Trigger) -> Self {
+        self.trigger = Some(trigger);
+        self
+    }
+
+    pub fn on_dismiss(mut self, handler: impl Fn(&(), &mut Window, &mut App) + 'static) -> Self {
         self.dismiss = Some(Box::new(handler));
         self
     }
 
-    pub fn on_action(
+    pub(crate) fn on_action(
         mut self,
         handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
     ) -> Self {
@@ -303,6 +338,7 @@ impl RenderOnce for Menu {
             deferred: should_defer,
             scrollbar,
             hover_guard,
+            trigger,
         } = self;
 
         if let (Some(scrollbar), Some(guard)) = (scrollbar.as_ref(), hover_guard.clone()) {
@@ -314,6 +350,8 @@ impl RenderOnce for Menu {
 
         let theme = *cx.theme();
         let overrides = std::mem::take(base.style());
+        let panel = Trigger::default();
+        let nested = hover_guard.is_some();
         let dismiss_guards: Vec<_> = items
             .iter()
             .filter_map(|item| item.submenu.as_ref().map(|submenu| submenu.state.clone()))
@@ -504,10 +542,14 @@ impl RenderOnce for Menu {
             None => div()
                 .flex()
                 .flex_col()
-                .on_children_prepainted(move |bounds, _, _| {
-                    if let Some(bounds) = bounds.into_iter().reduce(|a, b| a.union(&b)) {
-                        for guard in &bounds_guards {
-                            guard.observe_parent(bounds);
+                .on_children_prepainted({
+                    let panel = panel.clone();
+                    move |bounds, _, _| {
+                        panel.observe(bounds.clone());
+                        if let Some(bounds) = bounds.into_iter().reduce(|a, b| a.union(&b)) {
+                            for guard in &bounds_guards {
+                                guard.observe_parent(bounds);
+                            }
                         }
                     }
                 })
@@ -524,6 +566,10 @@ impl RenderOnce for Menu {
                 .min_w_0()
                 .min_h_0()
                 .overflow_hidden()
+                .on_children_prepainted({
+                    let panel = panel.clone();
+                    move |bounds, _, _| panel.observe(bounds)
+                })
                 .child(content)
                 .child(scrollbar)
                 .into_any_element(),
@@ -542,16 +588,20 @@ impl RenderOnce for Menu {
             .text_color(theme.popover_foreground)
             .occlude()
             .when_some(dismiss, |this, dismiss| {
+                let blocked = move |position: Point<Pixels>| {
+                    panel.contains(position, PANEL_SLACK)
+                        || dismiss_guards.iter().any(|guard| guard.contains(position))
+                        || trigger
+                            .as_ref()
+                            .is_some_and(|trigger| trigger.contains(position, Pixels::ZERO))
+                };
                 this.on_mouse_down_out(move |event, window, cx| {
-                    if !dismiss_guards
-                        .iter()
-                        .any(|guard| guard.contains(event.position))
-                    {
-                        dismiss(event, window, cx);
+                    if !blocked(event.position) {
+                        dismiss(&(), window, cx);
                     }
                 })
             })
-            .when(should_defer, |this| {
+            .when(should_defer && !nested, |this| {
                 let viewport = window.viewport_size();
                 let chrome = snapped(theme.metrics.title_bar, window);
                 this.child(
