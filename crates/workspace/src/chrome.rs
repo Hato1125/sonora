@@ -22,10 +22,10 @@ impl Chrome {
         cx.global::<Installed>().0.clone()
     }
 
-    pub(crate) fn publish(sidebar: Pixels, queue: Pixels, cx: &mut App) {
+    pub(crate) fn publish(left: Pixels, right: Pixels, cx: &mut App) {
         let next = Self {
-            sidebar_left: sidebar,
-            sidebar_right: queue,
+            sidebar_left: left,
+            sidebar_right: right,
         };
         let chrome = Self::entity(cx);
         chrome.update(cx, |chrome, cx| {
@@ -42,11 +42,11 @@ impl Chrome {
             .unwrap_or_default()
     }
 
-    pub fn sidebar(cx: &App) -> Pixels {
+    pub fn sidebar_left(cx: &App) -> Pixels {
         Self::get(cx).sidebar_left
     }
 
-    pub fn queue(cx: &App) -> Pixels {
+    pub fn sidebar_right(cx: &App) -> Pixels {
         Self::get(cx).sidebar_right
     }
 

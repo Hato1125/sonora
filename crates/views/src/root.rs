@@ -10,7 +10,9 @@ use state::{
     SongDetail,
 };
 use ui::ActiveTheme as _;
-use workspace::{Sidebar, TitleBar, TitleBarEvent, TitleBarOptions, Toolbar, Tooled, Workspace};
+use workspace::{
+    SidebarLeft, TitleBar, TitleBarEvent, TitleBarOptions, Toolbar, Tooled, Workspace,
+};
 
 use crate::screens::search::SearchView;
 use crate::shared::tracks::{ALBUM_COLUMNS, LIBRARY_COLUMNS};
@@ -55,7 +57,7 @@ pub struct Root {
     playback: Entity<Playback>,
     io: Io,
     login: Entity<LoginView>,
-    sidebar: Entity<Sidebar>,
+    sidebar: Entity<SidebarLeft>,
     title_bar: Entity<TitleBar>,
     shells: Shells,
     view: RootView,
@@ -77,7 +79,7 @@ impl Root {
         cx.observe(&session, |_, _, cx| cx.notify()).detach();
 
         let login = cx.new(|cx| LoginView::new(session.clone(), cx));
-        let sidebar = cx.new(Sidebar::new);
+        let sidebar = cx.new(SidebarLeft::new);
 
         let navigation = router::trail(cx);
 

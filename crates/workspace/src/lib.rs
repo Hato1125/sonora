@@ -12,7 +12,7 @@ mod track_menu;
 pub use chrome::Chrome;
 pub use links::artist_links;
 pub use player_bar::PlayerBar;
-pub use sidebar_left::Sidebar;
+pub use sidebar_left::SidebarLeft;
 pub use title_bar::{TitleBar, TitleBarEvent, TitleBarOptions};
 pub use toolbar::{Columned, Filterable, Searchable, Sortable, Toolbar, Tooled, Viewed};
 pub use track_menu::TrackMenu;
@@ -21,34 +21,34 @@ use gpui::prelude::*;
 use gpui::{AnyView, App, Context, Entity, FocusHandle, Render};
 use gpui::{Window, div};
 use input::{Dismiss, WORKSPACE_CONTEXT};
-use sidebar_right::QueuePanel;
+use sidebar_right::SidebarRight;
 use state::{Playback, Queue};
 
 pub struct Workspace {
-    sidebar: Entity<Sidebar>,
+    sidebar: Entity<SidebarLeft>,
     player_bar: Entity<PlayerBar>,
-    queue_panel: Entity<QueuePanel>,
+    sidebar_right: Entity<SidebarRight>,
     content: AnyView,
     focus: FocusHandle,
 }
 
 impl Workspace {
     pub fn new(
-        sidebar: Entity<Sidebar>,
+        sidebar: Entity<SidebarLeft>,
         playback: Entity<Playback>,
         queue: Entity<Queue>,
         content: AnyView,
         cx: &mut Context<Self>,
     ) -> Self {
-        let queue_panel =
-            cx.new(|cx| QueuePanel::new(queue.clone(), playback.clone(), sidebar.clone(), cx));
+        let sidebar_right =
+            cx.new(|cx| SidebarRight::new(queue.clone(), playback.clone(), sidebar.clone(), cx));
         let player_bar =
-            cx.new(|cx| PlayerBar::with_queue_panel(playback, queue, queue_panel.clone(), cx));
+            cx.new(|cx| PlayerBar::with_sidebar_right(playback, queue, sidebar_right.clone(), cx));
 
         Self {
             sidebar,
             player_bar,
-            queue_panel,
+            sidebar_right,
             content,
             focus: cx.focus_handle(),
         }
@@ -72,8 +72,8 @@ impl Workspace {
     }
 
     fn close_queue(&mut self, cx: &mut Context<Self>) {
-        if self.queue_panel.read(cx).is_open() {
-            self.queue_panel.update(cx, |panel, cx| panel.close(cx));
+        if self.sidebar_right.read(cx).is_open() {
+            self.sidebar_right.update(cx, |panel, cx| panel.close(cx));
         }
     }
 }
@@ -82,10 +82,10 @@ impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.sidebar
             .update(cx, |sidebar, cx| sidebar.adapt(window, cx));
-        let sidebar = self.sidebar.read(cx).occupied_width();
-        let queue = self.queue_panel.read(cx).occupied_width(window, cx);
-        Chrome::publish(sidebar, queue, cx);
-        let covered = self.queue_panel.read(cx).covers_content(window, cx);
+        let left = self.sidebar.read(cx).occupied_width();
+        let right = self.sidebar_right.read(cx).occupied_width(window, cx);
+        Chrome::publish(left, right, cx);
+        let covered = self.sidebar_right.read(cx).covers_content(window, cx);
         let overlay = self.sidebar.read(cx).overlays();
 
         div()
@@ -114,7 +114,7 @@ impl Render for Workspace {
                             .when(covered, |this| this.hidden())
                             .child(self.content.clone()),
                     )
-                    .child(self.queue_panel.clone())
+                    .child(self.sidebar_right.clone())
                     .when(overlay, |this| this.child(self.sidebar.clone())),
             )
             .child(self.player_bar.clone())
