@@ -287,6 +287,11 @@ Room::of(width).fits(Room::Roomy)   // ">= Roomy", the only comparison you need
 `Room` is `Ord`, so `fits` is just `>=`. The raw `Pixels` consts exist for the places that need a
 number rather than a step: `ColumnSpec::hide_below` and centering maths.
 
+A breakpoint is a branch — "below this width, lay the page out differently". A packing minimum is
+not: `MIN_COLUMN_WIDTH` in `home/quick_picks.rs`, `PANEL` in `screens/song.rs`, the column widths in
+`shared/cells.rs`. Those stay plain `px` consts at module top; forcing them onto a five-step ladder
+would change how content packs.
+
 Two modules own the measurement:
 
 - **`ui::layout`** — the ladder itself. Pure `gpui`; knows nothing about panels.
@@ -297,8 +302,11 @@ Two modules own the measurement:
 use crate::chrome::Chrome;
 Chrome::content(window, cx)   // viewport width − both sidebars, floored at ui::MIN_CONTENT
 Chrome::room(window, cx)      // the same, classified into a Room
-Chrome::sidebar_left(cx) / Chrome::sidebar_right(cx)
+Chrome::sidebar_left(cx) / Chrome::sidebar_right(cx)   // one panel's cut, for the other panel
 ```
+
+`Chrome::room` is how a view classifies its width: never rebuild `Room::of(…)` from a width you
+derived yourself.
 
 Rules:
 
@@ -306,17 +314,23 @@ Rules:
   ignores both side panels, so tables overflow under the right sidebar and grids pick a column count
   that does not fit. Raw viewport width is legitimate in exactly two places: chrome that spans the
   whole window (`PlayerBar`, `TitleBar`, and `Menu`'s submenu flip), and a side panel deciding *its
-  own* size — `SidebarLeft` and `SidebarRight` subtract only the other panel, because asking
-  `Chrome` for a width they are themselves a term in would be circular.
+  own* size — `SidebarLeft` measures the room left over once its own width is taken, `SidebarRight`
+  subtracts the left panel, because asking `Chrome` for a width they are themselves a term in would
+  be circular.
 - `Workspace::render` publishes the widths every frame via `Chrome::publish`; it notifies only when
   a width actually changed, so it cannot loop.
+- **`Chrome` is only current after that publish.** `Root` and `Workspace` render *before* it, so
+  they read the panel entities directly; everything they render into — content views and both
+  panels — sees this frame's values.
 - **A view whose layout depends on width must observe the chrome**, or it will not repaint when a
   panel is resized or toggled:
   ```rust
   let chrome = Chrome::entity(cx);
   cx.observe(&chrome, |_, _, cx| cx.notify()).detach();
   ```
-  Views take no `Entity<SidebarLeft>` for this — that is what `Chrome` replaced.
+  Content views take no `Entity<SidebarLeft>` for this — that is what `Chrome` replaced. The shell
+  (`Root`, `Workspace`, `SidebarRight`) still holds one, because it needs the width before
+  `Chrome::publish` has run.
 - `views::cells::content_width(window, inset, cx)` is the shortcut for grid pages: `Chrome::content`
   minus the page's own padding.
 

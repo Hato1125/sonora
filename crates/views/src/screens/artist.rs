@@ -11,7 +11,10 @@ use i18n::t;
 use spotify::{ReleaseType, Track};
 use state::{AppSettings, ArtistDetail, Playback, Sonora};
 use ui::ActiveTheme as _;
-use ui::{Button, ColumnSpec, GridDelegate, GridEvent, GridState, Scrollbar, Scroller, Text, grid};
+use ui::{
+    Button, ColumnSpec, GridDelegate, GridEvent, GridState, MIN_CONTENT, Scrollbar, Scroller, Text,
+    grid,
+};
 
 use crate::shared::hero::{HeroPlayButton, PageHero};
 use crate::shared::page;
@@ -90,7 +93,7 @@ impl ArtistView {
         columns: &'static [ColumnSpec<TrackField>],
         cx: &mut Context<Self>,
     ) -> Self {
-        let width = px(200.);
+        let width = MIN_CONTENT;
         let settings = Sonora::global(cx).settings.clone();
         let saved = settings.read(cx).table(SECTION);
         let sorting = settings.read(cx).sorting(SECTION);
