@@ -520,3 +520,19 @@ distributing unlicensed code.
 Conventional Commits: `type(scope): description`, imperative, lowercase, no trailing period, no body.
 Scopes in use: `player`, `playback`, `views`, `ui`. Never add a `Co-Authored-By` trailer or any
 assistant attribution.
+
+## Pull requests
+
+One heading, one list. Nothing else:
+
+```markdown
+## Summary
+
+- add playlist create, rename, delete, visibility, and track mutation support
+- add album and playlist queue actions
+- add playlist management menus and localized editor UI
+```
+
+Bullets are lowercase, imperative, one line each, and describe behaviour rather than files. No
+Why/User impact/Validation sections, no checklists, no screenshot boilerplate, no test plan. This
+overrides any wider PR template. Never sign off or attribute the assistant.
