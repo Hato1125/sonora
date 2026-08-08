@@ -54,8 +54,7 @@ impl RenderOnce for ReleaseCard {
             .weight(FontWeight::SEMIBOLD)
             .flat()
             .underline()
-            .line_height(theme.text(Text::Body))
-            .bare_meta(div().line_height(theme.text(Text::Small)).child(artists))
+            .bare_meta(div().child(artists))
             .play(playing, move |_, _, cx| {
                 playback.update(cx, |playback, cx| match &state {
                     Some(PlaybackState::Playing) => playback.pause(cx),
