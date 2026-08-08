@@ -8,12 +8,12 @@ use std::cell::Cell;
 use gpui::{
     App, Context, Div, DragMoveEvent, Empty, Entity, FontWeight, MouseButton, MouseDownEvent,
     Pixels, Point, Render, ScrollHandle, ScrollStrategy, SharedString, UniformListScrollHandle,
-    Window, anchored, div, px, uniform_list,
+    Window, div, px, uniform_list,
 };
 use i18n::t;
 use spotify::Track;
 use state::{AppSettings, Playback, Queue, Sonora};
-use ui::{ActiveTheme as _, Button, Card, Room, Scrollbar, Text, eyebrow, snapped};
+use ui::{ActiveTheme as _, Button, Card, Popup, Room, Scrollbar, Text, eyebrow, snapped};
 
 use crate::{Sidebar, TrackMenu};
 
@@ -467,15 +467,8 @@ impl QueuePanel {
         } = self.context_menu.clone()?;
 
         Some(
-            anchored()
-                .position(position)
-                .snap_to_window_with_margin(px(8.))
-                .child(
-                    self.track_menu
-                        .for_track(&track, cx)
-                        .on_action(cx.listener(|this, _, _, cx| this.dismiss_menu(cx)))
-                        .on_dismiss(cx.listener(|this, _, _, cx| this.dismiss_menu(cx))),
-                ),
+            Popup::new(position, self.track_menu.for_track(&track, cx))
+                .on_close(cx.listener(|this, _, _, cx| this.dismiss_menu(cx))),
         )
     }
 

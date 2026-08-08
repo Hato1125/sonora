@@ -3,7 +3,7 @@
 use gpui::prelude::*;
 use gpui::{
     AnyElement, App, Context, ElementId, Entity, FontWeight, Hsla, MouseButton, Pixels, Point,
-    Render, ScrollHandle, SharedString, Window, anchored, div, px,
+    Render, ScrollHandle, SharedString, Window, div, px,
 };
 use i18n::t;
 use input::Input;
@@ -12,7 +12,7 @@ use spotify::Track;
 
 use state::{Hit, Kind, Playback, Search};
 use ui::ActiveTheme as _;
-use ui::{Card, Room, Scrollbar, Scroller, Text, Theme, VAST, clock, eyebrow};
+use ui::{Card, Popup, Room, Scrollbar, Scroller, Text, Theme, VAST, clock, eyebrow};
 use workspace::{Chrome, TrackMenu};
 
 use crate::cells;
@@ -433,21 +433,12 @@ impl Render for SearchView {
         };
         let asked = !self.search.read(cx).query().trim().is_empty();
         let context_menu = self.context_menu.clone().map(|(track, position)| {
-            anchored()
-                .position(position)
-                .snap_to_window_with_margin(px(8.))
-                .child(
-                    self.track_menu
-                        .for_track(&track, cx)
-                        .on_action(cx.listener(|this, _, _, cx| {
-                            this.context_menu = None;
-                            cx.notify();
-                        }))
-                        .on_dismiss(cx.listener(|this, _, _, cx| {
-                            this.context_menu = None;
-                            cx.notify();
-                        })),
-                )
+            Popup::new(position, self.track_menu.for_track(&track, cx)).on_close(cx.listener(
+                |this, _, _, cx| {
+                    this.context_menu = None;
+                    cx.notify();
+                },
+            ))
         });
 
         let results = match stacked {

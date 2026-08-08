@@ -10,12 +10,13 @@ use gpui::{
     AbsoluteLength, AnyElement, App, Context, Corners, Div, DragMoveEvent, Empty, Entity,
     EventEmitter, FocusHandle, Focusable, Interactivity, MouseButton, MouseDownEvent, MouseUpEvent,
     Pixels, Point, ScrollHandle, SharedString, Stateful, StyleRefinement, TextAlign, Window,
-    actions, anchored, div, point, px, svg,
+    actions, div, point, px, svg,
 };
 
 use crate::SortAxis;
 use crate::menu::Menu;
 use crate::metrics::{snapped, text_width};
+use crate::popup::Popup;
 use crate::theme::ActiveTheme as _;
 
 pub use layout::{ColumnSpec, Layout, Sort, Sorting, Width};
@@ -437,6 +438,11 @@ impl<S: GridSource> GridState<S> {
     }
 
     fn deselect(&mut self, _: &Deselect, _: &mut Window, cx: &mut Context<Self>) {
+        if self.context_menu.take().is_some() {
+            cx.stop_propagation();
+            cx.notify();
+            return;
+        }
         if self.delegate.selected.is_none() {
             return;
         }
@@ -805,6 +811,7 @@ impl<S: GridSource> GridState<S> {
                         cx.listener(move |this, event: &MouseDownEvent, window, cx| {
                             if this.delegate.source.context_menu(row, cx).is_some() {
                                 this.delegate.source.context_menu_will_open(row, cx);
+                                window.focus(&this.focus.clone(), cx);
                                 window.prevent_default();
                                 this.context_menu = Some((row, event.position));
                                 cx.notify();
@@ -894,19 +901,10 @@ impl<S: GridSource> Render for GridState<S> {
         let top = unpinned(self.corners, pinned);
         let context_menu = self.context_menu.and_then(|(row, position)| {
             self.delegate.source.context_menu(row, cx).map(|menu| {
-                anchored()
-                    .position(position)
-                    .snap_to_window_with_margin(px(8.))
-                    .child(
-                        menu.on_action(cx.listener(|this, _, _, cx| {
-                            this.context_menu = None;
-                            cx.notify();
-                        }))
-                        .on_dismiss(cx.listener(|this, _, _, cx| {
-                            this.context_menu = None;
-                            cx.notify();
-                        })),
-                    )
+                Popup::new(position, menu).on_close(cx.listener(|this, _, _, cx| {
+                    this.context_menu = None;
+                    cx.notify();
+                }))
             })
         });
 

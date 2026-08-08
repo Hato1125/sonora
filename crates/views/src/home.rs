@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use gpui::prelude::*;
-use gpui::{Context, Entity, Pixels, Point, Render, ScrollHandle, Window, anchored, div, px};
+use gpui::{Context, Entity, Pixels, Point, Render, ScrollHandle, Window, div, px};
 use state::{Home, Playback};
-use ui::{ActiveTheme as _, Scrollbar, Scroller};
+use ui::{ActiveTheme as _, Popup, Scrollbar, Scroller};
 use workspace::{Chrome, TrackMenu};
 
 use crate::cells;
@@ -86,21 +86,12 @@ impl Render for HomeView {
             tracks.get(place).cloned().map(|track| (track, position))
         });
         let context_menu = selected.map(|(track, position)| {
-            anchored()
-                .position(position)
-                .snap_to_window_with_margin(px(8.))
-                .child(
-                    self.track_menu
-                        .for_track(&track, cx)
-                        .on_action(cx.listener(|this, _, _, cx| {
-                            this.context_menu = None;
-                            cx.notify();
-                        }))
-                        .on_dismiss(cx.listener(|this, _, _, cx| {
-                            this.context_menu = None;
-                            cx.notify();
-                        })),
-                )
+            Popup::new(position, self.track_menu.for_track(&track, cx)).on_close(cx.listener(
+                |this, _, _, cx| {
+                    this.context_menu = None;
+                    cx.notify();
+                },
+            ))
         });
 
         Scroller::new("home-page", &self.scrollbar)
