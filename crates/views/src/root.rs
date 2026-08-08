@@ -11,9 +11,10 @@ use state::{
 };
 use ui::ActiveTheme as _;
 
-use crate::chrome::{SidebarLeft, TitleBar, TitleBarEvent, TitleBarOptions, Toolbar, Tooled};
+use crate::chrome::{TitleBar, TitleBarEvent, TitleBarOptions, Toolbar, Tooled};
 use crate::screens::search::SearchView;
 use crate::shared::tracks::{ALBUM_COLUMNS, LIBRARY_COLUMNS};
+use crate::shells::Shell;
 use crate::shells::workspace::Workspace;
 use crate::{
     Adaptive, ArtistView, DetailView, FullscreenView, HomeView, LibraryView, LoginView,
@@ -56,7 +57,6 @@ pub struct Root {
     playback: Entity<Playback>,
     io: Io,
     login: Entity<LoginView>,
-    sidebar: Entity<SidebarLeft>,
     title_bar: Entity<TitleBar>,
     shells: Shells,
     view: RootView,
@@ -78,7 +78,6 @@ impl Root {
         cx.observe(&session, |_, _, cx| cx.notify()).detach();
 
         let login = cx.new(|cx| LoginView::new(session.clone(), cx));
-        let sidebar = cx.new(SidebarLeft::new);
 
         let navigation = router::trail(cx);
 
@@ -132,22 +131,16 @@ impl Root {
         let song = cx.new(|cx| SongView::new(song_detail.clone(), playback.clone(), cx));
 
         let start = navigation.read(cx).current();
-        let workspace = cx.new(|cx| {
-            Workspace::new(
-                sidebar.clone(),
-                playback.clone(),
-                queue,
-                library_view.clone().into(),
-                cx,
-            )
-        });
+        let workspace =
+            cx.new(|cx| Workspace::new(playback.clone(), queue, library_view.clone().into(), cx));
         let fullscreen = cx.new(|cx| FullscreenView::new(playback.clone(), cx));
 
         let title_bar = cx.new(TitleBar::new);
         cx.subscribe(&title_bar, |this, _, event, cx| match event {
-            TitleBarEvent::ToggleSidebar => {
-                this.sidebar.update(cx, |sidebar, cx| sidebar.toggle(cx))
-            }
+            TitleBarEvent::ToggleSidebar => this
+                .shells
+                .workspace
+                .update(cx, |workspace, cx| workspace.toggle_sidebar(cx)),
         })
         .detach();
 
@@ -158,7 +151,6 @@ impl Root {
             playback,
             io,
             login,
-            sidebar,
             title_bar,
             shells: Shells {
                 workspace: workspace.clone(),
@@ -227,14 +219,11 @@ impl Root {
     }
 
     fn options(&self, cx: &Context<Self>) -> TitleBarOptions {
+        let content = self.toolbar.clone().map(Into::into);
+
         match self.view {
-            RootView::Workspace => TitleBarOptions {
-                navigation: true,
-                sidebar_open: self.sidebar.read(cx).is_open(),
-                offset: self.sidebar.read(cx).occupied_width(),
-                content: self.toolbar.clone().map(Into::into),
-            },
-            RootView::Fullscreen => TitleBarOptions::default(),
+            RootView::Workspace => self.shells.workspace.read(cx).title_bar(content, cx),
+            RootView::Fullscreen => self.shells.fullscreen.read(cx).title_bar(content, cx),
         }
     }
 

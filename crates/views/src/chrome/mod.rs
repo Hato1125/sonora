@@ -56,7 +56,6 @@ impl Chrome {
             .unwrap_or_default()
     }
 
-    #[allow(dead_code)]
     pub fn sidebar_left(cx: &App) -> Pixels {
         Self::get(cx).sidebar_left
     }

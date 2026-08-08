@@ -6,7 +6,8 @@ use gpui::{Window, div};
 use input::{Dismiss, WORKSPACE_CONTEXT};
 use state::{Playback, Queue};
 
-use crate::chrome::{Chrome, PlayerBar, SidebarLeft, SidebarRight};
+use crate::chrome::{Chrome, PlayerBar, SidebarLeft, SidebarRight, TitleBarOptions};
+use crate::shells::Shell;
 
 pub(crate) struct Workspace {
     sidebar: Entity<SidebarLeft>,
@@ -18,14 +19,13 @@ pub(crate) struct Workspace {
 
 impl Workspace {
     pub fn new(
-        sidebar: Entity<SidebarLeft>,
         playback: Entity<Playback>,
         queue: Entity<Queue>,
         content: AnyView,
         cx: &mut Context<Self>,
     ) -> Self {
-        let sidebar_right =
-            cx.new(|cx| SidebarRight::new(queue.clone(), playback.clone(), sidebar.clone(), cx));
+        let sidebar = cx.new(SidebarLeft::new);
+        let sidebar_right = cx.new(|cx| SidebarRight::new(queue.clone(), playback.clone(), cx));
         let player_bar =
             cx.new(|cx| PlayerBar::with_sidebar_right(playback, queue, sidebar_right.clone(), cx));
 
@@ -40,6 +40,10 @@ impl Workspace {
 
     pub fn focus(&self, window: &mut Window, cx: &mut App) {
         window.focus(&self.focus, cx);
+    }
+
+    pub fn toggle_sidebar(&self, cx: &mut Context<Self>) {
+        self.sidebar.update(cx, |sidebar, cx| sidebar.toggle(cx));
     }
 
     #[allow(dead_code)]
@@ -60,6 +64,19 @@ impl Workspace {
     fn close_queue(&mut self, cx: &mut Context<Self>) {
         if self.sidebar_right.read(cx).is_open() {
             self.sidebar_right.update(cx, |panel, cx| panel.close(cx));
+        }
+    }
+}
+
+impl Shell for Workspace {
+    fn title_bar(&self, content: Option<AnyView>, cx: &App) -> TitleBarOptions {
+        let sidebar = self.sidebar.read(cx);
+
+        TitleBarOptions {
+            navigation: true,
+            sidebar_open: sidebar.is_open(),
+            offset: sidebar.occupied_width(),
+            content,
         }
     }
 }
