@@ -34,7 +34,7 @@ impl RenderOnce for ReleaseCard {
 
         let theme = *cx.theme();
         let cover = album.cover_large.clone().or_else(|| album.cover.clone());
-        let artists = crate::cells::artist_links(
+        let artists = crate::shared::cells::artist_links(
             SharedString::from(format!("release-artist-{index}")),
             album.artist_refs.clone(),
             album.artists.clone(),

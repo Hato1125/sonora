@@ -12,8 +12,8 @@ use state::{
 use ui::ActiveTheme as _;
 use workspace::{Sidebar, Toolbar, Tooled, Workspace};
 
-use crate::search::SearchView;
-use crate::tracks::{ALBUM_COLUMNS, LIBRARY_COLUMNS};
+use crate::screens::search::SearchView;
+use crate::shared::tracks::{ALBUM_COLUMNS, LIBRARY_COLUMNS};
 use crate::{
     Adaptive, ArtistView, DetailView, HomeView, LibraryView, LoginView, SettingsView, SongView,
 };

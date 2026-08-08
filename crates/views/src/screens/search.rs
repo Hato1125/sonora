@@ -15,8 +15,8 @@ use ui::ActiveTheme as _;
 use ui::{Card, Popup, Room, Scrollbar, Scroller, Text, Theme, VAST, clock, eyebrow};
 use workspace::{Chrome, TrackMenu};
 
-use crate::cells;
-use crate::tracks::{PlaybackStatus, playback_status};
+use crate::shared::cells;
+use crate::shared::tracks::{PlaybackStatus, playback_status};
 
 enum Press {
     Song(usize),

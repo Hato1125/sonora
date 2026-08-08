@@ -9,7 +9,7 @@ use spotify::Playlist;
 use state::{Library, LibraryState, Origin, Playback};
 use ui::{Cell, ColumnSpec, GridSource, Width};
 
-use crate::cells::{self, ALWAYS, NUMBER, ROOMY, SNUG, TRAILING};
+use crate::shared::cells::{self, ALWAYS, NUMBER, ROOMY, SNUG, TRAILING};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum PlaylistField {

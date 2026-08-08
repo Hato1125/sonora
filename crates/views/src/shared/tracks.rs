@@ -18,8 +18,8 @@ use ui::{
 };
 use workspace::TrackMenu;
 
-use crate::cells::{self, ALWAYS, DATE, NUMBER, ROOMY, SNUG, TRAILING, WIDE};
-use crate::hero::release_date_label;
+use crate::shared::cells::{self, ALWAYS, DATE, NUMBER, ROOMY, SNUG, TRAILING, WIDE};
+use crate::shared::hero::release_date_label;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TrackField {

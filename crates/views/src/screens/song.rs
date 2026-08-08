@@ -13,8 +13,8 @@ use ui::{
     clock, eyebrow, heading,
 };
 
-use crate::cells;
-use crate::hero::{HeroMetaStrip, HeroPlayButton, PageHero, release_date_label};
+use crate::shared::cells;
+use crate::shared::hero::{HeroMetaStrip, HeroPlayButton, PageHero, release_date_label};
 
 const TITLE_SKELETON: Pixels = px(240.);
 const META_SKELETON: Pixels = px(180.);
