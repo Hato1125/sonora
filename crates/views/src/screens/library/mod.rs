@@ -516,7 +516,10 @@ impl LibraryView {
     }
 
     fn mode(&self) -> Mode {
-        self.views[self.section.slot()]
+        match self.section {
+            Section::Tracks => Mode::List,
+            _ => self.views[self.section.slot()],
+        }
     }
 
     fn set_mode(&mut self, mode: Mode, cx: &mut Context<Self>) {
@@ -570,13 +573,12 @@ impl Tooled for LibraryView {
             },
             cx,
         ));
-        tools.push(tools::views(
-            &self.popovers,
-            self.mode(),
-            move |mode, cx| {
+        let switchable = self.section != Section::Tracks;
+        tools.extend(switchable.then(|| {
+            tools::views(&self.popovers, self.mode(), move |mode, cx| {
                 viewed.update(cx, |view, cx| view.set_mode(mode, cx)).ok();
-            },
-        ));
+            })
+        }));
         tools
     }
 }
