@@ -168,7 +168,7 @@ impl RenderOnce for Button {
         let theme = cx.theme();
         let subtle = |border| Palette {
             background: None,
-            hover: Some(theme.secondary),
+            hover: Some(theme.secondary_hover),
             active: Some(theme.secondary_active),
             foreground: theme.foreground,
             border,
