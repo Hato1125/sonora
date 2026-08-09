@@ -73,6 +73,8 @@ impl RenderOnce for InfoCard {
         let mut card = base
             .flex()
             .flex_col()
+            .min_w_0()
+            .overflow_hidden()
             .when(stretch, |this| this.h_full())
             .gap_4()
             .p_5()
@@ -146,16 +148,25 @@ impl RenderOnce for Fact {
 
         let mut fact = base
             .flex()
-            .items_center()
+            .items_start()
             .justify_between()
             .gap_4()
+            .min_w_0()
             .px(theme.metrics.pad)
             .py(theme.metrics.pad / 2.)
             .rounded(theme.radius)
             .when(striped, |this| this.bg(theme.table_hover.opacity(0.35)))
-            .child(div().text_color(theme.muted_foreground).child(label))
             .child(
                 div()
+                    .flex_1()
+                    .min_w_0()
+                    .text_color(theme.muted_foreground)
+                    .child(label),
+            )
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
                     .text_right()
                     .font_weight(FontWeight::MEDIUM)
                     .child(value),
