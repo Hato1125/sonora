@@ -8,9 +8,10 @@ use i18n::t;
 use router::Destination;
 use spotify::Album;
 use state::{Library, LibraryState, Origin, Playback};
-use ui::{Cell, ColumnSpec, GridSource, Width};
+use ui::{Cell, ColumnSpec, GridSource, Menu, Width};
 
 use crate::shared::cells::{self, ALWAYS, NUMBER, ROOMY, TRAILING, WIDE, YEAR};
+use crate::shared::menu::album_menu;
 use crate::shared::tracks::initial;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -23,68 +24,75 @@ pub(super) enum AlbumField {
     TrackCount,
 }
 
-pub(super) const COLUMNS: &[ColumnSpec<AlbumField>] = &[
-    ColumnSpec {
-        field: AlbumField::Index,
-        key: "index",
-        header: "column-index",
-        align: TextAlign::Center,
-        width: Width::Fixed(NUMBER),
-        anchored: true,
-        sortable: false,
-        hide_below: ALWAYS,
-    },
-    ColumnSpec {
-        field: AlbumField::Cover,
-        key: "cover",
-        header: "",
-        align: TextAlign::Left,
-        width: Width::Thumb,
-        anchored: true,
-        sortable: false,
-        hide_below: ALWAYS,
-    },
-    ColumnSpec {
-        field: AlbumField::Name,
-        key: "name",
-        header: "column-album",
-        align: TextAlign::Left,
-        width: Width::Fill(0.55),
-        anchored: false,
-        sortable: true,
-        hide_below: ALWAYS,
-    },
-    ColumnSpec {
-        field: AlbumField::Artists,
-        key: "artists",
-        header: "column-artist",
-        align: TextAlign::Left,
-        width: Width::Fill(0.45),
-        anchored: false,
-        sortable: true,
-        hide_below: ALWAYS,
-    },
-    ColumnSpec {
-        field: AlbumField::Year,
-        key: "year",
-        header: "column-year",
-        align: TextAlign::Right,
-        width: Width::Fixed(YEAR),
-        anchored: false,
-        sortable: true,
-        hide_below: ROOMY,
-    },
-    ColumnSpec {
-        field: AlbumField::TrackCount,
-        key: "tracks",
-        header: "column-tracks",
-        align: TextAlign::Right,
-        width: Width::Fixed(TRAILING),
-        anchored: false,
-        sortable: true,
-        hide_below: WIDE,
-    },
-];
+const COLUMN: ColumnSpec<AlbumField> = ColumnSpec {
+    field: AlbumField::Index,
+    key: "",
+    header: "",
+    align: TextAlign::Left,
+    width: Width::Fill(1.),
+    anchored: false,
+    sortable: true,
+    hide_below: ALWAYS,
+};
+
+const INDEX: ColumnSpec<AlbumField> = ColumnSpec {
+    field: AlbumField::Index,
+    key: "index",
+    header: "column-index",
+    align: TextAlign::Center,
+    width: Width::Fixed(NUMBER),
+    anchored: true,
+    sortable: false,
+    ..COLUMN
+};
+
+const COVER: ColumnSpec<AlbumField> = ColumnSpec {
+    field: AlbumField::Cover,
+    key: "cover",
+    width: Width::Thumb,
+    anchored: true,
+    sortable: false,
+    ..COLUMN
+};
+
+const NAME: ColumnSpec<AlbumField> = ColumnSpec {
+    field: AlbumField::Name,
+    key: "name",
+    header: "column-album",
+    width: Width::Fill(0.55),
+    ..COLUMN
+};
+
+const ARTISTS: ColumnSpec<AlbumField> = ColumnSpec {
+    field: AlbumField::Artists,
+    key: "artists",
+    header: "column-artist",
+    width: Width::Fill(0.45),
+    ..COLUMN
+};
+
+const RELEASE_YEAR: ColumnSpec<AlbumField> = ColumnSpec {
+    field: AlbumField::Year,
+    key: "year",
+    header: "column-year",
+    align: TextAlign::Right,
+    width: Width::Fixed(YEAR),
+    hide_below: ROOMY,
+    ..COLUMN
+};
+
+const TRACK_COUNT: ColumnSpec<AlbumField> = ColumnSpec {
+    field: AlbumField::TrackCount,
+    key: "tracks",
+    header: "column-tracks",
+    align: TextAlign::Right,
+    width: Width::Fixed(TRAILING),
+    hide_below: WIDE,
+    ..COLUMN
+};
+
+pub(super) const COLUMNS: &[ColumnSpec<AlbumField>] =
+    &[INDEX, COVER, NAME, ARTISTS, RELEASE_YEAR, TRACK_COUNT];
 
 pub(super) struct AlbumSource {
     library: Entity<Library>,
@@ -180,6 +188,14 @@ impl GridSource for AlbumSource {
 
     fn is_loading(&self, cx: &App) -> bool {
         self.library.read(cx).is_loading()
+    }
+
+    fn context_menu(&self, row: usize, cx: &App) -> Option<Menu> {
+        Some(album_menu(
+            self.at(row, cx)?.id,
+            self.playback.clone(),
+            false,
+        ))
     }
 
     fn cell(&self, cell: Cell<AlbumField>, cx: &mut App) -> AnyElement {

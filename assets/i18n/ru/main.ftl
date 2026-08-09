@@ -7,6 +7,9 @@ common-search = Поиск
 common-unknown = Неизвестно
 common-not-provided = Не указано
 common-not-available = Нет данных
+common-cancel = Отмена
+common-save = Сохранить
+common-delete = Удалить
 number-group = { "\u00A0" }
 
 # navigation
@@ -42,6 +45,7 @@ menu-new-playlist = Новый плейлист
 menu-no-playlists = Нет плейлистов
 menu-add-to-library = Добавить в медиатеку
 menu-remove-from-library = Удалить из медиатеки
+menu-remove-from-playlist = Удалить из плейлиста
 menu-add-to-queue = Добавить в очередь
 menu-song-radio = Радио по треку
 menu-go-to-album = Перейти к альбому
@@ -49,6 +53,23 @@ menu-go-to-artist = Перейти к исполнителю
 menu-view-details = Подробнее
 menu-copy-link = Копировать ссылку
 menu-remove-from-queue = Убрать из очереди
+menu-open-playlist = Открыть плейлист
+menu-play-playlist = Воспроизвести плейлист
+menu-rename-playlist = Переименовать плейлист
+menu-delete-playlist = Удалить плейлист
+menu-remove-playlist-from-library = Удалить из медиатеки
+menu-make-playlist-public = Сделать публичным
+menu-make-playlist-private = Сделать приватным
+menu-open-album = Открыть альбом
+menu-play-album = Воспроизвести альбом
+menu-add-album-to-queue = Добавить альбом в очередь
+
+# playlist editor
+playlist-name-placeholder = Название плейлиста
+playlist-create-title = Создать плейлист
+playlist-rename-title = Переименовать плейлист
+playlist-delete-title = Удалить плейлист
+playlist-delete-confirm = Удалить «{ $name }»? Это действие нельзя отменить.
 
 # queue panel
 queue-title = Очередь
@@ -257,3 +278,13 @@ corners-square = Прямые
 corners-subtle = Лёгкие
 corners-rounded = Скруглённые
 corners-round = Круглые
+
+toast-playlist-created = Плейлист создан
+toast-playlist-renamed = Плейлист переименован
+toast-playlist-deleted = Плейлист удалён
+toast-playlist-removed = Плейлист удалён из медиатеки
+toast-playlist-visibility = Видимость плейлиста изменена
+toast-track-added = Трек добавлен в плейлист
+toast-playlist-failed = Не удалось сохранить изменение
+toast-playlist-busy = Другое изменение ещё выполняется
+toast-playlist-signed-out = Войдите, чтобы менять плейлисты

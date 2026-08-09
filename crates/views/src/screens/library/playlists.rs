@@ -7,9 +7,10 @@ use gpui::{AnyElement, App, Entity, TextAlign};
 use router::Destination;
 use spotify::Playlist;
 use state::{Library, LibraryState, Origin, Playback};
-use ui::{Cell, ColumnSpec, GridSource, Width};
+use ui::{Cell, ColumnSpec, GridSource, Menu, Width};
 
 use crate::shared::cells::{self, ALWAYS, NUMBER, ROOMY, SNUG, TRAILING};
+use crate::shared::menu::playlist_menu;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum PlaylistField {
@@ -20,58 +21,65 @@ pub(super) enum PlaylistField {
     TrackCount,
 }
 
-pub(super) const COLUMNS: &[ColumnSpec<PlaylistField>] = &[
-    ColumnSpec {
-        field: PlaylistField::Index,
-        key: "index",
-        header: "column-index",
-        align: TextAlign::Center,
-        width: Width::Fixed(NUMBER),
-        anchored: true,
-        sortable: false,
-        hide_below: ALWAYS,
-    },
-    ColumnSpec {
-        field: PlaylistField::Cover,
-        key: "cover",
-        header: "",
-        align: TextAlign::Left,
-        width: Width::Thumb,
-        anchored: true,
-        sortable: false,
-        hide_below: ALWAYS,
-    },
-    ColumnSpec {
-        field: PlaylistField::Name,
-        key: "name",
-        header: "column-name",
-        align: TextAlign::Left,
-        width: Width::Fill(0.55),
-        anchored: false,
-        sortable: true,
-        hide_below: ALWAYS,
-    },
-    ColumnSpec {
-        field: PlaylistField::Owner,
-        key: "owner",
-        header: "column-owner",
-        align: TextAlign::Left,
-        width: Width::Fill(0.45),
-        anchored: false,
-        sortable: true,
-        hide_below: ROOMY,
-    },
-    ColumnSpec {
-        field: PlaylistField::TrackCount,
-        key: "tracks",
-        header: "column-tracks",
-        align: TextAlign::Right,
-        width: Width::Fixed(TRAILING),
-        anchored: false,
-        sortable: true,
-        hide_below: SNUG,
-    },
-];
+const COLUMN: ColumnSpec<PlaylistField> = ColumnSpec {
+    field: PlaylistField::Index,
+    key: "",
+    header: "",
+    align: TextAlign::Left,
+    width: Width::Fill(1.),
+    anchored: false,
+    sortable: true,
+    hide_below: ALWAYS,
+};
+
+const INDEX: ColumnSpec<PlaylistField> = ColumnSpec {
+    field: PlaylistField::Index,
+    key: "index",
+    header: "column-index",
+    align: TextAlign::Center,
+    width: Width::Fixed(NUMBER),
+    anchored: true,
+    sortable: false,
+    ..COLUMN
+};
+
+const COVER: ColumnSpec<PlaylistField> = ColumnSpec {
+    field: PlaylistField::Cover,
+    key: "cover",
+    width: Width::Thumb,
+    anchored: true,
+    sortable: false,
+    ..COLUMN
+};
+
+const NAME: ColumnSpec<PlaylistField> = ColumnSpec {
+    field: PlaylistField::Name,
+    key: "name",
+    header: "column-name",
+    width: Width::Fill(0.55),
+    ..COLUMN
+};
+
+const OWNER: ColumnSpec<PlaylistField> = ColumnSpec {
+    field: PlaylistField::Owner,
+    key: "owner",
+    header: "column-owner",
+    width: Width::Fill(0.45),
+    hide_below: ROOMY,
+    ..COLUMN
+};
+
+const TRACK_COUNT: ColumnSpec<PlaylistField> = ColumnSpec {
+    field: PlaylistField::TrackCount,
+    key: "tracks",
+    header: "column-tracks",
+    align: TextAlign::Right,
+    width: Width::Fixed(TRAILING),
+    hide_below: SNUG,
+    ..COLUMN
+};
+
+pub(super) const COLUMNS: &[ColumnSpec<PlaylistField>] = &[INDEX, COVER, NAME, OWNER, TRACK_COUNT];
 
 pub(super) struct PlaylistSource {
     library: Entity<Library>,
@@ -133,6 +141,14 @@ impl GridSource for PlaylistSource {
 
     fn is_loading(&self, cx: &App) -> bool {
         self.library.read(cx).is_loading()
+    }
+
+    fn context_menu(&self, row: usize, cx: &App) -> Option<Menu> {
+        Some(playlist_menu(
+            self.at(row, cx)?,
+            self.playback.clone(),
+            false,
+        ))
     }
 
     fn cell(&self, cell: Cell<PlaylistField>, cx: &mut App) -> AnyElement {

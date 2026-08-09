@@ -44,6 +44,7 @@ pub struct Popover {
     group: Popovers,
     button: Option<Button>,
     menu: Option<Menu>,
+    commands: bool,
 }
 
 impl Popover {
@@ -53,6 +54,7 @@ impl Popover {
             group,
             button: None,
             menu: None,
+            commands: false,
         }
     }
 
@@ -65,6 +67,11 @@ impl Popover {
         self.menu = Some(menu);
         self
     }
+
+    pub fn commands(mut self) -> Self {
+        self.commands = true;
+        self
+    }
 }
 
 impl RenderOnce for Popover {
@@ -74,6 +81,7 @@ impl RenderOnce for Popover {
             group,
             button,
             menu,
+            commands,
         } = self;
 
         let open = group.shows(key);
@@ -88,12 +96,20 @@ impl RenderOnce for Popover {
             }))
         });
         let body = menu.filter(|_| open).map(|menu| {
-            let group = group.clone();
+            let outside = group.clone();
+            let selected = group.clone();
 
-            menu.trigger(trigger).on_dismiss(move |_, _, cx| {
-                group.close();
-                cx.refresh_windows();
-            })
+            menu.trigger(trigger)
+                .on_dismiss(move |_, _, cx| {
+                    outside.close();
+                    cx.refresh_windows();
+                })
+                .when(commands, |menu| {
+                    menu.on_action(move |_, _, cx| {
+                        selected.close();
+                        cx.refresh_windows();
+                    })
+                })
         });
 
         div().relative().children(head).children(body)

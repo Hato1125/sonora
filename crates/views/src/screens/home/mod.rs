@@ -2,7 +2,8 @@
 
 mod quick_picks;
 
-use crate::chrome::{Chrome, TrackMenu};
+use crate::chrome::Chrome;
+use crate::shared::menu::ItemMenu;
 use gpui::prelude::*;
 use gpui::{Context, Entity, Pixels, Point, Render, ScrollHandle, Window, div, px};
 use state::{Home, Playback};
@@ -19,7 +20,7 @@ pub(crate) struct HomeView {
     quick_picks_columns: usize,
     quick_picks_page: usize,
     scrollbar: Entity<Scrollbar>,
-    track_menu: TrackMenu,
+    track_menu: ItemMenu,
     context_menu: Option<(usize, Point<Pixels>)>,
 }
 
@@ -34,7 +35,7 @@ impl HomeView {
                 .always_visible()
                 .track_inset(px(4.))
         });
-        let track_menu = TrackMenu::new(playlist_scrollbar);
+        let track_menu = ItemMenu::new(playlist_scrollbar);
 
         cx.observe(&home, |this, _, cx| {
             this.quick_picks_page = 0;

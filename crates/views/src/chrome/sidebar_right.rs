@@ -16,7 +16,8 @@ use ui::{
     ActiveTheme as _, Button, Card, Panel, Popup, Room, Scrollbar, Side, Text, eyebrow, snapped,
 };
 
-use crate::chrome::{Chrome, TrackMenu};
+use crate::chrome::Chrome;
+use crate::shared::menu::ItemMenu;
 
 const MIN_WIDTH: Pixels = px(240.);
 const MAX_WIDTH: Pixels = px(560.);
@@ -179,7 +180,7 @@ pub(crate) struct SidebarRight {
     queue: Entity<Queue>,
     playback: Entity<Playback>,
     context_menu: Option<ContextMenuState>,
-    track_menu: TrackMenu,
+    track_menu: ItemMenu,
     drop_gap: Option<usize>,
     scroll: UniformListScrollHandle,
     scrollbar: Entity<Scrollbar>,
@@ -226,7 +227,7 @@ impl SidebarRight {
             queue,
             playback,
             context_menu: None,
-            track_menu: TrackMenu::new(playlist_scrollbar),
+            track_menu: ItemMenu::new(playlist_scrollbar),
             drop_gap: None,
             scroll,
             scrollbar,

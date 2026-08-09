@@ -6,11 +6,12 @@ use gpui::{
     Render, ScrollHandle, SharedString, Window, div, px,
 };
 use i18n::t;
-use input::Input;
 use router::{Destination, navigate};
 use spotify::Track;
+use ui::Input;
 
-use crate::chrome::{Chrome, TrackMenu};
+use crate::chrome::Chrome;
+use crate::shared::menu::ItemMenu;
 use state::{Hit, Kind, Playback, Search};
 use ui::ActiveTheme as _;
 use ui::{Card, Popup, Room, Scrollbar, Scroller, Text, Theme, VAST, clock, eyebrow};
@@ -33,7 +34,7 @@ pub(crate) struct SearchView {
     artists: Entity<Scrollbar>,
     albums: Entity<Scrollbar>,
     mixed: Entity<Scrollbar>,
-    track_menu: TrackMenu,
+    track_menu: ItemMenu,
     context_menu: Option<(Track, Point<Pixels>)>,
 }
 
@@ -87,7 +88,7 @@ impl SearchView {
             artists: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
             albums: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
             mixed: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
-            track_menu: TrackMenu::new(playlist_scrollbar),
+            track_menu: ItemMenu::new(playlist_scrollbar),
             context_menu: None,
         }
     }

@@ -3,16 +3,20 @@
 use gpui::prelude::*;
 use gpui::{AnyView, App, Context, Entity, FocusHandle, Render};
 use gpui::{Window, div};
-use input::{Dismiss, WORKSPACE_CONTEXT};
+use input::WORKSPACE_CONTEXT;
 use state::{Playback, Queue};
+use ui::Dismiss;
 
-use crate::chrome::{Chrome, PlayerBar, SidebarLeft, SidebarRight, TitleBarOptions};
+use crate::chrome::{Chrome, PlayerBar, SidebarLeft, SidebarRight, TitleBarOptions, ToastStack};
+use crate::shared::playlist_editor::PlaylistEditor;
 use crate::shells::Shell;
 
 pub(crate) struct Workspace {
     sidebar: Entity<SidebarLeft>,
     player_bar: Entity<PlayerBar>,
     sidebar_right: Entity<SidebarRight>,
+    playlist_editor: Entity<PlaylistEditor>,
+    toasts: Entity<ToastStack>,
     content: AnyView,
     focus: FocusHandle,
 }
@@ -33,6 +37,8 @@ impl Workspace {
             sidebar,
             player_bar,
             sidebar_right,
+            playlist_editor: PlaylistEditor::entity(cx),
+            toasts: cx.new(ToastStack::new),
             content,
             focus: cx.focus_handle(),
         }
@@ -92,6 +98,7 @@ impl Render for Workspace {
         let overlay = self.sidebar.read(cx).overlays();
 
         div()
+            .relative()
             .flex()
             .flex_col()
             .w_full()
@@ -120,6 +127,12 @@ impl Render for Workspace {
                     .child(self.sidebar_right.clone())
                     .when(overlay, |this| this.child(self.sidebar.clone())),
             )
-            .child(self.player_bar.clone())
+            .child(
+                div()
+                    .relative()
+                    .child(self.player_bar.clone())
+                    .child(self.toasts.clone()),
+            )
+            .child(self.playlist_editor.clone())
     }
 }

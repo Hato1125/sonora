@@ -1,163 +1,33 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+mod columns;
+mod sieve;
+mod sort;
+
 use std::cmp::Ordering;
 use std::rc::Rc;
 use ui::ActiveTheme as _;
 
-use crate::chrome::TrackMenu;
+use crate::shared::menu::ItemMenu;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
     AnyElement, App, Entity, Hsla, InteractiveElement as _, IntoElement as _, SharedString,
-    Styled as _, TextAlign, WeakEntity,
+    Styled as _, WeakEntity,
 };
 use jiff::Timestamp;
 use router::Destination;
 use spotify::Track;
-use state::{Library, Playback, PlaybackState};
-use ui::{
-    Button, Cell, ColumnSpec, GridSource, GridState, Menu, ROW_GROUP, Scrollbar, Width, clock,
-};
+use state::{Detail, Library, Playback, PlaybackState};
+use ui::{Button, Cell, ColumnSpec, GridSource, GridState, Menu, ROW_GROUP, Scrollbar, clock};
 
-use crate::shared::cells::{self, ALWAYS, DATE, NUMBER, ROOMY, SNUG, TRAILING, WIDE};
+use crate::shared::cells;
 use crate::shared::hero::release_date_label;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) enum TrackField {
-    Index,
-    Cover,
-    Title,
-    Artists,
-    Album,
-    AddedAt,
-    Plays,
-    Duration,
-}
+pub(crate) use columns::{ALBUM_COLUMNS, LIBRARY_COLUMNS, TrackField};
+pub(crate) use sieve::TrackSieve;
+pub(crate) use sort::initial;
 
-pub(crate) const LIBRARY_COLUMNS: &[ColumnSpec<TrackField>] = &[
-    ColumnSpec {
-        field: TrackField::Index,
-        key: "index",
-        header: "column-index",
-        align: TextAlign::Center,
-        width: Width::Fixed(NUMBER),
-        anchored: true,
-        sortable: false,
-        hide_below: ALWAYS,
-    },
-    ColumnSpec {
-        field: TrackField::Cover,
-        key: "cover",
-        header: "",
-        align: TextAlign::Left,
-        width: Width::Thumb,
-        anchored: true,
-        sortable: false,
-        hide_below: ALWAYS,
-    },
-    ColumnSpec {
-        field: TrackField::Title,
-        key: "title",
-        header: "column-title",
-        align: TextAlign::Left,
-        width: Width::Fill(0.42),
-        anchored: false,
-        sortable: true,
-        hide_below: ALWAYS,
-    },
-    ColumnSpec {
-        field: TrackField::Artists,
-        key: "artists",
-        header: "column-artist",
-        align: TextAlign::Left,
-        width: Width::Fill(0.29),
-        anchored: false,
-        sortable: true,
-        hide_below: ROOMY,
-    },
-    ColumnSpec {
-        field: TrackField::Album,
-        key: "album",
-        header: "column-album",
-        align: TextAlign::Left,
-        width: Width::Fill(0.29),
-        anchored: false,
-        sortable: true,
-        hide_below: WIDE,
-    },
-    ColumnSpec {
-        field: TrackField::AddedAt,
-        key: "added-at",
-        header: "column-date-added",
-        align: TextAlign::Left,
-        width: Width::Fixed(DATE),
-        anchored: false,
-        sortable: true,
-        hide_below: WIDE,
-    },
-    ColumnSpec {
-        field: TrackField::Duration,
-        key: "duration",
-        header: "column-length",
-        align: TextAlign::Right,
-        width: Width::Fixed(TRAILING),
-        anchored: false,
-        sortable: true,
-        hide_below: SNUG,
-    },
-];
-
-pub(crate) const ALBUM_COLUMNS: &[ColumnSpec<TrackField>] = &[
-    ColumnSpec {
-        field: TrackField::Index,
-        key: "index",
-        header: "column-index",
-        align: TextAlign::Center,
-        width: Width::Fixed(NUMBER),
-        anchored: true,
-        sortable: false,
-        hide_below: ALWAYS,
-    },
-    ColumnSpec {
-        field: TrackField::Title,
-        key: "title",
-        header: "column-title",
-        align: TextAlign::Left,
-        width: Width::Fill(0.62),
-        anchored: false,
-        sortable: true,
-        hide_below: ALWAYS,
-    },
-    ColumnSpec {
-        field: TrackField::Artists,
-        key: "artists",
-        header: "column-artist",
-        align: TextAlign::Left,
-        width: Width::Fill(0.38),
-        anchored: false,
-        sortable: true,
-        hide_below: ROOMY,
-    },
-    ColumnSpec {
-        field: TrackField::Plays,
-        key: "plays",
-        header: "column-plays",
-        align: TextAlign::Left,
-        width: Width::Fixed(DATE),
-        anchored: false,
-        sortable: true,
-        hide_below: WIDE,
-    },
-    ColumnSpec {
-        field: TrackField::Duration,
-        key: "duration",
-        header: "column-length",
-        align: TextAlign::Right,
-        width: Width::Fixed(TRAILING),
-        anchored: false,
-        sortable: true,
-        hide_below: SNUG,
-    },
-];
+use sort::hits;
 
 pub(crate) type PlaybackStatus = (Option<String>, PlaybackState);
 
@@ -180,41 +50,13 @@ pub(crate) fn ordered(table: &Entity<GridState<TrackSource>>, cx: &App) -> Vec<T
         .collect()
 }
 
-#[derive(Clone, Copy, Default, PartialEq)]
-pub(crate) struct TrackSieve {
-    pub duration: Option<(f32, f32)>,
-    pub explicit: bool,
-    pub playable: bool,
-}
-
-impl TrackSieve {
-    pub(crate) fn active(&self) -> bool {
-        self.duration.is_some() || self.explicit || self.playable
-    }
-
-    fn keeps(&self, track: &Track) -> bool {
-        if self.explicit && !track.explicit {
-            return false;
-        }
-        if self.playable && !track.playable {
-            return false;
-        }
-        match self.duration {
-            Some((low, high)) => {
-                let seconds = track.duration.as_secs_f32();
-                seconds >= low - 0.5 && seconds <= high + 0.5
-            }
-            None => true,
-        }
-    }
-}
-
 pub(crate) struct TrackSource {
     columns: &'static [ColumnSpec<TrackField>],
     provider: Rc<dyn Tracks>,
     playback: Entity<Playback>,
     is_liked: Option<Entity<Library>>,
-    menu: TrackMenu,
+    playlist: Option<Entity<Detail>>,
+    menu: ItemMenu,
     table: Option<WeakEntity<GridState<TrackSource>>>,
     sieve: TrackSieve,
 }
@@ -231,7 +73,8 @@ impl TrackSource {
             provider: Rc::new(provider),
             playback,
             is_liked: None,
-            menu: TrackMenu::new(playlist_scrollbar),
+            playlist: None,
+            menu: ItemMenu::new(playlist_scrollbar),
             table: None,
             sieve: TrackSieve::default(),
         }
@@ -270,6 +113,11 @@ impl TrackSource {
 
     pub(crate) fn with_liked(mut self, library: Entity<Library>) -> Self {
         self.is_liked = Some(library);
+        self
+    }
+
+    pub(crate) fn with_playlist(mut self, detail: Entity<Detail>) -> Self {
+        self.playlist = Some(detail);
         self
     }
 
@@ -489,7 +337,10 @@ impl GridSource for TrackSource {
 
     fn context_menu(&self, row: usize, cx: &App) -> Option<Menu> {
         let track = self.provider.tracks(cx).get(row)?;
-        Some(self.menu.for_track(track, cx))
+        Some(match &self.playlist {
+            Some(detail) => self.menu.for_playlist_track(track, detail.clone(), cx),
+            None => self.menu.for_track(track, cx),
+        })
     }
 
     fn context_menu_will_open(&self, _row: usize, _cx: &App) {
@@ -497,73 +348,21 @@ impl GridSource for TrackSource {
     }
 
     fn compare(&self, field: TrackField, a: usize, b: usize, cx: &App) -> Ordering {
-        let tracks = self.provider.tracks(cx);
-        let text = |index: usize, pick: fn(&Track) -> &String| {
-            tracks
-                .get(index)
-                .map(|track| pick(track).to_lowercase())
-                .unwrap_or_default()
-        };
-
-        match field {
-            TrackField::Title => text(a, |track| &track.name).cmp(&text(b, |track| &track.name)),
-            TrackField::Artists => {
-                text(a, |track| &track.artists).cmp(&text(b, |track| &track.artists))
-            }
-            TrackField::Album => text(a, |track| &track.album).cmp(&text(b, |track| &track.album)),
-            TrackField::AddedAt => tracks
-                .get(a)
-                .and_then(|track| track.added_at)
-                .cmp(&tracks.get(b).and_then(|track| track.added_at)),
-            TrackField::Plays => tracks
-                .get(a)
-                .and_then(|track| track.playcount)
-                .cmp(&tracks.get(b).and_then(|track| track.playcount)),
-            TrackField::Duration => tracks
-                .get(a)
-                .map(|track| track.duration)
-                .cmp(&tracks.get(b).map(|track| track.duration)),
-            TrackField::Index | TrackField::Cover => a.cmp(&b),
-        }
+        sort::compare(self.provider.tracks(cx), field, a, b)
     }
 
     fn group(&self, field: TrackField, row: usize, cx: &App) -> Option<SharedString> {
-        let track = self.provider.tracks(cx).get(row)?;
-
-        match field {
-            TrackField::Title => Some(initial(&track.name)),
-            TrackField::Artists => Some(initial(&track.artists)),
-            TrackField::Album => Some(initial(&track.album)),
-            _ => None,
-        }
+        sort::group(self.provider.tracks(cx), field, row)
     }
-}
-
-pub(crate) fn initial(text: &str) -> SharedString {
-    text.chars()
-        .next()
-        .filter(|first| first.is_alphabetic())
-        .map(|first| SharedString::from(first.to_uppercase().collect::<String>()))
-        .unwrap_or_else(|| SharedString::from("#"))
-}
-
-fn hits(track: &Track, query: &str) -> bool {
-    if query.is_empty() {
-        return true;
-    }
-    let haystack = format!("{} {} {}", track.name, track.artists, track.album);
-    haystack.to_lowercase().contains(query)
 }
 
 #[cfg(test)]
-mod tests {
+mod fixture {
     use std::time::Duration;
 
     use spotify::Track;
 
-    use super::{TrackSieve, hits, initial};
-
-    fn track(seconds: u64, explicit: bool, playable: bool) -> Track {
+    pub(super) fn track(seconds: u64, explicit: bool, playable: bool) -> Track {
         Track {
             id: Some("id".to_owned()),
             name: String::new(),
@@ -584,94 +383,5 @@ mod tests {
             languages: Vec::new(),
             credits: Vec::new(),
         }
-    }
-
-    #[test]
-    fn an_empty_query_hits_everything() {
-        let mut track = track(60, false, true);
-        track.name = "Bark at the Moon".to_owned();
-
-        assert!(hits(&track, ""));
-        assert!(hits(&track, "moon"));
-        assert!(!hits(&track, "sunshine"));
-    }
-
-    #[test]
-    fn an_untouched_sieve_keeps_everything() {
-        let sieve = TrackSieve::default();
-
-        assert!(!sieve.active());
-        assert!(sieve.keeps(&track(30, false, false)));
-        assert!(sieve.keeps(&track(6000, true, true)));
-    }
-
-    #[test]
-    fn duration_bounds_are_inclusive() {
-        let sieve = TrackSieve {
-            duration: Some((60., 180.)),
-            ..TrackSieve::default()
-        };
-
-        assert!(sieve.active());
-        assert!(sieve.keeps(&track(60, false, true)));
-        assert!(sieve.keeps(&track(180, false, true)));
-        assert!(sieve.keeps(&track(120, false, true)));
-        assert!(!sieve.keeps(&track(59, false, true)));
-        assert!(!sieve.keeps(&track(181, false, true)));
-    }
-
-    #[test]
-    fn flags_narrow_independently() {
-        let explicit = TrackSieve {
-            explicit: true,
-            ..TrackSieve::default()
-        };
-        assert!(explicit.keeps(&track(60, true, false)));
-        assert!(!explicit.keeps(&track(60, false, true)));
-
-        let playable = TrackSieve {
-            playable: true,
-            ..TrackSieve::default()
-        };
-        assert!(playable.keeps(&track(60, false, true)));
-        assert!(!playable.keeps(&track(60, true, false)));
-    }
-
-    #[test]
-    fn every_axis_must_pass() {
-        let sieve = TrackSieve {
-            duration: Some((60., 180.)),
-            explicit: true,
-            playable: true,
-        };
-
-        assert!(sieve.keeps(&track(120, true, true)));
-        assert!(!sieve.keeps(&track(120, true, false)));
-        assert!(!sieve.keeps(&track(400, true, true)));
-    }
-
-    #[test]
-    fn letters_bucket_under_their_uppercase_form() {
-        assert_eq!(initial("bark at the moon"), "B");
-        assert_eq!(initial("Bark at the Moon"), "B");
-    }
-
-    #[test]
-    fn cyrillic_keeps_its_own_letter() {
-        assert_eq!(initial("прощай"), "П");
-        assert_eq!(initial("Ялта"), "Я");
-    }
-
-    #[test]
-    fn digits_punctuation_and_emptiness_share_one_bucket() {
-        assert_eq!(initial("99 Luftballons"), "#");
-        assert_eq!(initial("!!!"), "#");
-        assert_eq!(initial(" leading space"), "#");
-        assert_eq!(initial(""), "#");
-    }
-
-    #[test]
-    fn multi_char_uppercase_is_kept_whole() {
-        assert_eq!(initial("ßeta"), "SS");
     }
 }

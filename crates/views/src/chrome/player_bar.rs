@@ -19,7 +19,7 @@ use ui::{
 };
 
 use crate::chrome::SidebarRight;
-use crate::chrome::TrackMenu;
+use crate::shared::menu::ItemMenu;
 
 const SEEK_MAX: f32 = 560.;
 const VOLUME_WIDTH: f32 = 110.;
@@ -32,7 +32,7 @@ pub(crate) struct PlayerBar {
     queue: Entity<Queue>,
     library: Entity<Library>,
     sidebar_right: Option<Entity<SidebarRight>>,
-    track_menu: TrackMenu,
+    track_menu: ItemMenu,
     context_menu: Option<(spotify::Track, Point<Pixels>)>,
     seek: ScrubberState,
     volume: ScrubberState,
@@ -82,7 +82,7 @@ impl PlayerBar {
             queue,
             library,
             sidebar_right,
-            track_menu: TrackMenu::new(playlist_scrollbar),
+            track_menu: ItemMenu::new(playlist_scrollbar),
             context_menu: None,
             seek: ScrubberState::new("seek"),
             volume: ScrubberState::new("volume"),
@@ -266,6 +266,7 @@ impl PlayerBar {
         )
     }
 
+    #[allow(dead_code)]
     fn fullscreen_button(&self) -> Button {
         Button::new("toggle-fullscreen")
             .ghost()
@@ -543,7 +544,6 @@ impl Render for PlayerBar {
                         .w_full()
                         .child(div().flex_1().min_w_0().child(seek))
                         .child(self.sound(px(VOLUME_TIGHT), cx))
-                        .child(self.fullscreen_button())
                         .when_some(self.queue_button(cx), |this, button| this.child(button)),
                 ),
             false => base
@@ -571,7 +571,6 @@ impl Render for PlayerBar {
                         .flex_1()
                         .min_w_0()
                         .child(self.sound(px(VOLUME_WIDTH), cx))
-                        .child(self.fullscreen_button())
                         .when_some(self.queue_button(cx), |this, button| this.child(button)),
                 ),
         };

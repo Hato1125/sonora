@@ -7,6 +7,9 @@ common-search = Search
 common-unknown = Unknown
 common-not-provided = Not provided
 common-not-available = Not available
+common-cancel = Cancel
+common-save = Save
+common-delete = Delete
 number-group = { "," }
 
 # navigation
@@ -42,6 +45,7 @@ menu-new-playlist = New playlist
 menu-no-playlists = No playlists
 menu-add-to-library = Add to Library
 menu-remove-from-library = Remove from Library
+menu-remove-from-playlist = Remove from playlist
 menu-add-to-queue = Add to queue
 menu-song-radio = Go to song radio
 menu-go-to-album = Go to album
@@ -49,6 +53,23 @@ menu-go-to-artist = Go to artist
 menu-view-details = View details
 menu-copy-link = Copy link
 menu-remove-from-queue = Remove from queue
+menu-open-playlist = Open playlist
+menu-play-playlist = Play playlist
+menu-rename-playlist = Rename playlist
+menu-delete-playlist = Delete playlist
+menu-remove-playlist-from-library = Remove from Library
+menu-make-playlist-public = Make public
+menu-make-playlist-private = Make private
+menu-open-album = Open album
+menu-play-album = Play album
+menu-add-album-to-queue = Add album to queue
+
+# playlist editor
+playlist-name-placeholder = Playlist name
+playlist-create-title = Create playlist
+playlist-rename-title = Rename playlist
+playlist-delete-title = Delete playlist
+playlist-delete-confirm = Delete “{ $name }”? This cannot be undone.
 
 # queue panel
 queue-title = Queue
@@ -255,3 +276,13 @@ corners-square = Square
 corners-subtle = Subtle
 corners-rounded = Rounded
 corners-round = Round
+
+toast-playlist-created = Playlist created
+toast-playlist-renamed = Playlist renamed
+toast-playlist-deleted = Playlist deleted
+toast-playlist-removed = Playlist removed from your library
+toast-playlist-visibility = Playlist visibility changed
+toast-track-added = Song added to the playlist
+toast-playlist-failed = That change could not be saved
+toast-playlist-busy = Another change is still running
+toast-playlist-signed-out = Sign in to change playlists

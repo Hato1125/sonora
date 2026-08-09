@@ -59,6 +59,28 @@ impl Named {
     }
 }
 
+pub fn playlist_from(id: &str, content: &RootList, username: &str) -> models::Playlist {
+    let owner = match content.owner_username() {
+        "" => UNKNOWN,
+        owner => owner,
+    };
+    let name = match content.attributes.name() {
+        "" => UNKNOWN,
+        name => name,
+    };
+
+    models::Playlist {
+        id: id.to_owned(),
+        name: name.to_owned(),
+        owner: owner.to_owned(),
+        owned: owner == username,
+        collaborative: content.attributes.collaborative(),
+        public: false,
+        cover: playlist_cover(&content.attributes),
+        track_count: content.length().max(0) as u32,
+    }
+}
+
 pub fn playlists_from(rootlist: &RootList) -> Vec<models::Playlist> {
     let contents = &rootlist.contents;
     let meta = &contents.meta_items;
@@ -84,6 +106,9 @@ pub fn playlists_from(rootlist: &RootList) -> Vec<models::Playlist> {
                 id: id.to_owned(),
                 name: name.to_owned(),
                 owner: owner.to_owned(),
+                owned: false,
+                collaborative: meta.is_some_and(|meta| meta.attributes.collaborative()),
+                public: item.attributes.public(),
                 cover: meta.and_then(|meta| playlist_cover(&meta.attributes)),
                 track_count: meta.map(|meta| meta.length()).unwrap_or_default().max(0) as u32,
             })

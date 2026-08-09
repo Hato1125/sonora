@@ -2,7 +2,7 @@
 
 use gpui::{Context, Entity, Task};
 use i18n::t;
-use spotify::{Album, AlbumDetail, ArtistRef, Playlist, Track};
+use spotify::{Album, AlbumDetail, ArtistRef, Playlist, PlaylistDetail, Track};
 
 use crate::{Io, Library, Session, SessionEvent, join};
 
@@ -14,7 +14,7 @@ pub enum Collection {
 
 enum Loaded {
     Album(AlbumDetail),
-    Tracks(Vec<Track>),
+    Playlist(PlaylistDetail),
 }
 
 pub struct Header {
@@ -30,6 +30,7 @@ pub struct Header {
 pub struct Detail {
     id: Option<String>,
     header: Option<Header>,
+    playlist: Option<Playlist>,
     tracks: Vec<Track>,
     loading: bool,
     error: Option<String>,
@@ -37,6 +38,7 @@ pub struct Detail {
     library: Entity<Library>,
     io: Io,
     task: Option<Task<()>>,
+    mutation: Option<Task<()>>,
 }
 
 impl Detail {
@@ -54,9 +56,26 @@ impl Detail {
         })
         .detach();
 
+        cx.observe(&library, |this, library, cx| {
+            let Some(id) = this.id.clone() else {
+                return;
+            };
+            let Some(playlist) = library.read(cx).playlist(&id).cloned() else {
+                return;
+            };
+            if this.playlist.as_ref() == Some(&playlist) {
+                return;
+            }
+            this.header = Some(playlist_header(&playlist));
+            this.playlist = Some(playlist);
+            cx.notify();
+        })
+        .detach();
+
         Self {
             id: None,
             header: None,
+            playlist: None,
             tracks: Vec::new(),
             loading: false,
             error: None,
@@ -64,6 +83,7 @@ impl Detail {
             library,
             io,
             task: None,
+            mutation: None,
         }
     }
 
@@ -75,12 +95,55 @@ impl Detail {
         self.header.as_ref()
     }
 
+    pub fn playlist(&self) -> Option<&Playlist> {
+        self.playlist.as_ref()
+    }
+
     pub fn tracks(&self) -> &[Track] {
         &self.tracks
     }
 
     pub fn is_loading(&self) -> bool {
         self.loading
+    }
+
+    pub fn remove_from_playlist(&mut self, track_id: String, cx: &mut Context<Self>) {
+        if self.mutation.is_some() {
+            log::warn!("detail: cannot remove a track while another change is running");
+            return;
+        }
+        let Some(playlist_id) = self.id.clone() else {
+            log::warn!("detail: cannot remove a track without a playlist");
+            return;
+        };
+        let Some(client) = self.session.read(cx).client() else {
+            log::warn!("detail: cannot remove a track while signed out");
+            return;
+        };
+        let io = self.io.clone();
+        self.mutation = Some(cx.spawn(async move |this, cx| {
+            let removed_id = track_id.clone();
+            let removed = join(io.spawn(async move {
+                client
+                    .remove_track_from_playlist(&playlist_id, &removed_id)
+                    .await
+            }))
+            .await;
+            this.update(cx, |this, cx| {
+                this.mutation = None;
+                match removed {
+                    Ok(()) => {
+                        this.tracks
+                            .retain(|track| track.id.as_deref() != Some(&track_id));
+                        cx.notify();
+                    }
+                    Err(error) => {
+                        log::warn!("detail: cannot remove track from playlist: {error:#}")
+                    }
+                }
+            })
+            .ok();
+        }));
     }
 
     pub fn error(&self) -> Option<&str> {
@@ -93,8 +156,10 @@ impl Detail {
     }
 
     pub fn open_playlist(&mut self, id: &str, cx: &mut Context<Self>) {
-        let known = self.library.read(cx).playlist(id).map(playlist_header);
-        self.open(Collection::Playlist, id, known, cx);
+        let known = self.library.read(cx).playlist(id).cloned();
+        let header = known.as_ref().map(playlist_header);
+        self.open(Collection::Playlist, id, header, cx);
+        self.playlist = known;
     }
 
     fn open(&mut self, kind: Collection, id: &str, known: Option<Header>, cx: &mut Context<Self>) {
@@ -120,7 +185,7 @@ impl Detail {
             let loaded = join(io.spawn(async move {
                 match kind {
                     Collection::Album => client.album(&id).await.map(Loaded::Album),
-                    Collection::Playlist => client.playlist_tracks(&id).await.map(Loaded::Tracks),
+                    Collection::Playlist => client.playlist(&id).await.map(Loaded::Playlist),
                 }
             }))
             .await;
@@ -132,7 +197,11 @@ impl Detail {
                         this.header = Some(album_header(&detail.album));
                         this.tracks = detail.tracks;
                     }
-                    Ok(Loaded::Tracks(tracks)) => this.tracks = tracks,
+                    Ok(Loaded::Playlist(detail)) => {
+                        this.header = Some(playlist_header(&detail.playlist));
+                        this.playlist = Some(detail.playlist);
+                        this.tracks = detail.tracks;
+                    }
                     Err(error) => this.error = Some(format!("{error:#}")),
                 }
                 cx.notify();
@@ -148,8 +217,10 @@ impl Detail {
 
     fn clear(&mut self) {
         self.task = None;
+        self.mutation = None;
         self.id = None;
         self.header = None;
+        self.playlist = None;
         self.tracks.clear();
         self.loading = false;
         self.error = None;

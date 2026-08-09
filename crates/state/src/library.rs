@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::collections::HashMap;
+use std::future::Future;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use gpui::{Context, Entity, Task};
 use spotify::{Album, Playlist, SpotifyApi, Track};
 
-use crate::{Io, Session, SessionEvent, join};
+use crate::{Io, Note, Session, SessionEvent, Toasts, join};
 
 const PAGE_LIMIT: u32 = 10000;
 
@@ -39,6 +40,10 @@ fn take<T>(label: &str, result: anyhow::Result<Vec<T>>, problems: &mut Vec<Strin
     })
 }
 
+pub enum LibraryEvent {
+    PlaylistGone(String),
+}
+
 pub enum LibraryState {
     Empty,
     Loading,
@@ -51,11 +56,14 @@ pub enum LibraryState {
     Failed(String),
 }
 
+impl gpui::EventEmitter<LibraryEvent> for Library {}
+
 pub struct Library {
     state: LibraryState,
     session: Entity<Session>,
     io: Io,
     task: Option<Task<()>>,
+    playlist_task: Option<Task<()>>,
     pending: HashMap<String, Task<()>>,
 }
 
@@ -70,6 +78,7 @@ impl Library {
             }
             SessionEvent::SignedOut => {
                 this.task = None;
+                this.playlist_task = None;
                 this.pending.clear();
                 this.state = LibraryState::Empty;
                 cx.notify();
@@ -82,6 +91,7 @@ impl Library {
             session,
             io,
             task: None,
+            playlist_task: None,
             pending: HashMap::new(),
         }
     }
@@ -160,6 +170,89 @@ impl Library {
         cx.notify();
     }
 
+    pub fn create_playlist(&mut self, name: String, track: Option<String>, cx: &mut Context<Self>) {
+        self.mutate_playlist(
+            "create playlist",
+            "toast-playlist-created",
+            move |client| async move {
+                let id = client.create_playlist(&name).await?;
+                if let Some(track) = track {
+                    client.add_track_to_playlist(&id, &track).await?;
+                }
+                client.playlist(&id).await.map(|detail| detail.playlist)
+            },
+            Self::insert_playlist,
+            cx,
+        );
+    }
+
+    pub fn rename_playlist(&mut self, id: String, name: String, cx: &mut Context<Self>) {
+        let renamed = (id.clone(), name.clone());
+        self.mutate_playlist(
+            "rename playlist",
+            "toast-playlist-renamed",
+            move |client| async move { client.rename_playlist(&id, &name).await },
+            move |this, _, cx| {
+                let (id, name) = renamed;
+                this.amend_playlist(&id, |playlist| playlist.name = name, cx);
+            },
+            cx,
+        );
+    }
+
+    pub fn set_playlist_public(&mut self, id: String, public: bool, cx: &mut Context<Self>) {
+        let changed = id.clone();
+        self.mutate_playlist(
+            "change playlist visibility",
+            "toast-playlist-visibility",
+            move |client| async move { client.set_playlist_public(&id, public).await },
+            move |this, _, cx| {
+                this.amend_playlist(&changed, |playlist| playlist.public = public, cx);
+            },
+            cx,
+        );
+    }
+
+    pub fn add_to_playlist(
+        &mut self,
+        playlist_id: String,
+        track_id: String,
+        cx: &mut Context<Self>,
+    ) {
+        let added = playlist_id.clone();
+        self.mutate_playlist(
+            "add track to playlist",
+            "toast-track-added",
+            move |client| async move { client.add_track_to_playlist(&playlist_id, &track_id).await },
+            move |this, _, cx| {
+                this.amend_playlist(&added, |playlist| playlist.track_count += 1, cx);
+            },
+            cx,
+        );
+    }
+
+    pub fn delete_playlist(&mut self, id: String, cx: &mut Context<Self>) {
+        let deleted = id.clone();
+        self.mutate_playlist(
+            "delete playlist",
+            "toast-playlist-deleted",
+            move |client| async move { client.delete_playlist(&id).await },
+            move |this, _, cx| this.forget_playlist(&deleted, cx),
+            cx,
+        );
+    }
+
+    pub fn remove_playlist_from_library(&mut self, id: String, cx: &mut Context<Self>) {
+        let removed = id.clone();
+        self.mutate_playlist(
+            "remove playlist from library",
+            "toast-playlist-removed",
+            move |client| async move { client.remove_playlist_from_library(&id).await },
+            move |this, _, cx| this.forget_playlist(&removed, cx),
+            cx,
+        );
+    }
+
     pub fn album(&self, id: &str) -> Option<&Album> {
         let LibraryState::Ready { albums, .. } = &self.state else {
             return None;
@@ -172,6 +265,88 @@ impl Library {
             return None;
         };
         playlists.iter().find(|playlist| playlist.id == id)
+    }
+
+    fn mutate_playlist<F, R, T, A>(
+        &mut self,
+        action: &'static str,
+        done: &'static str,
+        mutation: F,
+        apply: A,
+        cx: &mut Context<Self>,
+    ) where
+        F: FnOnce(Arc<dyn SpotifyApi>) -> R + Send + 'static,
+        R: Future<Output = anyhow::Result<T>> + Send + 'static,
+        T: Send + 'static,
+        A: FnOnce(&mut Self, T, &mut Context<Self>) + 'static,
+    {
+        if self.playlist_task.is_some() {
+            log::warn!("library: cannot {action} while another change is running");
+            Toasts::show(Note::Failed, "toast-playlist-busy", cx);
+            return;
+        }
+        let Some(client) = self.session.read(cx).client() else {
+            log::warn!("library: cannot {action} while signed out");
+            Toasts::show(Note::Failed, "toast-playlist-signed-out", cx);
+            return;
+        };
+        let io = self.io.clone();
+        self.playlist_task = Some(cx.spawn(async move |this, cx| {
+            let result = join(io.spawn(async move { mutation(client).await })).await;
+            this.update(cx, |this, cx| {
+                this.playlist_task = None;
+                match result {
+                    Ok(outcome) => {
+                        apply(this, outcome, cx);
+                        Toasts::show(Note::Done, done, cx);
+                    }
+                    Err(error) => {
+                        log::warn!("library: cannot {action}: {error:#}");
+                        Toasts::show(Note::Failed, "toast-playlist-failed", cx);
+                    }
+                }
+                cx.notify();
+            })
+            .ok();
+        }));
+    }
+
+    fn insert_playlist(&mut self, playlist: Playlist, cx: &mut Context<Self>) {
+        let LibraryState::Ready { playlists, .. } = &mut self.state else {
+            return;
+        };
+        playlists.retain(|known| known.id != playlist.id);
+        playlists.push(playlist);
+        cx.notify();
+    }
+
+    fn forget_playlist(&mut self, id: &str, cx: &mut Context<Self>) {
+        cx.emit(LibraryEvent::PlaylistGone(id.to_owned()));
+        self.drop_playlist(id, cx);
+    }
+
+    fn drop_playlist(&mut self, id: &str, cx: &mut Context<Self>) {
+        let LibraryState::Ready { playlists, .. } = &mut self.state else {
+            return;
+        };
+        playlists.retain(|playlist| playlist.id != id);
+        cx.notify();
+    }
+
+    fn amend_playlist(
+        &mut self,
+        id: &str,
+        amend: impl FnOnce(&mut Playlist),
+        cx: &mut Context<Self>,
+    ) {
+        let LibraryState::Ready { playlists, .. } = &mut self.state else {
+            return;
+        };
+        let Some(playlist) = playlists.iter_mut().find(|playlist| playlist.id == id) else {
+            return;
+        };
+        amend(playlist);
+        cx.notify();
     }
 
     fn set_saved(&mut self, track: Track, saved: bool) {
@@ -194,6 +369,7 @@ impl Library {
     }
 
     fn load(&mut self, client: Arc<dyn SpotifyApi>, cx: &mut Context<Self>) {
+        self.playlist_task = None;
         self.pending.clear();
         self.state = LibraryState::Loading;
         cx.notify();

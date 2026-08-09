@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use gpui::prelude::*;
-use gpui::{AnyElement, App, ElementId, Entity, FontWeight, SharedString, Window, div};
+use gpui::{
+    AnyElement, App, ElementId, Entity, FontWeight, MouseDownEvent, SharedString, Window, div,
+};
 use i18n::t;
 use spotify::Track;
 use state::{Playback, PlaybackState};
@@ -149,6 +151,8 @@ impl RenderOnce for HeroPlayButton {
     }
 }
 
+type Grip = Box<dyn Fn(&MouseDownEvent, &mut Window, &mut App) + 'static>;
+
 #[derive(IntoElement)]
 pub(crate) struct PageHero {
     id: ElementId,
@@ -159,6 +163,7 @@ pub(crate) struct PageHero {
     actions: Option<AnyElement>,
     circle: bool,
     explicit: bool,
+    grip: Option<Grip>,
 }
 
 impl PageHero {
@@ -172,7 +177,16 @@ impl PageHero {
             actions: None,
             circle: false,
             explicit: false,
+            grip: None,
         }
+    }
+
+    pub(crate) fn grip(
+        mut self,
+        handler: impl Fn(&MouseDownEvent, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.grip = Some(Box::new(handler));
+        self
     }
 
     pub(crate) fn cover(mut self, cover: Option<String>) -> Self {
@@ -227,6 +241,9 @@ impl RenderOnce for PageHero {
             .when_some(self.eyebrow, Card::eyebrow)
             .when_some(self.meta, Card::bare_meta)
             .when_some(self.actions, Card::footer)
+            .when_some(self.grip, |card, grip| {
+                card.grip(move |event, window, cx| grip(event, window, cx))
+            })
             .when(self.circle, Card::circle)
             .when(self.explicit, Card::explicit)
     }
