@@ -5,7 +5,7 @@
 [![Build](https://img.shields.io/github/actions/workflow/status/nolight132/sonora/release.yml)](https://github.com/nolight132/sonora/actions/workflows/release.yml)
 [![License](https://img.shields.io/github/license/nolight132/sonora)](./LICENSE)
 
-### A minimal native Spotify client built with Rust and GPUI.
+### A native Spotify client built with Rust and GPUI.
 This project would not be possible without [librespot](https://github.com/librespot-org/librespot).
 </div>
 
