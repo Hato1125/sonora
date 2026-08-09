@@ -10,6 +10,11 @@ common-not-available = Brak danych
 common-cancel = Anuluj
 common-save = Zapisz
 common-delete = Usuń
+common-play = Odtwórz
+common-more = Więcej
+common-previous = Wstecz
+common-next = Dalej
+common-dismiss = Zamknij
 number-group = { "\u00A0" }
 
 # navigation
@@ -20,6 +25,15 @@ nav-settings = Ustawienia
 nav-songs = Utwory
 nav-albums = Albumy
 nav-playlists = Playlisty
+nav-back = Wstecz
+nav-forward = Dalej
+nav-sidebar = Pokaż lub ukryj panel boczny
+library-liked-songs = Polubione utwory
+library-play-liked-songs = Odtwórz
+library-no-songs = Brak polubionych utworów
+library-no-albums = Brak zapisanych albumów
+library-no-playlists = Brak playlist
+library-no-matches = Brak wyników
 
 # app menu
 app-refresh-library = Odśwież bibliotekę
@@ -58,6 +72,7 @@ menu-open-playlist = Otwórz playlistę
 menu-play-playlist = Odtwórz playlistę
 menu-rename-playlist = Zmień nazwę playlisty
 menu-delete-playlist = Usuń playlistę
+menu-add-playlist-to-library = Dodaj do biblioteki
 menu-remove-playlist-from-library = Usuń z biblioteki
 menu-make-playlist-public = Ustaw jako publiczną
 menu-make-playlist-private = Ustaw jako prywatną
@@ -80,10 +95,21 @@ queue-up-next = Następne
 queue-reset = Resetuj
 queue-clear = Wyczyść
 queue-empty = Twoja kolejka jest pusta
+queue-similar = Podobne utwory
+queue-radio = Automatycznie odtwarzaj podobne utwory
 
 # player bar
 player-nothing-playing = Nic nie jest odtwarzane
 player-percent = { $value }%
+player-shuffle = Losowo
+player-repeat = Powtarzaj
+player-repeat-all = Powtarzaj wszystko
+player-repeat-one = Powtarzaj utwór
+player-mute = Wycisz
+player-unmute = Wyłącz wyciszenie
+player-previous = Poprzedni utwór
+player-next = Następny utwór
+player-fullscreen = Pełny ekran
 
 # filters
 filter-library = Filtruj bibliotekę
@@ -97,6 +123,11 @@ filter-playable = Tylko dostępne
 # view
 view-list = Lista
 view-cards = Kafelki
+
+# toolbar
+tool-columns = Kolumny
+tool-sort = Sortowanie
+tool-filters = Filtry
 
 # login
 login-signed-out = Zaloguj się, aby wczytać bibliotekę Spotify
@@ -118,6 +149,11 @@ play-loading = Ładowanie…
 
 # artist page
 artist-eyebrow = Wykonawca
+artist-monthly-listeners = { $count ->
+    [one] { $value } słuchacz miesięcznie
+    [few] { $value } słuchaczy miesięcznie
+   *[other] { $value } słuchaczy miesięcznie
+}
 artist-play = Odtwórz
 artist-popular = Popularne
 artist-releases = Wydawnictwa
@@ -138,6 +174,7 @@ release-meta = { $year } • { $kind }
 # home page
 home-quick-picks = Szybki wybór
 home-quick-picks-eyebrow = Zacznij od utworu
+home-quick-picks-empty = Polub kilka utworów, a pojawią się tutaj
 
 # search page
 search-placeholder = Czego chcesz posłuchać?
@@ -226,11 +263,14 @@ month-11 = lis
 month-12 = gru
 
 # settings
+settings-tab-general = Ogólne
 settings-tab-appearance = Wygląd
 settings-tab-playback = Odtwarzanie
-settings-tab-account = Konto
 settings-theme = Motyw
 settings-theme-detail = Paleta kolorów aplikacji
+settings-opacity = Krycie
+settings-opacity-detail = Dostosuj krycie tła aplikacji
+settings-opacity-value = { $percent }%
 settings-theme-config = Otwórz konfigurację
 settings-adaptive = Motyw adaptacyjny
 settings-adaptive-detail = Zabarw paletę okładką odtwarzanego albumu
@@ -242,14 +282,14 @@ settings-font-value = { $size } px
 settings-language = Język
 settings-language-detail = Język interfejsu sonora
 settings-language-system = Systemowy
-settings-auto-hide = Automatyczne ukrywanie panelu
-settings-auto-hide-detail = Zwijaj panel boczny, gdy okno staje się wąskie
 settings-window-controls = Przyciski okna
 settings-window-controls-detail = Rysuj minimalizację, maksymalizację i zamknięcie na pasku tytułu
 settings-controls-side = Strona przycisków
 settings-controls-side-detail = Po której stronie paska tytułu znajdują się przyciski
 settings-normalisation = Normalizacja głośności
 settings-normalisation-detail = Utrzymuje stałą głośność utworów
+settings-gapless = Odtwarzanie bez przerw
+settings-gapless-detail = Przechodzi z utworu do następnego bez pauzy, zgodnie z układem albumu
 settings-account = Konto
 settings-account-detail = Wyloguj się ze Spotify na tym urządzeniu
 settings-sign-out = Wyloguj się
@@ -288,9 +328,17 @@ corners-round = Okrągłe
 toast-playlist-created = Utworzono playlistę
 toast-playlist-renamed = Zmieniono nazwę playlisty
 toast-playlist-deleted = Usunięto playlistę
+toast-playlist-added = Dodano playlistę do biblioteki
 toast-playlist-removed = Usunięto playlistę z biblioteki
 toast-playlist-visibility = Zmieniono widoczność playlisty
-toast-track-added = Dodano utwór do playlisty
+toast-track-added = Dodano do { $name }
 toast-playlist-failed = Nie udało się zapisać zmiany
 toast-playlist-busy = Inna zmiana wciąż trwa
 toast-playlist-signed-out = Zaloguj się, aby zmieniać playlisty
+toast-queued-track = { $name } dodano do kolejki
+toast-next-track = { $name } zabrzmi następny
+toast-queued-album = Album dodano do kolejki
+toast-next-album = Album zabrzmi następny
+toast-queued-playlist = Playlistę dodano do kolejki
+toast-next-playlist = Playlista zabrzmi następna
+toast-queue-failed = Nie udało się dodać do kolejki

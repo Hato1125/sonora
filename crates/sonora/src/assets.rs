@@ -35,7 +35,13 @@ macro_rules! fonts {
     };
 }
 
-const FONTS: &[(&str, &[u8])] = fonts!["Inter.ttf", "Inter-Italic.ttf",];
+const FONTS: &[(&str, &[u8])] = fonts![
+    "Inter-Regular.ttf",
+    "Inter-Medium.ttf",
+    "Inter-SemiBold.ttf",
+    "Inter-Bold.ttf",
+    "Inter-Italic.ttf",
+];
 
 const ICONS: &[(&str, &[u8])] = icons![
     "chevron-down",
@@ -52,6 +58,7 @@ const ICONS: &[(&str, &[u8])] = icons![
     "circle-check",
     "heart",
     "heart-filled",
+    "heart-off",
     "house",
     "info",
     "layout-grid",

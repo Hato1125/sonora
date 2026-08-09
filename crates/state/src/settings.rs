@@ -23,6 +23,7 @@ struct Values {
     version: u32,
     volume: f32,
     normalisation: bool,
+    gapless: bool,
     sidebar_width: f32,
     sidebar_open: bool,
     sidebar_right_width: f32,
@@ -41,11 +42,12 @@ struct Values {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 struct Appearance {
-    auto_hide_sidebar: bool,
     theme: String,
     adaptive_theme: bool,
     rounding: String,
     font_size: f32,
+    transparent: bool,
+    transparency: f32,
     window_controls: bool,
     controls_on_left: bool,
     theme_overrides: ThemeOverrides,
@@ -57,6 +59,7 @@ impl Default for Values {
             version: 1,
             volume: DEFAULT_VOLUME,
             normalisation: true,
+            gapless: true,
             sidebar_width: DEFAULT_SIDEBAR_WIDTH,
             sidebar_open: true,
             sidebar_right_width: DEFAULT_SIDEBAR_RIGHT_WIDTH,
@@ -87,11 +90,12 @@ impl Values {
 impl Default for Appearance {
     fn default() -> Self {
         Self {
-            auto_hide_sidebar: true,
             theme: "dark".to_owned(),
             adaptive_theme: false,
             rounding: "subtle".to_owned(),
             font_size: DEFAULT_FONT_SIZE,
+            transparent: false,
+            transparency: 0.15,
             window_controls: true,
             controls_on_left: false,
             theme_overrides: ThemeOverrides::default(),
@@ -136,6 +140,10 @@ impl AppSettings {
         self.values.normalisation
     }
 
+    pub fn gapless(&self) -> bool {
+        self.values.gapless
+    }
+
     pub fn sidebar_width(&self) -> f32 {
         self.values.sidebar_width
     }
@@ -164,10 +172,6 @@ impl AppSettings {
         &self.values.language
     }
 
-    pub fn auto_hide_sidebar(&self) -> bool {
-        self.values.appearance.auto_hide_sidebar
-    }
-
     pub fn theme(&self) -> &str {
         &self.values.appearance.theme
     }
@@ -185,6 +189,8 @@ impl AppSettings {
             kind: ThemeKind::from_id(self.theme()),
             rounding: Rounding::from_id(self.rounding()),
             font: self.font_size(),
+            transparent: self.transparent(),
+            transparency: self.transparency(),
             tint: None,
         }
     }
@@ -202,6 +208,17 @@ impl AppSettings {
             .appearance
             .font_size
             .clamp(ui::MIN_FONT, ui::MAX_FONT)
+    }
+
+    pub fn transparent(&self) -> bool {
+        self.values.appearance.transparent
+    }
+
+    pub fn transparency(&self) -> f32 {
+        self.values
+            .appearance
+            .transparency
+            .clamp(0., ui::MAX_TRANSPARENCY)
     }
 
     pub fn theme_overrides(&self) -> &ThemeOverrides {
@@ -222,6 +239,11 @@ impl AppSettings {
 
     pub fn set_normalisation(&mut self, normalisation: bool, cx: &mut Context<Self>) {
         self.values.normalisation = normalisation;
+        self.schedule_save(cx);
+    }
+
+    pub fn set_gapless(&mut self, gapless: bool, cx: &mut Context<Self>) {
+        self.values.gapless = gapless;
         self.schedule_save(cx);
     }
 
@@ -294,11 +316,6 @@ impl AppSettings {
         self.schedule_save(cx);
     }
 
-    pub fn set_auto_hide_sidebar(&mut self, auto_hide: bool, cx: &mut Context<Self>) {
-        self.values.appearance.auto_hide_sidebar = auto_hide;
-        self.schedule_save(cx);
-    }
-
     pub fn set_theme(&mut self, theme: impl Into<String>, cx: &mut Context<Self>) {
         self.values.appearance.theme = theme.into();
         self.schedule_save(cx);
@@ -326,6 +343,16 @@ impl AppSettings {
 
     pub fn set_font_size(&mut self, size: f32, cx: &mut Context<Self>) {
         self.values.appearance.font_size = size.clamp(ui::MIN_FONT, ui::MAX_FONT);
+        self.schedule_save(cx);
+    }
+
+    pub fn set_transparent(&mut self, transparent: bool, cx: &mut Context<Self>) {
+        self.values.appearance.transparent = transparent;
+        self.schedule_save(cx);
+    }
+
+    pub fn set_transparency(&mut self, transparency: f32, cx: &mut Context<Self>) {
+        self.values.appearance.transparency = transparency.clamp(0., ui::MAX_TRANSPARENCY);
         self.schedule_save(cx);
     }
 

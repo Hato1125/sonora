@@ -7,7 +7,7 @@ use gpui::{
 };
 
 use i18n::t;
-use spotify::Track;
+use spotify::{Album, Playlist, Track};
 use state::{AppSettings, Collection, Detail, LibraryEvent, Playback, Sonora};
 use ui::{ActiveTheme as _, Button, Menu, Popover, Popovers, Popup, SortAxis};
 use ui::{
@@ -21,11 +21,16 @@ use crate::chrome::tools::{self, Sift, Sliders};
 use crate::chrome::{Chrome, Searchable, Toolbar, Tooled};
 use crate::shared::hero::{HeroMetaStrip, HeroPlayButton, PageHero, release_date_label};
 use crate::shared::tracks::{
-    PlaybackStatus, TrackField, TrackSieve, TrackSource, Tracks, playback_status,
+    self, PlaybackStatus, TrackField, TrackSieve, TrackSource, Tracks, playback_status,
 };
 use crate::shared::{cells, page};
 
 const PINNED: [&str; 3] = ["cover", "title", "name"];
+
+enum Saveable {
+    Album(Album),
+    Playlist(Playlist),
+}
 
 struct DetailTracks(Entity<Detail>);
 
@@ -66,10 +71,9 @@ impl DetailView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let inset = cx.theme().metrics.inset;
         let settings = Sonora::global(cx).settings.clone();
         let saved = settings.read(cx).table(section);
-        let width = cells::content_width(window, page::reserved(inset), cx);
+        let width = cells::content_width(window, Pixels::ZERO, cx);
 
         let scrollbar = cx.new(|_| Scrollbar::new(ScrollHandle::new()));
         let scroll = scrollbar.read(cx).scroll().clone();
@@ -94,6 +98,10 @@ impl DetailView {
                 true => source.with_playlist(detail.clone()),
                 false => source,
             };
+            let source = match section == "album" {
+                true => source.with_album(detail.clone()),
+                false => source,
+            };
             let source = source.table(cx.weak_entity());
             let mut delegate = GridDelegate::new(source, width, cx);
             delegate.set_layout(saved, cx);
@@ -111,13 +119,14 @@ impl DetailView {
         })
         .detach();
 
-        if show_liked {
-            let library = Sonora::global(cx).library.clone();
-            cx.observe(&library, |this, _, cx| {
+        let library = Sonora::global(cx).library.clone();
+        cx.observe(&library, move |this, _, cx| {
+            if show_liked {
                 this.table.update(cx, |table, cx| table.refresh(cx));
-            })
-            .detach();
-        }
+            }
+            cx.notify();
+        })
+        .detach();
 
         if section == "playlist" {
             let library = Sonora::global(cx).library.clone();
@@ -239,8 +248,8 @@ impl DetailView {
             .unwrap_or_default();
         let release_date = header.and_then(|header| header.release_date.as_deref());
         let meta = header.map(|header| header.meta.clone()).unwrap_or_default();
-        let queued = self.detail.read(cx).tracks().to_vec();
-        let duration: std::time::Duration = queued.iter().map(|track| track.duration).sum();
+        let listed = self.detail.read(cx).tracks();
+        let duration: std::time::Duration = listed.iter().map(|track| track.duration).sum();
         let (eyebrow, label) = match kind {
             Collection::Playlist => (t!("detail-playlist"), t!("detail-play-playlist")),
             Collection::Album => (t!("detail-album"), t!("detail-play-album")),
@@ -271,7 +280,8 @@ impl DetailView {
                 .button(
                     Button::new("detail-overflow-button")
                         .outline()
-                        .icon("icons/ellipsis.svg"),
+                        .icon("icons/ellipsis.svg")
+                        .tooltip("common-more"),
                 )
                 .menu(menu.top(theme.metrics.control).left_0())
         });
@@ -282,9 +292,10 @@ impl DetailView {
             .child(HeroPlayButton::new(
                 "play-detail",
                 label,
-                queued,
+                tracks::ordered(&self.table, cx),
                 self.playback.clone(),
             ))
+            .children(self.library_button(cx))
             .children(overflow);
 
         let view = self.me.clone();
@@ -304,17 +315,72 @@ impl DetailView {
             .into_any_element()
     }
 
+    fn library_button(&self, cx: &App) -> Option<Button> {
+        let theme = *cx.theme();
+        let library = Sonora::global(cx).library.clone();
+        let detail = self.detail.read(cx);
+        let id = detail.id()?.to_owned();
+
+        let (target, saved, busy) = match detail.header()?.kind {
+            Collection::Album => (
+                Saveable::Album(detail.album()?.clone()),
+                library.read(cx).saved_album(&id),
+                library.read(cx).pending_album(&id),
+            ),
+            Collection::Playlist => {
+                let known = library.read(cx).playlist(&id).cloned();
+                let playlist = known.clone().or_else(|| detail.playlist().cloned())?;
+                if playlist.owned {
+                    return None;
+                }
+                (Saveable::Playlist(playlist), known.is_some(), false)
+            }
+        };
+
+        let heart = Button::new("detail-toggle-library")
+            .outline()
+            .icon(match saved {
+                true => "icons/heart-filled.svg",
+                false => "icons/heart.svg",
+            })
+            .tooltip(match saved {
+                true => "menu-remove-from-library",
+                false => "menu-add-to-library",
+            })
+            .disabled(busy);
+
+        Some(
+            match saved {
+                true => heart.tint(theme.primary),
+                false => heart,
+            }
+            .on_click(move |_, _, cx| {
+                library.update(cx, |library, cx| match &target {
+                    Saveable::Album(album) => library.toggle_album(album.clone(), cx),
+                    Saveable::Playlist(playlist) if saved => {
+                        library.remove_playlist_from_library(playlist.id.clone(), cx)
+                    }
+                    Saveable::Playlist(playlist) => {
+                        library.add_playlist_to_library(playlist.clone(), cx)
+                    }
+                });
+            }),
+        )
+    }
+
     fn menu(&self, cx: &App) -> Option<Menu> {
         let detail = self.detail.read(cx);
         let id = detail.id()?.to_owned();
         let header = detail.header()?;
 
         Some(match header.kind {
-            Collection::Album => album_menu(id, self.playback.clone(), true),
+            Collection::Album => {
+                album_menu(detail.album()?.clone(), self.playback.clone(), true, cx)
+            }
             Collection::Playlist => {
                 let saved = Sonora::global(cx).library.read(cx).playlist(&id).cloned();
                 let playlist = saved.or_else(|| detail.playlist().cloned())?;
-                playlist_menu(playlist, self.playback.clone(), true)
+                playlist_menu(playlist, self.playback.clone(), true, cx)
             }
         })
     }
@@ -322,9 +388,12 @@ impl DetailView {
 
 impl Render for DetailView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = *cx.theme();
-        let inset = theme.metrics.inset;
-        page::resize(&self.table, &mut self.width, inset, window, cx);
+        let inset = cx.theme().metrics.inset;
+        let width = cells::content_width(window, Pixels::ZERO, cx);
+        if (width - self.width).abs() >= px(0.5) {
+            self.width = width;
+            self.table.set_width(width, cx);
+        }
 
         let scroll = self.scrollbar.read(cx).scroll().clone();
         let viewport = page::viewport(&scroll, inset, window);
@@ -346,16 +415,10 @@ impl Render for DetailView {
             .size_full()
             .child(
                 Scroller::new("detail-page", &self.scrollbar)
-                    .px(inset)
                     .pt(inset)
                     .pb(inset)
-                    .child(self.header(cx))
-                    .child(
-                        grid(&self.table)
-                            .rounded(theme.radius)
-                            .border_1()
-                            .border_color(theme.border),
-                    ),
+                    .child(div().px(inset).child(self.header(cx)))
+                    .child(grid(&self.table)),
             )
             .when_some(context_menu, |this, menu| this.child(menu))
     }

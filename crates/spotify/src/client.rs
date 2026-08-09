@@ -8,7 +8,9 @@ use librespot_core::Session;
 use librespot_protocol::playlist4_external::SelectedListContent as RootList;
 use protobuf::Message as _;
 
-use crate::models::{Album, AlbumDetail, Artist, Playlist, PlaylistDetail, Track, UserProfile};
+use crate::models::{
+    Album, AlbumDetail, Artist, ArtistProfile, Playlist, PlaylistDetail, Track, UserProfile,
+};
 use crate::{
     albums, artists, collection, collection2, pathfinder, playlists, profiles, radio, search, wire,
 };
@@ -17,6 +19,7 @@ use crate::{
 pub trait SpotifyApi: Send + Sync {
     async fn profile(&self) -> Result<UserProfile>;
     async fn artist(&self, artist_id: &str) -> Result<Artist>;
+    async fn artist_profile(&self, artist_id: &str) -> Result<ArtistProfile>;
     async fn artist_images(&self, ids: Vec<String>) -> Result<HashMap<String, String>>;
     async fn saved_tracks(&self, limit: u32) -> Result<Vec<Track>>;
     async fn set_track_saved(&self, track_id: &str, saved: bool) -> Result<()>;
@@ -27,10 +30,12 @@ pub trait SpotifyApi: Send + Sync {
     async fn rename_playlist(&self, playlist_id: &str, name: &str) -> Result<()>;
     async fn delete_playlist(&self, playlist_id: &str) -> Result<()>;
     async fn remove_playlist_from_library(&self, playlist_id: &str) -> Result<()>;
+    async fn add_playlist_to_library(&self, playlist_id: &str) -> Result<()>;
     async fn set_playlist_public(&self, playlist_id: &str, public: bool) -> Result<()>;
     async fn add_track_to_playlist(&self, playlist_id: &str, track_id: &str) -> Result<()>;
     async fn remove_track_from_playlist(&self, playlist_id: &str, track_id: &str) -> Result<()>;
     async fn saved_albums(&self, limit: u32) -> Result<Vec<Album>>;
+    async fn set_album_saved(&self, album_id: &str, saved: bool) -> Result<()>;
     async fn album(&self, album_id: &str) -> Result<AlbumDetail>;
     async fn album_tracks(&self, album_id: &str) -> Result<Vec<Track>>;
     async fn playlist(&self, playlist_id: &str) -> Result<PlaylistDetail>;
@@ -74,6 +79,10 @@ impl SpotifyApi for LibrespotClient {
         artists::artist(&self.session, artist_id).await
     }
 
+    async fn artist_profile(&self, artist_id: &str) -> Result<ArtistProfile> {
+        artists::profile(&self.session, artist_id).await
+    }
+
     async fn artist_images(&self, ids: Vec<String>) -> Result<HashMap<String, String>> {
         artists::images(&self.session, &ids).await
     }
@@ -96,6 +105,10 @@ impl SpotifyApi for LibrespotClient {
 
     async fn saved_albums(&self, limit: u32) -> Result<Vec<Album>> {
         albums::saved_albums(&self.session, limit).await
+    }
+
+    async fn set_album_saved(&self, album_id: &str, saved: bool) -> Result<()> {
+        collection2::set_album_saved(&self.session, album_id, saved).await
     }
 
     async fn album(&self, album_id: &str) -> Result<AlbumDetail> {
@@ -145,6 +158,10 @@ impl SpotifyApi for LibrespotClient {
 
     async fn remove_playlist_from_library(&self, playlist_id: &str) -> Result<()> {
         playlists::remove_from_library(&self.session, playlist_id).await
+    }
+
+    async fn add_playlist_to_library(&self, playlist_id: &str) -> Result<()> {
+        playlists::add_to_library(&self.session, playlist_id).await
     }
 
     async fn set_playlist_public(&self, playlist_id: &str, public: bool) -> Result<()> {

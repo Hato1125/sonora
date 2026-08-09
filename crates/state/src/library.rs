@@ -65,6 +65,7 @@ pub struct Library {
     task: Option<Task<()>>,
     playlist_task: Option<Task<()>>,
     pending: HashMap<String, Task<()>>,
+    pending_albums: HashMap<String, Task<()>>,
 }
 
 impl Library {
@@ -80,6 +81,7 @@ impl Library {
                 this.task = None;
                 this.playlist_task = None;
                 this.pending.clear();
+                this.pending_albums.clear();
                 this.state = LibraryState::Empty;
                 cx.notify();
             }
@@ -93,6 +95,7 @@ impl Library {
             task: None,
             playlist_task: None,
             pending: HashMap::new(),
+            pending_albums: HashMap::new(),
         }
     }
 
@@ -170,10 +173,67 @@ impl Library {
         cx.notify();
     }
 
+    pub fn saved_album(&self, album_id: &str) -> bool {
+        self.album(album_id).is_some()
+    }
+
+    pub fn pending_album(&self, album_id: &str) -> bool {
+        self.pending_albums.contains_key(album_id)
+    }
+
+    pub fn toggle_album(&mut self, album: Album, cx: &mut Context<Self>) {
+        let album_id = album.id.clone();
+        if self.pending_album(&album_id) {
+            return;
+        }
+        let Some(client) = self.session.read(cx).client() else {
+            return;
+        };
+        let saved = !self.saved_album(&album_id);
+        let previous = self.album(&album_id).cloned();
+        self.set_album_saved(album.clone(), saved);
+
+        let io = self.io.clone();
+        let request_id = album_id.clone();
+        let pending_id = album_id.clone();
+        let task = cx.spawn(async move |this, cx| {
+            let result =
+                join(io.spawn(async move { client.set_album_saved(&request_id, saved).await }))
+                    .await;
+
+            this.update(cx, |this, cx| {
+                this.pending_albums.remove(&pending_id);
+                if let Err(error) = result {
+                    match previous {
+                        Some(previous) => this.set_album_saved(previous, true),
+                        None => this.set_album_saved(album, false),
+                    }
+                    log::warn!("library: cannot update saved album: {error:#}");
+                }
+                cx.notify();
+            })
+            .ok();
+        });
+        self.pending_albums.insert(album_id, task);
+        cx.notify();
+    }
+
+    fn set_album_saved(&mut self, album: Album, saved: bool) {
+        let LibraryState::Ready { albums, .. } = &mut self.state else {
+            return;
+        };
+        match saved {
+            true if !albums.iter().any(|known| known.id == album.id) => albums.push(album),
+            false => albums.retain(|known| known.id != album.id),
+            _ => {}
+        }
+    }
+
     pub fn create_playlist(&mut self, name: String, track: Option<String>, cx: &mut Context<Self>) {
         self.mutate_playlist(
             "create playlist",
             "toast-playlist-created",
+            None,
             move |client| async move {
                 let id = client.create_playlist(&name).await?;
                 if let Some(track) = track {
@@ -191,6 +251,7 @@ impl Library {
         self.mutate_playlist(
             "rename playlist",
             "toast-playlist-renamed",
+            None,
             move |client| async move { client.rename_playlist(&id, &name).await },
             move |this, _, cx| {
                 let (id, name) = renamed;
@@ -205,6 +266,7 @@ impl Library {
         self.mutate_playlist(
             "change playlist visibility",
             "toast-playlist-visibility",
+            None,
             move |client| async move { client.set_playlist_public(&id, public).await },
             move |this, _, cx| {
                 this.amend_playlist(&changed, |playlist| playlist.public = public, cx);
@@ -220,9 +282,13 @@ impl Library {
         cx: &mut Context<Self>,
     ) {
         let added = playlist_id.clone();
+        let name = self
+            .playlist(&playlist_id)
+            .map(|playlist| playlist.name.clone());
         self.mutate_playlist(
             "add track to playlist",
             "toast-track-added",
+            name,
             move |client| async move { client.add_track_to_playlist(&playlist_id, &track_id).await },
             move |this, _, cx| {
                 this.amend_playlist(&added, |playlist| playlist.track_count += 1, cx);
@@ -236,8 +302,21 @@ impl Library {
         self.mutate_playlist(
             "delete playlist",
             "toast-playlist-deleted",
+            None,
             move |client| async move { client.delete_playlist(&id).await },
             move |this, _, cx| this.forget_playlist(&deleted, cx),
+            cx,
+        );
+    }
+
+    pub fn add_playlist_to_library(&mut self, playlist: Playlist, cx: &mut Context<Self>) {
+        let id = playlist.id.clone();
+        self.mutate_playlist(
+            "add playlist to library",
+            "toast-playlist-added",
+            None,
+            move |client| async move { client.add_playlist_to_library(&id).await },
+            move |this, _, cx| this.insert_playlist(playlist, cx),
             cx,
         );
     }
@@ -247,6 +326,7 @@ impl Library {
         self.mutate_playlist(
             "remove playlist from library",
             "toast-playlist-removed",
+            None,
             move |client| async move { client.remove_playlist_from_library(&id).await },
             move |this, _, cx| this.forget_playlist(&removed, cx),
             cx,
@@ -271,6 +351,7 @@ impl Library {
         &mut self,
         action: &'static str,
         done: &'static str,
+        name: Option<String>,
         mutation: F,
         apply: A,
         cx: &mut Context<Self>,
@@ -298,7 +379,10 @@ impl Library {
                 match result {
                     Ok(outcome) => {
                         apply(this, outcome, cx);
-                        Toasts::show(Note::Done, done, cx);
+                        match name {
+                            Some(name) => Toasts::about(Note::Done, done, name, cx),
+                            None => Toasts::show(Note::Done, done, cx),
+                        }
                     }
                     Err(error) => {
                         log::warn!("library: cannot {action}: {error:#}");
@@ -371,6 +455,7 @@ impl Library {
     fn load(&mut self, client: Arc<dyn SpotifyApi>, cx: &mut Context<Self>) {
         self.playlist_task = None;
         self.pending.clear();
+        self.pending_albums.clear();
         self.state = LibraryState::Loading;
         cx.notify();
 

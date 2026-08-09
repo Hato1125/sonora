@@ -3,6 +3,8 @@
 mod albums;
 mod playlists;
 
+use std::rc::Rc;
+
 use crate::chrome::tools::{self, Sift, Sliders};
 use crate::chrome::{Chrome, Searchable, Toolbar, Tooled};
 use crate::shared::menu::{album_menu, playlist_menu};
@@ -10,8 +12,9 @@ use crate::shared::playlist_editor::{Edit, PlaylistEditor};
 
 use gpui::prelude::*;
 use gpui::{
-    AnyElement, App, Context, Entity, FontWeight, MouseButton, Pixels, Point, Render, ScrollHandle,
-    SharedString, WeakEntity, Window, div, px,
+    AnyElement, App, Context, Entity, FontWeight, ListAlignment, ListOffset, ListState,
+    MouseButton, Pixels, Point, Render, ScrollHandle, SharedString, WeakEntity, Window, div, list,
+    px,
 };
 use i18n::t;
 use router::{Destination, LibraryTab, navigate};
@@ -20,10 +23,11 @@ use state::{AppSettings, Library, LibraryState, Origin, Playback, PlaybackState,
 use ui::{
     ActiveTheme as _, Button, Card, FlagAxis, GridDelegate, GridEvent, GridSource, GridState, Menu,
     MenuItem, Mode, Popovers, Popup, RangeAxis, Scrollbar, Scroller, Sort, SortAxis, Text, Toggle,
-    Unit, Viewport, heading, scrolled,
+    Unit, Viewport, clock, grid, heading, scrolled, vacant,
 };
 
-use crate::shared::release_card::ReleaseCard;
+use crate::shared::album_grid::{AlbumGrid, CARD_MAX, CardGrid};
+use crate::shared::hero::{HeroMetaStrip, HeroPlayButton, PageHero};
 use crate::shared::tracks::{
     self, LIBRARY_COLUMNS, PlaybackStatus, TrackField, TrackSieve, TrackSource, Tracks,
     playback_status,
@@ -60,28 +64,23 @@ pub enum Section {
 }
 
 const PINNED: [&str; 3] = ["cover", "title", "name"];
-const CARD_MIN: Pixels = px(130.);
-const CARD_MAX: Pixels = px(190.);
-const CARD_GAP: Pixels = px(32.);
-
-fn tiling(available: Pixels) -> (Pixels, Pixels) {
-    let columns = ((available + CARD_GAP) / (CARD_MIN + CARD_GAP))
-        .floor()
-        .max(1.);
-    let spread = available - CARD_GAP * (columns - 1.);
-    let card = (spread / columns).min(CARD_MAX).floor();
-    let gap = match columns > 1. {
-        true => ((available - card * columns) / (columns - 1.)).floor(),
-        false => Pixels::ZERO,
-    };
-    (card, gap)
-}
-
 #[derive(Clone)]
 enum LibraryMenu {
     Background,
     Album(Album),
     Playlist(Playlist),
+}
+
+#[derive(Clone)]
+enum DeckRow {
+    Heading(usize),
+    Cards(Vec<(usize, usize)>),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DeckKey {
+    Heading(usize),
+    Card(usize),
 }
 
 impl Section {
@@ -100,6 +99,14 @@ impl Section {
             Section::Tracks => 0,
             Section::Albums => 1,
             Section::Playlists => 2,
+        }
+    }
+
+    fn vacancy(self) -> &'static str {
+        match self {
+            Section::Tracks => "library-no-songs",
+            Section::Albums => "library-no-albums",
+            Section::Playlists => "library-no-playlists",
         }
     }
 }
@@ -127,6 +134,12 @@ pub struct LibraryView {
     section: Section,
     views: [Mode; 3],
     width: Pixels,
+    card_width: Pixels,
+    card_columns: usize,
+    card_rows: Rc<[DeckRow]>,
+    cards_dirty: bool,
+    card_list: ListState,
+    card_scrollbar: Entity<Scrollbar>,
     scrollbar: Entity<Scrollbar>,
     tracks: Entity<GridState<TrackSource>>,
     albums: Entity<GridState<AlbumSource>>,
@@ -232,13 +245,19 @@ impl LibraryView {
 
         cx.subscribe(&albums, |this, _, event, cx| match event {
             GridEvent::DoubleClicked(display) => this.open_album(*display, cx),
-            _ => this.persist(Section::Albums, cx),
+            _ => {
+                this.cards_dirty = true;
+                this.persist(Section::Albums, cx);
+            }
         })
         .detach();
 
         cx.subscribe(&playlists, |this, _, event, cx| match event {
             GridEvent::DoubleClicked(display) => this.open_playlist(*display, cx),
-            _ => this.persist(Section::Playlists, cx),
+            _ => {
+                this.cards_dirty = true;
+                this.persist(Section::Playlists, cx);
+            }
         })
         .detach();
 
@@ -250,6 +269,9 @@ impl LibraryView {
             toolbar
         });
 
+        let card_list = ListState::new(0, ListAlignment::Top, CARD_MAX * 2.).measure_all();
+        let card_scrollbar = cx.new(|_| Scrollbar::list(card_list.clone()));
+
         Self {
             library,
             settings,
@@ -258,6 +280,12 @@ impl LibraryView {
             section: Section::Tracks,
             views,
             width,
+            card_width: Pixels::ZERO,
+            card_columns: 0,
+            card_rows: Rc::from([]),
+            cards_dirty: true,
+            card_list,
+            card_scrollbar,
             scrollbar,
             tracks,
             albums,
@@ -326,6 +354,22 @@ impl LibraryView {
         self.library.read(cx).is_loading()
     }
 
+    fn note(&self, cx: &App) -> Option<SharedString> {
+        let settled = !matches!(
+            self.library.read(cx).state(),
+            LibraryState::Loading | LibraryState::Failed(_)
+        );
+        let table = self.table(self.section);
+        if !settled || table.row_count(cx) > 0 {
+            return None;
+        }
+
+        Some(match table.filtering(cx) {
+            true => t!("library-no-matches"),
+            false => i18n::lookup(self.section.vacancy(), None),
+        })
+    }
+
     pub fn refresh(&mut self, cx: &mut Context<Self>) {
         self.library.update(cx, |library, cx| library.refresh(cx));
     }
@@ -336,8 +380,12 @@ impl LibraryView {
                 .read(cx)
                 .scroll()
                 .set_offset(Point::default());
+            self.cards_dirty = true;
         }
         self.section = section;
+        if self.mode() == Mode::List {
+            self.table(section).set_width(self.width, cx);
+        }
         cx.notify();
     }
 
@@ -351,6 +399,35 @@ impl LibraryView {
                 false => window.viewport_size().height,
             },
         }
+    }
+
+    fn liked(&self, cx: &App) -> Vec<Track> {
+        match self.library.read(cx).state() {
+            LibraryState::Ready { tracks, .. } => tracks.clone(),
+            _ => Vec::new(),
+        }
+    }
+
+    fn liked_header(&self, cx: &Context<Self>) -> AnyElement {
+        let liked = self.liked(cx);
+        let duration: std::time::Duration = liked.iter().map(|track| track.duration).sum();
+        let mut strip = HeroMetaStrip::new().text(t!("count-songs", count = liked.len()));
+        if !duration.is_zero() {
+            strip = strip.text(clock(duration));
+        }
+
+        PageHero::new("liked-songs-hero", t!("library-liked-songs"))
+            .fallback("icons/heart-filled.svg")
+            .accent()
+            .eyebrow(t!("detail-playlist"))
+            .meta(strip)
+            .actions(HeroPlayButton::new(
+                "play-liked-songs",
+                t!("library-play-liked-songs"),
+                tracks::ordered(&self.tracks, cx),
+                self.playback.clone(),
+            ))
+            .into_any_element()
     }
 
     fn play(&mut self, display: usize, cx: &mut Context<Self>) {
@@ -390,41 +467,132 @@ impl LibraryView {
         }
         self.width = width;
 
-        for table in self.tables() {
-            table.set_width(width, cx);
+        if self.mode() == Mode::List {
+            self.table(self.section).set_width(width, cx);
         }
     }
 
     fn rebuild(&mut self, cx: &mut Context<Self>) {
+        self.cards_dirty = true;
         for table in self.tables() {
             table.rebuild(cx);
         }
     }
 
-    fn cards(&self, window: &Window, cx: &App) -> AnyElement {
+    fn cards(&mut self, window: &Window, cx: &App) -> AnyElement {
         let theme = *cx.theme();
         let inset = theme.metrics.inset;
         let room = cells::content_width(window, page::reserved(inset), cx);
-        let (card, gap) = tiling(room.max(CARD_MIN));
-        let tiles = match self.section {
-            Section::Tracks => deck(&self.tracks, cx, |display, row| {
-                self.track_card(display, row, card, cx)
-            }),
-            Section::Albums => deck(&self.albums, cx, |display, row| {
-                self.album_card(display, row, card, cx)
-            }),
-            Section::Playlists => deck(&self.playlists, cx, |display, row| {
-                self.playlist_card(display, row, card, cx)
-            }),
-        };
+        let layout = CardGrid::layout(room);
+        let columns = layout.columns;
+        let card = layout.card;
+
+        let top = self.card_list.logical_scroll_top();
+        let anchor = (self.card_columns != 0 && self.card_columns != columns && !self.cards_dirty)
+            .then(|| deck_key(&self.card_rows, top.item_ix))
+            .flatten()
+            .map(|key| (key, top.offset_in_item));
+
+        if self.card_columns != columns {
+            self.card_columns = columns;
+            self.cards_dirty = true;
+        }
+        let mut rebuilt = false;
+        if self.cards_dirty {
+            let rows = match self.section {
+                Section::Tracks => deck(&self.tracks, columns, cx),
+                Section::Albums => deck(&self.albums, columns, cx),
+                Section::Playlists => deck(&self.playlists, columns, cx),
+            };
+            let restored = anchor.and_then(|(key, offset_in_item)| {
+                deck_row(&rows, key).map(|item_ix| ListOffset {
+                    item_ix,
+                    offset_in_item,
+                })
+            });
+            self.card_list.reset(rows.len());
+            if let Some(offset) = restored {
+                self.card_list.scroll_to(offset);
+            }
+            self.card_rows = rows.into();
+            self.cards_dirty = false;
+            rebuilt = true;
+        }
+        if (self.card_width - card).abs() >= px(0.5) {
+            self.card_width = card;
+            if !rebuilt {
+                self.card_list.remeasure();
+            }
+        }
+
+        let rows = self.card_rows.clone();
+        let list_state = self.card_list.clone();
+        let section = self.section;
+        let view = self.me.clone();
 
         div()
-            .flex()
-            .flex_wrap()
-            .gap_x(gap)
-            .gap_y_6()
-            .p(inset)
-            .children(tiles)
+            .relative()
+            .size_full()
+            .child(
+                list(list_state, move |index, _, cx| {
+                    let Some(row) = rows.get(index) else {
+                        return div().into_any_element();
+                    };
+                    let Some(view) = view.upgrade() else {
+                        return div().into_any_element();
+                    };
+                    let view = view.read(cx);
+                    let separated = index + 1 < rows.len();
+
+                    match row {
+                        DeckRow::Heading(display) => {
+                            let label = match section {
+                                Section::Tracks => {
+                                    view.tracks.read(cx).delegate().group(*display, cx)
+                                }
+                                Section::Albums => {
+                                    view.albums.read(cx).delegate().group(*display, cx)
+                                }
+                                Section::Playlists => {
+                                    view.playlists.read(cx).delegate().group(*display, cx)
+                                }
+                            };
+
+                            div()
+                                .px(inset)
+                                .when(separated, |this| this.pb_6())
+                                .children(label.map(|label| head(label, cx)))
+                                .into_any_element()
+                        }
+                        DeckRow::Cards(cards) => {
+                            let row = match section {
+                                Section::Tracks => CardGrid::new(room)
+                                    .children(cards.iter().filter_map(|&(display, row)| {
+                                        view.track_card(display, row, card, cx)
+                                    }))
+                                    .into_any_element(),
+                                Section::Albums => {
+                                    view.album_grid(cards, room, cx).into_any_element()
+                                }
+                                Section::Playlists => CardGrid::new(room)
+                                    .children(cards.iter().filter_map(|&(display, row)| {
+                                        view.playlist_card(display, row, card, cx)
+                                    }))
+                                    .into_any_element(),
+                            };
+
+                            div()
+                                .px(inset)
+                                .when(separated, |this| this.pb_6())
+                                .child(row)
+                                .into_any_element()
+                        }
+                    }
+                })
+                .size_full()
+                .py(inset),
+            )
+            .child(self.card_scrollbar.clone())
             .into_any_element()
     }
 
@@ -474,28 +642,27 @@ impl LibraryView {
         )
     }
 
-    fn album_card(&self, display: usize, row: usize, card: Pixels, cx: &App) -> Option<AnyElement> {
-        let album = self.albums.read(cx).delegate().source().at(row, cx)?;
-        let context = album.clone();
+    fn album_grid(&self, cards: &[(usize, usize)], room: Pixels, cx: &App) -> AlbumGrid {
+        let albums = cards.iter().filter_map(|&(display, row)| {
+            self.albums
+                .read(cx)
+                .delegate()
+                .source()
+                .at(row, cx)
+                .map(|album| (display, album))
+        });
         let view = self.me.clone();
 
-        Some(
-            div()
-                .id(("library-album", display))
-                .on_mouse_down(MouseButton::Right, move |event, window, cx| {
-                    window.prevent_default();
-                    cx.stop_propagation();
-                    let Some(view) = view.upgrade() else {
-                        return;
-                    };
-                    view.update(cx, |this, cx| {
-                        this.context_menu =
-                            Some((LibraryMenu::Album(context.clone()), event.position));
-                        cx.notify();
-                    });
-                })
-                .child(ReleaseCard::new(display, album, self.playback.clone()).width(card))
-                .into_any_element(),
+        AlbumGrid::new("library-album", room, albums, self.playback.clone()).on_context(
+            move |album, position, cx| {
+                let Some(view) = view.upgrade() else {
+                    return;
+                };
+                view.update(cx, |this, cx| {
+                    this.context_menu = Some((LibraryMenu::Album(album.clone()), position));
+                    cx.notify();
+                });
+            },
         )
     }
 
@@ -556,16 +723,23 @@ impl Render for LibraryView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.resize(window, cx);
 
-        let scroll = self.scrollbar.read(cx).scroll().clone();
-        let viewport = Self::viewport(&scroll, window);
-        let table = self.table(self.section);
-        table.set_viewport(viewport, cx);
+        let theme = *cx.theme();
+        let inset = theme.metrics.inset;
+        let mode = self.mode();
+        if mode == Mode::List {
+            let scroll = self.scrollbar.read(cx).scroll().clone();
+            let viewport = match self.section {
+                Section::Tracks => page::viewport(&scroll, inset, window),
+                _ => Self::viewport(&scroll, window),
+            };
+            self.table(self.section).set_viewport(viewport, cx);
+        }
 
         let context_menu = self.context_menu.clone().map(|(target, position)| {
             let menu = match target {
-                LibraryMenu::Album(album) => album_menu(album.id, self.playback.clone(), false),
+                LibraryMenu::Album(album) => album_menu(album, self.playback.clone(), false, cx),
                 LibraryMenu::Playlist(playlist) => {
-                    playlist_menu(playlist, self.playback.clone(), false)
+                    playlist_menu(playlist, self.playback.clone(), false, cx)
                 }
                 LibraryMenu::Background => Menu::new("playlist-background-menu").item(
                     MenuItem::new("create-playlist", t!("menu-new-playlist"))
@@ -582,6 +756,24 @@ impl Render for LibraryView {
         });
         let view = cx.entity().downgrade();
         let section = self.section;
+        let note = self.note(cx);
+        let content = match (self.section, mode) {
+            (Section::Tracks, Mode::List) => Scroller::new("library-page", &self.scrollbar)
+                .pt(inset)
+                .pb(inset)
+                .child(div().px(inset).child(self.liked_header(cx)))
+                .child(grid(&self.tracks))
+                .when_some(note, |this, note| this.child(vacant(note, cx)))
+                .into_any_element(),
+            (_, Mode::List) => Scroller::new("library-page", &self.scrollbar)
+                .child(self.table(self.section).element())
+                .when_some(note, |this, note| this.child(vacant(note, cx)))
+                .into_any_element(),
+            (_, Mode::Cards) => match note {
+                Some(note) => vacant(note, cx).size_full().into_any_element(),
+                None => self.cards(window, cx),
+            },
+        };
 
         div()
             .relative()
@@ -599,18 +791,14 @@ impl Render for LibraryView {
                     cx.notify();
                 });
             })
-            .child(
-                Scroller::new("library-page", &self.scrollbar).child(match self.mode() {
-                    Mode::List => table.element(),
-                    Mode::Cards => self.cards(window, cx),
-                }),
-            )
+            .child(content)
             .when_some(context_menu, |this, menu| this.child(menu))
     }
 }
 
 impl Searchable for LibraryView {
     fn search(&mut self, query: &str, cx: &mut Context<Self>) {
+        self.cards_dirty = true;
         for table in self.tables() {
             table.set_filter(query, cx);
         }
@@ -629,6 +817,7 @@ impl LibraryView {
 
     fn set_sort(&mut self, key: &'static str, cx: &mut Context<Self>) {
         self.table(self.section).cycle_sort(key, cx);
+        self.cards_dirty = true;
         cx.notify();
     }
 
@@ -642,6 +831,9 @@ impl LibraryView {
     fn set_mode(&mut self, mode: Mode, cx: &mut Context<Self>) {
         let section = self.section;
         self.views[section.slot()] = mode;
+        if mode == Mode::List {
+            self.table(section).set_width(self.width, cx);
+        }
 
         let settings = self.settings.clone();
         settings.update(cx, |settings, cx| {
@@ -674,6 +866,7 @@ impl Tooled for LibraryView {
         let create = (self.section == Section::Playlists).then(|| {
             Button::new("new-playlist")
                 .icon("icons/plus.svg")
+                .tooltip("menu-new-playlist")
                 .small()
                 .ghost()
                 .on_click(move |_, window, cx| {
@@ -721,6 +914,7 @@ impl LibraryView {
     }
 
     fn sift(&mut self, sieve: TrackSieve, cx: &mut Context<Self>) {
+        self.cards_dirty = true;
         self.tracks.update(cx, |table, cx| {
             table.delegate_mut().source_mut().set_sieve(sieve);
             table.delegate_mut().resift(cx);
@@ -734,6 +928,7 @@ impl LibraryView {
     }
 
     fn set_span(&mut self, span: Option<(f32, f32)>, cx: &mut Context<Self>) {
+        self.cards_dirty = true;
         self.albums.update(cx, |table, cx| {
             table.delegate_mut().source_mut().set_span(span);
             table.delegate_mut().resift(cx);
@@ -838,30 +1033,53 @@ impl LibraryView {
     }
 }
 
-fn deck<S: GridSource>(
-    state: &Entity<GridState<S>>,
-    cx: &App,
-    card: impl Fn(usize, usize) -> Option<AnyElement>,
-) -> Vec<AnyElement> {
+fn deck<S: GridSource>(state: &Entity<GridState<S>>, columns: usize, cx: &App) -> Vec<DeckRow> {
     let state = state.read(cx);
     let delegate = state.delegate();
-    let mut tiles = Vec::new();
+    let mut rows = Vec::new();
+    let mut cards = Vec::with_capacity(columns);
     let mut group: Option<SharedString> = None;
 
     for display in 0..delegate.row_count() {
-        let Some(card) = card(display, delegate.row(display)) else {
-            continue;
-        };
         let label = delegate.group(display, cx);
         match &label {
-            Some(text) if group.as_ref() != Some(text) => tiles.push(head(text.clone(), cx)),
+            Some(text) if group.as_ref() != Some(text) => {
+                if !cards.is_empty() {
+                    rows.push(DeckRow::Cards(std::mem::take(&mut cards)));
+                }
+                rows.push(DeckRow::Heading(display));
+            }
             _ => {}
         }
         group = label;
-        tiles.push(card);
+        cards.push((display, delegate.row(display)));
+        if cards.len() == columns {
+            rows.push(DeckRow::Cards(std::mem::take(&mut cards)));
+            cards.reserve(columns);
+        }
+    }
+    if !cards.is_empty() {
+        rows.push(DeckRow::Cards(cards));
     }
 
-    tiles
+    rows
+}
+
+fn deck_key(rows: &[DeckRow], item_ix: usize) -> Option<DeckKey> {
+    match rows.get(item_ix)? {
+        DeckRow::Heading(display) => Some(DeckKey::Heading(*display)),
+        DeckRow::Cards(cards) => cards.first().map(|(display, _)| DeckKey::Card(*display)),
+    }
+}
+
+fn deck_row(rows: &[DeckRow], key: DeckKey) -> Option<usize> {
+    rows.iter().position(|row| match (row, key) {
+        (DeckRow::Heading(display), DeckKey::Heading(anchor)) => *display == anchor,
+        (DeckRow::Cards(cards), DeckKey::Card(anchor)) => {
+            cards.iter().any(|(display, _)| *display == anchor)
+        }
+        _ => false,
+    })
 }
 
 fn head(label: SharedString, cx: &App) -> AnyElement {
@@ -873,53 +1091,31 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_card_stays_within_its_bounds() {
-        for width in (160..2400).step_by(3) {
-            let (card, _) = tiling(px(width as f32));
-            assert!(card <= CARD_MAX, "{width} yielded {card:?}");
-            assert!(card >= CARD_MIN, "{width} yielded {card:?}");
-        }
+    fn card_anchor_follows_a_repacked_row() {
+        let before = vec![
+            DeckRow::Cards(vec![(0, 10), (1, 11)]),
+            DeckRow::Cards(vec![(2, 12), (3, 13)]),
+        ];
+        let after = vec![
+            DeckRow::Cards(vec![(0, 10)]),
+            DeckRow::Cards(vec![(1, 11)]),
+            DeckRow::Cards(vec![(2, 12)]),
+            DeckRow::Cards(vec![(3, 13)]),
+        ];
+
+        let anchor = deck_key(&before, 1).unwrap();
+
+        assert_eq!(anchor, DeckKey::Card(2));
+        assert_eq!(deck_row(&after, anchor), Some(2));
     }
 
     #[test]
-    fn a_row_never_outgrows_the_space_it_was_given() {
-        for width in (160..2400).step_by(3) {
-            let available = px(width as f32);
-            let (card, gap) = tiling(available);
-            let columns = ((available + CARD_GAP) / (CARD_MIN + CARD_GAP))
-                .floor()
-                .max(1.);
-            let used = card * columns + gap * (columns - 1.);
-            assert!(used <= available, "{width} packed {used:?}");
-        }
-    }
+    fn heading_anchor_survives_a_repack() {
+        let rows = vec![DeckRow::Heading(0), DeckRow::Cards(vec![(0, 10), (1, 11)])];
 
-    #[test]
-    fn cards_never_touch() {
-        for width in (160..2400).step_by(3) {
-            let available = px(width as f32);
-            let (_, gap) = tiling(available);
-            let columns = ((available + CARD_GAP) / (CARD_MIN + CARD_GAP))
-                .floor()
-                .max(1.);
-            if columns > 1. {
-                assert!(gap >= CARD_GAP, "{width} yielded {gap:?}");
-            }
-        }
-    }
+        let anchor = deck_key(&rows, 0).unwrap();
 
-    #[test]
-    fn slack_goes_to_the_gaps_once_the_cards_are_capped() {
-        let capped = CARD_MAX * 2. + CARD_GAP * 2.;
-        let (card, gap) = tiling(capped);
-
-        assert_eq!(card, CARD_MAX);
-        assert!(gap > CARD_GAP);
-    }
-
-    #[test]
-    fn a_single_column_has_no_gap() {
-        let (_, gap) = tiling(CARD_MIN);
-        assert_eq!(gap, Pixels::ZERO);
+        assert_eq!(anchor, DeckKey::Heading(0));
+        assert_eq!(deck_row(&rows, anchor), Some(0));
     }
 }

@@ -22,11 +22,15 @@ mod popup;
 mod scrollbar;
 mod scroller;
 mod scrubber;
+mod separator;
 mod shield;
 mod skeleton;
+mod switch;
+mod tabs;
 mod theme;
 mod time;
 mod toast;
+mod tooltip;
 mod view;
 
 pub use artwork::{Artwork, Avatar};
@@ -49,10 +53,10 @@ pub use input::{
     Input, Left, Paste, Right, SelectAll, SelectEnd, SelectHome, SelectLeft, SelectRight,
     SelectWordLeft, SelectWordRight, Space, WordLeft, WordRight,
 };
-pub use label::{eyebrow, heading, upper};
+pub use label::{eyebrow, heading, upper, vacant};
 pub use layout::{ALWAYS, MIN_CONTENT, ROOMY, Room, SNUG, VAST, WIDE};
 pub use menu::{Menu, MenuItem, SubmenuState};
-pub use metrics::{Metrics, Rounding, Text, snapped};
+pub use metrics::{LEADING, Metrics, Rounding, Text, snapped};
 pub use palette::tint;
 pub use panel::{Panel, Side};
 pub use popover::{Popover, Popovers};
@@ -60,9 +64,15 @@ pub use popup::Popup;
 pub use scrollbar::{Scrollbar, scrolled};
 pub use scroller::Scroller;
 pub use scrubber::{Scrubber, ScrubberState};
+pub use separator::Separator;
 pub use shield::Shield;
 pub use skeleton::{Initials, Skeleton};
-pub use theme::{ActiveTheme, Look, MAX_FONT, MIN_FONT, Theme, ThemeKind, ThemeOverrides};
+pub use switch::Switch;
+pub use tabs::Tabs;
+pub use theme::{
+    ActiveTheme, Look, MAX_FONT, MAX_TRANSPARENCY, MIN_FONT, Theme, ThemeKind, ThemeOverrides,
+};
 pub use time::clock;
 pub use toast::Toast;
+pub use tooltip::{Perch, Tooltip};
 pub use view::Mode;

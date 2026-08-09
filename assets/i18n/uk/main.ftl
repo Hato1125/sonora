@@ -10,6 +10,11 @@ common-not-available = Немає даних
 common-cancel = Скасувати
 common-save = Зберегти
 common-delete = Видалити
+common-play = Відтворити
+common-more = Ще
+common-previous = Назад
+common-next = Вперед
+common-dismiss = Закрити
 number-group = { "\u00A0" }
 
 # navigation
@@ -20,6 +25,15 @@ nav-settings = Налаштування
 nav-songs = Треки
 nav-albums = Альбоми
 nav-playlists = Плейлисти
+nav-back = Назад
+nav-forward = Вперед
+nav-sidebar = Показати або сховати бічну панель
+library-liked-songs = Вподобані пісні
+library-play-liked-songs = Слухати
+library-no-songs = Поки немає вподобаних треків
+library-no-albums = Поки немає збережених альбомів
+library-no-playlists = Поки немає плейлистів
+library-no-matches = Нічого не знайдено
 
 # app menu
 app-refresh-library = Оновити медіатеку
@@ -58,6 +72,7 @@ menu-open-playlist = Відкрити плейлист
 menu-play-playlist = Відтворити плейлист
 menu-rename-playlist = Перейменувати плейлист
 menu-delete-playlist = Видалити плейлист
+menu-add-playlist-to-library = Додати до медіатеки
 menu-remove-playlist-from-library = Вилучити з медіатеки
 menu-make-playlist-public = Зробити публічним
 menu-make-playlist-private = Зробити приватним
@@ -80,10 +95,21 @@ queue-up-next = Далі
 queue-reset = Скинути
 queue-clear = Очистити
 queue-empty = Черга порожня
+queue-similar = Схожі треки
+queue-radio = Автовідтворення схожих треків
 
 # player bar
 player-nothing-playing = Нічого не грає
 player-percent = { $value }%
+player-shuffle = Перемішати
+player-repeat = Повтор
+player-repeat-all = Повторювати все
+player-repeat-one = Повторювати трек
+player-mute = Вимкнути звук
+player-unmute = Увімкнути звук
+player-previous = Попередній трек
+player-next = Наступний трек
+player-fullscreen = Повноекранний режим
 
 # filters
 filter-library = Фільтр медіатеки
@@ -97,6 +123,11 @@ filter-playable = Лише доступні
 # view
 view-list = Список
 view-cards = Картки
+
+# toolbar
+tool-columns = Колонки
+tool-sort = Сортування
+tool-filters = Фільтри
 
 # login
 login-signed-out = Увійдіть, щоб завантажити медіатеку Spotify
@@ -118,6 +149,11 @@ play-loading = Завантаження…
 
 # artist page
 artist-eyebrow = Виконавець
+artist-monthly-listeners = { $count ->
+    [one] { $value } слухач на місяць
+    [few] { $value } слухачі на місяць
+   *[other] { $value } слухачів на місяць
+}
 artist-play = Слухати
 artist-popular = Популярне
 artist-releases = Релізи
@@ -138,6 +174,7 @@ release-meta = { $year } • { $kind }
 # home page
 home-quick-picks = Швидкий вибір
 home-quick-picks-eyebrow = Почніть із треку
+home-quick-picks-empty = Додайте кілька треків, і вони з'являться тут
 
 # search page
 search-placeholder = Що хочете послухати?
@@ -226,11 +263,14 @@ month-11 = лист.
 month-12 = груд.
 
 # settings
+settings-tab-general = Загальні
 settings-tab-appearance = Вигляд
 settings-tab-playback = Відтворення
-settings-tab-account = Обліковий запис
 settings-theme = Тема
 settings-theme-detail = Кольорова палітра застосунку
+settings-opacity = Непрозорість
+settings-opacity-detail = Налаштуйте непрозорість фону застосунку
+settings-opacity-value = { $percent }%
 settings-theme-config = Відкрити конфіг
 settings-adaptive = Адаптивна тема
 settings-adaptive-detail = Підфарбовувати палітру обкладинкою альбому, що грає
@@ -242,14 +282,14 @@ settings-font-value = { $size } px
 settings-language = Мова
 settings-language-detail = Мова інтерфейсу sonora
 settings-language-system = Системна
-settings-auto-hide = Автоприховування бічної панелі
-settings-auto-hide-detail = Згортати бічну панель, коли вікно стає вузьким
 settings-window-controls = Кнопки вікна
 settings-window-controls-detail = Малювати згорнути, розгорнути та закрити в заголовку вікна
 settings-controls-side = Сторона кнопок
 settings-controls-side-detail = З якого боку заголовка розташовані кнопки
 settings-normalisation = Нормалізація гучності
 settings-normalisation-detail = Тримає треки на однаковій гучності
+settings-gapless = Відтворення без пауз
+settings-gapless-detail = Переводить трек у наступний без паузи, як задумано в альбомі
 settings-account = Обліковий запис
 settings-account-detail = Вийти зі Spotify на цьому пристрої
 settings-sign-out = Вийти
@@ -288,9 +328,17 @@ corners-round = Круглі
 toast-playlist-created = Плейлист створено
 toast-playlist-renamed = Плейлист перейменовано
 toast-playlist-deleted = Плейлист видалено
+toast-playlist-added = Плейлист додано до медіатеки
 toast-playlist-removed = Плейлист вилучено з медіатеки
 toast-playlist-visibility = Видимість плейлиста змінено
-toast-track-added = Трек додано до плейлиста
+toast-track-added = Додано до { $name }
 toast-playlist-failed = Не вдалося зберегти зміну
 toast-playlist-busy = Інша зміна ще виконується
 toast-playlist-signed-out = Увійдіть, щоб змінювати плейлисти
+toast-queued-track = { $name } додано до черги
+toast-next-track = { $name } прозвучить наступним
+toast-queued-album = Альбом додано до черги
+toast-next-album = Альбом прозвучить наступним
+toast-queued-playlist = Плейлист додано до черги
+toast-next-playlist = Плейлист прозвучить наступним
+toast-queue-failed = Не вдалося додати до черги

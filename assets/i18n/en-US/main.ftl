@@ -10,6 +10,11 @@ common-not-available = Not available
 common-cancel = Cancel
 common-save = Save
 common-delete = Delete
+common-play = Play
+common-more = More
+common-previous = Previous
+common-next = Next
+common-dismiss = Dismiss
 number-group = { "," }
 
 # navigation
@@ -20,6 +25,15 @@ nav-settings = Settings
 nav-songs = Songs
 nav-albums = Albums
 nav-playlists = Playlists
+nav-back = Back
+nav-forward = Forward
+nav-sidebar = Toggle sidebar
+library-liked-songs = Liked Songs
+library-play-liked-songs = Play
+library-no-songs = No liked songs yet
+library-no-albums = No saved albums yet
+library-no-playlists = No playlists yet
+library-no-matches = No matches
 
 # app menu
 app-refresh-library = Refresh Library
@@ -58,6 +72,7 @@ menu-open-playlist = Open playlist
 menu-play-playlist = Play playlist
 menu-rename-playlist = Rename playlist
 menu-delete-playlist = Delete playlist
+menu-add-playlist-to-library = Add to Library
 menu-remove-playlist-from-library = Remove from Library
 menu-make-playlist-public = Make public
 menu-make-playlist-private = Make private
@@ -80,10 +95,21 @@ queue-up-next = Up next
 queue-reset = Reset
 queue-clear = Clear
 queue-empty = Your queue is empty
+queue-similar = Similar tracks
+queue-radio = Autoplay similar tracks
 
 # player bar
 player-nothing-playing = Nothing playing
 player-percent = { $value }%
+player-shuffle = Shuffle
+player-repeat = Repeat
+player-repeat-all = Repeat all
+player-repeat-one = Repeat one
+player-mute = Mute
+player-unmute = Unmute
+player-previous = Previous track
+player-next = Next track
+player-fullscreen = Fullscreen
 
 # filters
 filter-library = Filter your library
@@ -97,6 +123,11 @@ filter-playable = Playable only
 # view
 view-list = List
 view-cards = Cards
+
+# toolbar
+tool-columns = Columns
+tool-sort = Sort
+tool-filters = Filters
 
 # login
 login-signed-out = Sign in to load your Spotify library
@@ -118,6 +149,10 @@ play-loading = Loading…
 
 # artist page
 artist-eyebrow = Artist
+artist-monthly-listeners = { $count ->
+    [one] { $value } monthly listener
+   *[other] { $value } monthly listeners
+}
 artist-play = Play now
 artist-popular = Popular
 artist-releases = Releases
@@ -138,6 +173,7 @@ release-meta = { $year } • { $kind }
 # home page
 home-quick-picks = Quick picks
 home-quick-picks-eyebrow = Start from a song
+home-quick-picks-empty = Like a few songs and they will show up here
 
 # search page
 search-placeholder = What do you want to listen to?
@@ -224,11 +260,14 @@ month-11 = Nov
 month-12 = Dec
 
 # settings
+settings-tab-general = General
 settings-tab-appearance = Appearance
 settings-tab-playback = Playback
-settings-tab-account = Account
 settings-theme = Theme
 settings-theme-detail = Choose the application colour palette
+settings-opacity = Opacity
+settings-opacity-detail = Adjust the app background opacity
+settings-opacity-value = { $percent }%
 settings-theme-config = Open config
 settings-adaptive = Adaptive theme
 settings-adaptive-detail = Tint the palette with the artwork of the playing album
@@ -240,14 +279,14 @@ settings-font-value = { $size } px
 settings-language = Language
 settings-language-detail = The language sonora uses across the interface
 settings-language-system = System
-settings-auto-hide = Auto-hide sidebar
-settings-auto-hide-detail = Collapse the sidebar when the window gets narrow
 settings-window-controls = Window controls
 settings-window-controls-detail = Draw minimise, maximise and close in the title bar
 settings-controls-side = Controls side
 settings-controls-side-detail = Which end of the title bar the controls sit on
 settings-normalisation = Normalise loudness
 settings-normalisation-detail = Keeps tracks at a consistent volume
+settings-gapless = Gapless playback
+settings-gapless-detail = Runs one track into the next without a pause, the way an album was sequenced
 settings-account = Account
 settings-account-detail = Sign out of Spotify on this device
 settings-sign-out = Sign out
@@ -286,9 +325,17 @@ corners-round = Round
 toast-playlist-created = Playlist created
 toast-playlist-renamed = Playlist renamed
 toast-playlist-deleted = Playlist deleted
+toast-playlist-added = Playlist added to your library
 toast-playlist-removed = Playlist removed from your library
 toast-playlist-visibility = Playlist visibility changed
-toast-track-added = Song added to the playlist
+toast-track-added = Added to { $name }
 toast-playlist-failed = That change could not be saved
 toast-playlist-busy = Another change is still running
 toast-playlist-signed-out = Sign in to change playlists
+toast-queued-track = { $name } added to the queue
+toast-next-track = { $name } plays next
+toast-queued-album = Album added to the queue
+toast-next-album = Album plays next
+toast-queued-playlist = Playlist added to the queue
+toast-next-playlist = Playlist plays next
+toast-queue-failed = That could not be added to the queue

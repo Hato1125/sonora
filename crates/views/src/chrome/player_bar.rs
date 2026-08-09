@@ -7,7 +7,7 @@ use ui::ActiveTheme as _;
 use gpui::prelude::*;
 use gpui::{
     Context, Entity, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, Point,
-    Render, ScrollHandle, SharedString,
+    Render, ScrollHandle, ScrollWheelEvent, SharedString,
 };
 use gpui::{Window, div, px};
 use i18n::t;
@@ -24,8 +24,10 @@ use crate::shared::menu::ItemMenu;
 const SEEK_MAX: f32 = 560.;
 const VOLUME_WIDTH: f32 = 110.;
 const VOLUME_TIGHT: f32 = 72.;
-const CLOCK_CHARS: f32 = 3.4;
+const CLOCK_SHORT: f32 = 3.4;
+const CLOCK_LONG: f32 = 5.4;
 const STEP: f32 = 0.004;
+const NOTCH: f32 = 0.05;
 
 pub(crate) struct PlayerBar {
     playback: Entity<Playback>,
@@ -144,6 +146,7 @@ impl PlayerBar {
             .ghost()
             .small()
             .icon("icons/shuffle.svg")
+            .tooltip_above("player-shuffle")
             .tint(match on {
                 true => theme.primary,
                 false => theme.muted_foreground,
@@ -164,6 +167,11 @@ impl PlayerBar {
                 Repeat::One => "icons/repeat-one.svg",
                 _ => "icons/repeat.svg",
             })
+            .tooltip_above(match repeat {
+                Repeat::Off => "player-repeat",
+                Repeat::All => "player-repeat-all",
+                Repeat::One => "player-repeat-one",
+            })
             .tint(match repeat {
                 Repeat::Off => theme.muted_foreground,
                 _ => theme.primary,
@@ -172,6 +180,28 @@ impl PlayerBar {
                 this.playback
                     .update(cx, |playback, cx| playback.cycle_repeat(cx));
             }))
+    }
+
+    fn turn_volume(
+        &mut self,
+        event: &ScrollWheelEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let delta = event.delta.pixel_delta(window.line_height()).y;
+        if delta == Pixels::ZERO {
+            return;
+        }
+        cx.stop_propagation();
+
+        let notch = match delta > Pixels::ZERO {
+            true => NOTCH,
+            false => -NOTCH,
+        };
+        let level = (self.playback.read(cx).volume() + notch).clamp(0., 1.);
+        self.muted = None;
+        self.playback
+            .update(cx, |playback, cx| playback.set_volume(level, cx));
     }
 
     fn sound(&self, width: Pixels, cx: &mut Context<Self>) -> impl IntoElement {
@@ -186,11 +216,16 @@ impl PlayerBar {
             .flex_none()
             .items_center()
             .gap_1()
+            .on_scroll_wheel(cx.listener(Self::turn_volume))
             .child(
                 Button::new("volume")
                     .ghost()
                     .small()
                     .icon(volume_icon(level))
+                    .tooltip_above(match level <= 0.001 {
+                        true => "player-unmute",
+                        false => "player-mute",
+                    })
                     .tint(theme.muted_foreground)
                     .on_click(cx.listener(move |this, _, _, cx| {
                         let wanted = match level <= 0.001 {
@@ -227,6 +262,7 @@ impl PlayerBar {
             .ghost()
             .small()
             .icon("icons/skip-back.svg")
+            .tooltip_above("player-previous")
             .disabled(!enabled)
             .on_click(cx.listener(|this, _, _, cx| {
                 this.playback
@@ -241,6 +277,7 @@ impl PlayerBar {
             .ghost()
             .small()
             .icon("icons/skip-forward.svg")
+            .tooltip_above("player-next")
             .disabled(!enabled)
             .on_click(cx.listener(|this, _, _, cx| {
                 this.playback.update(cx, |playback, cx| playback.next(cx));
@@ -257,6 +294,7 @@ impl PlayerBar {
                 .hoverless()
                 .small()
                 .icon("icons/list.svg")
+                .tooltip_above("queue-title")
                 .selected(open)
                 .on_click(cx.listener(|this, _, _, cx| {
                     if let Some(sidebar_right) = &this.sidebar_right {
@@ -272,6 +310,7 @@ impl PlayerBar {
             .ghost()
             .small()
             .icon("icons/maximize.svg")
+            .tooltip_above("player-fullscreen")
             .on_click(|_, window, cx| window.dispatch_action(Box::new(ToggleFullscreen), cx))
     }
 
@@ -280,16 +319,17 @@ impl PlayerBar {
         let playing = matches!(state, PlaybackState::Playing);
         let idle = matches!(state, PlaybackState::Idle | PlaybackState::Failed(_));
 
-        let (id, icon) = if playing {
-            ("pause", "icons/pause.svg")
+        let (id, icon, tooltip) = if playing {
+            ("pause", "icons/pause.svg", "play-pause")
         } else {
-            ("play", "icons/play.svg")
+            ("play", "icons/play.svg", "play-resume")
         };
 
         Button::new(id)
             .ghost()
             .small()
             .icon(icon)
+            .tooltip_above(tooltip)
             .disabled(idle)
             .on_click(cx.listener(|this, _, _, cx| {
                 this.playback
@@ -310,6 +350,10 @@ impl PlayerBar {
             .icon(match saved {
                 true => "icons/heart-filled.svg",
                 false => "icons/heart.svg",
+            })
+            .tooltip_above(match saved {
+                true => "menu-remove-from-library",
+                false => "menu-add-to-library",
             })
             .tint(match saved {
                 true => theme.primary,
@@ -449,7 +493,6 @@ impl Render for PlayerBar {
             false => ui::snapped(theme.metrics.player_bar, window),
         };
         let clock_text = theme.text(ui::Text::Tiny);
-        let clock_width = clock_text * CLOCK_CHARS;
 
         let show_track = span.fits(Room::Snug);
 
@@ -461,6 +504,11 @@ impl Render for PlayerBar {
             .track()
             .map(|track| track.duration)
             .unwrap_or(Duration::ZERO);
+        let clock_width = clock_text
+            * match total.as_secs() >= 3600 {
+                true => CLOCK_LONG,
+                false => CLOCK_SHORT,
+            };
 
         let seek_bubble = self
             .over_seek
@@ -472,6 +520,7 @@ impl Render for PlayerBar {
                 .child(clock(value))
                 .w(clock_width)
                 .flex_none()
+                .whitespace_nowrap()
                 .text_size(clock_text)
                 .text_color(muted)
                 .when_else(align_end, |this| this.text_right(), |this| this.text_left())
@@ -508,7 +557,7 @@ impl Render for PlayerBar {
             .flex_none()
             .px_5()
             .when(stacked, |this| this.py_2())
-            .bg(theme.secondary)
+            .when(!theme.transparent, |this| this.bg(theme.secondary))
             .border_t_1()
             .border_color(theme.border)
             .on_mouse_move(cx.listener(Self::hover));

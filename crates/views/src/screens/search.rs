@@ -2,8 +2,8 @@
 
 use gpui::prelude::*;
 use gpui::{
-    AnyElement, App, Context, ElementId, Entity, FontWeight, Hsla, MouseButton, Pixels, Point,
-    Render, ScrollHandle, SharedString, Window, div, px,
+    AnyElement, App, Context, ElementId, Entity, FontWeight, MouseButton, Pixels, Point, Render,
+    ScrollHandle, SharedString, Window, div, px,
 };
 use i18n::t;
 use router::{Destination, navigate};
@@ -14,7 +14,9 @@ use crate::chrome::Chrome;
 use crate::shared::menu::ItemMenu;
 use state::{Hit, Kind, Playback, Search};
 use ui::ActiveTheme as _;
-use ui::{Card, Popup, Room, Scrollbar, Scroller, Text, Theme, VAST, clock, eyebrow};
+use ui::{
+    Card, Popup, Room, Scrollbar, Scroller, Separator, Text, Theme, VAST, clock, eyebrow, vacant,
+};
 
 use crate::shared::cells;
 use crate::shared::tracks::{PlaybackStatus, playback_status};
@@ -153,6 +155,9 @@ impl SearchView {
                     .trailing(
                         div()
                             .flex_none()
+                            .w(cells::TRAILING)
+                            .whitespace_nowrap()
+                            .text_right()
                             .text_size(theme.text(Text::Small))
                             .text_color(theme.muted_foreground)
                             .child(clock(track.duration)),
@@ -290,10 +295,8 @@ impl SearchView {
         cx: &Context<Self>,
     ) -> AnyElement {
         if rows.is_empty() {
-            return div()
+            return vacant(t!("search-no-matches"), cx)
                 .flex_none()
-                .text_color(cx.theme().muted_foreground)
-                .child(t!("search-no-matches"))
                 .into_any_element();
         }
 
@@ -411,10 +414,6 @@ fn noun(kind: Kind) -> SharedString {
     }
 }
 
-fn divider(color: Hsla) -> impl IntoElement {
-    div().flex_none().w(px(1.)).bg(color)
-}
-
 impl Render for SearchView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
@@ -442,9 +441,9 @@ impl Render for SearchView {
                 .flex_1()
                 .min_h_0()
                 .child(self.column(Kind::Song, cx))
-                .child(divider(theme.border))
+                .child(Separator::vertical())
                 .child(self.column(Kind::Artist, cx))
-                .child(divider(theme.border))
+                .child(Separator::vertical())
                 .child(self.column(Kind::Album, cx))
                 .into_any_element(),
         };

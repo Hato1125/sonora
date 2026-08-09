@@ -6,8 +6,6 @@ use serde::Deserialize;
 
 use super::query;
 
-const HASH: &str = "612585ae06ba435ad26369870deaae23b5c8800a256cd8a57e08eddc25a37294";
-
 #[derive(Deserialize)]
 struct Data {
     #[serde(rename = "trackUnion")]
@@ -21,7 +19,7 @@ struct Track {
 
 pub(crate) async fn track(session: &Session, track_id: &str) -> Result<Option<u64>> {
     let variables = serde_json::json!({ "uri": format!("spotify:track:{track_id}") });
-    let data = query::<Data>(session, "getTrack", HASH, variables).await?;
+    let data = query::<Data>(session, "getTrack", variables).await?;
     playcount(data)
 }
 
@@ -33,6 +31,7 @@ fn playcount(data: Data) -> Result<Option<u64>> {
         .playcount
         .map(|count| count.parse().context("invalid track play count"))
         .transpose()
+        .map(|count| count.and_then(super::reported))
 }
 
 #[cfg(test)]
@@ -44,5 +43,11 @@ mod tests {
         let data: Data =
             serde_json::from_slice(br#"{"trackUnion":{"playcount":"1234567"}}"#).unwrap();
         assert_eq!(playcount(data).unwrap(), Some(1_234_567));
+    }
+
+    #[test]
+    fn treats_zero_as_missing() {
+        let data: Data = serde_json::from_slice(br#"{"trackUnion":{"playcount":"0"}}"#).unwrap();
+        assert_eq!(playcount(data).unwrap(), None);
     }
 }

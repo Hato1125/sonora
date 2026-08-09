@@ -8,11 +8,13 @@ use gpui::{
 };
 use gpui::{ScrollHandle, prelude::*};
 use i18n::{Language, t};
+use router::SettingsTab;
 use state::{AppSettings, Playback, Session, SessionState, Sonora};
 use ui::{ActiveTheme as _, Scrollbar, Scroller};
 use ui::{
-    Avatar, Button, InfoCard, Initials, Look, MAX_FONT, MIN_FONT, Menu, MenuItem, Popover,
-    Popovers, Rounding, Skeleton, Text, Theme, ThemeKind,
+    Avatar, Button, InfoCard, Initials, Look, MAX_FONT, MAX_TRANSPARENCY, MIN_FONT, Menu, MenuItem,
+    Popover, Popovers, Rounding, Scrubber, ScrubberState, Separator, Skeleton, Switch, Text, Theme,
+    ThemeKind,
 };
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -67,42 +69,13 @@ const MEMBERS: [Member; 5] = [
     member!("imizgun", Role::Contributor),
 ];
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Tab {
-    Appearance,
-    Playback,
-    Account,
-    About,
-}
-
-impl Tab {
-    const ALL: [Self; 4] = [Self::Appearance, Self::Playback, Self::Account, Self::About];
-
-    fn id(self) -> &'static str {
-        match self {
-            Self::Appearance => "tab-appearance",
-            Self::Playback => "tab-playback",
-            Self::Account => "tab-account",
-            Self::About => "tab-about",
-        }
-    }
-
-    fn label(self) -> SharedString {
-        match self {
-            Self::Appearance => t!("settings-tab-appearance"),
-            Self::Playback => t!("settings-tab-playback"),
-            Self::Account => t!("settings-tab-account"),
-            Self::About => t!("settings-tab-about"),
-        }
-    }
-}
-
 pub struct SettingsView {
     session: Entity<Session>,
     playback: Entity<Playback>,
     settings: Entity<AppSettings>,
-    tab: Tab,
+    tab: SettingsTab,
     scrollbar: Entity<Scrollbar>,
+    opacity: ScrubberState,
     popovers: Popovers,
 }
 
@@ -119,44 +92,43 @@ impl SettingsView {
             session,
             playback,
             settings,
-            tab: Tab::Appearance,
+            tab: SettingsTab::General,
             scrollbar: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
+            opacity: ScrubberState::new("opacity"),
             popovers: Popovers::default(),
         }
     }
 
-    fn tabs(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        div().flex().gap_1().children(Tab::ALL.map(|tab| {
-            Button::new(tab.id())
-                .label(tab.label())
-                .small()
-                .selected(self.tab == tab)
-                .on_click(cx.listener(move |this, _, _, cx| {
-                    this.tab = tab;
-                    this.popovers.close();
-                    cx.notify();
-                }))
-        }))
+    pub(crate) fn select(&mut self, tab: SettingsTab, cx: &mut Context<Self>) {
+        self.tab = tab;
+        self.popovers.close();
+        cx.notify();
     }
 
     fn panel(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let border = cx.theme().border;
         let rows: Vec<AnyElement> = match self.tab {
-            Tab::Appearance => vec![
-                self.theme_row(cx).into_any_element(),
-                self.adaptive_row(cx).into_any_element(),
-                self.corners_row(cx).into_any_element(),
+            SettingsTab::General => vec![
                 self.language_row(cx).into_any_element(),
+                self.account_row(cx).into_any_element(),
+            ],
+            SettingsTab::Appearance => vec![
+                self.theme_row(cx).into_any_element(),
                 self.font_row(cx).into_any_element(),
-                self.auto_hide_row(cx).into_any_element(),
             ]
             .into_iter()
+            .chain([
+                self.adaptive_row(cx).into_any_element(),
+                self.corners_row(cx).into_any_element(),
+                self.opacity_row(cx).into_any_element(),
+            ])
             .chain(decorated().then(|| self.decorations_row(cx).into_any_element()))
             .chain(decorated().then(|| self.side_row(cx).into_any_element()))
             .collect(),
-            Tab::Playback => vec![self.playback_row(cx).into_any_element()],
-            Tab::Account => vec![self.account_row(cx).into_any_element()],
-            Tab::About => vec![
+            SettingsTab::Playback => vec![
+                self.playback_row(cx).into_any_element(),
+                self.gapless_row(cx).into_any_element(),
+            ],
+            SettingsTab::About => vec![
                 self.version_row(cx).into_any_element(),
                 self.license_row(cx).into_any_element(),
                 self.source_row(cx).into_any_element(),
@@ -166,7 +138,7 @@ impl SettingsView {
         let mut panel = div().flex().flex_col();
         for (index, row) in rows.into_iter().enumerate() {
             if index > 0 {
-                panel = panel.child(div().h(px(1.)).w_full().bg(border));
+                panel = panel.child(Separator::horizontal().w_full());
             }
             panel = panel.child(row);
         }
@@ -331,13 +303,7 @@ impl SettingsView {
             t!("settings-window-controls-detail"),
             muted,
             small,
-            Button::new("window-controls")
-                .label(match on {
-                    true => t!("common-on"),
-                    false => t!("common-off"),
-                })
-                .small()
-                .outline()
+            Switch::new("window-controls", on)
                 .on_click(cx.listener(move |this, _, _, cx| {
                     this.settings
                         .update(cx, |settings, cx| settings.set_window_controls(!on, cx));
@@ -370,32 +336,6 @@ impl SettingsView {
                 .on_click(cx.listener(move |this, _, _, cx| {
                     this.settings
                         .update(cx, |settings, cx| settings.set_controls_on_left(!left, cx));
-                }))
-                .into_any_element(),
-        )
-    }
-
-    fn auto_hide_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = *cx.theme();
-        let muted = theme.muted_foreground;
-        let small = theme.text(Text::Small);
-        let on = self.settings.read(cx).auto_hide_sidebar();
-
-        self.row(
-            t!("settings-auto-hide"),
-            t!("settings-auto-hide-detail"),
-            muted,
-            small,
-            Button::new("auto-hide-sidebar")
-                .label(match on {
-                    true => t!("common-on"),
-                    false => t!("common-off"),
-                })
-                .small()
-                .outline()
-                .on_click(cx.listener(move |this, _, _, cx| {
-                    this.settings
-                        .update(cx, |settings, cx| settings.set_auto_hide_sidebar(!on, cx));
                 }))
                 .into_any_element(),
         )
@@ -507,6 +447,64 @@ impl SettingsView {
         )
     }
 
+    fn opacity_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+        let muted = theme.muted_foreground;
+        let small = theme.text(Text::Small);
+        let look = self.look(cx);
+        let overrides = self.settings.read(cx).theme_overrides().clone();
+        let transparency = match look.transparent {
+            true => look.transparency,
+            false => 0.,
+        };
+        let value = 1. - transparency / MAX_TRANSPARENCY;
+        let percent = ((1. - transparency) * 100.).round() as i64;
+
+        let control = div()
+            .flex()
+            .items_center()
+            .gap_2()
+            .child(
+                div().w(theme.metrics.cover).child(
+                    Scrubber::new(&self.opacity, value)
+                        .colors(theme.progress_bar, theme.muted, theme.foreground)
+                        .on_move(cx.listener(move |this, fraction: &f32, _, cx| {
+                            let transparency = (1. - *fraction) * MAX_TRANSPARENCY;
+                            let transparent = transparency > 0.;
+                            this.settings.update(cx, |settings, cx| {
+                                settings.set_transparent(transparent, cx);
+                                settings.set_transparency(transparency, cx);
+                            });
+                            Theme::set(
+                                Look {
+                                    transparent,
+                                    transparency,
+                                    ..look
+                                },
+                                &overrides,
+                                cx,
+                            );
+                        })),
+                ),
+            )
+            .child(
+                div()
+                    .flex_none()
+                    .w(theme.metrics.control * 1.5)
+                    .whitespace_nowrap()
+                    .text_right()
+                    .child(t!("settings-opacity-value", percent = percent)),
+            );
+
+        self.row(
+            t!("settings-opacity"),
+            t!("settings-opacity-detail"),
+            muted,
+            small,
+            control.into_any_element(),
+        )
+    }
+
     fn adaptive_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
         let muted = theme.muted_foreground;
@@ -520,13 +518,7 @@ impl SettingsView {
             t!("settings-adaptive-detail"),
             muted,
             small,
-            Button::new("adaptive-theme")
-                .label(match on {
-                    true => t!("common-on"),
-                    false => t!("common-off"),
-                })
-                .small()
-                .outline()
+            Switch::new("adaptive-theme", on)
                 .on_click(cx.listener(move |this, _, _, cx| {
                     let adaptive = !on;
                     let kind = match adaptive
@@ -560,16 +552,30 @@ impl SettingsView {
             t!("settings-normalisation-detail"),
             muted,
             small,
-            Button::new("normalisation")
-                .label(match on {
-                    true => t!("common-on"),
-                    false => t!("common-off"),
-                })
-                .small()
-                .outline()
+            Switch::new("normalisation", on)
                 .on_click(cx.listener(move |this, _, _, cx| {
                     this.playback
                         .update(cx, |playback, cx| playback.set_normalisation(!on, cx));
+                }))
+                .into_any_element(),
+        )
+    }
+
+    fn gapless_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+        let muted = theme.muted_foreground;
+        let small = theme.text(Text::Small);
+        let on = self.playback.read(cx).gapless();
+
+        self.row(
+            t!("settings-gapless"),
+            t!("settings-gapless-detail"),
+            muted,
+            small,
+            Switch::new("gapless", on)
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.playback
+                        .update(cx, |playback, cx| playback.set_gapless(!on, cx));
                 }))
                 .into_any_element(),
         )
@@ -721,11 +727,27 @@ impl SettingsView {
                 div()
                     .flex()
                     .flex_col()
+                    .flex_1()
+                    .min_w_0()
                     .gap_1()
-                    .child(div().child(title))
-                    .child(div().text_color(muted).text_size(small).child(detail)),
+                    .child(
+                        div()
+                            .overflow_hidden()
+                            .whitespace_nowrap()
+                            .text_ellipsis()
+                            .child(title),
+                    )
+                    .child(
+                        div()
+                            .overflow_hidden()
+                            .whitespace_nowrap()
+                            .text_ellipsis()
+                            .text_color(muted)
+                            .text_size(small)
+                            .child(detail),
+                    ),
             )
-            .child(action)
+            .child(div().flex_none().child(action))
     }
 }
 
@@ -751,8 +773,6 @@ fn open_settings_file(path: &Path) -> std::io::Result<()> {
 
 impl Render for SettingsView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let border = cx.theme().border;
-
         Scroller::new("settings", &self.scrollbar)
             .flex()
             .flex_col()
@@ -765,11 +785,12 @@ impl Render for SettingsView {
                     .w_full()
                     .max_w(px(640.))
                     .p_6()
-                    .child(self.profile(cx))
-                    .child(div().h(px(1.)).w_full().bg(border))
-                    .child(self.tabs(cx))
+                    .when(self.tab == SettingsTab::General, |this| {
+                        this.child(self.profile(cx))
+                            .child(Separator::horizontal().w_full())
+                    })
                     .child(self.panel(cx))
-                    .when(self.tab == Tab::About, |this| {
+                    .when(self.tab == SettingsTab::About, |this| {
                         this.child(self.team(cx)).child(self.notice(cx))
                     }),
             )

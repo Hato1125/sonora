@@ -8,12 +8,17 @@ use serde::Deserialize;
 use serde::de::DeserializeOwned;
 
 mod album;
+mod artist;
+mod hashes;
 mod plays;
 
 pub(crate) use album::album;
+pub(crate) use artist::{Overview, artist};
 pub(crate) use plays::track;
 
 const ENDPOINT: &str = "https://api-partner.spotify.com/pathfinder/v2/query";
+const APP_PLATFORM: &str = "WebPlayer";
+const APP_VERSION: &str = "896000000";
 
 #[derive(Deserialize)]
 struct Response<T> {
@@ -30,8 +35,30 @@ struct GraphqlError {
 async fn query<T: DeserializeOwned>(
     session: &Session,
     operation: &str,
-    hash: &str,
     variables: serde_json::Value,
+) -> Result<T> {
+    let hash = hashes::resolve(session, operation).await?;
+    let rejected = match send(session, operation, &hash.value, &variables).await {
+        Ok(data) => return Ok(data),
+        Err(error) => error,
+    };
+    if hash.tried {
+        return Err(rejected);
+    }
+    let Some(latest) = hashes::refetch(session, operation).await else {
+        return Err(rejected);
+    };
+    if latest == hash.value {
+        return Err(rejected);
+    }
+    send(session, operation, &latest, &variables).await
+}
+
+async fn send<T: DeserializeOwned>(
+    session: &Session,
+    operation: &str,
+    hash: &str,
+    variables: &serde_json::Value,
 ) -> Result<T> {
     let body = serde_json::to_vec(&serde_json::json!({
         "operationName": operation,
@@ -59,6 +86,8 @@ async fn query<T: DeserializeOwned>(
         .uri(ENDPOINT)
         .header(header::ACCEPT, "application/json")
         .header(header::CONTENT_TYPE, "application/json")
+        .header("app-platform", APP_PLATFORM)
+        .header("spotify-app-version", APP_VERSION)
         .header(
             header::AUTHORIZATION,
             format!("{} {}", token.token_type, token.access_token),
@@ -89,6 +118,10 @@ fn decoded<T: DeserializeOwned>(bytes: &[u8], operation: &str) -> Result<T> {
     response
         .data
         .with_context(|| format!("{operation} Pathfinder response has no data"))
+}
+
+fn reported(count: u64) -> Option<u64> {
+    (count > 0).then_some(count)
 }
 
 #[cfg(test)]

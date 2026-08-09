@@ -4,7 +4,7 @@ use gpui::{AnyView, Context, Entity, MouseButton, NavigationDirection, Render};
 use gpui::{Window, div};
 use gpui::{font, prelude::*};
 use input::{OpenFilter, OpenSearch, OpenSettings, ToggleFullscreen};
-use router::{Destination, NavigationEvent, back, forward, navigate};
+use router::{Destination, NavigationEvent, SettingsTab, back, forward, navigate};
 use state::{
     ArtistDetail, Detail, Home, Io, Library, Playback, Queue, Search, Session, SessionState,
     SongDetail,
@@ -13,7 +13,7 @@ use ui::ActiveTheme as _;
 
 use crate::chrome::{TitleBar, TitleBarEvent, TitleBarOptions, Toolbar, Tooled};
 use crate::screens::search::SearchView;
-use crate::shared::tracks::{ALBUM_COLUMNS, LIBRARY_COLUMNS};
+use crate::shared::tracks::{ALBUM_COLUMNS, ARTIST_COLUMNS, LIBRARY_COLUMNS};
 use crate::shells::Shell;
 use crate::shells::workspace::Workspace;
 use crate::{
@@ -185,8 +185,8 @@ impl Root {
         }
 
         let detail = cx.new(|cx| ArtistDetail::new(self.session.clone(), self.io.clone(), cx));
-        let view = cx
-            .new(|cx| ArtistView::new(detail.clone(), self.playback.clone(), LIBRARY_COLUMNS, cx));
+        let view =
+            cx.new(|cx| ArtistView::new(detail.clone(), self.playback.clone(), ARTIST_COLUMNS, cx));
         self.screens.artist = Some(view.clone());
         self.screens.artist_detail = Some(detail.clone());
         (view, detail)
@@ -228,7 +228,7 @@ impl Root {
     }
 
     fn open_settings(&mut self, cx: &mut Context<Self>) {
-        navigate(Destination::Settings, cx);
+        navigate(Destination::Settings(SettingsTab::General), cx);
         self.pending = Some(Focus::Workspace);
         cx.notify();
     }
@@ -279,7 +279,12 @@ impl Root {
                 artist.into()
             }
             Destination::Search => self.screens.search.clone().into(),
-            Destination::Settings => self.screens.settings.clone().into(),
+            Destination::Settings(tab) => {
+                self.screens
+                    .settings
+                    .update(cx, |settings, cx| settings.select(tab, cx));
+                self.screens.settings.clone().into()
+            }
         };
 
         self.toolbar = toolbar;

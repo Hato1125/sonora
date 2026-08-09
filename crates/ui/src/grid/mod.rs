@@ -57,7 +57,7 @@ pub trait GridSource: 'static {
     fn rows(&self, cx: &App) -> usize;
     fn cell(&self, cell: Cell<Self::Field>, cx: &mut App) -> AnyElement;
 
-    fn context_menu(&self, _row: usize, _cx: &App) -> Option<Menu> {
+    fn context_menu(&self, _row: usize, _visible: &[Self::Field], _cx: &App) -> Option<Menu> {
         None
     }
 
@@ -196,6 +196,13 @@ impl<S: GridSource> GridDelegate<S> {
 
     pub fn row_count(&self) -> usize {
         self.order.len()
+    }
+
+    fn visible(&self) -> Vec<S::Field> {
+        self.columns
+            .iter()
+            .map(|column| column.spec.field)
+            .collect()
     }
 
     fn relayout(&mut self, cx: &App) {
@@ -809,10 +816,17 @@ impl<S: GridSource> GridState<S> {
                     .on_mouse_down(
                         MouseButton::Right,
                         cx.listener(move |this, event: &MouseDownEvent, window, cx| {
-                            if this.delegate.source.context_menu(row, cx).is_some() {
+                            let visible = this.delegate.visible();
+                            if this
+                                .delegate
+                                .source
+                                .context_menu(row, &visible, cx)
+                                .is_some()
+                            {
                                 this.delegate.source.context_menu_will_open(row, cx);
                                 window.focus(&this.focus.clone(), cx);
                                 window.prevent_default();
+                                cx.stop_propagation();
                                 this.context_menu = Some((row, event.position));
                                 cx.notify();
                             }
@@ -900,12 +914,16 @@ impl<S: GridSource> Render for GridState<S> {
         let pinned = self.viewport.top.clamp(Pixels::ZERO, height - head);
         let top = unpinned(self.corners, pinned);
         let context_menu = self.context_menu.and_then(|(row, position)| {
-            self.delegate.source.context_menu(row, cx).map(|menu| {
-                Popup::new(position, menu).on_close(cx.listener(|this, _, _, cx| {
-                    this.context_menu = None;
-                    cx.notify();
-                }))
-            })
+            let visible = self.delegate.visible();
+            self.delegate
+                .source
+                .context_menu(row, &visible, cx)
+                .map(|menu| {
+                    Popup::new(position, menu).on_close(cx.listener(|this, _, _, cx| {
+                        this.context_menu = None;
+                        cx.notify();
+                    }))
+                })
         });
 
         div()
@@ -982,6 +1000,8 @@ pub trait Table {
     fn set_sorting(&self, sorting: Option<Sorting>, cx: &mut App);
     fn sortables(&self, cx: &App) -> Vec<SortAxis>;
     fn cycle_sort(&self, column: &str, cx: &mut App);
+    fn row_count(&self, cx: &App) -> usize;
+    fn filtering(&self, cx: &App) -> bool;
     fn toggles(&self, cx: &App) -> Vec<Toggle>;
     fn set_width(&self, width: Pixels, cx: &mut App);
     fn set_filter(&self, query: &str, cx: &mut App);
@@ -1029,6 +1049,15 @@ impl<S: GridSource> Table for Entity<GridState<S>> {
 
     fn toggles(&self, cx: &App) -> Vec<Toggle> {
         self.read(cx).delegate().toggles()
+    }
+
+    fn row_count(&self, cx: &App) -> usize {
+        self.read(cx).delegate().row_count()
+    }
+
+    fn filtering(&self, cx: &App) -> bool {
+        let delegate = self.read(cx).delegate();
+        !delegate.query().is_empty() || delegate.source().filtered(cx)
     }
 
     fn set_width(&self, width: Pixels, cx: &mut App) {
