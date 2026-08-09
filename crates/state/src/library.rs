@@ -2,7 +2,6 @@
 
 use std::collections::HashMap;
 use std::future::Future;
-use std::pin::Pin;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -12,8 +11,6 @@ use spotify::{Album, Playlist, SpotifyApi, Track};
 use crate::{Io, Session, SessionEvent, join};
 
 const PAGE_LIMIT: u32 = 10000;
-
-type Mutation = Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send>>;
 
 type Loaded = (
     anyhow::Result<Vec<Track>>,
@@ -167,22 +164,44 @@ impl Library {
         cx.notify();
     }
 
-    pub fn create_playlist(&mut self, name: String, cx: &mut Context<Self>) {
-        self.mutate_playlist("create playlist", cx, move |client| {
-            Box::pin(async move { client.create_playlist(&name).await })
-        });
+    pub fn create_playlist(&mut self, name: String, track: Option<String>, cx: &mut Context<Self>) {
+        self.mutate_playlist(
+            "create playlist",
+            move |client| async move {
+                let id = client.create_playlist(&name).await?;
+                if let Some(track) = track {
+                    client.add_track_to_playlist(&id, &track).await?;
+                }
+                Ok(())
+            },
+            Self::refresh,
+            cx,
+        );
     }
 
     pub fn rename_playlist(&mut self, id: String, name: String, cx: &mut Context<Self>) {
-        self.mutate_playlist("rename playlist", cx, move |client| {
-            Box::pin(async move { client.rename_playlist(&id, &name).await })
-        });
+        let renamed = (id.clone(), name.clone());
+        self.mutate_playlist(
+            "rename playlist",
+            move |client| async move { client.rename_playlist(&id, &name).await },
+            move |this, cx| {
+                let (id, name) = renamed;
+                this.amend_playlist(&id, |playlist| playlist.name = name, cx);
+            },
+            cx,
+        );
     }
 
     pub fn set_playlist_public(&mut self, id: String, public: bool, cx: &mut Context<Self>) {
-        self.mutate_playlist("change playlist visibility", cx, move |client| {
-            Box::pin(async move { client.set_playlist_public(&id, public).await })
-        });
+        let changed = id.clone();
+        self.mutate_playlist(
+            "change playlist visibility",
+            move |client| async move { client.set_playlist_public(&id, public).await },
+            move |this, cx| {
+                this.amend_playlist(&changed, |playlist| playlist.public = public, cx);
+            },
+            cx,
+        );
     }
 
     pub fn add_to_playlist(
@@ -191,15 +210,34 @@ impl Library {
         track_id: String,
         cx: &mut Context<Self>,
     ) {
-        self.mutate_playlist("add track to playlist", cx, move |client| {
-            Box::pin(async move { client.add_track_to_playlist(&playlist_id, &track_id).await })
-        });
+        let added = playlist_id.clone();
+        self.mutate_playlist(
+            "add track to playlist",
+            move |client| async move { client.add_track_to_playlist(&playlist_id, &track_id).await },
+            move |this, cx| {
+                this.amend_playlist(&added, |playlist| playlist.track_count += 1, cx);
+            },
+            cx,
+        );
     }
 
     pub fn delete_playlist(&mut self, id: String, cx: &mut Context<Self>) {
-        self.mutate_playlist("delete playlist", cx, move |client| {
-            Box::pin(async move { client.delete_playlist(&id).await })
-        });
+        self.mutate_playlist(
+            "delete playlist",
+            move |client| async move { client.delete_playlist(&id).await },
+            Self::refresh,
+            cx,
+        );
+    }
+
+    pub fn remove_playlist_from_library(&mut self, id: String, cx: &mut Context<Self>) {
+        let removed = id.clone();
+        self.mutate_playlist(
+            "remove playlist from library",
+            move |client| async move { client.remove_playlist_from_library(&id).await },
+            move |this, cx| this.drop_playlist(&removed, cx),
+            cx,
+        );
     }
 
     pub fn album(&self, id: &str) -> Option<&Album> {
@@ -216,33 +254,62 @@ impl Library {
         playlists.iter().find(|playlist| playlist.id == id)
     }
 
-    fn mutate_playlist<F>(&mut self, action: &'static str, cx: &mut Context<Self>, mutation: F)
-    where
-        F: FnOnce(Arc<dyn SpotifyApi>) -> Mutation + Send + 'static,
+    fn mutate_playlist<F, R, A>(
+        &mut self,
+        action: &'static str,
+        mutation: F,
+        apply: A,
+        cx: &mut Context<Self>,
+    ) where
+        F: FnOnce(Arc<dyn SpotifyApi>) -> R + Send + 'static,
+        R: Future<Output = anyhow::Result<()>> + Send + 'static,
+        A: FnOnce(&mut Self, &mut Context<Self>) + 'static,
     {
         if self.playlist_task.is_some() {
+            log::warn!("library: cannot {action} while another change is running");
             return;
         }
         let Some(client) = self.session.read(cx).client() else {
+            log::warn!("library: cannot {action} while signed out");
             return;
         };
         let io = self.io.clone();
         self.playlist_task = Some(cx.spawn(async move |this, cx| {
-            let result = join(io.spawn({
-                let request = client.clone();
-                async move { mutation(request).await }
-            }))
-            .await;
-            this.update(cx, |this, cx| match result {
-                Ok(()) => this.load(client, cx),
-                Err(error) => {
-                    this.playlist_task = None;
-                    log::warn!("library: cannot {action}: {error:#}");
-                    cx.notify();
+            let result = join(io.spawn(async move { mutation(client).await })).await;
+            this.update(cx, |this, cx| {
+                this.playlist_task = None;
+                match result {
+                    Ok(()) => apply(this, cx),
+                    Err(error) => log::warn!("library: cannot {action}: {error:#}"),
                 }
+                cx.notify();
             })
             .ok();
         }));
+    }
+
+    fn drop_playlist(&mut self, id: &str, cx: &mut Context<Self>) {
+        let LibraryState::Ready { playlists, .. } = &mut self.state else {
+            return;
+        };
+        playlists.retain(|playlist| playlist.id != id);
+        cx.notify();
+    }
+
+    fn amend_playlist(
+        &mut self,
+        id: &str,
+        amend: impl FnOnce(&mut Playlist),
+        cx: &mut Context<Self>,
+    ) {
+        let LibraryState::Ready { playlists, .. } = &mut self.state else {
+            return;
+        };
+        let Some(playlist) = playlists.iter_mut().find(|playlist| playlist.id == id) else {
+            return;
+        };
+        amend(playlist);
+        cx.notify();
     }
 
     fn set_saved(&mut self, track: Track, saved: bool) {

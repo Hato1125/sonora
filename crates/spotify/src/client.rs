@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use anyhow::{Context as _, Result};
 use async_trait::async_trait;
@@ -8,7 +8,7 @@ use librespot_core::Session;
 use librespot_protocol::playlist4_external::SelectedListContent as RootList;
 use protobuf::Message as _;
 
-use crate::models::{Album, AlbumDetail, Artist, Playlist, Track, UserProfile};
+use crate::models::{Album, AlbumDetail, Artist, Playlist, PlaylistDetail, Track, UserProfile};
 use crate::{
     albums, artists, collection, collection2, pathfinder, playlists, profiles, radio, search, wire,
 };
@@ -23,15 +23,17 @@ pub trait SpotifyApi: Send + Sync {
     async fn track(&self, track_id: &str) -> Result<Track>;
     async fn track_playcount(&self, track_id: &str) -> Result<Option<u64>>;
     async fn playlists(&self, limit: u32) -> Result<Vec<Playlist>>;
-    async fn create_playlist(&self, name: &str) -> Result<()>;
+    async fn create_playlist(&self, name: &str) -> Result<String>;
     async fn rename_playlist(&self, playlist_id: &str, name: &str) -> Result<()>;
     async fn delete_playlist(&self, playlist_id: &str) -> Result<()>;
+    async fn remove_playlist_from_library(&self, playlist_id: &str) -> Result<()>;
     async fn set_playlist_public(&self, playlist_id: &str, public: bool) -> Result<()>;
     async fn add_track_to_playlist(&self, playlist_id: &str, track_id: &str) -> Result<()>;
     async fn remove_track_from_playlist(&self, playlist_id: &str, track_id: &str) -> Result<()>;
     async fn saved_albums(&self, limit: u32) -> Result<Vec<Album>>;
     async fn album(&self, album_id: &str) -> Result<AlbumDetail>;
     async fn album_tracks(&self, album_id: &str) -> Result<Vec<Track>>;
+    async fn playlist(&self, playlist_id: &str) -> Result<PlaylistDetail>;
     async fn playlist_tracks(&self, playlist_id: &str) -> Result<Vec<Track>>;
     async fn track_radio(&self, track_id: &str) -> Result<Vec<Track>>;
     async fn search(&self, query: &str) -> Result<Vec<Track>>;
@@ -104,6 +106,19 @@ impl SpotifyApi for LibrespotClient {
         albums::album_tracks(&self.session, album_id).await
     }
 
+    async fn playlist(&self, playlist_id: &str) -> Result<PlaylistDetail> {
+        let mut detail = playlists::playlist(&self.session, playlist_id).await?;
+        let owner = detail.playlist.owner.clone();
+        if owner != wire::UNKNOWN {
+            let names =
+                profiles::display_names(&self.session, HashSet::from([owner.clone()])).await;
+            if let Some(name) = names.get(&owner) {
+                detail.playlist.owner = name.clone();
+            }
+        }
+        Ok(detail)
+    }
+
     async fn playlist_tracks(&self, playlist_id: &str) -> Result<Vec<Track>> {
         playlists::playlist_tracks(&self.session, playlist_id).await
     }
@@ -116,7 +131,7 @@ impl SpotifyApi for LibrespotClient {
         search::search(&self.session, query).await
     }
 
-    async fn create_playlist(&self, name: &str) -> Result<()> {
+    async fn create_playlist(&self, name: &str) -> Result<String> {
         playlists::create(&self.session, name).await
     }
 
@@ -126,6 +141,10 @@ impl SpotifyApi for LibrespotClient {
 
     async fn delete_playlist(&self, playlist_id: &str) -> Result<()> {
         playlists::delete(&self.session, playlist_id).await
+    }
+
+    async fn remove_playlist_from_library(&self, playlist_id: &str) -> Result<()> {
+        playlists::remove_from_library(&self.session, playlist_id).await
     }
 
     async fn set_playlist_public(&self, playlist_id: &str, public: bool) -> Result<()> {

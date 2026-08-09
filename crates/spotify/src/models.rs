@@ -49,6 +49,7 @@ pub struct Playlist {
     pub name: String,
     pub owner: String,
     pub owned: bool,
+    pub collaborative: bool,
     pub public: bool,
     pub cover: Option<String>,
     pub track_count: u32,
@@ -96,6 +97,12 @@ pub struct Album {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AlbumDetail {
     pub album: Album,
+    pub tracks: Vec<Track>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PlaylistDetail {
+    pub playlist: Playlist,
     pub tracks: Vec<Track>,
 }
 
