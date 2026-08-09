@@ -2,18 +2,20 @@
 
 use gpui::prelude::*;
 use gpui::{
-    AnyElement, App, Context, Entity, Pixels, Render, ScrollHandle, SharedString, WeakEntity,
-    Window, px,
+    AnyElement, App, Context, Entity, Pixels, Point, Render, ScrollHandle, SharedString,
+    WeakEntity, Window, div, px,
 };
 
 use i18n::t;
 use spotify::Track;
 use state::{AppSettings, Collection, Detail, Playback, Sonora};
-use ui::{ActiveTheme as _, Popovers, SortAxis};
+use ui::{ActiveTheme as _, Button, Menu, Popover, Popovers, Popup, SortAxis};
 use ui::{
     ColumnSpec, FlagAxis, GridDelegate, GridEvent, GridState, RangeAxis, Scrollbar, Scroller,
     Table as _, Toggle, Unit, clock, grid,
 };
+
+use crate::shared::menu::{album_menu, playlist_menu};
 
 use crate::chrome::tools::{self, Sift, Sliders};
 use crate::chrome::{Chrome, Searchable, Toolbar, Tooled};
@@ -47,6 +49,7 @@ pub(crate) struct DetailView {
     settings: Entity<AppSettings>,
     section: &'static str,
     sorted: Option<String>,
+    context_menu: Option<Point<Pixels>>,
     toolbar: Entity<Toolbar>,
     popovers: Popovers,
     sliders: Sliders,
@@ -85,6 +88,10 @@ impl DetailView {
             );
             let source = match show_liked {
                 true => source.with_liked(Sonora::global(cx).library.clone()),
+                false => source,
+            };
+            let source = match section == "playlist" {
+                true => source.with_playlist(detail.clone()),
                 false => source,
             };
             let source = source.table(cx.weak_entity());
@@ -153,6 +160,7 @@ impl DetailView {
             settings,
             section,
             sorted: None,
+            context_menu: None,
             toolbar,
             popovers: Popovers::default(),
             sliders: Sliders::default(),
@@ -238,17 +246,58 @@ impl DetailView {
             strip = strip.text(clock(duration));
         }
 
-        PageHero::new("detail-hero", title)
-            .cover(header.and_then(|header| header.cover.clone()))
-            .eyebrow(eyebrow)
-            .meta(strip)
-            .actions(HeroPlayButton::new(
+        let overflow = self.menu(cx).map(|menu| {
+            Popover::new("detail-overflow", self.popovers.clone())
+                .commands()
+                .button(
+                    Button::new("detail-overflow-button")
+                        .outline()
+                        .icon("icons/ellipsis.svg"),
+                )
+                .menu(menu.top(theme.metrics.control).left_0())
+        });
+        let actions = div()
+            .flex()
+            .items_center()
+            .gap_2()
+            .child(HeroPlayButton::new(
                 "play-detail",
                 label,
                 queued,
                 self.playback.clone(),
             ))
+            .children(overflow);
+
+        let view = self.me.clone();
+        PageHero::new("detail-hero", title)
+            .cover(header.and_then(|header| header.cover.clone()))
+            .eyebrow(eyebrow)
+            .meta(strip)
+            .actions(actions)
+            .grip(move |event, window, cx| {
+                window.prevent_default();
+                view.update(cx, |this, cx| {
+                    this.context_menu = Some(event.position);
+                    cx.notify();
+                })
+                .ok();
+            })
             .into_any_element()
+    }
+
+    fn menu(&self, cx: &App) -> Option<Menu> {
+        let detail = self.detail.read(cx);
+        let id = detail.id()?.to_owned();
+        let header = detail.header()?;
+
+        Some(match header.kind {
+            Collection::Album => album_menu(id, self.playback.clone(), true),
+            Collection::Playlist => {
+                let saved = Sonora::global(cx).library.read(cx).playlist(&id).cloned();
+                let playlist = saved.or_else(|| detail.playlist().cloned())?;
+                playlist_menu(playlist, self.playback.clone(), true)
+            }
+        })
     }
 }
 
@@ -263,17 +312,33 @@ impl Render for DetailView {
         self.table
             .update(cx, |table, _| table.set_viewport(viewport));
 
-        Scroller::new("detail-page", &self.scrollbar)
-            .px(inset)
-            .pt(inset)
-            .pb(inset)
-            .child(self.header(cx))
-            .child(
-                grid(&self.table)
-                    .rounded(theme.radius)
-                    .border_1()
-                    .border_color(theme.border),
+        let context_menu = self.context_menu.and_then(|position| {
+            let menu = self.menu(cx)?;
+            Some(
+                Popup::new(position, menu).on_close(cx.listener(|this, _, _, cx| {
+                    this.context_menu = None;
+                    cx.notify();
+                })),
             )
+        });
+
+        div()
+            .relative()
+            .size_full()
+            .child(
+                Scroller::new("detail-page", &self.scrollbar)
+                    .px(inset)
+                    .pt(inset)
+                    .pb(inset)
+                    .child(self.header(cx))
+                    .child(
+                        grid(&self.table)
+                            .rounded(theme.radius)
+                            .border_1()
+                            .border_color(theme.border),
+                    ),
+            )
+            .when_some(context_menu, |this, menu| this.child(menu))
     }
 }
 

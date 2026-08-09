@@ -8,7 +8,7 @@ use std::cmp::Ordering;
 use std::rc::Rc;
 use ui::ActiveTheme as _;
 
-use crate::chrome::TrackMenu;
+use crate::shared::menu::ItemMenu;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
     AnyElement, App, Entity, Hsla, InteractiveElement as _, IntoElement as _, SharedString,
@@ -17,7 +17,7 @@ use gpui::{
 use jiff::Timestamp;
 use router::Destination;
 use spotify::Track;
-use state::{Library, Playback, PlaybackState};
+use state::{Detail, Library, Playback, PlaybackState};
 use ui::{Button, Cell, ColumnSpec, GridSource, GridState, Menu, ROW_GROUP, Scrollbar, clock};
 
 use crate::shared::cells;
@@ -55,7 +55,8 @@ pub(crate) struct TrackSource {
     provider: Rc<dyn Tracks>,
     playback: Entity<Playback>,
     is_liked: Option<Entity<Library>>,
-    menu: TrackMenu,
+    playlist: Option<Entity<Detail>>,
+    menu: ItemMenu,
     table: Option<WeakEntity<GridState<TrackSource>>>,
     sieve: TrackSieve,
 }
@@ -72,7 +73,8 @@ impl TrackSource {
             provider: Rc::new(provider),
             playback,
             is_liked: None,
-            menu: TrackMenu::new(playlist_scrollbar),
+            playlist: None,
+            menu: ItemMenu::new(playlist_scrollbar),
             table: None,
             sieve: TrackSieve::default(),
         }
@@ -111,6 +113,11 @@ impl TrackSource {
 
     pub(crate) fn with_liked(mut self, library: Entity<Library>) -> Self {
         self.is_liked = Some(library);
+        self
+    }
+
+    pub(crate) fn with_playlist(mut self, detail: Entity<Detail>) -> Self {
+        self.playlist = Some(detail);
         self
     }
 
@@ -330,7 +337,10 @@ impl GridSource for TrackSource {
 
     fn context_menu(&self, row: usize, cx: &App) -> Option<Menu> {
         let track = self.provider.tracks(cx).get(row)?;
-        Some(self.menu.for_track(track, cx))
+        Some(match &self.playlist {
+            Some(detail) => self.menu.for_playlist_track(track, detail.clone(), cx),
+            None => self.menu.for_track(track, cx),
+        })
     }
 
     fn context_menu_will_open(&self, _row: usize, _cx: &App) {

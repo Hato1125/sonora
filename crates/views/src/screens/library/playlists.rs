@@ -7,9 +7,10 @@ use gpui::{AnyElement, App, Entity, TextAlign};
 use router::Destination;
 use spotify::Playlist;
 use state::{Library, LibraryState, Origin, Playback};
-use ui::{Cell, ColumnSpec, GridSource, Width};
+use ui::{Cell, ColumnSpec, GridSource, Menu, Width};
 
 use crate::shared::cells::{self, ALWAYS, NUMBER, ROOMY, SNUG, TRAILING};
+use crate::shared::menu::playlist_menu;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum PlaylistField {
@@ -140,6 +141,14 @@ impl GridSource for PlaylistSource {
 
     fn is_loading(&self, cx: &App) -> bool {
         self.library.read(cx).is_loading()
+    }
+
+    fn context_menu(&self, row: usize, cx: &App) -> Option<Menu> {
+        Some(playlist_menu(
+            self.at(row, cx)?,
+            self.playback.clone(),
+            false,
+        ))
     }
 
     fn cell(&self, cell: Cell<PlaylistField>, cx: &mut App) -> AnyElement {

@@ -1,0 +1,189 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+use gpui::prelude::*;
+use gpui::{App, Context, Entity, FocusHandle, Global, MouseButton, Render, Window, div};
+use i18n::t;
+use spotify::Playlist;
+use state::Sonora;
+use ui::{ActiveTheme as _, Button, Shield, heading};
+use ui::{Dismiss, FORM_CONTEXT, Input, Submit};
+
+#[derive(Clone)]
+pub(crate) enum Edit {
+    Create(Option<String>),
+    Rename(Playlist),
+    Delete(Playlist),
+}
+
+pub(crate) struct PlaylistEditor {
+    edit: Option<Edit>,
+    name: Entity<Input>,
+    focus: FocusHandle,
+    restore: Option<FocusHandle>,
+}
+
+struct Installed(Entity<PlaylistEditor>);
+
+impl Global for Installed {}
+
+impl PlaylistEditor {
+    pub fn entity(cx: &mut App) -> Entity<Self> {
+        if cx.try_global::<Installed>().is_none() {
+            let editor = cx.new(|cx| Self {
+                edit: None,
+                name: cx.new(|cx| Input::new("playlist-name-placeholder", cx)),
+                focus: cx.focus_handle(),
+                restore: None,
+            });
+            cx.set_global(Installed(editor));
+        }
+        cx.global::<Installed>().0.clone()
+    }
+
+    pub fn open(edit: Edit, window: &mut Window, cx: &mut App) {
+        let editor = Self::entity(cx);
+        editor.update(cx, |this, cx| this.show(edit, window, cx));
+    }
+
+    fn show(&mut self, edit: Edit, window: &mut Window, cx: &mut Context<Self>) {
+        let name = match &edit {
+            Edit::Rename(playlist) => playlist.name.clone(),
+            Edit::Create(_) | Edit::Delete(_) => String::new(),
+        };
+        self.restore = window.focused(cx);
+        self.name.update(cx, |input, cx| input.set_text(name, cx));
+        match matches!(edit, Edit::Delete(_)) {
+            true => window.focus(&self.focus, cx),
+            false => self.name.update(cx, |input, cx| input.focus(window, cx)),
+        }
+        self.edit = Some(edit);
+        cx.notify();
+    }
+
+    fn close(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.edit = None;
+        if let Some(focus) = self.restore.take() {
+            window.focus(&focus, cx);
+        }
+        cx.notify();
+    }
+
+    fn apply(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(edit) = self.edit.take() else {
+            return;
+        };
+        if let Some(focus) = self.restore.take() {
+            window.focus(&focus, cx);
+        }
+        let name = self.name.read(cx).text().trim().to_owned();
+        let library = Sonora::global(cx).library.clone();
+
+        match edit {
+            Edit::Create(track) if !name.is_empty() => library.update(cx, |library, cx| {
+                library.create_playlist(name, track, cx);
+            }),
+            Edit::Rename(playlist) if !name.is_empty() && name != playlist.name => {
+                library.update(cx, |library, cx| {
+                    library.rename_playlist(playlist.id, name, cx);
+                })
+            }
+            Edit::Delete(playlist) => library.update(cx, |library, cx| {
+                library.delete_playlist(playlist.id, cx);
+            }),
+            _ => {}
+        }
+        cx.notify();
+    }
+}
+
+impl Render for PlaylistEditor {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let Some(edit) = self.edit.clone() else {
+            return div().into_any_element();
+        };
+        let theme = *cx.theme();
+        let deleting = matches!(edit, Edit::Delete(_));
+        let title = match &edit {
+            Edit::Create(_) => t!("playlist-create-title"),
+            Edit::Rename(_) => t!("playlist-rename-title"),
+            Edit::Delete(_) => t!("playlist-delete-title"),
+        };
+        let detail = match &edit {
+            Edit::Delete(playlist) => Some(t!("playlist-delete-confirm", name = &playlist.name)),
+            _ => None,
+        };
+
+        div()
+            .absolute()
+            .inset_0()
+            .flex()
+            .items_center()
+            .justify_center()
+            .key_context(FORM_CONTEXT)
+            .track_focus(&self.focus)
+            .on_action(cx.listener(|this, _: &Dismiss, window, cx| {
+                cx.stop_propagation();
+                this.close(window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &Submit, window, cx| {
+                cx.stop_propagation();
+                this.apply(window, cx);
+            }))
+            .child(
+                Shield::new("playlist-editor")
+                    .absolute()
+                    .inset_0()
+                    .bg(theme.background.opacity(0.8))
+                    .on_mouse_down(MouseButton::Right, |_, _, cx| cx.stop_propagation()),
+            )
+            .child(
+                div()
+                    .relative()
+                    .on_mouse_down_out(cx.listener(|this, _, window, cx| this.close(window, cx)))
+                    .w(theme.metrics.cover * 2.8)
+                    .flex()
+                    .flex_col()
+                    .gap_4()
+                    .p(theme.metrics.inset)
+                    .rounded(theme.radius)
+                    .border_1()
+                    .border_color(theme.border)
+                    .bg(theme.popover)
+                    .child(heading(title, cx))
+                    .when_some(detail, |this, detail| {
+                        this.child(div().text_color(theme.muted_foreground).child(detail))
+                    })
+                    .when(!deleting, |this| this.child(self.name.clone()))
+                    .child(
+                        div()
+                            .flex()
+                            .justify_end()
+                            .gap_2()
+                            .child(
+                                Button::new("cancel-playlist-edit")
+                                    .ghost()
+                                    .label(t!("common-cancel"))
+                                    .on_click(
+                                        cx.listener(|this, _, window, cx| this.close(window, cx)),
+                                    ),
+                            )
+                            .child(
+                                Button::new("apply-playlist-edit")
+                                    .when_else(
+                                        deleting,
+                                        |button| button.danger(),
+                                        |button| button.primary(),
+                                    )
+                                    .label(match deleting {
+                                        true => t!("common-delete"),
+                                        false => t!("common-save"),
+                                    })
+                                    .on_click(
+                                        cx.listener(|this, _, window, cx| this.apply(window, cx)),
+                                    ),
+                            ),
+                    ),
+            )
+            .into_any_element()
+    }
+}
