@@ -39,10 +39,17 @@ OPTICAL_STROKE = [(16, 4.0), (24, 3.2), (32, 2.8), (48, 2.3)]
 
 class Master:
     def __init__(self, path):
+        if not path.exists():
+            sys.exit(f"icons: {path} is missing")
+
         svg = ET.parse(path).getroot()
         ns = "{http://www.w3.org/2000/svg}"
 
-        _, _, width, height = (float(n) for n in svg.get("viewBox").split())
+        box = svg.get("viewBox")
+        if box is None:
+            sys.exit("icons: master has no viewBox")
+
+        _, _, width, height = (float(n) for n in box.split())
         if width != height:
             sys.exit("icons: master viewBox is not square")
         self.span = width
@@ -173,7 +180,7 @@ def rounded_svg(master, pixels):
 def rasterize(svg_text, pixels, workdir, name):
     source = workdir / f"{name}.svg"
     target = workdir / f"{name}.png"
-    source.write_text(svg_text)
+    source.write_text(svg_text, encoding="utf-8")
     subprocess.run(
         [
             "rsvg-convert",
@@ -230,7 +237,7 @@ def main():
 
         scalable = assets / "linux" / "sonora.svg"
         scalable.parent.mkdir(parents=True, exist_ok=True)
-        scalable.write_text(round_svg(master, 512))
+        scalable.write_text(round_svg(master, 512), encoding="utf-8")
 
         for pixels in LINUX_SIZES:
             blob = rasterize(round_svg(master, pixels), pixels, workdir, f"l{pixels}")

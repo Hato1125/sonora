@@ -3,7 +3,7 @@
 # Sonora
 
 [![Build](https://img.shields.io/github/actions/workflow/status/nolight132/sonora/release.yml)](https://github.com/nolight132/sonora/actions/workflows/release.yml)
-[![License](https://img.shields.io/github/license/nolight132/sonora)](./LICENSE)
+[![License](https://img.shields.io/github/license/nolight132/sonora)](./COPYING)
 
 ### A native Spotify client built with Rust and GPUI.
 This project would not be possible without [librespot](https://github.com/librespot-org/librespot).
@@ -72,7 +72,7 @@ Download the latest `.exe` for your architecture from [Releases](https://github.
 Copyright (C) 2026 nolight132.
 
 Sonora is free software, released under the [GNU General Public License version
-3 or later](LICENSE).
+3 or later](COPYING).
 
 Sonora is an unofficial client and is not affiliated with, endorsed by, or
 sponsored by Spotify AB.
