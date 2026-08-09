@@ -278,3 +278,13 @@ corners-square = Прямые
 corners-subtle = Лёгкие
 corners-rounded = Скруглённые
 corners-round = Круглые
+
+toast-playlist-created = Плейлист создан
+toast-playlist-renamed = Плейлист переименован
+toast-playlist-deleted = Плейлист удалён
+toast-playlist-removed = Плейлист удалён из медиатеки
+toast-playlist-visibility = Видимость плейлиста изменена
+toast-track-added = Трек добавлен в плейлист
+toast-playlist-failed = Не удалось сохранить изменение
+toast-playlist-busy = Другое изменение ещё выполняется
+toast-playlist-signed-out = Войдите, чтобы менять плейлисты

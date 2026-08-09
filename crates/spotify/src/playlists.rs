@@ -32,6 +32,8 @@ pub async fn create(session: &Session, name: &str) -> Result<String> {
         .map(str::to_owned)
         .ok_or_else(|| anyhow!("cannot read the created playlist id"))?;
 
+    rename(session, &id, name).await?;
+
     let uri = format!("{PLAYLIST_PREFIX}{id}");
     let rootlist = fetch_rootlist(session).await?;
     let body = changes(rootlist.revision.as_deref(), add_op(&uri));
@@ -361,6 +363,21 @@ mod tests {
         assert_eq!(op.rem.length(), 1);
         assert_eq!(op.rem.items[0].uri(), "spotify:playlist:b");
         assert!(op.update_list_attributes.is_none());
+    }
+
+    #[test]
+    fn a_name_survives_the_wire_in_any_script() {
+        for name in ["Playlist", "Плейлист", "Плейліст", "日本語", "hi 🎧"] {
+            let body = changes(None, rename_op(name));
+            let bytes = body.write_to_bytes().expect("encode");
+            let decoded = ListChanges::parse_from_bytes(&bytes).expect("decode");
+            let values = &decoded.deltas[0].ops[0]
+                .update_list_attributes
+                .new_attributes
+                .values;
+
+            assert_eq!(values.name(), name);
+        }
     }
 
     #[test]

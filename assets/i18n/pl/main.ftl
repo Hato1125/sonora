@@ -278,3 +278,13 @@ corners-square = Proste
 corners-subtle = Subtelne
 corners-rounded = Zaokrąglone
 corners-round = Okrągłe
+
+toast-playlist-created = Utworzono playlistę
+toast-playlist-renamed = Zmieniono nazwę playlisty
+toast-playlist-deleted = Usunięto playlistę
+toast-playlist-removed = Usunięto playlistę z biblioteki
+toast-playlist-visibility = Zmieniono widoczność playlisty
+toast-track-added = Dodano utwór do playlisty
+toast-playlist-failed = Nie udało się zapisać zmiany
+toast-playlist-busy = Inna zmiana wciąż trwa
+toast-playlist-signed-out = Zaloguj się, aby zmieniać playlisty

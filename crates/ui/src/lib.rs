@@ -26,6 +26,7 @@ mod shield;
 mod skeleton;
 mod theme;
 mod time;
+mod toast;
 mod view;
 
 pub use artwork::{Artwork, Avatar};
@@ -63,4 +64,5 @@ pub use shield::Shield;
 pub use skeleton::{Initials, Skeleton};
 pub use theme::{ActiveTheme, Look, MAX_FONT, MIN_FONT, Theme, ThemeKind, ThemeOverrides};
 pub use time::clock;
+pub use toast::Toast;
 pub use view::Mode;

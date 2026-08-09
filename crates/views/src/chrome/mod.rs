@@ -4,6 +4,7 @@ mod player_bar;
 mod sidebar_left;
 mod sidebar_right;
 mod title_bar;
+mod toasts;
 mod toolbar;
 pub(crate) mod tools;
 
@@ -11,6 +12,7 @@ pub(crate) use player_bar::PlayerBar;
 pub(crate) use sidebar_left::SidebarLeft;
 pub(crate) use sidebar_right::SidebarRight;
 pub(crate) use title_bar::{TitleBar, TitleBarEvent, TitleBarOptions};
+pub(crate) use toasts::ToastStack;
 pub(crate) use toolbar::{Searchable, Toolbar, Tooled};
 
 use gpui::{App, AppContext as _, Entity, Global, Pixels, Window};

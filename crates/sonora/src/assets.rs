@@ -48,6 +48,8 @@ const ICONS: &[(&str, &[u8])] = icons![
     "chevrons-up-down",
     "arrow-up-down",
     "chevron-up",
+    "circle-alert",
+    "circle-check",
     "heart",
     "heart-filled",
     "house",

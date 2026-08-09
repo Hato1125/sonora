@@ -10,17 +10,19 @@ mod search;
 mod session;
 mod settings;
 mod song;
+mod toast;
 
 pub use artist::ArtistDetail;
 pub use detail::{Collection, Detail, Header};
 pub use home::Home;
-pub use library::{Library, LibraryState};
+pub use library::{Library, LibraryEvent, LibraryState};
 pub use playback::{Origin, Playback, PlaybackState, Repeat};
 pub use queue::Queue;
 pub use search::{AlbumHit, ArtistHit, Hit, Kind, Search};
 pub use session::{Session, SessionEvent, SessionState};
 pub use settings::AppSettings;
 pub use song::SongDetail;
+pub use toast::{Note, Toast, Toasts};
 
 use std::future::Future;
 use std::sync::Arc;
