@@ -56,6 +56,22 @@ impl Detail {
         })
         .detach();
 
+        cx.observe(&library, |this, library, cx| {
+            let Some(id) = this.id.clone() else {
+                return;
+            };
+            let Some(playlist) = library.read(cx).playlist(&id).cloned() else {
+                return;
+            };
+            if this.playlist.as_ref() == Some(&playlist) {
+                return;
+            }
+            this.header = Some(playlist_header(&playlist));
+            this.playlist = Some(playlist);
+            cx.notify();
+        })
+        .detach();
+
         Self {
             id: None,
             header: None,

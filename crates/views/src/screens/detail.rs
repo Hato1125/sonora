@@ -8,7 +8,7 @@ use gpui::{
 
 use i18n::t;
 use spotify::Track;
-use state::{AppSettings, Collection, Detail, Playback, Sonora};
+use state::{AppSettings, Collection, Detail, LibraryEvent, Playback, Sonora};
 use ui::{ActiveTheme as _, Button, Menu, Popover, Popovers, Popup, SortAxis};
 use ui::{
     ColumnSpec, FlagAxis, GridDelegate, GridEvent, GridState, RangeAxis, Scrollbar, Scroller,
@@ -115,6 +115,25 @@ impl DetailView {
             let library = Sonora::global(cx).library.clone();
             cx.observe(&library, |this, _, cx| {
                 this.table.update(cx, |table, cx| table.refresh(cx));
+            })
+            .detach();
+        }
+
+        if section == "playlist" {
+            let library = Sonora::global(cx).library.clone();
+            cx.subscribe(&library, |_, _, event, cx| {
+                let LibraryEvent::PlaylistGone(id) = event;
+                let trail = router::trail(cx);
+                if trail.read(cx).current() != router::Destination::Playlist(id.clone().into()) {
+                    return;
+                }
+                match trail.read(cx).can_go_back() {
+                    true => router::back(cx),
+                    false => router::navigate(
+                        router::Destination::Library(router::LibraryTab::Playlists),
+                        cx,
+                    ),
+                }
             })
             .detach();
         }
