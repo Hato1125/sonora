@@ -60,6 +60,22 @@ pub enum Section {
 }
 
 const PINNED: [&str; 3] = ["cover", "title", "name"];
+const CARD_MIN: Pixels = px(130.);
+const CARD_MAX: Pixels = px(190.);
+const CARD_GAP: Pixels = px(32.);
+
+fn tiling(available: Pixels) -> (Pixels, Pixels) {
+    let columns = ((available + CARD_GAP) / (CARD_MIN + CARD_GAP))
+        .floor()
+        .max(1.);
+    let spread = available - CARD_GAP * (columns - 1.);
+    let card = (spread / columns).min(CARD_MAX).floor();
+    let gap = match columns > 1. {
+        true => ((available - card * columns) / (columns - 1.)).floor(),
+        false => Pixels::ZERO,
+    };
+    (card, gap)
+}
 
 #[derive(Clone)]
 enum LibraryMenu {
@@ -385,34 +401,34 @@ impl LibraryView {
         }
     }
 
-    fn cards(&self, cx: &App) -> AnyElement {
+    fn cards(&self, window: &Window, cx: &App) -> AnyElement {
         let theme = *cx.theme();
+        let inset = theme.metrics.inset;
+        let room = cells::content_width(window, page::reserved(inset), cx);
+        let (card, gap) = tiling(room.max(CARD_MIN));
         let tiles = match self.section {
             Section::Tracks => deck(&self.tracks, cx, |display, row| {
-                self.track_card(display, row, cx)
+                self.track_card(display, row, card, cx)
             }),
             Section::Albums => deck(&self.albums, cx, |display, row| {
-                self.album_card(display, row, cx)
+                self.album_card(display, row, card, cx)
             }),
             Section::Playlists => deck(&self.playlists, cx, |display, row| {
-                self.playlist_card(display, row, cx)
+                self.playlist_card(display, row, card, cx)
             }),
         };
 
         div()
             .flex()
             .flex_wrap()
-            .gap_x_8()
+            .gap_x(gap)
             .gap_y_6()
-            .px_8()
-            .when(self.section == Section::Playlists, |this| {
-                this.pt(theme.metrics.inset)
-            })
+            .p(inset)
             .children(tiles)
             .into_any_element()
     }
 
-    fn track_card(&self, display: usize, row: usize, cx: &App) -> Option<AnyElement> {
+    fn track_card(&self, display: usize, row: usize, card: Pixels, cx: &App) -> Option<AnyElement> {
         let theme = *cx.theme();
         let track = self.tracks.read(cx).delegate().source().at(row, cx)?;
         let playable = track.playable;
@@ -435,7 +451,7 @@ impl LibraryView {
 
         Some(
             Card::new(("library-track", display), SharedString::from(track.name))
-                .tile(theme.metrics.cover)
+                .tile(card)
                 .cover(track.cover)
                 .weight(FontWeight::SEMIBOLD)
                 .flat()
@@ -458,7 +474,7 @@ impl LibraryView {
         )
     }
 
-    fn album_card(&self, display: usize, row: usize, cx: &App) -> Option<AnyElement> {
+    fn album_card(&self, display: usize, row: usize, card: Pixels, cx: &App) -> Option<AnyElement> {
         let album = self.albums.read(cx).delegate().source().at(row, cx)?;
         let context = album.clone();
         let view = self.me.clone();
@@ -478,13 +494,18 @@ impl LibraryView {
                         cx.notify();
                     });
                 })
-                .child(ReleaseCard::new(display, album, self.playback.clone()))
+                .child(ReleaseCard::new(display, album, self.playback.clone()).width(card))
                 .into_any_element(),
         )
     }
 
-    fn playlist_card(&self, display: usize, row: usize, cx: &App) -> Option<AnyElement> {
-        let theme = *cx.theme();
+    fn playlist_card(
+        &self,
+        display: usize,
+        row: usize,
+        card: Pixels,
+        cx: &App,
+    ) -> Option<AnyElement> {
         let playlist = self.playlists.read(cx).delegate().source().at(row, cx)?;
         let playback = self.playback.clone();
         let origin = Origin::Playlist(playlist.id.clone());
@@ -500,7 +521,7 @@ impl LibraryView {
                 ("library-playlist", display),
                 SharedString::from(playlist.name),
             )
-            .tile(theme.metrics.cover)
+            .tile(card)
             .cover(playlist.cover)
             .weight(FontWeight::SEMIBOLD)
             .flat()
@@ -581,7 +602,7 @@ impl Render for LibraryView {
             .child(
                 Scroller::new("library-page", &self.scrollbar).child(match self.mode() {
                     Mode::List => table.element(),
-                    Mode::Cards => self.cards(cx),
+                    Mode::Cards => self.cards(window, cx),
                 }),
             )
             .when_some(context_menu, |this, menu| this.child(menu))
@@ -845,4 +866,60 @@ fn deck<S: GridSource>(
 
 fn head(label: SharedString, cx: &App) -> AnyElement {
     heading(label, cx).w_full().pt_2().into_any_element()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_card_stays_within_its_bounds() {
+        for width in (160..2400).step_by(3) {
+            let (card, _) = tiling(px(width as f32));
+            assert!(card <= CARD_MAX, "{width} yielded {card:?}");
+            assert!(card >= CARD_MIN, "{width} yielded {card:?}");
+        }
+    }
+
+    #[test]
+    fn a_row_never_outgrows_the_space_it_was_given() {
+        for width in (160..2400).step_by(3) {
+            let available = px(width as f32);
+            let (card, gap) = tiling(available);
+            let columns = ((available + CARD_GAP) / (CARD_MIN + CARD_GAP))
+                .floor()
+                .max(1.);
+            let used = card * columns + gap * (columns - 1.);
+            assert!(used <= available, "{width} packed {used:?}");
+        }
+    }
+
+    #[test]
+    fn cards_never_touch() {
+        for width in (160..2400).step_by(3) {
+            let available = px(width as f32);
+            let (_, gap) = tiling(available);
+            let columns = ((available + CARD_GAP) / (CARD_MIN + CARD_GAP))
+                .floor()
+                .max(1.);
+            if columns > 1. {
+                assert!(gap >= CARD_GAP, "{width} yielded {gap:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn slack_goes_to_the_gaps_once_the_cards_are_capped() {
+        let capped = CARD_MAX * 2. + CARD_GAP * 2.;
+        let (card, gap) = tiling(capped);
+
+        assert_eq!(card, CARD_MAX);
+        assert!(gap > CARD_GAP);
+    }
+
+    #[test]
+    fn a_single_column_has_no_gap() {
+        let (_, gap) = tiling(CARD_MIN);
+        assert_eq!(gap, Pixels::ZERO);
+    }
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use gpui::prelude::*;
-use gpui::{App, Entity, FontWeight, SharedString, Window, div};
+use gpui::{App, Entity, FontWeight, Pixels, SharedString, Window, div};
 use router::{Destination, navigate};
 use spotify::Album;
 use state::{Origin, Playback, PlaybackState};
@@ -12,6 +12,7 @@ pub(crate) struct ReleaseCard {
     index: usize,
     album: Album,
     playback: Entity<Playback>,
+    width: Option<Pixels>,
 }
 
 impl ReleaseCard {
@@ -20,7 +21,13 @@ impl ReleaseCard {
             index,
             album,
             playback,
+            width: None,
         }
+    }
+
+    pub(crate) fn width(mut self, width: Pixels) -> Self {
+        self.width = Some(width);
+        self
     }
 }
 
@@ -30,6 +37,7 @@ impl RenderOnce for ReleaseCard {
             index,
             album,
             playback,
+            width,
         } = self;
 
         let theme = *cx.theme();
@@ -49,7 +57,8 @@ impl RenderOnce for ReleaseCard {
         let opened = SharedString::from(album.id);
 
         Card::new(("artist-release", index), SharedString::from(album.name))
-            .tile(theme.metrics.cover)
+            .tile(width.unwrap_or(theme.metrics.cover))
+            .art_radius(theme.radius)
             .cover(cover)
             .weight(FontWeight::SEMIBOLD)
             .flat()
