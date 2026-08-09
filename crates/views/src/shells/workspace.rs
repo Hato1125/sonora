@@ -8,12 +8,14 @@ use state::{Playback, Queue};
 use ui::Dismiss;
 
 use crate::chrome::{Chrome, PlayerBar, SidebarLeft, SidebarRight, TitleBarOptions};
+use crate::shared::playlist_editor::PlaylistEditor;
 use crate::shells::Shell;
 
 pub(crate) struct Workspace {
     sidebar: Entity<SidebarLeft>,
     player_bar: Entity<PlayerBar>,
     sidebar_right: Entity<SidebarRight>,
+    playlist_editor: Entity<PlaylistEditor>,
     content: AnyView,
     focus: FocusHandle,
 }
@@ -34,6 +36,7 @@ impl Workspace {
             sidebar,
             player_bar,
             sidebar_right,
+            playlist_editor: PlaylistEditor::entity(cx),
             content,
             focus: cx.focus_handle(),
         }
@@ -93,6 +96,7 @@ impl Render for Workspace {
         let overlay = self.sidebar.read(cx).overlays();
 
         div()
+            .relative()
             .flex()
             .flex_col()
             .w_full()
@@ -122,5 +126,6 @@ impl Render for Workspace {
                     .when(overlay, |this| this.child(self.sidebar.clone())),
             )
             .child(self.player_bar.clone())
+            .child(self.playlist_editor.clone())
     }
 }

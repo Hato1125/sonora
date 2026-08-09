@@ -2,20 +2,20 @@
 
 use gpui::prelude::*;
 use gpui::{
-    AnyElement, App, Context, Entity, MouseButton, Pixels, Point, Render, ScrollHandle,
-    SharedString, WeakEntity, Window, div, px,
+    AnyElement, App, Context, Entity, Pixels, Point, Render, ScrollHandle, SharedString,
+    WeakEntity, Window, div, px,
 };
 
 use i18n::t;
 use spotify::Track;
 use state::{AppSettings, Collection, Detail, Playback, Sonora};
-use ui::{ActiveTheme as _, Button, Popovers, Popup, SortAxis};
+use ui::{ActiveTheme as _, Button, Menu, Popover, Popovers, Popup, SortAxis};
 use ui::{
     ColumnSpec, FlagAxis, GridDelegate, GridEvent, GridState, RangeAxis, Scrollbar, Scroller,
     Table as _, Toggle, Unit, clock, grid,
 };
 
-use super::library::{LibraryView, playlist_context_menu};
+use crate::shared::menu::{album_menu, playlist_menu};
 
 use crate::chrome::tools::{self, Sift, Sliders};
 use crate::chrome::{Chrome, Searchable, Toolbar, Tooled};
@@ -49,8 +49,7 @@ pub(crate) struct DetailView {
     settings: Entity<AppSettings>,
     section: &'static str,
     sorted: Option<String>,
-    playlist_menu: Option<Point<Pixels>>,
-    library_view: Option<WeakEntity<LibraryView>>,
+    context_menu: Option<Point<Pixels>>,
     toolbar: Entity<Toolbar>,
     popovers: Popovers,
     sliders: Sliders,
@@ -64,7 +63,6 @@ impl DetailView {
         columns: &'static [ColumnSpec<TrackField>],
         show_liked: bool,
         section: &'static str,
-        library_view: Option<WeakEntity<LibraryView>>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -162,8 +160,7 @@ impl DetailView {
             settings,
             section,
             sorted: None,
-            playlist_menu: None,
-            library_view,
+            context_menu: None,
             toolbar,
             popovers: Popovers::default(),
             sliders: Sliders::default(),
@@ -249,8 +246,16 @@ impl DetailView {
             strip = strip.text(clock(duration));
         }
 
-        let queued_album = queued.clone();
-        let playback = self.playback.clone();
+        let overflow = self.menu(cx).map(|menu| {
+            Popover::new("detail-overflow", self.popovers.clone())
+                .commands()
+                .button(
+                    Button::new("detail-overflow-button")
+                        .outline()
+                        .icon("icons/ellipsis.svg"),
+                )
+                .menu(menu.top(theme.metrics.control).left_0())
+        });
         let actions = div()
             .flex()
             .items_center()
@@ -261,45 +266,38 @@ impl DetailView {
                 queued,
                 self.playback.clone(),
             ))
-            .when(kind == Collection::Album, |this| {
-                this.child(
-                    Button::new("enqueue-album")
-                        .outline()
-                        .icon("icons/list-end.svg")
-                        .label(t!("menu-add-album-to-queue"))
-                        .on_click(move |_, _, cx| {
-                            playback.update(cx, |playback, cx| {
-                                playback.enqueue_all(queued_album.clone(), cx)
-                            });
-                        }),
-                )
-            });
+            .children(overflow);
 
-        let view = cx.weak_entity();
-        div()
-            .id("detail-hero-menu")
-            .when(
-                kind == Collection::Playlist && self.library_view.is_some(),
-                |this| {
-                    this.on_mouse_down(MouseButton::Right, move |event, window, cx| {
-                        window.prevent_default();
-                        cx.stop_propagation();
-                        view.update(cx, |this, cx| {
-                            this.playlist_menu = Some(event.position);
-                            cx.notify();
-                        })
-                        .ok();
-                    })
-                },
-            )
-            .child(
-                PageHero::new("detail-hero", title)
-                    .cover(header.and_then(|header| header.cover.clone()))
-                    .eyebrow(eyebrow)
-                    .meta(strip)
-                    .actions(actions),
-            )
+        let view = self.me.clone();
+        PageHero::new("detail-hero", title)
+            .cover(header.and_then(|header| header.cover.clone()))
+            .eyebrow(eyebrow)
+            .meta(strip)
+            .actions(actions)
+            .grip(move |event, window, cx| {
+                window.prevent_default();
+                view.update(cx, |this, cx| {
+                    this.context_menu = Some(event.position);
+                    cx.notify();
+                })
+                .ok();
+            })
             .into_any_element()
+    }
+
+    fn menu(&self, cx: &App) -> Option<Menu> {
+        let detail = self.detail.read(cx);
+        let id = detail.id()?.to_owned();
+        let header = detail.header()?;
+
+        Some(match header.kind {
+            Collection::Album => album_menu(id, self.playback.clone(), true),
+            Collection::Playlist => {
+                let saved = Sonora::global(cx).library.read(cx).playlist(&id).cloned();
+                let playlist = saved.or_else(|| detail.playlist().cloned())?;
+                playlist_menu(playlist, self.playback.clone(), true)
+            }
+        })
     }
 }
 
@@ -314,17 +312,11 @@ impl Render for DetailView {
         self.table
             .update(cx, |table, _| table.set_viewport(viewport));
 
-        let playlist_menu = self.playlist_menu.and_then(|position| {
-            let view = self.library_view.clone()?;
-            let id = self.detail.read(cx).id()?.to_owned();
-            let playlist = Sonora::global(cx).library.read(cx).playlist(&id)?.clone();
+        let context_menu = self.context_menu.and_then(|position| {
+            let menu = self.menu(cx)?;
             Some(
-                Popup::new(
-                    position,
-                    playlist_context_menu(playlist, self.playback.clone(), view, true),
-                )
-                .on_close(cx.listener(|this, _, _, cx| {
-                    this.playlist_menu = None;
+                Popup::new(position, menu).on_close(cx.listener(|this, _, _, cx| {
+                    this.context_menu = None;
                     cx.notify();
                 })),
             )
@@ -346,7 +338,7 @@ impl Render for DetailView {
                             .border_color(theme.border),
                     ),
             )
-            .when_some(playlist_menu, |this, menu| this.child(menu))
+            .when_some(context_menu, |this, menu| this.child(menu))
     }
 }
 

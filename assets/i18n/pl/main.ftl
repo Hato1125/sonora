@@ -57,6 +57,7 @@ menu-open-playlist = Otwórz playlistę
 menu-play-playlist = Odtwórz playlistę
 menu-rename-playlist = Zmień nazwę playlisty
 menu-delete-playlist = Usuń playlistę
+menu-remove-playlist-from-library = Usuń z biblioteki
 menu-make-playlist-public = Ustaw jako publiczną
 menu-make-playlist-private = Ustaw jako prywatną
 menu-open-album = Otwórz album

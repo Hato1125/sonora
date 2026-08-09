@@ -57,6 +57,7 @@ menu-open-playlist = Open playlist
 menu-play-playlist = Play playlist
 menu-rename-playlist = Rename playlist
 menu-delete-playlist = Delete playlist
+menu-remove-playlist-from-library = Remove from Library
 menu-make-playlist-public = Make public
 menu-make-playlist-private = Make private
 menu-open-album = Open album

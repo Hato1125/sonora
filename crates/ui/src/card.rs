@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+use std::rc::Rc;
+
 use gpui::prelude::*;
 use gpui::{
     AnyElement, App, ClickEvent, Div, ElementId, FontWeight, Hsla, Interactivity, MouseButton,
-    Pixels, SharedString, Stateful, StyleRefinement, Window, div, px,
+    MouseDownEvent, Pixels, SharedString, Stateful, StyleRefinement, Window, div, px,
 };
 
 use crate::ExplicitBadge;
@@ -24,6 +26,7 @@ const PLAY_INSET: Pixels = px(8.);
 pub const CARD_GROUP: &str = "card";
 
 type Press = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
+type Grip = Rc<dyn Fn(&MouseDownEvent, &mut Window, &mut App) + 'static>;
 
 #[derive(IntoElement)]
 pub struct Card {
@@ -54,6 +57,7 @@ pub struct Card {
     underline: bool,
     playing: bool,
     action: Option<AnyElement>,
+    grip: Option<Grip>,
 }
 
 impl Card {
@@ -87,7 +91,16 @@ impl Card {
             underline: false,
             playing: false,
             action: None,
+            grip: None,
         }
+    }
+
+    pub fn grip(
+        mut self,
+        handler: impl Fn(&MouseDownEvent, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.grip = Some(Rc::new(handler));
+        self
     }
 
     pub fn tile(mut self, width: Pixels) -> Self {
@@ -262,6 +275,7 @@ impl RenderOnce for Card {
             underline,
             playing,
             action,
+            grip,
         } = self;
 
         let theme = *cx.theme();
@@ -336,7 +350,16 @@ impl RenderOnce for Card {
                 this.cursor_pointer()
                     .on_click(move |event, window, cx| press(event, window, cx))
             })
-            .child(div().flex_none().child(leading))
+            .child(
+                div()
+                    .flex_none()
+                    .when_some(grip.clone(), |this, grip| {
+                        this.on_mouse_down(MouseButton::Right, move |event, window, cx| {
+                            grip(event, window, cx)
+                        })
+                    })
+                    .child(leading),
+            )
             .child(
                 div()
                     .flex()
@@ -374,6 +397,14 @@ impl RenderOnce for Card {
                                         div()
                                             .min_w_0()
                                             .truncate()
+                                            .when_some(grip, |this, grip| {
+                                                this.on_mouse_down(
+                                                    MouseButton::Right,
+                                                    move |event, window, cx| {
+                                                        grip(event, window, cx)
+                                                    },
+                                                )
+                                            })
                                             .when_some(weight, |this, weight| {
                                                 this.font_weight(weight)
                                             })

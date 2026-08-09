@@ -5,12 +5,13 @@ use ui::ActiveTheme as _;
 
 use gpui::{AnyElement, App, Entity, SharedString, TextAlign};
 use i18n::t;
-use router::{Destination, navigate};
+use router::Destination;
 use spotify::Album;
 use state::{Library, LibraryState, Origin, Playback};
-use ui::{Cell, ColumnSpec, GridSource, Menu, MenuItem, Width};
+use ui::{Cell, ColumnSpec, GridSource, Menu, Width};
 
 use crate::shared::cells::{self, ALWAYS, NUMBER, ROOMY, TRAILING, WIDE, YEAR};
+use crate::shared::menu::album_menu;
 use crate::shared::tracks::initial;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -151,35 +152,6 @@ impl AlbumSource {
     }
 }
 
-pub(super) fn context_menu(album: Album, playback: Entity<Playback>) -> Menu {
-    let opened = album.id.clone();
-    let played = album.id.clone();
-    let queued = album.id;
-    let playing = playback.clone();
-    let queueing = playback;
-
-    Menu::new("album-context-menu")
-        .item(
-            MenuItem::new("open-album", t!("menu-open-album"))
-                .icon("icons/info.svg")
-                .on_click(move |_, _, cx| navigate(Destination::Album(opened.clone().into()), cx)),
-        )
-        .item(
-            MenuItem::new("play-album", t!("menu-play-album"))
-                .icon("icons/play.svg")
-                .on_click(move |_, _, cx| {
-                    playing.update(cx, |playback, cx| playback.play_album(&played, cx));
-                }),
-        )
-        .item(
-            MenuItem::new("enqueue-album", t!("menu-add-album-to-queue"))
-                .icon("icons/list-end.svg")
-                .on_click(move |_, _, cx| {
-                    queueing.update(cx, |playback, cx| playback.enqueue_album(&queued, cx));
-                }),
-        )
-}
-
 impl GridSource for AlbumSource {
     type Field = AlbumField;
 
@@ -219,7 +191,11 @@ impl GridSource for AlbumSource {
     }
 
     fn context_menu(&self, row: usize, cx: &App) -> Option<Menu> {
-        Some(context_menu(self.at(row, cx)?, self.playback.clone()))
+        Some(album_menu(
+            self.at(row, cx)?.id,
+            self.playback.clone(),
+            false,
+        ))
     }
 
     fn cell(&self, cell: Cell<AlbumField>, cx: &mut App) -> AnyElement {

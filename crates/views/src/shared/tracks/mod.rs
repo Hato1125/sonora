@@ -8,7 +8,7 @@ use std::cmp::Ordering;
 use std::rc::Rc;
 use ui::ActiveTheme as _;
 
-use crate::chrome::TrackMenu;
+use crate::shared::menu::ItemMenu;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
     AnyElement, App, Entity, Hsla, InteractiveElement as _, IntoElement as _, SharedString,
@@ -56,7 +56,7 @@ pub(crate) struct TrackSource {
     playback: Entity<Playback>,
     is_liked: Option<Entity<Library>>,
     playlist: Option<Entity<Detail>>,
-    menu: TrackMenu,
+    menu: ItemMenu,
     table: Option<WeakEntity<GridState<TrackSource>>>,
     sieve: TrackSieve,
 }
@@ -74,7 +74,7 @@ impl TrackSource {
             playback,
             is_liked: None,
             playlist: None,
-            menu: TrackMenu::new(playlist_scrollbar),
+            menu: ItemMenu::new(playlist_scrollbar),
             table: None,
             sieve: TrackSieve::default(),
         }

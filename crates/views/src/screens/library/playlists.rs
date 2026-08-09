@@ -3,16 +3,14 @@
 use std::cmp::Ordering;
 use ui::ActiveTheme as _;
 
-use gpui::{AnyElement, App, Entity, TextAlign, WeakEntity};
-use i18n::t;
-use router::{Destination, LibraryTab, navigate};
+use gpui::{AnyElement, App, Entity, TextAlign};
+use router::Destination;
 use spotify::Playlist;
-use state::{Library, LibraryState, Origin, Playback, Sonora};
-use ui::{Cell, ColumnSpec, GridSource, Menu, MenuItem, Width};
-
-use super::{Edit, LibraryView};
+use state::{Library, LibraryState, Origin, Playback};
+use ui::{Cell, ColumnSpec, GridSource, Menu, Width};
 
 use crate::shared::cells::{self, ALWAYS, NUMBER, ROOMY, SNUG, TRAILING};
+use crate::shared::menu::playlist_menu;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum PlaylistField {
@@ -86,20 +84,11 @@ pub(super) const COLUMNS: &[ColumnSpec<PlaylistField>] = &[INDEX, COVER, NAME, O
 pub(super) struct PlaylistSource {
     library: Entity<Library>,
     playback: Entity<Playback>,
-    view: WeakEntity<LibraryView>,
 }
 
 impl PlaylistSource {
-    pub(super) fn new(
-        library: Entity<Library>,
-        playback: Entity<Playback>,
-        view: WeakEntity<LibraryView>,
-    ) -> Self {
-        Self {
-            library,
-            playback,
-            view,
-        }
+    pub(super) fn new(library: Entity<Library>, playback: Entity<Playback>) -> Self {
+        Self { library, playback }
     }
 
     fn index_cell(&self, cell: &Cell<PlaylistField>, playlist: &Playlist, cx: &App) -> AnyElement {
@@ -123,107 +112,6 @@ impl PlaylistSource {
             _ => &[],
         }
     }
-}
-
-pub(crate) fn context_menu(
-    playlist: Playlist,
-    playback: Entity<Playback>,
-    view: WeakEntity<LibraryView>,
-    open_editor: bool,
-) -> Menu {
-    let opened = playlist.id.clone();
-    let played = playlist.id.clone();
-    let queued = playlist.id.clone();
-    let playing = playback.clone();
-    let queueing = playback;
-    let renamed = view.clone();
-    let deleted = view;
-    let visibility = match playlist.owned {
-        true => {
-            let id = playlist.id.clone();
-            let public = playlist.public;
-            MenuItem::new(
-                "playlist-visibility",
-                match public {
-                    true => t!("menu-make-playlist-private"),
-                    false => t!("menu-make-playlist-public"),
-                },
-            )
-            .icon("icons/user.svg")
-            .on_click(move |_, _, cx| {
-                let library = Sonora::global(cx).library.clone();
-                library.update(cx, |library, cx| {
-                    library.set_playlist_public(id.clone(), !public, cx)
-                });
-            })
-        }
-        false => MenuItem::new("playlist-visibility", t!("menu-make-playlist-public"))
-            .icon("icons/user.svg")
-            .disabled(),
-    };
-    let rename = match playlist.owned {
-        true => {
-            let playlist = playlist.clone();
-            MenuItem::new("rename-playlist", t!("menu-rename-playlist")).on_click(
-                move |_, window, cx| {
-                    if open_editor {
-                        navigate(Destination::Library(LibraryTab::Playlists), cx);
-                    }
-                    renamed
-                        .update(cx, |view, cx| {
-                            view.edit(Edit::Rename(playlist.clone()), window, cx)
-                        })
-                        .ok();
-                },
-            )
-        }
-        false => MenuItem::new("rename-playlist", t!("menu-rename-playlist")).disabled(),
-    };
-    let delete = match playlist.owned {
-        true => MenuItem::new("delete-playlist", t!("menu-delete-playlist")).on_click(
-            move |_, window, cx| {
-                if open_editor {
-                    navigate(Destination::Library(LibraryTab::Playlists), cx);
-                }
-                deleted
-                    .update(cx, |view, cx| {
-                        view.edit(Edit::Delete(playlist.clone()), window, cx)
-                    })
-                    .ok();
-            },
-        ),
-        false => MenuItem::new("delete-playlist", t!("menu-delete-playlist")).disabled(),
-    };
-
-    let menu = match open_editor {
-        true => Menu::new("playlist-context-menu"),
-        false => Menu::new("playlist-context-menu").item(
-            MenuItem::new("open-playlist", t!("menu-open-playlist"))
-                .icon("icons/info.svg")
-                .on_click(move |_, _, cx| {
-                    navigate(Destination::Playlist(opened.clone().into()), cx)
-                }),
-        ),
-    };
-
-    menu.item(
-        MenuItem::new("play-playlist", t!("menu-play-playlist"))
-            .icon("icons/play.svg")
-            .on_click(move |_, _, cx| {
-                playing.update(cx, |playback, cx| playback.play_playlist(&played, cx));
-            }),
-    )
-    .item(
-        MenuItem::new("enqueue-playlist", t!("menu-add-to-queue"))
-            .icon("icons/list-end.svg")
-            .on_click(move |_, _, cx| {
-                queueing.update(cx, |playback, cx| playback.enqueue_playlist(&queued, cx));
-            }),
-    )
-    .item(visibility)
-    .item(MenuItem::separator("playlist-actions"))
-    .item(rename)
-    .item(delete)
 }
 
 impl GridSource for PlaylistSource {
@@ -256,10 +144,9 @@ impl GridSource for PlaylistSource {
     }
 
     fn context_menu(&self, row: usize, cx: &App) -> Option<Menu> {
-        Some(context_menu(
+        Some(playlist_menu(
             self.at(row, cx)?,
             self.playback.clone(),
-            self.view.clone(),
             false,
         ))
     }

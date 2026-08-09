@@ -57,6 +57,7 @@ menu-open-playlist = Відкрити плейлист
 menu-play-playlist = Відтворити плейлист
 menu-rename-playlist = Перейменувати плейлист
 menu-delete-playlist = Видалити плейлист
+menu-remove-playlist-from-library = Вилучити з медіатеки
 menu-make-playlist-public = Зробити публічним
 menu-make-playlist-private = Зробити приватним
 menu-open-album = Відкрити альбом
