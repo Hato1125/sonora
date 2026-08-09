@@ -3,8 +3,9 @@
 use gpui::prelude::*;
 use gpui::{AnyView, App, Context, Entity, FocusHandle, Render};
 use gpui::{Window, div};
-use input::{Dismiss, WORKSPACE_CONTEXT};
+use input::WORKSPACE_CONTEXT;
 use state::{Playback, Queue};
+use ui::Dismiss;
 
 use crate::chrome::{Chrome, PlayerBar, SidebarLeft, SidebarRight, TitleBarOptions};
 use crate::shells::Shell;

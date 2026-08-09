@@ -6,9 +6,9 @@ use gpui::{
     Render, ScrollHandle, SharedString, Window, div, px,
 };
 use i18n::t;
-use input::Input;
 use router::{Destination, navigate};
 use spotify::Track;
+use ui::Input;
 
 use crate::chrome::{Chrome, TrackMenu};
 use state::{Hit, Kind, Playback, Search};
