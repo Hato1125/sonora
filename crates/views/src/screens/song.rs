@@ -210,6 +210,7 @@ impl SongView {
                         let row = div()
                             .flex()
                             .items_center()
+                            .min_w_0()
                             .gap_3()
                             .px(theme.metrics.pad)
                             .py(theme.metrics.pad / 2.)
@@ -219,10 +220,19 @@ impl SongView {
                                 div()
                                     .flex()
                                     .flex_col()
+                                    .flex_1()
+                                    .min_w_0()
                                     .gap_0p5()
-                                    .child(div().font_weight(FontWeight::MEDIUM).child(credit.name))
                                     .child(
                                         div()
+                                            .min_w_0()
+                                            .truncate()
+                                            .font_weight(FontWeight::MEDIUM)
+                                            .child(credit.name),
+                                    )
+                                    .child(
+                                        div()
+                                            .min_w_0()
                                             .text_size(theme.text(Text::Small))
                                             .text_color(theme.muted_foreground)
                                             .child(credit.role),
@@ -274,11 +284,13 @@ impl SongView {
                                     .items_start()
                                     .justify_between()
                                     .gap_4()
+                                    .min_w_0()
                                     .px(theme.metrics.pad)
                                     .py(theme.metrics.pad / 2.)
                                     .child(
                                         div()
-                                            .flex_none()
+                                            .flex_1()
+                                            .min_w_0()
                                             .text_color(theme.muted_foreground)
                                             .child(t!("song-genres")),
                                     )
@@ -292,6 +304,9 @@ impl SongView {
                                             .gap_2()
                                             .children(tags.into_iter().map(|tag| {
                                                 div()
+                                                    .max_w_full()
+                                                    .min_w_0()
+                                                    .truncate()
                                                     .px_3()
                                                     .py_1()
                                                     .rounded_full()
@@ -410,8 +425,13 @@ impl SongView {
                         .min_w_0()
                         .gap_2()
                         .child(eyebrow(t!("song-about-artist"), cx))
-                        .child(heading(artist.name.clone(), cx))
-                        .child(div().text_color(theme.muted_foreground).child(bio)),
+                        .child(heading(artist.name.clone(), cx).min_w_0().truncate())
+                        .child(
+                            div()
+                                .min_w_0()
+                                .text_color(theme.muted_foreground)
+                                .child(bio),
+                        ),
                 )
                 .child(
                     div()
@@ -495,6 +515,7 @@ impl Render for SongView {
                                     this.child(
                                         div()
                                             .pt_5()
+                                            .min_w_0()
                                             .text_size(theme.text(Text::Tiny))
                                             .text_color(theme.muted_foreground)
                                             .child(copyright),
