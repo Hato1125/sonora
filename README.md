@@ -5,7 +5,7 @@ A minimal native Spotify client built with Rust and GPUI.
 <table>
   <tr>
     <td colspan="2">
-      <img width="1532" height="967" alt="image" src="https://github.com/user-attachments/assets/e21332cc-bf44-4fa9-91e1-1c7a00e3d34d" />
+      <img width="1532" height="967" alt="image" src="https://github.com/user-attachments/assets/90bad3c1-6ad1-4354-930f-511ea8480d74" />
     </td>
   </tr>
   <tr>
