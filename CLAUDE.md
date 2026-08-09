@@ -497,7 +497,7 @@ PNG set), an Apple squircle for `assets/macos/sonora.icns`, and a rounded rect f
 
 **`THIRD-PARTY.md` is generated too.** `scripts/generate-notices.py` drives `cargo about` over
 `about.toml` and writes the file; a new dependency means re-running it, not editing the output. The
-binary must ship it alongside `LICENSE`, `assets/fonts/LICENSE.txt` and `assets/icons/LICENSE` —
+binary must ship it alongside `COPYING`, `assets/fonts/LICENSE.txt` and `assets/icons/LICENSE` —
 `flake.nix` and `.github/workflows/release.yml` both do that, and a package that skips it is
 distributing unlicensed code.
 

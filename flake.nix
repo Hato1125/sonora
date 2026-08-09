@@ -72,7 +72,7 @@
                 install -Dm444 "$icon" \
                   "$out/share/icons/hicolor/$size/apps/sonora.png"
               done
-              install -Dm444 LICENSE "$out/share/licenses/sonora/LICENSE"
+              install -Dm444 COPYING "$out/share/licenses/sonora/LICENSE"
               install -Dm444 THIRD-PARTY.md "$out/share/licenses/sonora/THIRD-PARTY.md"
               install -Dm444 assets/fonts/LICENSE.txt \
                 "$out/share/licenses/sonora/LICENSE.Inter"
@@ -132,7 +132,7 @@
                 install -Dm444 "$icon" \
                   "$out/share/icons/hicolor/$size/apps/sonora.png"
               done
-              install -Dm444 ${./LICENSE} "$out/share/licenses/sonora/LICENSE"
+              install -Dm444 ${./COPYING} "$out/share/licenses/sonora/LICENSE"
               install -Dm444 ${./THIRD-PARTY.md} "$out/share/licenses/sonora/THIRD-PARTY.md"
               install -Dm444 ${./assets/fonts/LICENSE.txt} \
                 "$out/share/licenses/sonora/LICENSE.Inter"
