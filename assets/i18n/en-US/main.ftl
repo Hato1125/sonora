@@ -259,6 +259,11 @@ settings-license-view = Read the license
 settings-source = Source code
 settings-source-detail = The corresponding source for this build
 settings-source-view = Open the repository
+settings-team = Team
+settings-team-github = GitHub
+settings-role-maintainer = Maintainer
+settings-role-developer = Developer
+settings-role-contributor = Contributor
 settings-notice = Copyright © 2026 nolight132. Sonora comes with absolutely no warranty. It is free software, and you are welcome to redistribute it under the terms of the GNU General Public License version 3 or later. Sonora is unofficial and is not affiliated with Spotify AB.
 
 # themes

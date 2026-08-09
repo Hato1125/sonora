@@ -11,8 +11,8 @@ use i18n::{Language, t};
 use state::{AppSettings, Playback, Session, SessionState, Sonora};
 use ui::{ActiveTheme as _, Scrollbar, Scroller};
 use ui::{
-    Button, Initials, Look, MAX_FONT, MIN_FONT, Menu, MenuItem, Popover, Popovers, Rounding,
-    Skeleton, Text, Theme, ThemeKind,
+    Avatar, Button, InfoCard, Initials, Look, MAX_FONT, MIN_FONT, Menu, MenuItem, Popover,
+    Popovers, Rounding, Skeleton, Text, Theme, ThemeKind,
 };
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -22,6 +22,50 @@ const SOURCE_URL: &str = "https://github.com/nolight132/sonora";
 const THEMES: &str = "themes";
 const CORNERS: &str = "corners";
 const LANGUAGES: &str = "languages";
+
+#[derive(Clone, Copy)]
+struct Member {
+    login: &'static str,
+    avatar: &'static str,
+    profile: &'static str,
+    role: Role,
+}
+
+#[derive(Clone, Copy)]
+enum Role {
+    Maintainer,
+    Developer,
+    Contributor,
+}
+
+impl Role {
+    fn label(self) -> SharedString {
+        match self {
+            Self::Maintainer => t!("settings-role-maintainer"),
+            Self::Developer => t!("settings-role-developer"),
+            Self::Contributor => t!("settings-role-contributor"),
+        }
+    }
+}
+
+macro_rules! member {
+    ($login:literal, $role:expr) => {
+        Member {
+            login: concat!("@", $login),
+            avatar: concat!("https://github.com/", $login, ".png"),
+            profile: concat!("https://github.com/", $login),
+            role: $role,
+        }
+    };
+}
+
+const MEMBERS: [Member; 5] = [
+    member!("nolight132", Role::Maintainer),
+    member!("zxsleebu", Role::Developer),
+    member!("fx-got", Role::Developer),
+    member!("Makakashan", Role::Contributor),
+    member!("imizgun", Role::Contributor),
+];
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Tab {
@@ -611,6 +655,50 @@ impl SettingsView {
             .child(t!("settings-notice"))
     }
 
+    fn team(&self, cx: &Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+
+        InfoCard::new(t!("settings-team")).child(div().flex().flex_col().gap_3().children(
+            MEMBERS.into_iter().enumerate().map(|(index, member)| {
+                div()
+                    .id(("team-member", index))
+                    .flex()
+                    .items_center()
+                    .gap_3()
+                    .px(theme.metrics.pad)
+                    .py(theme.metrics.pad / 2.)
+                    .rounded(theme.radius)
+                    .cursor_pointer()
+                    .hover(|style| style.bg(theme.secondary_hover))
+                    .on_click(move |_, _, cx| cx.open_url(member.profile))
+                    .child(Avatar::new(Some(member.avatar)).size(theme.metrics.thumb))
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .flex_1()
+                            .min_w_0()
+                            .gap_0p5()
+                            .child(div().font_weight(FontWeight::MEDIUM).child(member.login))
+                            .child(
+                                div()
+                                    .text_size(theme.text(Text::Small))
+                                    .text_color(theme.muted_foreground)
+                                    .child(t!("settings-team-github")),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .flex_none()
+                            .text_size(theme.text(Text::Small))
+                            .font_weight(FontWeight::MEDIUM)
+                            .text_color(theme.muted_foreground)
+                            .child(member.role.label()),
+                    )
+            }),
+        ))
+    }
+
     fn row(
         &self,
         title: SharedString,
@@ -677,7 +765,9 @@ impl Render for SettingsView {
                     .child(div().h(px(1.)).w_full().bg(border))
                     .child(self.tabs(cx))
                     .child(self.panel(cx))
-                    .when(self.tab == Tab::About, |this| this.child(self.notice(cx))),
+                    .when(self.tab == Tab::About, |this| {
+                        this.child(self.team(cx)).child(self.notice(cx))
+                    }),
             )
     }
 }
