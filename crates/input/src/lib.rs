@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-mod text;
-
-pub use text::Input;
-
 use gpui::{KeyBinding, actions};
-use ui::{Deselect, GRID_CONTEXT, SelectNext, SelectPrevious};
+use ui::{
+    Backspace, BackspaceWord, Copy, Cut, Delete, DeleteWord, Deselect, Dismiss, End, FORM_CONTEXT,
+    GRID_CONTEXT, Home, INPUT_CONTEXT, Left, Paste, Right, SelectAll, SelectEnd, SelectHome,
+    SelectLeft, SelectNext, SelectPrevious, SelectRight, SelectWordLeft, SelectWordRight, Space,
+    Submit, WordLeft, WordRight,
+};
 
 actions!(
     sonora,
@@ -21,41 +22,13 @@ actions!(
     ]
 );
 
-actions!(
-    input,
-    [
-        Backspace,
-        BackspaceWord,
-        Delete,
-        DeleteWord,
-        Left,
-        Right,
-        WordLeft,
-        WordRight,
-        SelectLeft,
-        SelectRight,
-        SelectWordLeft,
-        SelectWordRight,
-        SelectAll,
-        Home,
-        End,
-        SelectHome,
-        SelectEnd,
-        Paste,
-        Dismiss,
-        Cut,
-        Copy,
-        Space
-    ]
-);
-
 pub const WORKSPACE_CONTEXT: &str = "Workspace";
-pub const INPUT_CONTEXT: &str = "Input";
 
 pub fn bindings() -> Vec<KeyBinding> {
     let editing = Some(INPUT_CONTEXT);
     let away_from_text = format!("{WORKSPACE_CONTEXT} && !{INPUT_CONTEXT}");
     let table = Some(GRID_CONTEXT);
+    let form = Some(FORM_CONTEXT);
 
     vec![
         KeyBinding::new("down", SelectNext, table),
@@ -103,5 +76,7 @@ pub fn bindings() -> Vec<KeyBinding> {
         KeyBinding::new("ctrl-x", Cut, editing),
         KeyBinding::new("space", Space, editing),
         KeyBinding::new("escape", Dismiss, editing),
+        KeyBinding::new("enter", Submit, form),
+        KeyBinding::new("escape", Dismiss, form),
     ]
 }

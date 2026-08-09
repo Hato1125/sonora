@@ -3306,7 +3306,6 @@ name = "input"
 version = "0.3.0"
 dependencies = [
  "gpui",
- "i18n",
  "ui",
 ]
 

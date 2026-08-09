@@ -2,8 +2,8 @@
 
 use gpui::prelude::*;
 use gpui::{AnyElement, App, Context, Entity, Pixels, Render, SharedString, Window, div, px};
-use input::{Dismiss, Input};
 use ui::Button;
+use ui::{Dismiss, Input};
 
 const WIDEST: Pixels = px(280.);
 
