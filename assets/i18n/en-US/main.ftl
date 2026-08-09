@@ -276,3 +276,13 @@ corners-square = Square
 corners-subtle = Subtle
 corners-rounded = Rounded
 corners-round = Round
+
+toast-playlist-created = Playlist created
+toast-playlist-renamed = Playlist renamed
+toast-playlist-deleted = Playlist deleted
+toast-playlist-removed = Playlist removed from your library
+toast-playlist-visibility = Playlist visibility changed
+toast-track-added = Song added to the playlist
+toast-playlist-failed = That change could not be saved
+toast-playlist-busy = Another change is still running
+toast-playlist-signed-out = Sign in to change playlists
