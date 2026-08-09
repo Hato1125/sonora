@@ -44,6 +44,7 @@
             fontconfig
             freetype
             alsa-lib
+            dbus
           ];
 
           sonora = pkgs.rustPlatform.buildRustPackage {
@@ -52,7 +53,7 @@
 
             src = ./.;
 
-            cargoHash = "sha256-4Lp2lt4Y9qGrFasbJSmPZyCoRNo7wApdzv6miFwyo1M=";
+            cargoHash = "sha256-qYHLwDCY9rzPDQlstzifm6zt/kP5Kws5SmTXkongeF4=";
 
             nativeBuildInputs = with pkgs; [
               pkg-config
@@ -166,6 +167,7 @@
             fontconfig
             freetype
             alsa-lib
+            dbus
           ];
         in
         {
