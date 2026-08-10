@@ -15,7 +15,12 @@ async fn main() -> anyhow::Result<()> {
     );
     let data = api.download(&format).await?;
     println!("downloaded {} bytes", data.len());
-    let decoder = rodio::Decoder::new(Cursor::new(data))?;
+    let length = data.len() as u64;
+    let decoder = rodio::Decoder::builder()
+        .with_data(Cursor::new(data))
+        .with_byte_len(length)
+        .with_seekable(true)
+        .build()?;
     let rate = decoder.sample_rate();
     let channels = decoder.channels();
     let samples: usize = decoder.count();
