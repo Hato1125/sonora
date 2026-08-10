@@ -7,7 +7,10 @@ use interprocess::local_socket::traits::{ListenerExt as _, Stream as _};
 use interprocess::local_socket::{GenericNamespaced, ListenerOptions, Stream, ToNsName};
 use tokio::sync::mpsc::UnboundedSender;
 
-const SOCKET: &str = "sonora.sock";
+const SOCKET: &str = match cfg!(debug_assertions) {
+    true => "sonora-dev.sock",
+    false => "sonora.sock",
+};
 
 pub enum Instance {
     First,
