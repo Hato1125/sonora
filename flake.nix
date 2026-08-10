@@ -1,5 +1,5 @@
 {
-  description = "sonora - a minimal native Spotify client";
+  description = "Sonora - a minimal native Spotify client";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -44,6 +44,7 @@
             fontconfig
             freetype
             alsa-lib
+            dbus
           ];
 
           sonora = pkgs.rustPlatform.buildRustPackage {
@@ -52,7 +53,7 @@
 
             src = ./.;
 
-            cargoHash = "sha256-aoq1jnaOjhUBODZHZ29Jwox+I/tNhadp3IFSqtzvChA=";
+            cargoHash = "sha256-aW22ygYLEuEw00BTc2JUJq0q3k9NY8eU5tsHn2L21Ys=";
 
             nativeBuildInputs = with pkgs; [
               pkg-config
@@ -166,6 +167,7 @@
             fontconfig
             freetype
             alsa-lib
+            dbus
           ];
         in
         {
