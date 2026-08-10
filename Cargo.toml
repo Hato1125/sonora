@@ -48,6 +48,7 @@ serde_json = "1.0"
 souvlaki = "0.8"
 sys-locale = "0.3"
 unic-langid = { version = "0.9", features = ["macros"] }
+ytmusic = { path = "../ytmusic-rs" }
 
 librespot-core = { version = "0.8.0", default-features = false, features = [
   "rustls-tls-native-roots",
