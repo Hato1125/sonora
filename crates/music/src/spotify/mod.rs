@@ -48,6 +48,7 @@ impl SpotifyProvider {
             profile,
             api: Arc::new(client),
             playback,
+            authenticated: true,
         })
     }
 }
@@ -62,6 +63,10 @@ impl MusicProvider for SpotifyProvider {
         "spotify"
     }
 
+    fn sign_in_options(&self) -> Vec<crate::SignIn> {
+        vec![crate::SignIn::Default]
+    }
+
     async fn restore(&self) -> Result<Option<ProviderSession>> {
         let Some(session) = auth::restore(&self.config).await? else {
             return Ok(None);
@@ -71,6 +76,7 @@ impl MusicProvider for SpotifyProvider {
 
     async fn sign_in(
         &self,
+        _method: crate::SignIn,
         _prompt: crate::PromptSink,
         _input: crate::InputSource,
     ) -> Result<ProviderSession> {

@@ -95,6 +95,15 @@ pub struct ProviderSession {
     pub profile: UserProfile,
     pub api: Arc<dyn MusicApi>,
     pub playback: Arc<dyn PlaybackFactory>,
+    pub authenticated: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SignIn {
+    Default,
+    Anonymous,
+    Browser(String),
+    Secret,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -110,7 +119,13 @@ pub type InputSource = tokio::sync::mpsc::UnboundedReceiver<String>;
 pub trait MusicProvider: Send + Sync {
     fn name(&self) -> &'static str;
     fn slug(&self) -> &'static str;
+    fn sign_in_options(&self) -> Vec<SignIn>;
     async fn restore(&self) -> Result<Option<ProviderSession>>;
-    async fn sign_in(&self, prompt: PromptSink, input: InputSource) -> Result<ProviderSession>;
+    async fn sign_in(
+        &self,
+        method: SignIn,
+        prompt: PromptSink,
+        input: InputSource,
+    ) -> Result<ProviderSession>;
     fn sign_out(&self);
 }
