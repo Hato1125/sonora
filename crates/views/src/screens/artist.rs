@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+use std::rc::Rc;
+
 use gpui::prelude::*;
 use gpui::{
-    AnyElement, App, Bounds, Context, Entity, FontWeight, Pixels, Point, Render, ScrollHandle,
+    AnyElement, App, Context, Entity, FontWeight, Pixels, Point, Render, ScrollHandle,
     SharedString, Window, div, px,
 };
 
@@ -13,8 +15,8 @@ use spotify::{Album, ReleaseType, Track};
 use state::{AppSettings, ArtistDetail, Playback, Sonora};
 use ui::ActiveTheme as _;
 use ui::{
-    Button, Card, ColumnSpec, GridDelegate, GridEvent, GridState, MIN_CONTENT, Popover, Popovers,
-    Popup, Scrollbar, Scroller, Skeleton, Text, grid,
+    Button, Card, ColumnSpec, Deck, GridDelegate, GridEvent, GridState, MIN_CONTENT, Popover,
+    Popovers, Popup, Scrollbar, Scroller, Skeleton, Text, Viewport, grid, scrolled, snapped,
 };
 
 use crate::shared::album_grid::{AlbumGrid, CardGrid};
@@ -88,6 +90,7 @@ pub(crate) struct ArtistView {
     artist_id: Option<String>,
     release_filter: ReleaseFilter,
     width: Pixels,
+    release_top: Pixels,
     release_end: Entity<ReleaseEnd>,
     scrollbar: Entity<Scrollbar>,
     table: Entity<GridState<TrackSource>>,
@@ -204,25 +207,18 @@ impl ReleaseEnd {
             .then(|| (self.natural + self.hold).max(Pixels::ZERO))
     }
 
-    fn observe(
-        &mut self,
-        bounds: &[Bounds<Pixels>],
-        maximum: Pixels,
-        columns: usize,
-        count: usize,
-    ) -> ReleaseUpdate {
-        let metrics = release_metrics(bounds, columns, self.metrics);
+    fn observe(&mut self, metrics: ReleaseMetrics, maximum: Pixels, count: usize) -> ReleaseUpdate {
         let frame = ReleaseFrame {
             count,
-            columns,
-            height: metrics.map_or(Pixels::ZERO, |metrics| metrics.height(count)),
+            columns: metrics.columns,
+            height: metrics.height(count),
             hold: self.hold,
         };
         let stable = self.frame == Some(frame);
         let changed = self.frame != Some(frame);
         self.frame = Some(frame);
         self.count = count;
-        self.metrics = metrics;
+        self.metrics = Some(metrics);
         if !stable {
             return ReleaseUpdate {
                 next: changed,
@@ -352,6 +348,7 @@ impl ArtistView {
             artist_id,
             release_filter: ReleaseFilter::All,
             width,
+            release_top: Pixels::ZERO,
             release_end,
             scrollbar,
             table,
@@ -426,7 +423,61 @@ impl ArtistView {
             .into_any_element()
     }
 
-    fn releases(&self, cx: &Context<Self>) -> Option<AnyElement> {
+    fn release_row(&self, window: &Window, cx: &App) -> Pixels {
+        Card::tile_height(CardGrid::layout(self.width).card, window, cx)
+    }
+
+    fn release_count(&self, cx: &App) -> usize {
+        self.detail
+            .read(cx)
+            .albums()
+            .iter()
+            .filter(|album| self.release_filter.matches(album.release_type))
+            .count()
+    }
+
+    fn release_metrics(&self, window: &Window, cx: &App) -> ReleaseMetrics {
+        ReleaseMetrics {
+            columns: CardGrid::layout(self.width).columns,
+            card: self.release_row(window, cx),
+            gap: release_gap(window),
+        }
+    }
+
+    fn release_viewport(&self, scroll: &ScrollHandle, window: &Window) -> Viewport {
+        let visible = scroll.bounds().size.height;
+
+        Viewport {
+            top: (scrolled(scroll) - self.release_top).max(Pixels::ZERO),
+            height: match visible > Pixels::ZERO {
+                true => visible,
+                false => window.viewport_size().height,
+            },
+        }
+    }
+
+    fn settle(&mut self, scroll: &ScrollHandle, window: &Window, cx: &mut Context<Self>) {
+        if self.detail.read(cx).is_loading() {
+            return;
+        }
+
+        let metrics = self.release_metrics(window, cx);
+        let count = self.release_count(cx);
+        let update = self.release_end.update(cx, |end, _| {
+            end.observe(metrics, scroll.max_offset().y, count)
+        });
+
+        if update.next {
+            self.scrollbar.update(cx, |_, cx| cx.notify());
+            cx.notify();
+        }
+        if update.settle {
+            self.scrollbar
+                .update(cx, |bar, cx| bar.set_max_offset(None, cx));
+        }
+    }
+
+    fn releases(&self, window: &Window, cx: &Context<Self>) -> Option<AnyElement> {
         let theme = *cx.theme();
         let detail = self.detail.read(cx);
         let loading = detail.is_loading();
@@ -453,41 +504,59 @@ impl ArtistView {
                 .into_any_element(),
             false => {
                 let scroll = self.scrollbar.read(cx).scroll().clone();
-                let albums = albums
-                    .iter()
-                    .filter(|album| self.release_filter.matches(album.release_type))
-                    .cloned()
-                    .enumerate()
-                    .collect::<Vec<_>>();
+                let albums: Rc<Vec<(usize, Album)>> = Rc::new(
+                    albums
+                        .iter()
+                        .filter(|album| self.release_filter.matches(album.release_type))
+                        .cloned()
+                        .enumerate()
+                        .collect(),
+                );
                 let count = albums.len();
-                let columns = AlbumGrid::columns(self.width);
-                let release_end = self.release_end.clone();
-                let scrollbar = self.scrollbar.clone();
+                let columns = grid.columns;
+                let width = self.width;
+                let height = self.release_row(window, cx);
+                let playback = self.playback.clone();
                 let opened = cx.entity().downgrade();
+                let measured = opened.clone();
 
-                AlbumGrid::new("artist-release", self.width, albums, self.playback.clone())
-                    .on_context(move |album, position, cx| {
-                        let Some(view) = opened.upgrade() else {
-                            return;
-                        };
-                        view.update(cx, |this, cx| {
-                            this.release_menu = Some((album.clone(), position));
-                            cx.notify();
-                        });
+                Deck::new("artist-release")
+                    .viewport(self.release_viewport(&scroll, window))
+                    .rows((0..count.div_ceil(columns.max(1))).map(move |_| height))
+                    .gap(release_gap(window))
+                    .draw(move |row, _, _| {
+                        let start = row * columns;
+                        let end = (start + columns).min(count);
+                        let opened = opened.clone();
+
+                        AlbumGrid::new(
+                            "artist-release",
+                            width,
+                            albums[start..end].to_vec(),
+                            playback.clone(),
+                        )
+                        .on_context(move |album, position, cx| {
+                            let Some(view) = opened.upgrade() else {
+                                return;
+                            };
+                            view.update(cx, |this, cx| {
+                                this.release_menu = Some((album.clone(), position));
+                                cx.notify();
+                            });
+                        })
+                        .into_any_element()
                     })
-                    .on_layout(move |bounds, window, cx| {
-                        let update = release_end.update(cx, |end, _| {
-                            end.observe(&bounds, scroll.max_offset().y, columns, count)
-                        });
-                        if update.next {
-                            scrollbar.update(cx, |_, cx| cx.notify());
-                            window.request_animation_frame();
-                        }
-                        if update.settle
-                            && scrollbar.update(cx, |bar, cx| bar.set_max_offset(None, cx))
-                        {
-                            window.request_animation_frame();
-                        }
+                    .on_measure(move |top, _, cx| {
+                        let content = top - scroll.bounds().origin.y + scrolled(&scroll);
+                        measured
+                            .update(cx, |this, cx| {
+                                if (this.release_top - content).abs() < px(0.5) {
+                                    return;
+                                }
+                                this.release_top = content;
+                                cx.notify();
+                            })
+                            .ok();
                     })
                     .into_any_element()
             }
@@ -615,6 +684,7 @@ impl Render for ArtistView {
         let viewport = page::viewport(&scroll, inset, window);
         self.table
             .update(cx, |table, _| table.set_viewport(viewport));
+        self.settle(&scroll, window, cx);
 
         let release_menu = self.release_menu.clone().map(|(album, position)| {
             let menu = album_menu(album, self.playback.clone(), false, cx);
@@ -671,7 +741,7 @@ impl Render for ArtistView {
                     .border_color(theme.border)
                     .into_any_element(),
             })
-            .children(self.releases(cx));
+            .children(self.releases(window, cx));
 
         div()
             .relative()
@@ -681,19 +751,8 @@ impl Render for ArtistView {
     }
 }
 
-fn release_metrics(
-    bounds: &[Bounds<Pixels>],
-    columns: usize,
-    previous: Option<ReleaseMetrics>,
-) -> Option<ReleaseMetrics> {
-    let first = bounds.first()?;
-    let card = first.size.height;
-    let gap = bounds
-        .get(columns)
-        .map(|next| (next.top() - first.top() - card).max(Pixels::ZERO))
-        .or_else(|| previous.map(|metrics| metrics.gap))
-        .unwrap_or(Pixels::ZERO);
-    Some(ReleaseMetrics { columns, card, gap })
+fn release_gap(window: &Window) -> Pixels {
+    snapped(window.rem_size() * 1.5, window)
 }
 
 #[cfg(test)]
@@ -766,7 +825,7 @@ mod tests {
     }
 
     #[test]
-    fn measuring_only_calibrates_the_extent() {
+    fn a_settled_frame_calibrates_the_extent() {
         let metrics = ReleaseMetrics {
             columns: 5,
             card: px(170.),
@@ -786,14 +845,29 @@ mod tests {
             frame: Some(frame),
             ready: true,
         };
-        let bounds = [Bounds::new(
-            gpui::point(Pixels::ZERO, Pixels::ZERO),
-            gpui::size(px(170.), px(170.)),
-        )];
 
-        let update = end.observe(&bounds, px(900.), 5, 5);
+        let update = end.observe(metrics, px(900.), 5);
         assert!(update.settle);
         assert_eq!(end.natural, px(300.));
         assert_eq!(end.hold, px(600.));
+    }
+
+    #[test]
+    fn an_unseen_frame_waits_before_calibrating() {
+        let metrics = ReleaseMetrics {
+            columns: 5,
+            card: px(170.),
+            gap: px(24.),
+        };
+        let mut end = ReleaseEnd::new();
+
+        let update = end.observe(metrics, px(900.), 5);
+        assert!(!update.settle);
+        assert!(update.next);
+        assert_eq!(end.natural, Pixels::ZERO);
+
+        let update = end.observe(metrics, px(900.), 5);
+        assert!(update.settle);
+        assert_eq!(end.natural, px(900.));
     }
 }

@@ -12,21 +12,20 @@ use crate::shared::playlist_editor::{Edit, PlaylistEditor};
 
 use gpui::prelude::*;
 use gpui::{
-    AnyElement, App, Context, Entity, FontWeight, ListAlignment, ListOffset, ListState,
-    MouseButton, Pixels, Point, Render, ScrollHandle, SharedString, WeakEntity, Window, div, list,
-    px,
+    AnyElement, App, Context, Entity, FontWeight, MouseButton, Pixels, Point, Render, ScrollHandle,
+    SharedString, WeakEntity, Window, div, point, px, relative,
 };
 use i18n::t;
 use router::{Destination, LibraryTab, navigate};
 use spotify::{Album, Playlist, Track};
 use state::{AppSettings, Library, LibraryState, Origin, Playback, PlaybackState, Sonora};
 use ui::{
-    ActiveTheme as _, Button, Card, FlagAxis, GridDelegate, GridEvent, GridSource, GridState, Menu,
-    MenuItem, Mode, Popovers, Popup, RangeAxis, Scrollbar, Scroller, Sort, SortAxis, Text, Toggle,
-    Unit, Viewport, clock, grid, heading, scrolled, vacant,
+    ActiveTheme as _, Button, Card, Deck, FlagAxis, GridDelegate, GridEvent, GridSource, GridState,
+    LEADING, Menu, MenuItem, Mode, Popovers, Popup, RangeAxis, Scrollbar, Scroller, Sort, SortAxis,
+    Text, Toggle, Unit, Viewport, clock, grid, heading, scrolled, snapped, vacant,
 };
 
-use crate::shared::album_grid::{AlbumGrid, CARD_MAX, CardGrid};
+use crate::shared::album_grid::{AlbumGrid, CardGrid};
 use crate::shared::hero::{HeroMetaStrip, HeroPlayButton, PageHero};
 use crate::shared::tracks::{
     self, LIBRARY_COLUMNS, PlaybackStatus, TrackField, TrackSieve, TrackSource, Tracks,
@@ -134,11 +133,11 @@ pub struct LibraryView {
     section: Section,
     views: [Mode; 3],
     width: Pixels,
-    card_width: Pixels,
     card_columns: usize,
+    card_tile: Pixels,
+    card_heading: Pixels,
     card_rows: Rc<[DeckRow]>,
     cards_dirty: bool,
-    card_list: ListState,
     card_scrollbar: Entity<Scrollbar>,
     scrollbar: Entity<Scrollbar>,
     tracks: Entity<GridState<TrackSource>>,
@@ -269,8 +268,7 @@ impl LibraryView {
             toolbar
         });
 
-        let card_list = ListState::new(0, ListAlignment::Top, CARD_MAX * 2.).measure_all();
-        let card_scrollbar = cx.new(|_| Scrollbar::list(card_list.clone()));
+        let card_scrollbar = cx.new(|_| Scrollbar::new(ScrollHandle::new()));
 
         Self {
             library,
@@ -280,11 +278,11 @@ impl LibraryView {
             section: Section::Tracks,
             views,
             width,
-            card_width: Pixels::ZERO,
             card_columns: 0,
+            card_tile: Pixels::ZERO,
+            card_heading: Pixels::ZERO,
             card_rows: Rc::from([]),
             cards_dirty: true,
-            card_list,
             card_scrollbar,
             scrollbar,
             tracks,
@@ -487,112 +485,124 @@ impl LibraryView {
         let columns = layout.columns;
         let card = layout.card;
 
-        let top = self.card_list.logical_scroll_top();
-        let anchor = (self.card_columns != 0 && self.card_columns != columns && !self.cards_dirty)
-            .then(|| deck_key(&self.card_rows, top.item_ix))
-            .flatten()
-            .map(|key| (key, top.offset_in_item));
+        let scroll = self.card_scrollbar.read(cx).scroll().clone();
+        let gap = deck_gap(window);
+        let tile = Card::tile_height(card, window, cx);
+        let heading = head_height(window, cx);
+        let depth = (scrolled(&scroll) - inset).max(Pixels::ZERO);
+
+        let repacked = self.card_columns != columns
+            || (self.card_tile - tile).abs() >= px(0.5)
+            || (self.card_heading - heading).abs() >= px(0.5);
+        let anchor = (repacked && self.card_columns != 0 && !self.cards_dirty)
+            .then(|| {
+                let heights = deck_heights(&self.card_rows, self.card_tile, self.card_heading);
+                let (index, offset) = Deck::at(&heights, gap, depth);
+                let share = match heights.get(index) {
+                    Some(height) if *height > Pixels::ZERO => offset / *height,
+                    _ => 0.,
+                };
+                deck_key(&self.card_rows, index).map(|key| (key, share))
+            })
+            .flatten();
 
         if self.card_columns != columns {
             self.card_columns = columns;
             self.cards_dirty = true;
         }
-        let mut rebuilt = false;
         if self.cards_dirty {
-            let rows = match self.section {
+            self.card_rows = match self.section {
                 Section::Tracks => deck(&self.tracks, columns, cx),
                 Section::Albums => deck(&self.albums, columns, cx),
                 Section::Playlists => deck(&self.playlists, columns, cx),
-            };
-            let restored = anchor.and_then(|(key, offset_in_item)| {
-                deck_row(&rows, key).map(|item_ix| ListOffset {
-                    item_ix,
-                    offset_in_item,
-                })
-            });
-            self.card_list.reset(rows.len());
-            if let Some(offset) = restored {
-                self.card_list.scroll_to(offset);
             }
-            self.card_rows = rows.into();
+            .into();
             self.cards_dirty = false;
-            rebuilt = true;
         }
-        if (self.card_width - card).abs() >= px(0.5) {
-            self.card_width = card;
-            if !rebuilt {
-                self.card_list.remeasure();
-            }
+        self.card_tile = tile;
+        self.card_heading = heading;
+
+        let heights = deck_heights(&self.card_rows, tile, heading);
+        if let Some((index, share)) =
+            anchor.and_then(|(key, share)| deck_row(&self.card_rows, key).map(|row| (row, share)))
+        {
+            let top = Deck::tops(&heights, gap)
+                .get(index)
+                .copied()
+                .unwrap_or(Pixels::ZERO);
+            let into = heights.get(index).copied().unwrap_or(Pixels::ZERO) * share;
+            scroll.set_offset(point(Pixels::ZERO, -(top + into + inset)));
         }
 
+        let visible = scroll.bounds().size.height;
+        let viewport = Viewport {
+            top: (scrolled(&scroll) - inset).max(Pixels::ZERO),
+            height: match visible > Pixels::ZERO {
+                true => visible,
+                false => window.viewport_size().height,
+            },
+        };
         let rows = self.card_rows.clone();
-        let list_state = self.card_list.clone();
         let section = self.section;
         let view = self.me.clone();
 
-        div()
-            .relative()
-            .size_full()
+        Scroller::new("library-cards", &self.card_scrollbar)
+            .py(inset)
             .child(
-                list(list_state, move |index, _, cx| {
-                    let Some(row) = rows.get(index) else {
-                        return div().into_any_element();
-                    };
-                    let Some(view) = view.upgrade() else {
-                        return div().into_any_element();
-                    };
-                    let view = view.read(cx);
-                    let separated = index + 1 < rows.len();
+                Deck::new("library-deck")
+                    .viewport(viewport)
+                    .rows(heights)
+                    .gap(gap)
+                    .draw(move |index, _, cx| {
+                        let Some(row) = rows.get(index) else {
+                            return div().into_any_element();
+                        };
+                        let Some(view) = view.upgrade() else {
+                            return div().into_any_element();
+                        };
+                        let view = view.read(cx);
 
-                    match row {
-                        DeckRow::Heading(display) => {
-                            let label = match section {
-                                Section::Tracks => {
-                                    view.tracks.read(cx).delegate().group(*display, cx)
-                                }
-                                Section::Albums => {
-                                    view.albums.read(cx).delegate().group(*display, cx)
-                                }
-                                Section::Playlists => {
-                                    view.playlists.read(cx).delegate().group(*display, cx)
-                                }
-                            };
+                        match row {
+                            DeckRow::Heading(display) => {
+                                let label = match section {
+                                    Section::Tracks => {
+                                        view.tracks.read(cx).delegate().group(*display, cx)
+                                    }
+                                    Section::Albums => {
+                                        view.albums.read(cx).delegate().group(*display, cx)
+                                    }
+                                    Section::Playlists => {
+                                        view.playlists.read(cx).delegate().group(*display, cx)
+                                    }
+                                };
 
-                            div()
-                                .px(inset)
-                                .when(separated, |this| this.pb_6())
-                                .children(label.map(|label| head(label, cx)))
-                                .into_any_element()
+                                div()
+                                    .px(inset)
+                                    .children(label.map(|label| head(label, cx)))
+                                    .into_any_element()
+                            }
+                            DeckRow::Cards(cards) => {
+                                let row = match section {
+                                    Section::Tracks => CardGrid::new(room)
+                                        .children(cards.iter().filter_map(|&(display, row)| {
+                                            view.track_card(display, row, card, cx)
+                                        }))
+                                        .into_any_element(),
+                                    Section::Albums => {
+                                        view.album_grid(cards, room, cx).into_any_element()
+                                    }
+                                    Section::Playlists => CardGrid::new(room)
+                                        .children(cards.iter().filter_map(|&(display, row)| {
+                                            view.playlist_card(display, row, card, cx)
+                                        }))
+                                        .into_any_element(),
+                                };
+
+                                div().px(inset).child(row).into_any_element()
+                            }
                         }
-                        DeckRow::Cards(cards) => {
-                            let row = match section {
-                                Section::Tracks => CardGrid::new(room)
-                                    .children(cards.iter().filter_map(|&(display, row)| {
-                                        view.track_card(display, row, card, cx)
-                                    }))
-                                    .into_any_element(),
-                                Section::Albums => {
-                                    view.album_grid(cards, room, cx).into_any_element()
-                                }
-                                Section::Playlists => CardGrid::new(room)
-                                    .children(cards.iter().filter_map(|&(display, row)| {
-                                        view.playlist_card(display, row, card, cx)
-                                    }))
-                                    .into_any_element(),
-                            };
-
-                            div()
-                                .px(inset)
-                                .when(separated, |this| this.pb_6())
-                                .child(row)
-                                .into_any_element()
-                        }
-                    }
-                })
-                .size_full()
-                .py(inset),
+                    }),
             )
-            .child(self.card_scrollbar.clone())
             .into_any_element()
     }
 
@@ -1083,7 +1093,30 @@ fn deck_row(rows: &[DeckRow], key: DeckKey) -> Option<usize> {
 }
 
 fn head(label: SharedString, cx: &App) -> AnyElement {
-    heading(label, cx).w_full().pt_2().into_any_element()
+    heading(label, cx)
+        .w_full()
+        .pt_2()
+        .line_height(relative(LEADING))
+        .into_any_element()
+}
+
+fn head_height(window: &Window, cx: &App) -> Pixels {
+    let title = px((cx.theme().text(Text::Title) / px(1.) * LEADING).round());
+
+    snapped(window.rem_size() * 0.5 + title, window)
+}
+
+fn deck_gap(window: &Window) -> Pixels {
+    snapped(window.rem_size() * 1.5, window)
+}
+
+fn deck_heights(rows: &[DeckRow], tile: Pixels, heading: Pixels) -> Vec<Pixels> {
+    rows.iter()
+        .map(|row| match row {
+            DeckRow::Heading(_) => heading,
+            DeckRow::Cards(_) => tile,
+        })
+        .collect()
 }
 
 #[cfg(test)]
