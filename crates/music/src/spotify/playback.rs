@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-mod sink;
-
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -11,12 +9,12 @@ use librespot_core::{Session, SpotifyUri};
 use librespot_playback::config::{AudioFormat, Bitrate, PlayerConfig};
 use librespot_playback::mixer::NoOpVolume;
 use librespot_playback::player::{Player, PlayerEvent};
-use music::{
-    PlaybackConfig, PlaybackEvent, PlaybackEvents, PlaybackFactory, Player as MusicPlayer,
-};
 use tokio::sync::mpsc::UnboundedReceiver;
 
-use crate::sink::{BlazingSink, Flush, Volume};
+use crate::spotify::sink::{BlazingSink, Flush, Volume};
+use crate::{
+    PlaybackConfig, PlaybackEvent, PlaybackEvents, PlaybackFactory, Player as MusicPlayer,
+};
 
 const TRACK_PREFIX: &str = "spotify:track:";
 

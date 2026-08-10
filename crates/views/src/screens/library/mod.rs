@@ -16,8 +16,8 @@ use gpui::{
     SharedString, WeakEntity, Window, div, point, px, relative,
 };
 use i18n::t;
-use router::{Destination, LibraryTab, navigate};
 use music::{Album, Playlist, Track};
+use router::{Destination, LibraryTab, navigate};
 use state::{AppSettings, Library, LibraryState, Origin, Playback, PlaybackState, Sonora};
 use ui::{
     ActiveTheme as _, Button, Card, Deck, FlagAxis, GridDelegate, GridEvent, GridSource, GridState,

@@ -6,8 +6,8 @@ use gpui::{
     ScrollHandle, SharedString, Window, div, px,
 };
 use i18n::t;
-use router::{Destination, navigate};
 use music::Track;
+use router::{Destination, navigate};
 use ui::Input;
 
 use crate::chrome::Chrome;

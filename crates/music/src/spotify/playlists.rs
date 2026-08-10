@@ -10,8 +10,8 @@ use librespot_protocol::playlist4_external::{
 };
 use protobuf::{Message as _, MessageField};
 
-use music::{PlaylistDetail, Track};
-use crate::{collection, wire};
+use crate::spotify::{collection, wire};
+use crate::{PlaylistDetail, Track};
 
 const TRACK_PREFIX: &str = "spotify:track:";
 const PLAYLIST_PREFIX: &str = "spotify:playlist:";

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 mod models;
+pub mod spotify;
 
 use std::collections::HashMap;
 use std::sync::Arc;

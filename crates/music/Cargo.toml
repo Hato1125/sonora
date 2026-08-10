@@ -7,3 +7,17 @@ license.workspace = true
 [dependencies]
 anyhow.workspace = true
 async-trait.workspace = true
+bytes.workspace = true
+cpal.workspace = true
+dirs.workspace = true
+http.workspace = true
+librespot-core.workspace = true
+librespot-oauth.workspace = true
+librespot-playback.workspace = true
+librespot-protocol.workspace = true
+log.workspace = true
+protobuf.workspace = true
+rodio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true

@@ -1,12 +1,32 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+pub mod auth;
+
+mod albums;
+mod artists;
+mod client;
+mod collection;
+mod collection2;
+mod pathfinder;
+mod pb;
+mod playback;
+mod playlists;
+mod profiles;
+mod radio;
+mod search;
+mod sink;
+mod wire;
+
 use std::sync::Arc;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use music::{MusicApi as _, MusicProvider, ProviderSession};
 
-use crate::{AuthConfig, LibrespotClient, auth};
+use crate::spotify::playback::Factory;
+use crate::{MusicApi as _, MusicProvider, ProviderSession};
+
+pub use auth::AuthConfig;
+pub use client::LibrespotClient;
 
 pub struct SpotifyProvider {
     config: AuthConfig,
@@ -23,7 +43,7 @@ impl SpotifyProvider {
 
     async fn session(&self, client: LibrespotClient) -> Result<ProviderSession> {
         let profile = client.profile().await?;
-        let playback = Arc::new(audio::Factory::new(client.session().clone()));
+        let playback = Arc::new(Factory::new(client.session().clone()));
         Ok(ProviderSession {
             profile,
             api: Arc::new(client),

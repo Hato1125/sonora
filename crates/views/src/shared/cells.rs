@@ -10,8 +10,8 @@ use gpui::{
     div, px, svg,
 };
 use i18n::t;
-use router::{Destination, Link as _, navigate};
 use music::ArtistRef;
+use router::{Destination, Link as _, navigate};
 use state::{Playback, PlaybackState};
 use ui::{
     ActiveTheme as _, Artwork, Cell, ExplicitBadge, InlineLink, InlineLinks, ROW_GROUP, Theme,

@@ -25,8 +25,7 @@ crates/
   sonora/     binary: main, window, actions, asset registry, HTTP client shim
   views/      screens plus app chrome: title bar, sidebar, player bar, filter/search field
   state/      GPUI entities holding app state; owns all async orchestration
-  spotify/    Spotify data access over librespot spclient (no GPUI)
-  audio/      librespot playback engine + custom rodio sink (no GPUI)
+  music/      provider traits + models; spotify/ = librespot data access and playback (no GPUI)
   ui/         design system: theme, metrics, and reusable elements (gpui only)
   router/     Destination enum, navigation history, Link trait
   input/      text input element + global actions and keybindings
@@ -36,15 +35,18 @@ crates/
 Dependency direction is strict; do not create a back edge:
 
 ```
-sonora → views → state → spotify
-                       → audio
+sonora → views → state → music
          all ui-side crates → ui, router, input → ui → gpui
          every ui-side crate → i18n → gpui
 ```
 
-- `ui` depends only on `gpui`, `serde` and `i18n`. It must never know about `spotify`, `state`, or
+- `music` holds the provider abstraction (`MusicApi`, `MusicProvider`, `Player`, `PlaybackFactory`)
+  and the models in its root; each provider lives in a submodule (`music::spotify`, later
+  `music::youtube`). `state` and `views` see only the root traits and models — never a provider
+  module. Only `sonora/src/main.rs` names a concrete provider.
+- `ui` depends only on `gpui`, `serde` and `i18n`. It must never know about `music`, `state`, or
   playback.
-- `spotify` and `audio` must never depend on `gpui`. They are plain async Rust.
+- `music` must never depend on `gpui`. It is plain async Rust.
 - `state` depends on `ui` only for `ThemeOverrides`, `MIN_FONT`, `MAX_FONT` (settings persistence).
 - Widgets that need app state (player bar, sidebar) live in `views/src/chrome/`, not `ui`.
 - `i18n` is a leaf: it depends on `fluent-bundle`, `unic-langid`, `sys-locale` and `gpui` (for
@@ -275,7 +277,7 @@ i18n::lookup(key, None)                              // when the key is a runtim
   never follows a language change. `Input::new`/`set_hint` and `Searchable::hint()` take keys for
   exactly this reason.
 - Developer-facing text — `.context("cannot …")`, `log::warn!`, `PlaybackState::Failed` — stays
-  in English. So do wire values in `crates/spotify`.
+  in English. So do wire values in `music::spotify`.
 - The language lives in `settings.json` (`language`, default `"auto"`). Changing it calls
   `i18n::set` then `cx.refresh_windows()`, the same way `Theme::set` repaints.
 
@@ -372,7 +374,7 @@ self.task = Some(cx.spawn(async move |this, cx| {      // GPUI executor
 
 Rules:
 
-- Anything touching `SpotifyApi`, librespot, or sockets goes inside `io.spawn`.
+- Anything touching `MusicApi`, librespot, or sockets goes inside `io.spawn`.
 - Only mutate entity state inside `this.update`, and end with `cx.notify()`.
 - Store the returned `Task` in a field (`task`, `load`, `fetch`) — dropping it cancels the work,
   which is how sign-out and navigation cancel in-flight loads. Never `.detach()` a data load.
@@ -385,8 +387,9 @@ Rules:
 
 ### There is no Spotify Web API here
 
-`crates/spotify` talks to Spotify through `librespot_core::Session::spclient()` — the same internal
-endpoints the official client uses, returning protobuf or JSON. Consequences:
+`music::spotify` (`crates/music/src/spotify/`) talks to Spotify through
+`librespot_core::Session::spclient()` — the same internal endpoints the official client uses,
+returning protobuf or JSON. Consequences:
 
 - Do not add `reqwest` calls to `api.spotify.com`, do not add a client secret, do not add
   `rspotify`. The only `reqwest` in the tree is `crates/sonora/src/http.rs`, a `gpui::HttpClient`
@@ -397,20 +400,26 @@ endpoints the official client uses, returning protobuf or JSON. Consequences:
 
 ### Module map
 
+`crates/music/src/lib.rs` holds the provider traits (`MusicApi`, `MusicProvider`, `Player`,
+`PlaybackFactory`, `PlaybackEvents`) and `models.rs` the shared models (`Track`, `Album`,
+`AlbumDetail`, `Artist`, `ArtistRef`, `Playlist`, `UserProfile`, …). Under `src/spotify/`:
+
 | Module                    | Endpoint / mechanism                                                              |
 | ------------------------- | --------------------------------------------------------------------------------- |
+| `mod.rs`                  | `SpotifyProvider`: implements `MusicProvider`, wires client + playback factory    |
 | `auth.rs`                 | OAuth login, credential cache, `restore` / `login` / `forget`                     |
-| `client.rs`               | `SpotifyApi` trait + `LibrespotClient`; the only type views/state see             |
+| `client.rs`               | `LibrespotClient`, the `MusicApi` implementation                                  |
 | `collection.rs`           | saved tracks; `metadata()` — batched `get_extended_metadata` (TRACK_V4)           |
 | `collection2.rs`          | `/collection/v2/paging` — hand-rolled protobuf, paged, honors tombstones          |
 | `albums.rs`, `artists.rs` | extended metadata for albums/artists, artist portraits                            |
+| `pathfinder.rs`, `pathfinder/` | GraphQL `api-partner…/pathfinder/v2/query`: album, artist overview, playcounts |
 | `playlists.rs`            | `get_playlist` → `SelectedListContent` → uri list → `collection::metadata`        |
 | `search.rs`               | `get_context("spotify:search:…")` → track uris → `collection::metadata`           |
 | `radio.rs`                | `get_radio_for_track` → a generated playlist id → `playlist_tracks`               |
 | `profiles.rs`             | display-name lookups, fanned out over a `JoinSet`                                 |
 | `wire.rs`                 | protobuf → `models` conversion, `image_url` (file id → `i.scdn.co/image/<hex>`)   |
 | `pb.rs`                   | minimal protobuf `Reader`/`Writer` for endpoints with no generated schema         |
-| `models.rs`               | `Track`, `Album`, `AlbumDetail`, `Artist`, `ArtistRef`, `Playlist`, `UserProfile` |
+| `playback.rs`, `sink.rs`  | librespot playback engine + custom rodio sink (see [Audio](#audio))               |
 
 Working notes:
 
@@ -420,21 +429,22 @@ Working notes:
   should resolve uris and reuse `metadata`, not re-parse track fields.
 - `Track::id` is `Option<String>` base62 (no `spotify:track:` prefix); the prefix is added at the
   audio boundary. `Track::playable` is false for unavailable tracks — check it before playing.
-- New endpoints: add the method to the `SpotifyApi` trait, implement on `LibrespotClient` by
-  delegating to a focused module. The trait exists so `state` depends on an interface, not on
-  librespot directly.
+- New endpoints: add the method to the `MusicApi` trait in `crates/music/src/lib.rs`, implement on
+  `LibrespotClient` by delegating to a focused module. The trait exists so `state` depends on an
+  interface, not on librespot directly — a second provider (`music::youtube`) implements the same
+  trait.
 - Errors use `anyhow` with `.context("cannot …")` in lowercase.
 
 ### Audio
 
-`crates/audio` owns `librespot_playback::Player` plus `BlazingSink`, a custom rodio sink with
-smooth gain ramping and flush-on-seek. `Engine::start(session, config)` returns
-`(Engine, AudioEvents)`; `AudioEvents::next()` yields the reduced `AudioEvent`
-(`Loading/Playing/Paused/Position/Ended/Unavailable`).
+`music::spotify::playback` owns `librespot_playback::Player` plus `BlazingSink` (`sink.rs`), a
+custom rodio sink with smooth gain ramping and flush-on-seek. `Factory` implements
+`music::PlaybackFactory`; `Engine` implements `music::Player`; events arrive as
+`music::PlaybackEvent` (`Loading/Playing/Paused/Position/Ended/Unavailable`).
 
-Never drive librespot's `Player` from a view. Go through `state::Playback`, which owns the engine,
-pumps events into `PlaybackState`, and handles shuffle, repeat, skip debouncing, and the cooldown
-after an `Unavailable` track.
+Never drive a player from a view. Go through `state::Playback`, which owns the engine, pumps
+events into `PlaybackState`, and handles shuffle, repeat, skip debouncing, and the cooldown after
+an `Unavailable` track.
 
 ### State entities
 
@@ -443,7 +453,7 @@ after an `Unavailable` track.
 
 | Entity                                     | Responsibility                                                                                                                                          |
 | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Session`                                  | auth lifecycle; emits `SessionEvent::{SignedIn, SignedOut}`; hands out `Arc<dyn SpotifyApi>` and the raw librespot session                              |
+| `Session`                                  | auth lifecycle; emits `SessionEvent::{SignedIn, SignedOut}`; hands out `Arc<dyn MusicApi>` and `Arc<dyn PlaybackFactory>`                               |
 | `Library`                                  | saved tracks / playlists / albums; `LibraryState` is `Empty \| Loading \| Ready{..,problems} \| Failed` — partial failure is normal, surface `problems` |
 | `Playback`                                 | engine ownership, transport, shuffle/repeat, volume, `Origin` tracking                                                                                  |
 | `Queue`                                    | past / current / upcoming; `start`, `next`, `next_random`, `previous`, `rewind`                                                                         |
@@ -527,7 +537,7 @@ distributing unlicensed code.
 - `anyhow::Result` at boundaries, `.context("cannot …")` lowercase; log with `log::warn!`/`error!`
   prefixed by subsystem (`"playback: …"`, `"settings: …"`, `"assets: …"`).
 - Tests are `#[cfg(test)] mod tests` at the bottom of the file they cover — see
-  `spotify/src/{collection2,radio,search}.rs` and `input/src/text.rs`. They're pure-function tests;
+  `music/src/spotify/{collection2,radio,search}.rs` and `input/src/text.rs`. They're pure-function tests;
   there is no UI or network test harness.
 - Dependencies go in the root `[workspace.dependencies]`, then `dep.workspace = true` in the crate.
   `gpui`/`gpui_platform` are pinned to one git rev — bump both together or the build breaks.

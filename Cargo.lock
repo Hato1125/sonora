@@ -557,21 +557,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "audio"
-version = "0.6.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "cpal",
- "librespot-core",
- "librespot-playback",
- "log",
- "music",
- "rodio",
- "tokio",
-]
-
-[[package]]
 name = "autocfg"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4151,6 +4136,20 @@ version = "0.6.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "bytes",
+ "cpal",
+ "dirs",
+ "http",
+ "librespot-core",
+ "librespot-oauth",
+ "librespot-playback",
+ "librespot-protocol",
+ "log",
+ "protobuf",
+ "rodio",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -6616,10 +6615,10 @@ dependencies = [
  "interprocess",
  "libc",
  "log",
+ "music",
  "raw-window-handle",
  "reqwest",
  "router",
- "spotify",
  "state",
  "tokio",
  "ui",
@@ -6689,27 +6688,6 @@ checksum = "d91ed6c858b01f942cd56b37a94b3e0a1798290327d1236e4d9cf4eaca44d29d"
 dependencies = [
  "base64ct",
  "der",
-]
-
-[[package]]
-name = "spotify"
-version = "0.6.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "audio",
- "bytes",
- "dirs",
- "http",
- "librespot-core",
- "librespot-oauth",
- "librespot-protocol",
- "log",
- "music",
- "protobuf",
- "serde",
- "serde_json",
- "tokio",
 ]
 
 [[package]]

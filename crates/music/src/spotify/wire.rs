@@ -5,7 +5,7 @@ use std::fmt::Write as _;
 use librespot_protocol::playlist4_external::{ListAttributes, SelectedListContent as RootList};
 use serde::Deserialize;
 
-use music as models;
+use crate::models;
 
 pub const UNKNOWN: &str = "Unknown";
 const IMAGE_CDN: &str = "https://i.scdn.co/image/";

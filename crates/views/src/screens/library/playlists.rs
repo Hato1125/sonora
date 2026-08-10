@@ -4,8 +4,8 @@ use std::cmp::Ordering;
 use ui::ActiveTheme as _;
 
 use gpui::{AnyElement, App, Entity, TextAlign};
-use router::Destination;
 use music::Playlist;
+use router::Destination;
 use state::{Library, LibraryState, Origin, Playback};
 use ui::{Cell, ColumnSpec, GridSource, Menu, Width};
 

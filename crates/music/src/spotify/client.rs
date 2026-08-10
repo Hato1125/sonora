@@ -2,18 +2,18 @@
 
 use std::collections::{HashMap, HashSet};
 
+use crate::{MediaKind, MusicApi};
 use anyhow::{Context as _, Result};
 use async_trait::async_trait;
 use librespot_core::Session;
 use librespot_protocol::playlist4_external::SelectedListContent as RootList;
-use music::{MediaKind, MusicApi};
 use protobuf::Message as _;
 
-use music::{
-    Album, AlbumDetail, Artist, ArtistProfile, Playlist, PlaylistDetail, Track, UserProfile,
+use crate::spotify::{
+    albums, artists, collection, collection2, pathfinder, playlists, profiles, radio, search, wire,
 };
 use crate::{
-    albums, artists, collection, collection2, pathfinder, playlists, profiles, radio, search, wire,
+    Album, AlbumDetail, Artist, ArtistProfile, Playlist, PlaylistDetail, Track, UserProfile,
 };
 
 pub struct LibrespotClient {

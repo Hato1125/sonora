@@ -7,7 +7,7 @@ use librespot_core::Session;
 use serde::Deserialize;
 
 use super::query;
-use music::{Album, AlbumDetail, ArtistRef, ReleaseType, Track};
+use crate::{Album, AlbumDetail, ArtistRef, ReleaseType, Track};
 
 const PAGE_LIMIT: usize = 50;
 const ALBUM_PREFIX: &str = "spotify:album:";

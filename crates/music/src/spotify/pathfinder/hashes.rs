@@ -170,7 +170,7 @@ fn write(registry: &Registry) {
 }
 
 fn path() -> PathBuf {
-    crate::auth::default_cache_dir().join(FILE)
+    crate::spotify::auth::default_cache_dir().join(FILE)
 }
 
 #[cfg(test)]

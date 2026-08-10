@@ -7,7 +7,7 @@ use librespot_core::Session;
 use serde::Deserialize;
 
 use super::query;
-use music::{Album, ArtistRef, ReleaseType};
+use crate::{Album, ArtistRef, ReleaseType};
 
 pub(crate) struct Overview {
     pub(crate) name: String,

@@ -10,8 +10,8 @@ use librespot_protocol::metadata::Album as AlbumMessage;
 use librespot_protocol::metadata::album::Type as AlbumType;
 use protobuf::{EnumOrUnknown, Message as _};
 
-use music::{Album, AlbumDetail, ReleaseType, Track};
-use crate::{collection, collection2, pathfinder, wire};
+use crate::spotify::{collection, collection2, pathfinder, wire};
+use crate::{Album, AlbumDetail, ReleaseType, Track};
 
 const ALBUM_PREFIX: &str = "spotify:album:";
 const TRACK_PREFIX: &str = "spotify:track:";

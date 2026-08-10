@@ -15,8 +15,8 @@ use gpui::{
     Styled as _, WeakEntity,
 };
 use jiff::Timestamp;
-use router::Destination;
 use music::Track;
+use router::Destination;
 use state::{Detail, Library, Playback, PlaybackState};
 use ui::{Button, Cell, ColumnSpec, GridSource, GridState, Menu, ROW_GROUP, Scrollbar, clock};
 
