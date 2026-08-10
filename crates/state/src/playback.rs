@@ -107,6 +107,7 @@ pub struct Playback {
     preloaded: Option<String>,
     skipped: Option<Instant>,
     blocked_until: Option<Instant>,
+    refused: bool,
 }
 
 impl EventEmitter<PlaybackEvent> for Playback {}
@@ -159,6 +160,7 @@ impl Playback {
             preloaded: None,
             skipped: None,
             blocked_until: None,
+            refused: false,
         }
     }
 
@@ -190,6 +192,9 @@ impl Playback {
     fn load_after(&mut self, track: &Track, start: Start, cx: &mut Context<Self>) {
         if self.engine.is_none() {
             return;
+        }
+        if self.refused {
+            return self.refuse(cx);
         }
         let Some(id) = track.id.clone() else {
             return self.failed(format!("{} has no track id", track.name), cx);
@@ -854,16 +859,20 @@ impl Playback {
                 self.advance(ended, cx);
             }
             AudioEvent::Unavailable => {
-                let name = self.track.as_ref().map(|track| track.name.as_str());
+                let failed = self.track.take();
+                let name = failed.map_or_else(|| "?".to_owned(), |track| track.name);
                 log::warn!(
-                    "playback: {} failed to load, backing off {}s",
-                    name.unwrap_or("?"),
+                    "playback: {name} failed to load, backing off {}s",
                     KEY_COOLDOWN.as_secs()
                 );
                 self.blocked_until = Some(Instant::now() + KEY_COOLDOWN);
                 self.state = PlaybackState::Idle;
                 self.position = Duration::ZERO;
-                self.track = None;
+                Toasts::about(Note::Failed, "toast-track-unplayable", name, cx);
+                cx.emit(PlaybackEvent::EndedPlayback);
+            }
+            AudioEvent::Refused => {
+                self.refuse(cx);
                 cx.emit(PlaybackEvent::EndedPlayback);
             }
         }
@@ -880,6 +889,7 @@ impl Playback {
         self.preloaded = None;
         self.skipped = None;
         self.blocked_until = None;
+        self.refused = false;
         self.engine = None;
         self.track = None;
         self.origin = None;
@@ -891,6 +901,25 @@ impl Playback {
     fn failed(&mut self, problem: String, cx: &mut Context<Self>) {
         log::error!("playback: {problem}");
         self.state = PlaybackState::Failed(problem);
+        cx.notify();
+    }
+
+    fn refuse(&mut self, cx: &mut Context<Self>) {
+        let first = !self.refused;
+        self.refused = true;
+        self.track = None;
+        self.blocked_until = None;
+        self.state = PlaybackState::Failed(
+            "spotify denied an audio key for this account; nothing will play in this session"
+                .to_owned(),
+        );
+        if first {
+            log::error!(
+                "playback: spotify denied an audio key for this account; nothing will play in \
+                 this session"
+            );
+        }
+        Toasts::show(Note::Failed, "toast-keys-refused", cx);
         cx.notify();
     }
 }
