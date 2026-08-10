@@ -5,7 +5,7 @@ use gpui::{
     ClipboardItem, Context, Entity, FontWeight, IntoElement, Render, SharedString, Window, div, px,
 };
 use i18n::t;
-use music::SignInPrompt;
+use music::{SignIn, SignInPrompt};
 use state::{Session, SessionState};
 use ui::ActiveTheme as _;
 use ui::{Button, Input, Text};
@@ -32,6 +32,46 @@ impl LoginView {
         self.secret.update(cx, |input, cx| input.set_text("", cx));
         self.session
             .update(cx, |session, cx| session.submit_input(text, cx));
+    }
+
+    fn option_button(
+        &self,
+        slug: &'static str,
+        provider: &str,
+        method: SignIn,
+        pending: bool,
+    ) -> Button {
+        let (id, label) = match &method {
+            SignIn::Default => (
+                format!("sign-in-{slug}"),
+                t!("login-sign-in", provider = provider),
+            ),
+            SignIn::Anonymous => (
+                format!("sign-in-{slug}-guest"),
+                t!("login-use", provider = provider),
+            ),
+            SignIn::Browser(name) => (
+                format!("sign-in-{slug}-{name}"),
+                t!("login-import", browser = name.clone()),
+            ),
+            SignIn::Secret => (
+                format!("sign-in-{slug}-cookies"),
+                t!("login-connect-cookies"),
+            ),
+        };
+        let primary = matches!(method, SignIn::Default | SignIn::Anonymous);
+        let session = self.session.clone();
+        let button = Button::new(SharedString::from(id))
+            .label(label)
+            .disabled(pending)
+            .on_click(move |_, _, cx| {
+                let method = method.clone();
+                session.update(cx, |session, cx| session.sign_in(slug, method, cx));
+            });
+        match primary {
+            true => button.primary(),
+            false => button.outline(),
+        }
     }
 
     fn code_prompt(&self, code: String, url: String, cx: &mut Context<Self>) -> impl IntoElement {
@@ -99,8 +139,12 @@ impl Render for LoginView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let state = self.session.read(cx).state().clone();
         let pending = self.session.read(cx).is_pending();
-        let providers: Vec<(&'static str, &'static str)> =
-            self.session.read(cx).providers().collect();
+        let providers: Vec<(&'static str, &'static str, Vec<SignIn>)> = self
+            .session
+            .read(cx)
+            .providers()
+            .map(|info| (info.slug, info.name, info.options))
+            .collect();
 
         let status = match &state {
             SessionState::SignedOut => t!("login-signed-out"),
@@ -149,17 +193,23 @@ impl Render for LoginView {
                 }
                 SignInPrompt::Secret => this.child(self.secret_prompt(cx).into_any_element()),
             })
-            .child(div().flex().flex_col().items_center().gap_2().children(
-                providers.into_iter().map(|(slug, name)| {
-                    let session = self.session.clone();
-                    Button::new(SharedString::from(format!("sign-in-{slug}")))
-                        .label(t!("login-sign-in", provider = name))
-                        .primary()
-                        .disabled(pending)
-                        .on_click(move |_, _, cx| {
-                            session.update(cx, |session, cx| session.sign_in(slug, cx));
-                        })
-                }),
-            ))
+            .children(providers.into_iter().map(|(slug, name, options)| {
+                div()
+                    .flex()
+                    .flex_col()
+                    .items_center()
+                    .gap_2()
+                    .child(
+                        div()
+                            .text_size(theme.text(Text::Label))
+                            .font_weight(FontWeight::MEDIUM)
+                            .child(SharedString::from(name.to_string())),
+                    )
+                    .children(
+                        options
+                            .into_iter()
+                            .map(|method| self.option_button(slug, name, method, pending)),
+                    )
+            }))
     }
 }

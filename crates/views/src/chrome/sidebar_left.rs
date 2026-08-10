@@ -8,7 +8,7 @@ use gpui::{
 };
 use gpui::{Window, div, px};
 use router::{Destination, LibraryTab, Navigation, NavigationEvent, SettingsTab, navigate};
-use state::{AppSettings, Sonora};
+use state::{AppSettings, Session, Sonora};
 
 const NAV: [(&str, &str, Option<Destination>); 4] = [
     ("nav-home", "icons/house.svg", Some(Destination::Home)),
@@ -43,6 +43,7 @@ const MAX_WIDTH: Pixels = px(400.);
 
 pub(crate) struct SidebarLeft {
     settings: Entity<AppSettings>,
+    session: Entity<Session>,
     trail: Entity<Navigation>,
     width: Pixels,
     open: bool,
@@ -55,10 +56,12 @@ pub(crate) struct SidebarLeft {
 impl SidebarLeft {
     pub fn new(cx: &mut Context<Self>) -> Self {
         let settings = Sonora::global(cx).settings.clone();
+        let session = Sonora::global(cx).session.clone();
         let width = px(settings.read(cx).sidebar_width()).clamp(MIN_WIDTH, MAX_WIDTH);
         let open = settings.read(cx).sidebar_open();
         let trail = router::trail(cx);
 
+        cx.observe(&session, |_, _, cx| cx.notify()).detach();
         cx.observe(&trail, |_, _, cx| cx.notify()).detach();
         cx.subscribe(&trail, |this, _, event, cx| {
             let NavigationEvent::Moved(destination) = event;
@@ -72,6 +75,7 @@ impl SidebarLeft {
 
         Self {
             settings,
+            session,
             trail,
             width,
             open,
@@ -155,11 +159,15 @@ impl Render for SidebarLeft {
         let sidebar_border = theme.sidebar_border;
 
         let current = self.trail.read(cx).current();
+        let authenticated = self.session.read(cx).authenticated();
         self.adapt(window, cx);
 
         let mut rows: Vec<AnyElement> = Vec::new();
         for (index, (key, icon, destination)) in NAV.into_iter().enumerate() {
             if matches!(destination, Some(Destination::Library(_))) {
+                if !authenticated {
+                    continue;
+                }
                 let inside = matches!(current, Destination::Library(_));
                 let text = if inside { foreground } else { muted };
                 let link_destination = if inside { None } else { destination };

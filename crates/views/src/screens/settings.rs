@@ -584,12 +584,16 @@ impl SettingsView {
 
     fn provider_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
-        let provider = self
-            .session
-            .read(cx)
+        let session = self.session.read(cx);
+        let name = session
             .provider_name()
             .map(SharedString::from)
             .unwrap_or_else(|| t!("settings-provider-none"));
+        let authenticated = session.authenticated();
+        let label = match authenticated {
+            true => name,
+            false => t!("settings-provider-guest", provider = &name),
+        };
 
         self.row(
             t!("settings-provider"),
@@ -598,7 +602,7 @@ impl SettingsView {
             theme.text(Text::Small),
             div()
                 .text_size(theme.text(Text::Small))
-                .child(provider)
+                .child(label)
                 .into_any_element(),
         )
     }
