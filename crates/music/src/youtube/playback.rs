@@ -124,7 +124,6 @@ async fn engine_loop(
     mut commands: UnboundedReceiver<Command>,
     events: UnboundedSender<PlaybackEvent>,
 ) {
-    let http = reqwest::Client::new();
     let stream = match rodio::OutputStreamBuilder::open_default_stream() {
         Ok(stream) => stream,
         Err(error) => {
@@ -156,7 +155,7 @@ async fn engine_loop(
                             .map(|(_, loaded)| loaded);
                         let fetched = match cached {
                             Some(loaded) => Ok(loaded),
-                            None => fetch(&api, &http, &id).await,
+                            None => fetch(&api, &id).await,
                         };
                         match fetched.and_then(|loaded| {
                             let source = decode(loaded.data)?;
@@ -182,7 +181,7 @@ async fn engine_loop(
                     }
                     Command::Preload { id } => {
                         if preloaded.as_ref().is_none_or(|(cached_id, _)| *cached_id != id) {
-                            match fetch(&api, &http, &id).await {
+                            match fetch(&api, &id).await {
                                 Ok(fetched) => preloaded = Some((id, fetched)),
                                 Err(error) => {
                                     log::warn!("playback: cannot preload {id}: {error:#}");
@@ -229,22 +228,9 @@ async fn engine_loop(
     }
 }
 
-async fn fetch(api: &YtMusic, http: &reqwest::Client, id: &str) -> Result<Loaded> {
+async fn fetch(api: &YtMusic, id: &str) -> Result<Loaded> {
     let format = api.best_audio(id).await?;
-    let response = http
-        .get(&format.url)
-        .header("Origin", "https://www.youtube.com")
-        .header("Referer", "https://www.youtube.com")
-        .send()
-        .await
-        .context("cannot start audio download")?
-        .error_for_status()
-        .context("audio download refused")?;
-    let data = response
-        .bytes()
-        .await
-        .context("cannot download audio")?
-        .to_vec();
+    let data = api.download(&format).await?;
     Ok(Loaded {
         data,
         loudness_db: format.loudness_db,
@@ -252,7 +238,13 @@ async fn fetch(api: &YtMusic, http: &reqwest::Client, id: &str) -> Result<Loaded
 }
 
 fn decode(data: Vec<u8>) -> Result<rodio::Decoder<Cursor<Vec<u8>>>> {
-    rodio::Decoder::new(Cursor::new(data)).context("cannot decode audio")
+    let length = data.len() as u64;
+    rodio::Decoder::builder()
+        .with_data(Cursor::new(data))
+        .with_byte_len(length)
+        .with_seekable(true)
+        .build()
+        .context("cannot decode audio")
 }
 
 fn normalisation(enabled: bool, loudness_db: Option<f32>) -> f32 {
