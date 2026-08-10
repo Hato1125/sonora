@@ -54,6 +54,14 @@ impl SpotifyProvider {
 
 #[async_trait]
 impl MusicProvider for SpotifyProvider {
+    fn name(&self) -> &'static str {
+        "Spotify"
+    }
+
+    fn slug(&self) -> &'static str {
+        "spotify"
+    }
+
     async fn restore(&self) -> Result<Option<ProviderSession>> {
         let Some(session) = auth::restore(&self.config).await? else {
             return Ok(None);
@@ -61,7 +69,7 @@ impl MusicProvider for SpotifyProvider {
         self.session(LibrespotClient::new(session)).await.map(Some)
     }
 
-    async fn sign_in(&self) -> Result<ProviderSession> {
+    async fn sign_in(&self, _prompt: crate::PromptSink) -> Result<ProviderSession> {
         let session = auth::login(&self.config).await?;
         self.session(LibrespotClient::new(session)).await
     }

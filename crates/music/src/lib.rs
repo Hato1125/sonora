@@ -2,6 +2,7 @@
 
 mod models;
 pub mod spotify;
+pub mod youtube;
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -96,9 +97,19 @@ pub struct ProviderSession {
     pub playback: Arc<dyn PlaybackFactory>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SignInPrompt {
+    pub code: String,
+    pub url: String,
+}
+
+pub type PromptSink = Arc<dyn Fn(SignInPrompt) + Send + Sync>;
+
 #[async_trait]
 pub trait MusicProvider: Send + Sync {
+    fn name(&self) -> &'static str;
+    fn slug(&self) -> &'static str;
     async fn restore(&self) -> Result<Option<ProviderSession>>;
-    async fn sign_in(&self) -> Result<ProviderSession>;
+    async fn sign_in(&self, prompt: PromptSink) -> Result<ProviderSession>;
     fn sign_out(&self);
 }
