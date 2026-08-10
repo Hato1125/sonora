@@ -1,5 +1,5 @@
 {
-  description = "sonora - a minimal native Spotify client";
+  description = "Sonora - a minimal native Spotify client";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -44,6 +44,7 @@
             fontconfig
             freetype
             alsa-lib
+            dbus
           ];
 
           sonora = pkgs.rustPlatform.buildRustPackage {
@@ -52,7 +53,7 @@
 
             src = ./.;
 
-            cargoHash = "sha256-4Lp2lt4Y9qGrFasbJSmPZyCoRNo7wApdzv6miFwyo1M=";
+            cargoHash = "sha256-aW22ygYLEuEw00BTc2JUJq0q3k9NY8eU5tsHn2L21Ys=";
 
             nativeBuildInputs = with pkgs; [
               pkg-config
@@ -72,7 +73,7 @@
                 install -Dm444 "$icon" \
                   "$out/share/icons/hicolor/$size/apps/sonora.png"
               done
-              install -Dm444 LICENSE "$out/share/licenses/sonora/LICENSE"
+              install -Dm444 COPYING "$out/share/licenses/sonora/LICENSE"
               install -Dm444 THIRD-PARTY.md "$out/share/licenses/sonora/THIRD-PARTY.md"
               install -Dm444 assets/fonts/LICENSE.txt \
                 "$out/share/licenses/sonora/LICENSE.Inter"
@@ -132,7 +133,7 @@
                 install -Dm444 "$icon" \
                   "$out/share/icons/hicolor/$size/apps/sonora.png"
               done
-              install -Dm444 ${./LICENSE} "$out/share/licenses/sonora/LICENSE"
+              install -Dm444 ${./COPYING} "$out/share/licenses/sonora/LICENSE"
               install -Dm444 ${./THIRD-PARTY.md} "$out/share/licenses/sonora/THIRD-PARTY.md"
               install -Dm444 ${./assets/fonts/LICENSE.txt} \
                 "$out/share/licenses/sonora/LICENSE.Inter"
@@ -166,6 +167,7 @@
             fontconfig
             freetype
             alsa-lib
+            dbus
           ];
         in
         {

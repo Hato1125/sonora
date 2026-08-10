@@ -56,7 +56,7 @@ sonora → views → state → spotify
 
 The GPUI renderer is Vulkan-based, so a Vulkan ICD is a **runtime** requirement, not just a build
 one. Link-time deps: `vulkan-loader`, `wayland`, `libxkbcommon`, `libxcb`, `libx11`, `libxcursor`,
-`libxi`, `fontconfig`, `freetype`, `alsa-lib`, plus `pkg-config`.
+`libxi`, `fontconfig`, `freetype`, `alsa-lib`, `dbus`, plus `pkg-config`.
 
 `.cargo/config.toml` passes `-fuse-ld=mold` for `x86_64-unknown-linux-gnu`, so **mold must be on
 PATH** for that target. If it isn't, either install mold or build with
@@ -81,7 +81,7 @@ from the failure, and paste it in.
 ### Arch / CachyOS
 
 ```sh
-sudo pacman -S --needed base-devel rust pkgconf alsa-lib fontconfig freetype2 \
+sudo pacman -S --needed base-devel rust pkgconf alsa-lib dbus fontconfig freetype2 \
   libx11 libxcb libxcursor libxi libxkbcommon libxkbcommon-x11 wayland \
   vulkan-icd-loader mold
 # plus a Vulkan driver: vulkan-radeon | vulkan-intel | nvidia-utils
@@ -98,12 +98,14 @@ Not exercised in this repo; package sets translated from the dependency list abo
 # Debian/Ubuntu
 sudo apt install build-essential pkg-config mold libasound2-dev libfontconfig1-dev \
   libfreetype-dev libx11-dev libxcb1-dev libxcursor-dev libxi-dev \
-  libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libvulkan-dev mesa-vulkan-drivers
+  libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libvulkan-dev libdbus-1-dev \
+  mesa-vulkan-drivers
 
 # Fedora
 sudo dnf install @development-tools pkgconf-pkg-config mold alsa-lib-devel fontconfig-devel \
   freetype-devel libX11-devel libxcb-devel libXcursor-devel libXi-devel \
-  libxkbcommon-devel libxkbcommon-x11-devel wayland-devel vulkan-loader-devel mesa-vulkan-drivers
+  libxkbcommon-devel libxkbcommon-x11-devel wayland-devel vulkan-loader-devel dbus-devel \
+  mesa-vulkan-drivers
 ```
 
 ### macOS / Windows
@@ -497,7 +499,7 @@ PNG set), an Apple squircle for `assets/macos/sonora.icns`, and a rounded rect f
 
 **`THIRD-PARTY.md` is generated too.** `scripts/generate-notices.py` drives `cargo about` over
 `about.toml` and writes the file; a new dependency means re-running it, not editing the output. The
-binary must ship it alongside `LICENSE`, `assets/fonts/LICENSE.txt` and `assets/icons/LICENSE` —
+binary must ship it alongside `COPYING`, `assets/fonts/LICENSE.txt` and `assets/icons/LICENSE` —
 `flake.nix` and `.github/workflows/release.yml` both do that, and a package that skips it is
 distributing unlicensed code.
 

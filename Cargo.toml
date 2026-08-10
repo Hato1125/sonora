@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/*"]
 
 [workspace.package]
-version = "0.5.0"
+version = "0.6.0"
 edition = "2024"
 license = "GPL-3.0-or-later"
 repository = "https://github.com/nolight132/sonora"
@@ -34,15 +34,18 @@ gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "f25b256f
 ] }
 http = "1.3"
 winresource = "0.1"
+interprocess = "2.4"
 image = { version = "0.25", default-features = false }
 jiff = { version = "0.2", default-features = false, features = ["std"] }
 log = "0.4"
 reqwest = { version = "0.12", default-features = false, features = [
   "rustls-tls-native-roots",
 ] }
+raw-window-handle = "0.6"
 rodio = { version = "0.21", default-features = false, features = ["playback"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+souvlaki = "0.8"
 sys-locale = "0.3"
 unic-langid = { version = "0.9", features = ["macros"] }
 
@@ -63,6 +66,7 @@ tokio = { version = "1.53", features = [
   "net",
   "io-util",
   "macros",
+  "sync",
 ] }
 
 [profile.dev]

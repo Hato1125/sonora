@@ -30,6 +30,7 @@ pub struct Header {
 pub struct Detail {
     id: Option<String>,
     header: Option<Header>,
+    kind: Option<Collection>,
     album: Option<Album>,
     playlist: Option<Playlist>,
     tracks: Vec<Track>,
@@ -49,11 +50,12 @@ impl Detail {
         io: Io,
         cx: &mut Context<Self>,
     ) -> Self {
-        cx.subscribe(&session, |this, _, event, cx| {
-            if matches!(event, SessionEvent::SignedOut) {
+        cx.subscribe(&session, |this, _, event, cx| match event {
+            SessionEvent::SignedOut => {
                 this.clear();
                 cx.notify();
             }
+            SessionEvent::SignedIn => this.resume(cx),
         })
         .detach();
 
@@ -76,6 +78,7 @@ impl Detail {
         Self {
             id: None,
             header: None,
+            kind: None,
             album: None,
             playlist: None,
             tracks: Vec::new(),
@@ -185,18 +188,33 @@ impl Detail {
 
         self.clear();
         self.id = Some(id.to_owned());
+        self.kind = Some(kind);
         self.header = known;
+        self.load(kind, id.to_owned(), cx);
+        true
+    }
 
+    fn resume(&mut self, cx: &mut Context<Self>) {
+        let (Some(kind), Some(id)) = (self.kind, self.id.clone()) else {
+            return;
+        };
+        if self.loading || !self.tracks.is_empty() {
+            return;
+        }
+        self.load(kind, id, cx);
+    }
+
+    fn load(&mut self, kind: Collection, id: String, cx: &mut Context<Self>) {
         let Some(client) = self.session.read(cx).client() else {
             cx.notify();
-            return true;
+            return;
         };
 
         self.loading = true;
+        self.error = None;
         cx.notify();
 
         let io = self.io.clone();
-        let id = id.to_owned();
         self.task = Some(cx.spawn(async move |this, cx| {
             let loaded = join(io.spawn(async move {
                 match kind {
@@ -225,7 +243,6 @@ impl Detail {
             })
             .ok();
         }));
-        true
     }
 
     fn shows(&self, id: &str) -> bool {
@@ -238,6 +255,7 @@ impl Detail {
         self.mutation = None;
         self.id = None;
         self.header = None;
+        self.kind = None;
         self.album = None;
         self.playlist = None;
         self.tracks.clear();

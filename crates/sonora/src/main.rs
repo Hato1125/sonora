@@ -5,6 +5,7 @@
 mod actions;
 mod assets;
 mod http;
+mod single;
 
 use std::sync::Arc;
 
@@ -25,6 +26,16 @@ fn main() {
     .format_module_path(false)
     .init();
 
+    let opened = std::env::args().skip(1).find(|arg| !arg.starts_with('-'));
+    let (sender, mut links) = tokio::sync::mpsc::unbounded_channel();
+    if let single::Instance::Running = single::claim(opened.as_deref(), sender.clone()) {
+        return;
+    }
+    let start = opened
+        .as_deref()
+        .and_then(router::destination)
+        .unwrap_or(Destination::Home);
+
     let io = match state::Io::new() {
         Ok(io) => io,
         Err(error) => {
@@ -33,48 +44,68 @@ fn main() {
         }
     };
 
-    gpui_platform::application()
+    let app = gpui_platform::application()
         .with_assets(assets::Assets)
-        .with_http_client(Arc::new(http::Client::new(io.handle())))
-        .run(move |cx: &mut App| {
-            if let Err(error) = assets::Assets.load_fonts(cx) {
-                log::error!("sonora: cannot load bundled fonts: {error:#}");
+        .with_http_client(Arc::new(http::Client::new(io.handle())));
+    app.on_open_urls(move |opened| {
+        for link in opened {
+            sender.send(link).ok();
+        }
+    });
+
+    app.run(move |cx: &mut App| {
+        if let Err(error) = assets::Assets.load_fonts(cx) {
+            log::error!("sonora: cannot load bundled fonts: {error:#}");
+        }
+
+        state::init(cx, io);
+        router::init(start, cx);
+        let (look, overrides, language) = {
+            let settings = Sonora::global(cx).settings.read(cx);
+            (
+                settings.look(),
+                settings.theme_overrides().clone(),
+                settings.language().to_owned(),
+            )
+        };
+        i18n::set(i18n::resolve(&language));
+        ui::Theme::init(look, &overrides, cx);
+
+        actions::register(cx);
+
+        let Sonora {
+            session,
+            library,
+            playback,
+            queue,
+            settings: _,
+        } = Sonora::global(cx);
+        let (session, library, playback, queue) = (
+            session.clone(),
+            library.clone(),
+            playback.clone(),
+            queue.clone(),
+        );
+
+        open_window(session.clone(), library, playback, queue, cx);
+        session.update(cx, |session, cx| session.restore(cx));
+
+        cx.spawn(async move |cx| {
+            while let Some(link) = links.recv().await {
+                cx.update(|cx| follow(&link, cx));
             }
+        })
+        .detach();
 
-            state::init(cx, io);
-            router::init(Destination::Home, cx);
-            let (look, overrides, language) = {
-                let settings = Sonora::global(cx).settings.read(cx);
-                (
-                    settings.look(),
-                    settings.theme_overrides().clone(),
-                    settings.language().to_owned(),
-                )
-            };
-            i18n::set(i18n::resolve(&language));
-            ui::Theme::init(look, &overrides, cx);
+        cx.activate(true);
+    });
+}
 
-            actions::register(cx);
-
-            let Sonora {
-                session,
-                library,
-                playback,
-                queue,
-                settings: _,
-            } = Sonora::global(cx);
-            let (session, library, playback, queue) = (
-                session.clone(),
-                library.clone(),
-                playback.clone(),
-                queue.clone(),
-            );
-
-            open_window(session.clone(), library, playback, queue, cx);
-            session.update(cx, |session, cx| session.restore(cx));
-
-            cx.activate(true);
-        });
+fn follow(link: &str, cx: &mut App) {
+    if let Some(destination) = router::destination(link) {
+        router::navigate(destination, cx);
+    }
+    cx.activate(true);
 }
 
 fn open_window(
@@ -90,7 +121,7 @@ fn open_window(
             window_bounds: Some(WindowBounds::Windowed(bounds)),
             window_background: WindowBackgroundAppearance::Transparent,
             titlebar: Some(TitlebarOptions {
-                title: Some("sonora".into()),
+                title: Some("Sonora".into()),
                 appears_transparent: true,
                 traffic_light_position: Some(point(
                     px(9.),
@@ -105,8 +136,24 @@ fn open_window(
         },
         |window, cx| {
             window.set_rem_size(cx.theme().font_size);
+            state::attach_remote(window_handle(window), cx);
             cx.new(|cx| Root::new(session, library, playback, queue, window, cx))
         },
     )
     .expect("failed to open window");
+}
+
+#[cfg(target_os = "windows")]
+fn window_handle(window: &gpui::Window) -> Option<*mut std::ffi::c_void> {
+    use raw_window_handle::{HasWindowHandle as _, RawWindowHandle};
+
+    match window.window_handle().ok()?.as_raw() {
+        RawWindowHandle::Win32(handle) => Some(handle.hwnd.get() as *mut std::ffi::c_void),
+        _ => None,
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn window_handle(_window: &gpui::Window) -> Option<*mut std::ffi::c_void> {
+    None
 }

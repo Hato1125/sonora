@@ -7,6 +7,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-10
+
+### Added
+
+- Sonora answers the system media controls: media keys, the desktop's now-playing widget and
+  lock-screen controls can play, pause, skip, seek and set the volume, and they show the current
+  track with its cover art.
+- Spotify links open in Sonora: a `spotify:` link to a track, album, playlist or artist opens that
+  page, handing it to the window already running instead of starting a second one.
+
+### Changed
+
+- The app presents itself as Sonora rather than sonora, in the window title, the application menu
+  and the Windows file properties.
+
 ## [0.5.0] - 2026-08-09
 
 ### Added
@@ -186,7 +201,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Initial release: a native Spotify client with playback, an interactive queue, the saved library,
 search, album, playlist, artist and song pages, context menus and adaptive theming.
 
-[unreleased]: https://github.com/nolight132/sonora/compare/v0.5.0...HEAD
+[unreleased]: https://github.com/nolight132/sonora/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/nolight132/sonora/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/nolight132/sonora/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/nolight132/sonora/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/nolight132/sonora/compare/v0.3.0...v0.4.0

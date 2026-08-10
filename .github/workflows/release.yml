@@ -53,7 +53,7 @@ jobs:
             build-essential pkg-config mold \
             libasound2-dev libfontconfig1-dev libfreetype-dev \
             libx11-dev libxcb1-dev libxcursor-dev libxi-dev \
-            libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libvulkan-dev
+            libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libvulkan-dev libdbus-1-dev
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -123,7 +123,8 @@ jobs:
           chmod +x Sonora.app/Contents/MacOS/sonora
           lipo -info Sonora.app/Contents/MacOS/sonora
           cp assets/macos/sonora.icns Sonora.app/Contents/Resources/
-          cp LICENSE THIRD-PARTY.md Sonora.app/Contents/Resources/
+          cp COPYING Sonora.app/Contents/Resources/LICENSE
+          cp THIRD-PARTY.md Sonora.app/Contents/Resources/
           cp assets/fonts/LICENSE.txt Sonora.app/Contents/Resources/LICENSE.Inter
           cp assets/icons/LICENSE Sonora.app/Contents/Resources/LICENSE.Lucide
           sed "s/@VERSION@/$NUMBER/g" assets/macos/Info.plist > Sonora.app/Contents/Info.plist
@@ -178,7 +179,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p licenses
-          cp LICENSE licenses/LICENSE
+          cp COPYING licenses/LICENSE
           cp THIRD-PARTY.md licenses/THIRD-PARTY.md
           cp assets/fonts/LICENSE.txt licenses/LICENSE.Inter
           cp assets/icons/LICENSE licenses/LICENSE.Lucide
