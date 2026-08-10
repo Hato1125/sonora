@@ -145,9 +145,9 @@ fn open_window(
 
 #[cfg(target_os = "windows")]
 fn window_handle(window: &gpui::Window) -> Option<*mut std::ffi::c_void> {
-    use raw_window_handle::{HasWindowHandle as _, RawWindowHandle};
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
-    match window.window_handle().ok()?.as_raw() {
+    match HasWindowHandle::window_handle(window).ok()?.as_raw() {
         RawWindowHandle::Win32(handle) => Some(handle.hwnd.get() as *mut std::ffi::c_void),
         _ => None,
     }
