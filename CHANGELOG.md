@@ -7,6 +7,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-10
+
 ### Added
 
 - Sonora answers the system media controls: media keys, the desktop's now-playing widget and
@@ -199,7 +201,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Initial release: a native Spotify client with playback, an interactive queue, the saved library,
 search, album, playlist, artist and song pages, context menus and adaptive theming.
 
-[unreleased]: https://github.com/nolight132/sonora/compare/v0.5.0...HEAD
+[unreleased]: https://github.com/nolight132/sonora/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/nolight132/sonora/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/nolight132/sonora/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/nolight132/sonora/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/nolight132/sonora/compare/v0.3.0...v0.4.0
