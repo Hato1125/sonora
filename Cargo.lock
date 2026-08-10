@@ -6597,6 +6597,7 @@ name = "sonora"
 version = "0.6.0"
 dependencies = [
  "anyhow",
+ "dirs",
  "env_logger",
  "gpui",
  "gpui_platform",

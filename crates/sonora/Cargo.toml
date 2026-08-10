@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+dirs.workspace = true
 env_logger.workspace = true
 log.workspace = true
 gpui.workspace = true

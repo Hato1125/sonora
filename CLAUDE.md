@@ -148,7 +148,9 @@ them unless the task is about them.
 | Settings          | `$XDG_CONFIG_HOME/sonora/settings.json`                            |
 | Credentials cache | `$XDG_CACHE_HOME/sonora/credentials.json`                          |
 | OAuth redirect    | `http://127.0.0.1:8989/login`, override with `SONORA_REDIRECT_URI` |
-| Logging           | `RUST_LOG`; default filter `warn,symphonia=error`                  |
+| Log file          | `$XDG_STATE_HOME/sonora/sonora.log`, rotated to `.1` past 8 MiB    |
+| Console logging   | `RUST_LOG`; default filter `warn,symphonia=error`                  |
+| File logging      | `SONORA_LOG`; default adds `sonora=debug,ui=debug`                 |
 
 ## Before you build a component
 
