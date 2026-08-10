@@ -33,7 +33,7 @@ mod toast;
 mod tooltip;
 mod view;
 
-pub use artwork::{Artwork, Avatar};
+pub use artwork::{Artwork, Avatar, artwork_usage};
 pub use button::Button;
 pub use card::CARD_GROUP;
 pub use card::Card;
