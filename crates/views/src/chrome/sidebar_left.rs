@@ -46,7 +46,6 @@ pub(crate) struct SidebarLeft {
     trail: Entity<Navigation>,
     width: Pixels,
     open: bool,
-    fit: bool,
     cramped: bool,
     forced: Option<bool>,
     library_open: bool,
@@ -76,7 +75,6 @@ impl SidebarLeft {
             trail,
             width,
             open,
-            fit: open,
             forced: None,
             cramped: false,
             library_open: true,
@@ -115,22 +113,20 @@ impl SidebarLeft {
                 self.persist(cx);
             }
         }
-        self.fit = self.is_open();
         cx.notify();
     }
 
     fn ceiling(&self, window: &Window, cx: &Context<Self>) -> Pixels {
-        let reserved = SNUG + super::Chrome::sidebar_right(cx);
+        let reserved = match self.overlays() {
+            true => Pixels::ZERO,
+            false => SNUG + super::Chrome::sidebar_right(cx),
+        };
+
         super::cap(MIN_WIDTH, MAX_WIDTH, reserved, window)
     }
 
     pub fn adapt(&mut self, window: &Window, cx: &mut Context<Self>) {
         self.width = ui::snapped(self.width, window);
-
-        if std::mem::take(&mut self.fit) {
-            self.width = self.width.min(self.ceiling(window, cx));
-            self.persist(cx);
-        }
 
         let taken = self.width + super::Chrome::sidebar_right(cx);
         let space_left = window.viewport_size().width - taken;

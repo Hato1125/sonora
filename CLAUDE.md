@@ -329,6 +329,9 @@ Rules:
   `Chrome::sidebar_right` — drops below `Room::Wide`, so opening the queue pushes it out of the way
   without resizing it. It reads last frame's publish, which cannot loop: the decision changes
   visibility, never width. `SidebarRight` decides its own takeover from the viewport alone.
+  Toggling a hidden `SidebarLeft` back on while the window is that narrow overlays it at the width
+  the user last chose, so its drag ceiling then comes from the viewport alone — an overlay takes no
+  content space, so capping it against content room would only disable resizing.
 - **A panel's width changes only when the user drags it.** `chrome::cap` feeds `Panel::reach`, which
   bounds the *drag*, not the render — narrowing the window must never silently shrink a panel the
   user sized. `Panel::limits` stays the static floor and ceiling.

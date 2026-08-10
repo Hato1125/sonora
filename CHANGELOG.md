@@ -17,6 +17,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Sonora holds on to far less memory during long listening sessions: cover art it has not shown for
   a while is released instead of being kept until the app closes, and cover art whose page was left
   before the download finished no longer stays in memory for the rest of the session.
+- The left sidebar keeps the width you gave it. A window too narrow to fit it now hides it and brings
+  it back at that same width, instead of squeezing it down to its narrowest and forgetting the width
+  you had; it can still be resized while it sits over the content.
 - Card views stay responsive in large libraries: album, song and playlist grids now draw only the
   rows on screen, so resizing the window no longer stutters or reloads covers, and an artist's
   discography opens without a pause.
