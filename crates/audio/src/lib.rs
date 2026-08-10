@@ -32,6 +32,7 @@ pub enum AudioEvent {
     Position(Duration),
     Ended,
     Unavailable,
+    Refused,
 }
 
 pub struct AudioEvents(UnboundedReceiver<PlayerEvent>);
@@ -136,6 +137,7 @@ fn translate(event: PlayerEvent) -> Option<AudioEvent> {
             Some(AudioEvent::Position(millis(position_ms)))
         }
         PlayerEvent::Stopped { .. } | PlayerEvent::EndOfTrack { .. } => Some(AudioEvent::Ended),
+        PlayerEvent::Unavailable { denied: true, .. } => Some(AudioEvent::Refused),
         PlayerEvent::Unavailable { .. } => Some(AudioEvent::Unavailable),
         _ => None,
     }
