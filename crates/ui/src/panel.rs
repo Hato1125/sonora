@@ -10,8 +10,8 @@ use gpui::{
 
 use crate::metrics::snapped;
 
-const GRIP: Pixels = px(8.);
-const GRIP_INSET: Pixels = px(-4.);
+const GRIP: Pixels = px(12.);
+const GRIP_INSET: Pixels = px(-6.);
 
 type Resize = Box<dyn Fn(&Pixels, &mut Window, &mut App) + 'static>;
 
@@ -153,6 +153,7 @@ fn grip(
 
     div()
         .id("panel-grip")
+        .occlude()
         .absolute()
         .top_0()
         .h_full()
