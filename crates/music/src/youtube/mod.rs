@@ -120,6 +120,11 @@ impl MusicProvider for YouTubeProvider {
         };
         log::debug!("youtube: restoring session from cached tokens");
         let api = Arc::new(YtMusic::new(tokens).persist_to(self.tokens.clone()));
+        if let Err(error) = api.library_playlists().await {
+            log::warn!("youtube: cached tokens no longer usable ({error:#}), signing out");
+            self.sign_out();
+            return Ok(None);
+        }
         self.session(api).await.map(Some)
     }
 
