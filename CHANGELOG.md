@@ -7,10 +7,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-08-10
+
 ### Added
 
 - Sonora keeps a log file at `$XDG_STATE_HOME/sonora/sonora.log`, so a problem noticed after hours of
   use can still be diagnosed without having started the app from a terminal.
+- Playback failures explain themselves: a track that cannot be played is named in a toast, and if
+  Spotify refuses the account playback keys entirely, Sonora says so once and stops instead of
+  failing through track after track.
 
 ### Fixed
 
@@ -218,7 +223,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Initial release: a native Spotify client with playback, an interactive queue, the saved library,
 search, album, playlist, artist and song pages, context menus and adaptive theming.
 
-[unreleased]: https://github.com/nolight132/sonora/compare/v0.6.0...HEAD
+[unreleased]: https://github.com/nolight132/sonora/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/nolight132/sonora/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/nolight132/sonora/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/nolight132/sonora/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/nolight132/sonora/compare/v0.4.0...v0.4.1
