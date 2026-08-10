@@ -109,6 +109,7 @@ impl SettingsView {
         let rows: Vec<AnyElement> = match self.tab {
             SettingsTab::General => vec![
                 self.language_row(cx).into_any_element(),
+                self.provider_row(cx).into_any_element(),
                 self.account_row(cx).into_any_element(),
             ],
             SettingsTab::Appearance => vec![
@@ -577,6 +578,27 @@ impl SettingsView {
                     this.playback
                         .update(cx, |playback, cx| playback.set_gapless(!on, cx));
                 }))
+                .into_any_element(),
+        )
+    }
+
+    fn provider_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+        let provider = self
+            .session
+            .read(cx)
+            .provider_name()
+            .map(SharedString::from)
+            .unwrap_or_else(|| t!("settings-provider-none"));
+
+        self.row(
+            t!("settings-provider"),
+            t!("settings-provider-detail"),
+            theme.muted_foreground,
+            theme.text(Text::Small),
+            div()
+                .text_size(theme.text(Text::Small))
+                .child(provider)
                 .into_any_element(),
         )
     }

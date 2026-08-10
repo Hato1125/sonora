@@ -130,11 +130,12 @@ tool-sort = Sort
 tool-filters = Filters
 
 # login
-login-signed-out = Sign in to load your Spotify library
+login-signed-out = Sign in to load your music library
 login-restoring = Checking your saved session…
 login-authorizing = Waiting for authorization in your browser…
 login-signed-in = Signed in as { $name }
-login-sign-in = Sign in with Spotify
+login-sign-in = Sign in with { $provider }
+login-device-code = Enter this code at { $url }
 
 # album and playlist pages
 detail-album = Album
@@ -288,7 +289,10 @@ settings-normalisation-detail = Keeps tracks at a consistent volume
 settings-gapless = Gapless playback
 settings-gapless-detail = Runs one track into the next without a pause, the way an album was sequenced
 settings-account = Account
-settings-account-detail = Sign out of Spotify on this device
+settings-provider-none = Not signed in
+settings-provider-detail = The service this device is signed in to
+settings-provider = Streaming service
+settings-account-detail = Sign out of your account on this device
 settings-sign-out = Sign out
 settings-tab-about = About
 settings-version = Version

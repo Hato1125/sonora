@@ -130,11 +130,12 @@ tool-sort = Sortowanie
 tool-filters = Filtry
 
 # login
-login-signed-out = Zaloguj się, aby wczytać bibliotekę Spotify
+login-signed-out = Zaloguj się, aby wczytać bibliotekę
 login-restoring = Sprawdzanie zapisanej sesji…
 login-authorizing = Oczekiwanie na autoryzację w przeglądarce…
 login-signed-in = Zalogowano jako { $name }
-login-sign-in = Zaloguj się przez Spotify
+login-sign-in = Zaloguj się przez { $provider }
+login-device-code = Wpisz ten kod na stronie { $url }
 
 # album and playlist pages
 detail-album = Album
@@ -291,7 +292,10 @@ settings-normalisation-detail = Utrzymuje stałą głośność utworów
 settings-gapless = Odtwarzanie bez przerw
 settings-gapless-detail = Przechodzi z utworu do następnego bez pauzy, zgodnie z układem albumu
 settings-account = Konto
-settings-account-detail = Wyloguj się ze Spotify na tym urządzeniu
+settings-provider-none = Nie zalogowano
+settings-provider-detail = Serwis, do którego jesteś zalogowany na tym urządzeniu
+settings-provider = Serwis streamingowy
+settings-account-detail = Wyloguj się z konta na tym urządzeniu
 settings-sign-out = Wyloguj się
 settings-tab-about = O programie
 settings-version = Wersja

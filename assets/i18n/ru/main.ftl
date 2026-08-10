@@ -130,11 +130,12 @@ tool-sort = Сортировка
 tool-filters = Фильтры
 
 # login
-login-signed-out = Войдите, чтобы загрузить медиатеку Spotify
+login-signed-out = Войдите, чтобы загрузить медиатеку
 login-restoring = Проверяем сохранённую сессию…
 login-authorizing = Ожидаем авторизацию в браузере…
 login-signed-in = Вы вошли как { $name }
-login-sign-in = Войти через Spotify
+login-sign-in = Войти через { $provider }
+login-device-code = Введите этот код на { $url }
 
 # album and playlist pages
 detail-album = Альбом
@@ -291,7 +292,10 @@ settings-normalisation-detail = Держит треки на одинаково�
 settings-gapless = Воспроизведение без пауз
 settings-gapless-detail = Переводит трек в следующий без паузы, как задумано в альбоме
 settings-account = Аккаунт
-settings-account-detail = Выйти из Spotify на этом устройстве
+settings-provider-none = Вход не выполнен
+settings-provider-detail = Сервис, в который выполнен вход на этом устройстве
+settings-provider = Стриминговый сервис
+settings-account-detail = Выйти из аккаунта на этом устройстве
 settings-sign-out = Выйти
 settings-tab-about = О программе
 settings-version = Версия
