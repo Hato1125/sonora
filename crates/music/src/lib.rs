@@ -69,6 +69,7 @@ pub enum PlaybackEvent {
     Position(Duration),
     Ended,
     Unavailable,
+    Refused,
 }
 
 pub trait Player: Send + Sync {

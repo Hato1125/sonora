@@ -162,6 +162,7 @@ fn translate(event: PlayerEvent) -> Option<PlaybackEvent> {
             Some(PlaybackEvent::Position(millis(position_ms)))
         }
         PlayerEvent::Stopped { .. } | PlayerEvent::EndOfTrack { .. } => Some(PlaybackEvent::Ended),
+        PlayerEvent::Unavailable { denied: true, .. } => Some(PlaybackEvent::Refused),
         PlayerEvent::Unavailable { .. } => Some(PlaybackEvent::Unavailable),
         _ => None,
     }

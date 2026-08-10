@@ -73,6 +73,14 @@ impl Toasts {
         name: Option<SharedString>,
         cx: &mut Context<Self>,
     ) {
+        let showing = self
+            .shown
+            .iter()
+            .any(|toast| toast.note == note && toast.key == key && toast.name == name);
+        if showing {
+            return;
+        }
+
         let id = self.next;
         self.next += 1;
         self.shown.push(Toast {
