@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use gpui::prelude::*;
-use gpui::{Context, Entity, FontWeight, IntoElement, Render, SharedString, Window, div, px};
+use gpui::{
+    ClipboardItem, Context, Entity, FontWeight, IntoElement, Render, SharedString, Window, div, px,
+};
 use i18n::t;
 use state::{Session, SessionState};
 use ui::ActiveTheme as _;
@@ -80,9 +82,26 @@ impl Render for LoginView {
                         )
                         .child(
                             div()
-                                .text_size(theme.text(Text::Title))
-                                .font_weight(FontWeight::BOLD)
-                                .child(SharedString::from(prompt.code)),
+                                .flex()
+                                .items_center()
+                                .gap_2()
+                                .child(
+                                    div()
+                                        .text_size(theme.text(Text::Title))
+                                        .font_weight(FontWeight::BOLD)
+                                        .child(SharedString::from(prompt.code.clone())),
+                                )
+                                .child(
+                                    Button::new("copy-code")
+                                        .icon("icons/copy.svg")
+                                        .ghost()
+                                        .small()
+                                        .on_click(move |_, _, cx| {
+                                            cx.write_to_clipboard(ClipboardItem::new_string(
+                                                prompt.code.clone(),
+                                            ));
+                                        }),
+                                ),
                         ),
                 )
             })

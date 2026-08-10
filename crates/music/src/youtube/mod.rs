@@ -58,8 +58,10 @@ impl MusicProvider for YouTubeProvider {
 
     async fn restore(&self) -> Result<Option<ProviderSession>> {
         let Some(tokens) = oauth::Tokens::load(&self.tokens)? else {
+            log::debug!("youtube: no cached tokens, staying signed out");
             return Ok(None);
         };
+        log::debug!("youtube: restoring session from cached tokens");
         let api = Arc::new(YtMusic::new(tokens).persist_to(self.tokens.clone()));
         self.session(api).await.map(Some)
     }
@@ -76,6 +78,7 @@ impl MusicProvider for YouTubeProvider {
         });
         open_browser(&device.verification_url);
         let tokens = oauth::poll_token(&http, &identity, &device).await?;
+        log::debug!("youtube: sign-in granted, saving tokens");
         tokens
             .save(&self.tokens)
             .context("cannot store youtube tokens")?;
