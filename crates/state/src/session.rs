@@ -8,6 +8,7 @@ use music::{
     MusicApi, MusicProvider, PlaybackFactory, PromptSink, ProviderSession, SignInPrompt,
     UserProfile,
 };
+use tokio::sync::mpsc::UnboundedSender;
 
 use crate::settings::AppSettings;
 use crate::{Io, join};
@@ -36,6 +37,7 @@ pub struct Session {
     io: Io,
     task: Option<Task<()>>,
     prompt_task: Option<Task<()>>,
+    input: Option<UnboundedSender<String>>,
 }
 
 impl EventEmitter<SessionEvent> for Session {}
@@ -61,6 +63,7 @@ impl Session {
             io,
             task: None,
             prompt_task: None,
+            input: None,
         }
     }
 
@@ -139,6 +142,8 @@ impl Session {
         self.state = SessionState::Authorizing(None);
         cx.notify();
 
+        let (input_tx, input_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+        self.input = Some(input_tx);
         let (prompt_tx, mut prompt_rx) = tokio::sync::mpsc::unbounded_channel::<SignInPrompt>();
         self.prompt_task = Some(cx.spawn(async move |this, cx| {
             while let Some(prompt) = prompt_rx.recv().await {
@@ -158,10 +163,12 @@ impl Session {
         let provider = self.providers[index].clone();
         let io = self.io.clone();
         self.task = Some(cx.spawn(async move |this, cx| {
-            let authorized = join(io.spawn(async move { provider.sign_in(prompt).await })).await;
+            let authorized =
+                join(io.spawn(async move { provider.sign_in(prompt, input_rx).await })).await;
 
             this.update(cx, |this, cx| {
                 this.prompt_task = None;
+                this.input = None;
                 match authorized {
                     Ok(session) => this.signed_in(session, index, cx),
                     Err(error) => this.failed(&error, cx),
@@ -171,12 +178,23 @@ impl Session {
         }));
     }
 
+    pub fn submit_input(&mut self, text: String, cx: &mut Context<Self>) {
+        if let Some(input) = &self.input {
+            input.send(text).ok();
+            if let SessionState::Authorizing(Some(SignInPrompt::Secret)) = &self.state {
+                self.state = SessionState::Authorizing(None);
+                cx.notify();
+            }
+        }
+    }
+
     pub fn sign_out(&mut self, cx: &mut Context<Self>) {
         if let Some(active) = self.active {
             self.providers[active].sign_out();
         }
         self.task = None;
         self.prompt_task = None;
+        self.input = None;
         self.client = None;
         self.playback = None;
         self.state = SessionState::SignedOut;

@@ -136,6 +136,10 @@ login-authorizing = Oczekiwanie na autoryzację w przeglądarce…
 login-signed-in = Zalogowano jako { $name }
 login-sign-in = Zaloguj się przez { $provider }
 login-device-code = Wpisz ten kod na stronie { $url }
+login-cookie-submit = Kontynuuj
+login-cookie-hint = Nagłówek Cookie z music.youtube.com
+login-cookie-detail = Otwórz music.youtube.com w przeglądarce, skopiuj nagłówek Cookie z DevTools (karta Network) i wklej go tutaj
+login-cookie-title = Wklej pliki cookie YouTube Music, aby dokończyć logowanie
 
 # album and playlist pages
 detail-album = Album

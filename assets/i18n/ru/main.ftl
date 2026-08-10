@@ -136,6 +136,10 @@ login-authorizing = Ожидаем авторизацию в браузере…
 login-signed-in = Вы вошли как { $name }
 login-sign-in = Войти через { $provider }
 login-device-code = Введите этот код на { $url }
+login-cookie-submit = Продолжить
+login-cookie-hint = Заголовок Cookie с music.youtube.com
+login-cookie-detail = Откройте music.youtube.com в браузере, скопируйте заголовок Cookie из DevTools (вкладка Network) и вставьте его сюда
+login-cookie-title = Вставьте cookie YouTube Music, чтобы завершить вход
 
 # album and playlist pages
 detail-album = Альбом

@@ -69,7 +69,11 @@ impl MusicProvider for SpotifyProvider {
         self.session(LibrespotClient::new(session)).await.map(Some)
     }
 
-    async fn sign_in(&self, _prompt: crate::PromptSink) -> Result<ProviderSession> {
+    async fn sign_in(
+        &self,
+        _prompt: crate::PromptSink,
+        _input: crate::InputSource,
+    ) -> Result<ProviderSession> {
         let session = auth::login(&self.config).await?;
         self.session(LibrespotClient::new(session)).await
     }

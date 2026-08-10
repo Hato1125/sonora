@@ -98,18 +98,19 @@ pub struct ProviderSession {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SignInPrompt {
-    pub code: String,
-    pub url: String,
+pub enum SignInPrompt {
+    Code { code: String, url: String },
+    Secret,
 }
 
 pub type PromptSink = Arc<dyn Fn(SignInPrompt) + Send + Sync>;
+pub type InputSource = tokio::sync::mpsc::UnboundedReceiver<String>;
 
 #[async_trait]
 pub trait MusicProvider: Send + Sync {
     fn name(&self) -> &'static str;
     fn slug(&self) -> &'static str;
     async fn restore(&self) -> Result<Option<ProviderSession>>;
-    async fn sign_in(&self, prompt: PromptSink) -> Result<ProviderSession>;
+    async fn sign_in(&self, prompt: PromptSink, input: InputSource) -> Result<ProviderSession>;
     fn sign_out(&self);
 }

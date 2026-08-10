@@ -136,6 +136,10 @@ login-authorizing = Waiting for authorization in your browser…
 login-signed-in = Signed in as { $name }
 login-sign-in = Sign in with { $provider }
 login-device-code = Enter this code at { $url }
+login-cookie-submit = Continue
+login-cookie-hint = Cookie header from music.youtube.com
+login-cookie-detail = Open music.youtube.com in your browser, copy the Cookie request header from DevTools (Network tab), and paste it here
+login-cookie-title = Paste your YouTube Music cookies to finish signing in
 
 # album and playlist pages
 detail-album = Album
