@@ -5,6 +5,7 @@
 mod actions;
 mod assets;
 mod http;
+mod logging;
 mod memory;
 mod single;
 
@@ -20,12 +21,7 @@ use ui::ActiveTheme as _;
 use views::Root;
 
 fn main() {
-    env_logger::Builder::from_env(
-        env_logger::Env::default().default_filter_or("warn,symphonia=error"),
-    )
-    .format_timestamp(None)
-    .format_module_path(false)
-    .init();
+    logging::init();
 
     let opened = std::env::args().skip(1).find(|arg| !arg.starts_with('-'));
     let (sender, mut links) = tokio::sync::mpsc::unbounded_channel();

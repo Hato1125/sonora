@@ -7,6 +7,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Sonora keeps a log file at `$XDG_STATE_HOME/sonora/sonora.log`, so a problem noticed after hours of
+  use can still be diagnosed without having started the app from a terminal.
+
 ### Fixed
 
 - Sonora holds on to far less memory during long listening sessions: cover art it has not shown for
