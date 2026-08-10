@@ -7,6 +7,8 @@ use spotify::Track;
 
 use crate::AppSettings;
 
+const PAST_LIMIT: usize = 500;
+
 fn scramble(upcoming: &mut VecDeque<Track>) {
     let mut tracks: Vec<Track> = upcoming.drain(..).collect();
     fastrand::shuffle(&mut tracks);
@@ -84,6 +86,13 @@ fn select_upcoming<T>(
     true
 }
 
+fn trim<T>(past: &mut Vec<T>, limit: usize) {
+    let over = past.len().saturating_sub(limit);
+    if over > 0 {
+        past.drain(..over);
+    }
+}
+
 fn in_order<'a, T: PartialEq + 'a>(sequence: impl Iterator<Item = &'a T>, source: &[T]) -> bool {
     sequence.eq(source.iter())
 }
@@ -145,6 +154,7 @@ impl Queue {
     }
 
     fn changed(&mut self, cx: &mut Context<Self>) {
+        trim(&mut self.past, PAST_LIMIT);
         self.revision = self.revision.wrapping_add(1);
         cx.notify();
     }
@@ -400,7 +410,9 @@ mod tests {
 
     use spotify::Track;
 
-    use super::{gap_target, in_order, move_item, restore, scramble, select_past, select_upcoming};
+    use super::{
+        gap_target, in_order, move_item, restore, scramble, select_past, select_upcoming, trim,
+    };
 
     fn track(id: &str) -> Track {
         Track {
@@ -590,5 +602,19 @@ mod tests {
         let to = gap_target(1, 2, items.len());
         assert!(!move_item(&mut items, 1, to));
         assert_eq!(items, [4, 2, 3, 1]);
+    }
+
+    #[test]
+    fn trimming_drops_the_oldest_history() {
+        let mut past = vec![1, 2, 3, 4, 5];
+
+        trim(&mut past, 3);
+        assert_eq!(past, [3, 4, 5]);
+
+        trim(&mut past, 3);
+        assert_eq!(past, [3, 4, 5]);
+
+        trim(&mut past, 0);
+        assert!(past.is_empty());
     }
 }
