@@ -1,5 +1,5 @@
 {
-  description = "sonora - a minimal native Spotify client";
+  description = "Sonora - a minimal native Spotify client";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";

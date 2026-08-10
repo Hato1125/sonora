@@ -7,6 +7,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- The app presents itself as Sonora rather than sonora, in the window title, the application menu
+  and the Windows file properties.
+
 ## [0.5.0] - 2026-08-09
 
 ### Added
