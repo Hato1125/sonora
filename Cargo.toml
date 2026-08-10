@@ -34,6 +34,7 @@ gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "f25b256f
 ] }
 http = "1.3"
 winresource = "0.1"
+interprocess = "2.4"
 image = { version = "0.25", default-features = false }
 jiff = { version = "0.2", default-features = false, features = ["std"] }
 log = "0.4"
@@ -63,6 +64,7 @@ tokio = { version = "1.53", features = [
   "net",
   "io-util",
   "macros",
+  "sync",
 ] }
 
 [profile.dev]
