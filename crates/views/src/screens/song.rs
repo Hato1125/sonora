@@ -6,7 +6,7 @@ use gpui::{
 };
 use i18n::t;
 use router::{Destination, Link as _};
-use spotify::{Credit, Track};
+use music::{Credit, Track};
 use state::{Playback, SongDetail};
 use ui::{
     ActiveTheme as _, Artwork, Avatar, Button, Fact, InfoCard, Initials, Scrollbar, Skeleton, Text,

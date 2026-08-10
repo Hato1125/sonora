@@ -11,6 +11,7 @@ repository = "https://github.com/nolight132/sonora"
 [workspace.dependencies]
 audio = { path = "crates/audio" }
 i18n = { path = "crates/i18n" }
+music = { path = "crates/music" }
 spotify = { path = "crates/spotify" }
 state = { path = "crates/state" }
 input = { path = "crates/input" }

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use spotify::Track;
+use music::Track;
 
 #[derive(Clone, Copy, Default, PartialEq)]
 pub(crate) struct TrackSieve {

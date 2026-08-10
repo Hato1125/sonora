@@ -7,18 +7,15 @@ mod artists;
 mod client;
 mod collection;
 mod collection2;
-mod models;
 mod pathfinder;
 mod pb;
 mod playlists;
 mod profiles;
+mod provider;
 mod radio;
 mod search;
 mod wire;
 
 pub use auth::AuthConfig;
-pub use client::{LibrespotClient, SpotifyApi};
-pub use models::{
-    Album, AlbumDetail, Artist, ArtistProfile, ArtistRef, Credit, Playlist, PlaylistDetail,
-    ReleaseType, Track, UserProfile,
-};
+pub use client::LibrespotClient;
+pub use provider::SpotifyProvider;

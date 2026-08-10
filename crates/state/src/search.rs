@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use gpui::{Context, Entity, Task};
-use spotify::{Album, ArtistRef, Track};
+use music::{Album, ArtistRef, Track};
 
 use crate::{Io, Library, LibraryState, Session, SessionEvent, join};
 

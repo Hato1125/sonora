@@ -8,7 +8,7 @@ use gpui::{
     Window, div, relative,
 };
 use i18n::t;
-use spotify::Track;
+use music::Track;
 use state::{Playback, PlaybackState};
 use ui::{ActiveTheme as _, Artwork, Button, ExplicitBadge, LEADING, Text, upper};
 

@@ -8,7 +8,7 @@ use gpui::{
     Window, div, px,
 };
 use router::{Destination, navigate};
-use spotify::Album;
+use music::Album;
 use state::{Origin, Playback, PlaybackState};
 use ui::{ActiveTheme as _, Card, Text};
 

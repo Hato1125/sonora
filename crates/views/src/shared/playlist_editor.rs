@@ -3,7 +3,7 @@
 use gpui::prelude::*;
 use gpui::{App, Context, Entity, FocusHandle, Global, MouseButton, Render, Window, div};
 use i18n::t;
-use spotify::Playlist;
+use music::Playlist;
 use state::Sonora;
 use ui::{ActiveTheme as _, Button, Shield, heading};
 use ui::{Dismiss, FORM_CONTEXT, Input, Submit};

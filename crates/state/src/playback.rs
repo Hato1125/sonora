@@ -6,9 +6,11 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use anyhow::Result;
-use audio::{AudioEvent, AudioEvents, Engine, EngineConfig};
 use gpui::{Context, Entity, EventEmitter, Task};
-use spotify::{SpotifyApi, Track};
+use music::{
+    MusicApi, PlaybackConfig, PlaybackEvent as BackendEvent, PlaybackEvents, PlaybackFactory,
+    Player, Track,
+};
 
 type Fetch = Pin<Box<dyn Future<Output = Result<Vec<Track>>> + Send>>;
 
@@ -89,7 +91,7 @@ pub struct Playback {
     origin: Option<Origin>,
     position: Duration,
     track: Option<Track>,
-    engine: Option<Engine>,
+    engine: Option<Box<dyn Player>>,
     session: Entity<Session>,
     queue: Entity<Queue>,
     settings: Entity<AppSettings>,
@@ -120,10 +122,10 @@ impl Playback {
     ) -> Self {
         cx.subscribe(&session, |this, session, event, cx| match event {
             SessionEvent::SignedIn => {
-                let Some(librespot) = session.read(cx).librespot() else {
+                let Some(playback) = session.read(cx).playback() else {
                     return;
                 };
-                this.start_engine(librespot, cx);
+                this.start_engine(playback, cx);
             }
             SessionEvent::SignedOut => this.teardown(cx),
         })
@@ -345,7 +347,7 @@ impl Playback {
         cx: &mut Context<Self>,
         tracks: F,
     ) where
-        F: FnOnce(Arc<dyn SpotifyApi>) -> Fetch + Send + 'static,
+        F: FnOnce(Arc<dyn MusicApi>) -> Fetch + Send + 'static,
     {
         if self.enqueue.is_some() {
             return;
@@ -410,7 +412,7 @@ impl Playback {
 
     fn gather<F>(&mut self, origin: Origin, cx: &mut Context<Self>, tracks: F)
     where
-        F: FnOnce(Arc<dyn SpotifyApi>) -> Fetch + Send + 'static,
+        F: FnOnce(Arc<dyn MusicApi>) -> Fetch + Send + 'static,
     {
         let Some(client) = self.session.read(cx).client() else {
             return;
@@ -789,23 +791,23 @@ impl Playback {
 
     fn restart_engine(&mut self, cx: &mut Context<Self>) {
         if self.engine.is_some() {
-            let session = self.session.read(cx).librespot();
-            if let Some(session) = session {
-                self.start_engine(session, cx);
+            let playback = self.session.read(cx).playback();
+            if let Some(playback) = playback {
+                self.start_engine(playback, cx);
                 return;
             }
         }
         cx.notify();
     }
 
-    fn start_engine(&mut self, session: librespot_core::Session, cx: &mut Context<Self>) {
-        let config = EngineConfig {
+    fn start_engine(&mut self, playback: Arc<dyn PlaybackFactory>, cx: &mut Context<Self>) {
+        let config = PlaybackConfig {
             normalisation: self.normalisation,
             gapless: self.gapless,
             position_interval: POSITION_INTERVAL,
             gain: gain(self.level),
         };
-        let (engine, events) = Engine::start(session, config);
+        let (engine, events) = playback.start(config);
 
         self.listen(events, cx);
         self.engine = Some(engine);
@@ -814,7 +816,7 @@ impl Playback {
         cx.notify();
     }
 
-    fn listen(&mut self, mut events: AudioEvents, cx: &mut Context<Self>) {
+    fn listen(&mut self, mut events: Box<dyn PlaybackEvents>, cx: &mut Context<Self>) {
         self.task = Some(cx.spawn(async move |this, cx| {
             while let Some(event) = events.next().await {
                 if this.update(cx, |this, cx| this.apply(event, cx)).is_err() {
@@ -824,13 +826,13 @@ impl Playback {
         }));
     }
 
-    fn apply(&mut self, event: AudioEvent, cx: &mut Context<Self>) {
+    fn apply(&mut self, event: BackendEvent, cx: &mut Context<Self>) {
         match event {
-            AudioEvent::Loading(position) => {
+            BackendEvent::Loading(position) => {
                 self.state = PlaybackState::Loading;
                 self.position = position;
             }
-            AudioEvent::Playing(position) => {
+            BackendEvent::Playing(position) => {
                 let started = self.state != PlaybackState::Playing;
                 self.state = PlaybackState::Playing;
                 self.position = position;
@@ -838,22 +840,22 @@ impl Playback {
                     cx.emit(PlaybackEvent::StartedPlayback);
                 }
             }
-            AudioEvent::Paused(position) => {
+            BackendEvent::Paused(position) => {
                 self.state = PlaybackState::Paused;
                 self.position = position;
             }
-            AudioEvent::Position(position) => {
+            BackendEvent::Position(position) => {
                 self.position = position;
                 self.preload_next(position, cx);
             }
-            AudioEvent::Ended => {
+            BackendEvent::Ended => {
                 let ended = self.track.take();
                 self.state = PlaybackState::Idle;
                 self.position = Duration::ZERO;
                 cx.emit(PlaybackEvent::EndedPlayback);
                 self.advance(ended, cx);
             }
-            AudioEvent::Unavailable => {
+            BackendEvent::Unavailable => {
                 let name = self.track.as_ref().map(|track| track.name.as_str());
                 log::warn!(
                     "playback: {} failed to load, backing off {}s",

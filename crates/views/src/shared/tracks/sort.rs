@@ -3,7 +3,7 @@
 use std::cmp::Ordering;
 
 use gpui::SharedString;
-use spotify::Track;
+use music::Track;
 
 use super::TrackField;
 

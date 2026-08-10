@@ -3,7 +3,7 @@
 use std::collections::{HashMap, HashSet};
 
 use gpui::{Context, Entity, Task};
-use spotify::{AlbumDetail, ArtistProfile, Track};
+use music::{AlbumDetail, ArtistProfile, Track};
 use tokio::task::AbortHandle;
 
 use crate::{Io, Session, SessionEvent, join};

@@ -5,7 +5,7 @@ use ui::ActiveTheme as _;
 
 use gpui::{AnyElement, App, Entity, TextAlign};
 use router::Destination;
-use spotify::Playlist;
+use music::Playlist;
 use state::{Library, LibraryState, Origin, Playback};
 use ui::{Cell, ColumnSpec, GridSource, Menu, Width};
 

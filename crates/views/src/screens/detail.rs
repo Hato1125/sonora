@@ -7,7 +7,7 @@ use gpui::{
 };
 
 use i18n::t;
-use spotify::{Album, Playlist, Track};
+use music::{Album, Playlist, Track};
 use state::{AppSettings, Collection, Detail, LibraryEvent, Playback, Sonora};
 use ui::{ActiveTheme as _, Button, Menu, Popover, Popovers, Popup, SortAxis};
 use ui::{

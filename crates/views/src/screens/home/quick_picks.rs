@@ -7,7 +7,7 @@ use gpui::{
     App, ClickEvent, Entity, MouseButton, MouseDownEvent, Pixels, SharedString, Window, div,
 };
 use i18n::t;
-use spotify::Track;
+use music::Track;
 use state::Playback;
 use ui::{ActiveTheme as _, Button, Card, Text, eyebrow, heading, vacant};
 

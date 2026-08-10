@@ -4,7 +4,7 @@ use anyhow::{Context as _, Result};
 use librespot_core::{Session, SpotifyUri};
 use serde::Deserialize;
 
-use crate::models::Track;
+use music::Track;
 use crate::playlists;
 
 const TRACK_PREFIX: &str = "spotify:track:";

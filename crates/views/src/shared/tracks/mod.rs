@@ -16,7 +16,7 @@ use gpui::{
 };
 use jiff::Timestamp;
 use router::Destination;
-use spotify::Track;
+use music::Track;
 use state::{Detail, Library, Playback, PlaybackState};
 use ui::{Button, Cell, ColumnSpec, GridSource, GridState, Menu, ROW_GROUP, Scrollbar, clock};
 
@@ -381,7 +381,7 @@ impl GridSource for TrackSource {
 mod fixture {
     use std::time::Duration;
 
-    use spotify::Track;
+    use music::Track;
 
     pub(super) fn track(seconds: u64, explicit: bool, playable: bool) -> Track {
         Track {

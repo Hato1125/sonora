@@ -6,7 +6,7 @@ use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use gpui::{Context, Entity, Task};
-use spotify::{Album, Playlist, SpotifyApi, Track};
+use music::{Album, MusicApi, Playlist, Track};
 
 use crate::{Io, Note, Session, SessionEvent, Toasts, join};
 
@@ -356,7 +356,7 @@ impl Library {
         apply: A,
         cx: &mut Context<Self>,
     ) where
-        F: FnOnce(Arc<dyn SpotifyApi>) -> R + Send + 'static,
+        F: FnOnce(Arc<dyn MusicApi>) -> R + Send + 'static,
         R: Future<Output = anyhow::Result<T>> + Send + 'static,
         T: Send + 'static,
         A: FnOnce(&mut Self, T, &mut Context<Self>) + 'static,
@@ -452,7 +452,7 @@ impl Library {
         }
     }
 
-    fn load(&mut self, client: Arc<dyn SpotifyApi>, cx: &mut Context<Self>) {
+    fn load(&mut self, client: Arc<dyn MusicApi>, cx: &mut Context<Self>) {
         self.playlist_task = None;
         self.pending.clear();
         self.pending_albums.clear();

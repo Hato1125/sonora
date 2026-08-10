@@ -55,7 +55,8 @@ fn main() {
             log::error!("sonora: cannot load bundled fonts: {error:#}");
         }
 
-        state::init(cx, io);
+        let provider = Arc::new(spotify::SpotifyProvider::from_env());
+        state::init(cx, io, provider);
         router::init(start, cx);
         let (look, overrides, language) = {
             let settings = Sonora::global(cx).settings.read(cx);

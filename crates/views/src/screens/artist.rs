@@ -11,7 +11,7 @@ use gpui::{
 use crate::chrome::Chrome;
 use crate::shared::cells;
 use i18n::t;
-use spotify::{Album, ReleaseType, Track};
+use music::{Album, ReleaseType, Track};
 use state::{AppSettings, ArtistDetail, Playback, Sonora};
 use ui::ActiveTheme as _;
 use ui::{

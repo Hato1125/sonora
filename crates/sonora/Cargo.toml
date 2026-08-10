@@ -12,6 +12,7 @@ log.workspace = true
 gpui.workspace = true
 gpui_platform.workspace = true
 i18n.workspace = true
+spotify.workspace = true
 state.workspace = true
 input.workspace = true
 router.workspace = true

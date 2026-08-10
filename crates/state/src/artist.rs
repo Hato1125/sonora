@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use gpui::{Context, Entity, Task};
-use spotify::{Album, Artist, Track};
+use music::{Album, Artist, Track};
 use tokio::task::AbortHandle;
 
 use crate::{Io, Session, SessionEvent, join};

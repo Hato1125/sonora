@@ -7,7 +7,7 @@ use gpui::{
 };
 use i18n::t;
 use router::{Destination, navigate};
-use spotify::Track;
+use music::Track;
 use ui::Input;
 
 use crate::chrome::Chrome;

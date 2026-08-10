@@ -10,7 +10,7 @@ use librespot_protocol::metadata::image::Size as ImageSize;
 use librespot_protocol::metadata::{Artist as ArtistMessage, Image};
 use protobuf::{EnumOrUnknown, Message as _};
 
-use crate::models::{Album, Artist, ArtistProfile, Track};
+use music::{Album, Artist, ArtistProfile, Track};
 use crate::{albums, collection, pathfinder, wire};
 
 const ARTIST_PREFIX: &str = "spotify:artist:";

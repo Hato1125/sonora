@@ -17,7 +17,7 @@ use gpui::{
 };
 use i18n::t;
 use router::{Destination, LibraryTab, navigate};
-use spotify::{Album, Playlist, Track};
+use music::{Album, Playlist, Track};
 use state::{AppSettings, Library, LibraryState, Origin, Playback, PlaybackState, Sonora};
 use ui::{
     ActiveTheme as _, Button, Card, Deck, FlagAxis, GridDelegate, GridEvent, GridSource, GridState,

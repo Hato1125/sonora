@@ -561,10 +561,12 @@ name = "audio"
 version = "0.6.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "cpal",
  "librespot-core",
  "librespot-playback",
  "log",
+ "music",
  "rodio",
  "tokio",
 ]
@@ -4144,6 +4146,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "music"
+version = "0.6.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+]
+
+[[package]]
 name = "naga"
 version = "29.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6609,6 +6619,7 @@ dependencies = [
  "raw-window-handle",
  "reqwest",
  "router",
+ "spotify",
  "state",
  "tokio",
  "ui",
@@ -6686,6 +6697,7 @@ version = "0.6.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "audio",
  "bytes",
  "dirs",
  "http",
@@ -6693,6 +6705,7 @@ dependencies = [
  "librespot-oauth",
  "librespot-protocol",
  "log",
+ "music",
  "protobuf",
  "serde",
  "serde_json",
@@ -6744,17 +6757,15 @@ name = "state"
 version = "0.6.0"
 dependencies = [
  "anyhow",
- "audio",
  "dirs",
  "fastrand",
  "gpui",
  "i18n",
- "librespot-core",
  "log",
+ "music",
  "serde",
  "serde_json",
  "souvlaki",
- "spotify",
  "tokio",
  "ui",
 ]
@@ -7995,8 +8006,8 @@ dependencies = [
  "i18n",
  "input",
  "jiff",
+ "music",
  "router",
- "spotify",
  "state",
  "ui",
 ]
