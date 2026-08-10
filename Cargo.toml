@@ -9,9 +9,8 @@ license = "GPL-3.0-or-later"
 repository = "https://github.com/nolight132/sonora"
 
 [workspace.dependencies]
-audio = { path = "crates/audio" }
 i18n = { path = "crates/i18n" }
-spotify = { path = "crates/spotify" }
+music = { path = "crates/music" }
 state = { path = "crates/state" }
 input = { path = "crates/input" }
 router = { path = "crates/router" }
@@ -69,6 +68,14 @@ tokio = { version = "1.53", features = [
   "macros",
   "sync",
 ] }
+
+[patch.crates-io]
+librespot-audio = { git = "https://github.com/nolight132/librespot", rev = "81b99cf12a29ba2915894f24d67aec85a963dc06" }
+librespot-core = { git = "https://github.com/nolight132/librespot", rev = "81b99cf12a29ba2915894f24d67aec85a963dc06" }
+librespot-metadata = { git = "https://github.com/nolight132/librespot", rev = "81b99cf12a29ba2915894f24d67aec85a963dc06" }
+librespot-oauth = { git = "https://github.com/nolight132/librespot", rev = "81b99cf12a29ba2915894f24d67aec85a963dc06" }
+librespot-playback = { git = "https://github.com/nolight132/librespot", rev = "81b99cf12a29ba2915894f24d67aec85a963dc06" }
+librespot-protocol = { git = "https://github.com/nolight132/librespot", rev = "81b99cf12a29ba2915894f24d67aec85a963dc06" }
 
 [profile.dev]
 split-debuginfo = "unpacked"

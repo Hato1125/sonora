@@ -3,8 +3,8 @@
 use anyhow::{Context as _, Result};
 use librespot_core::Session;
 
-use crate::collection;
-use crate::models::Track;
+use crate::Track;
+use crate::spotify::collection;
 
 const TRACK_PREFIX: &str = "spotify:track:";
 

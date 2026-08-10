@@ -10,7 +10,7 @@ use gpui::{
     uniform_list,
 };
 use i18n::t;
-use spotify::Track;
+use music::Track;
 use state::{AppSettings, Playback, Queue, Sonora};
 use ui::{
     ActiveTheme as _, Button, Card, MIN_CONTENT, Panel, Popup, Room, Scrollbar, Side, Text,

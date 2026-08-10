@@ -557,19 +557,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "audio"
-version = "0.6.0"
-dependencies = [
- "anyhow",
- "cpal",
- "librespot-core",
- "librespot-playback",
- "log",
- "rodio",
- "tokio",
-]
-
-[[package]]
 name = "autocfg"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3717,8 +3704,7 @@ dependencies = [
 [[package]]
 name = "librespot-audio"
 version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b3fe76acb49f58165484303edf0e7bd778f0e6d96f5c59e9d6b6fde1a90d36ff"
+source = "git+https://github.com/nolight132/librespot?rev=81b99cf12a29ba2915894f24d67aec85a963dc06#81b99cf12a29ba2915894f24d67aec85a963dc06"
 dependencies = [
  "aes",
  "bytes",
@@ -3737,8 +3723,7 @@ dependencies = [
 [[package]]
 name = "librespot-core"
 version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "168bbe1c416980ddd9a969ebd6b50fb6c924eb1a3ded194285fa8ec0e2b1c68b"
+source = "git+https://github.com/nolight132/librespot?rev=81b99cf12a29ba2915894f24d67aec85a963dc06#81b99cf12a29ba2915894f24d67aec85a963dc06"
 dependencies = [
  "aes",
  "base64",
@@ -3794,8 +3779,7 @@ dependencies = [
 [[package]]
 name = "librespot-metadata"
 version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a9c688aa2acd3ed2498e31a95d6f2be49c0f18128db8958450ffd628aa88532"
+source = "git+https://github.com/nolight132/librespot?rev=81b99cf12a29ba2915894f24d67aec85a963dc06#81b99cf12a29ba2915894f24d67aec85a963dc06"
 dependencies = [
  "async-trait",
  "bytes",
@@ -3812,8 +3796,7 @@ dependencies = [
 [[package]]
 name = "librespot-oauth"
 version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d686417d49c9d2c363392ffe28d6e469daca20a82dc414740930e078f5829661"
+source = "git+https://github.com/nolight132/librespot?rev=81b99cf12a29ba2915894f24d67aec85a963dc06#81b99cf12a29ba2915894f24d67aec85a963dc06"
 dependencies = [
  "log",
  "oauth2",
@@ -3826,8 +3809,7 @@ dependencies = [
 [[package]]
 name = "librespot-playback"
 version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "88258620bf3e6808ea1fadd11639648d77c06280b9f5a4c9d14ea79f6f998af6"
+source = "git+https://github.com/nolight132/librespot?rev=81b99cf12a29ba2915894f24d67aec85a963dc06#81b99cf12a29ba2915894f24d67aec85a963dc06"
 dependencies = [
  "cpal",
  "form_urlencoded",
@@ -3850,8 +3832,7 @@ dependencies = [
 [[package]]
 name = "librespot-protocol"
 version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e01f0b2d39f83fa162eb91d4a16313bcf99e77daf258abe8f7b7bcb1160b084"
+source = "git+https://github.com/nolight132/librespot?rev=81b99cf12a29ba2915894f24d67aec85a963dc06#81b99cf12a29ba2915894f24d67aec85a963dc06"
 dependencies = [
  "protobuf",
  "protobuf-codegen",
@@ -4141,6 +4122,28 @@ checksum = "bb85c154ba489f01b25c0d36ae69a87e4a1c73a72631fc6c0eb6dde34a73e44b"
 dependencies = [
  "num-traits",
  "pxfm",
+]
+
+[[package]]
+name = "music"
+version = "0.6.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bytes",
+ "cpal",
+ "dirs",
+ "http",
+ "librespot-core",
+ "librespot-oauth",
+ "librespot-playback",
+ "librespot-protocol",
+ "log",
+ "protobuf",
+ "rodio",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -6606,6 +6609,7 @@ dependencies = [
  "interprocess",
  "libc",
  "log",
+ "music",
  "raw-window-handle",
  "reqwest",
  "router",
@@ -6681,25 +6685,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "spotify"
-version = "0.6.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "bytes",
- "dirs",
- "http",
- "librespot-core",
- "librespot-oauth",
- "librespot-protocol",
- "log",
- "protobuf",
- "serde",
- "serde_json",
- "tokio",
-]
-
-[[package]]
 name = "stable_deref_trait"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6744,17 +6729,15 @@ name = "state"
 version = "0.6.0"
 dependencies = [
  "anyhow",
- "audio",
  "dirs",
  "fastrand",
  "gpui",
  "i18n",
- "librespot-core",
  "log",
+ "music",
  "serde",
  "serde_json",
  "souvlaki",
- "spotify",
  "tokio",
  "ui",
 ]
@@ -7995,8 +7978,8 @@ dependencies = [
  "i18n",
  "input",
  "jiff",
+ "music",
  "router",
- "spotify",
  "state",
  "ui",
 ]

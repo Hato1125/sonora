@@ -13,8 +13,8 @@ use librespot_protocol::metadata::{
 };
 use protobuf::{EnumOrUnknown, Message as _};
 
-use crate::models::{ArtistRef, Credit, Track};
-use crate::{collection2, wire};
+use crate::spotify::{collection2, wire};
+use crate::{ArtistRef, Credit, Track};
 
 const TRACK_PREFIX: &str = "spotify:track:";
 const UNKNOWN: &str = "Unknown";

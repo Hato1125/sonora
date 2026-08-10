@@ -5,8 +5,8 @@ use ui::ActiveTheme as _;
 
 use gpui::{AnyElement, App, Entity, SharedString, TextAlign};
 use i18n::t;
+use music::Album;
 use router::Destination;
-use spotify::Album;
 use state::{Library, LibraryState, Origin, Playback};
 use ui::{Cell, ColumnSpec, GridSource, Menu, Width};
 

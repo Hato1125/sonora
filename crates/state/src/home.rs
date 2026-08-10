@@ -4,7 +4,7 @@ use std::collections::HashSet;
 use std::rc::Rc;
 
 use gpui::{App, Context, Entity};
-use spotify::Track;
+use music::Track;
 
 use crate::{Library, LibraryState};
 
@@ -118,7 +118,7 @@ mod tests {
     use std::collections::HashSet;
     use std::time::Duration;
 
-    use spotify::{ArtistRef, Track};
+    use music::{ArtistRef, Track};
 
     use super::{GROUP_SIZE, LIMIT, mixed_tracks};
 

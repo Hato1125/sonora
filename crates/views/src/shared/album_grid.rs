@@ -7,8 +7,8 @@ use gpui::{
     AnyElement, App, Entity, FontWeight, MouseButton, Pixels, Point, RenderOnce, SharedString,
     Window, div, px,
 };
+use music::Album;
 use router::{Destination, navigate};
-use spotify::Album;
 use state::{Origin, Playback, PlaybackState};
 use ui::{ActiveTheme as _, Card, Text};
 

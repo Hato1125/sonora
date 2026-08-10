@@ -3,7 +3,7 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
 use gpui::{Context, Entity};
-use spotify::Track;
+use music::Track;
 
 use crate::AppSettings;
 
@@ -408,7 +408,7 @@ mod tests {
     use std::collections::VecDeque;
     use std::time::Duration;
 
-    use spotify::Track;
+    use music::Track;
 
     use super::{
         gap_target, in_order, move_item, restore, scramble, select_past, select_upcoming, trim,

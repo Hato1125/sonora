@@ -35,7 +35,7 @@ pub(crate) struct PlayerBar {
     library: Entity<Library>,
     sidebar_right: Option<Entity<SidebarRight>>,
     track_menu: ItemMenu,
-    context_menu: Option<(spotify::Track, Point<Pixels>)>,
+    context_menu: Option<(music::Track, Point<Pixels>)>,
     seek: ScrubberState,
     volume: ScrubberState,
     pending: Option<f32>,
@@ -97,7 +97,7 @@ impl PlayerBar {
 
     fn open_context_menu(
         &mut self,
-        track: spotify::Track,
+        track: music::Track,
         position: Point<Pixels>,
         cx: &mut Context<Self>,
     ) {
@@ -337,7 +337,7 @@ impl PlayerBar {
             }))
     }
 
-    fn like(&self, track: Option<spotify::Track>, cx: &mut Context<Self>) -> Button {
+    fn like(&self, track: Option<music::Track>, cx: &mut Context<Self>) -> Button {
         let theme = *cx.theme();
         let id = track.as_ref().and_then(|track| track.id.as_deref());
         let library = self.library.read(cx);

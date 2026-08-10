@@ -342,3 +342,5 @@ toast-next-album = Альбом прозвучить наступним
 toast-queued-playlist = Плейлист додано до черги
 toast-next-playlist = Плейлист прозвучить наступним
 toast-queue-failed = Не вдалося додати до черги
+toast-keys-refused = Spotify не надає цьому обліковому запису ключі відтворення
+toast-track-unplayable = Не вдалося відтворити { $name }

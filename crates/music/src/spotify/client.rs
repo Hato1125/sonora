@@ -2,47 +2,19 @@
 
 use std::collections::{HashMap, HashSet};
 
+use crate::{MediaKind, MusicApi};
 use anyhow::{Context as _, Result};
 use async_trait::async_trait;
 use librespot_core::Session;
 use librespot_protocol::playlist4_external::SelectedListContent as RootList;
 use protobuf::Message as _;
 
-use crate::models::{
-    Album, AlbumDetail, Artist, ArtistProfile, Playlist, PlaylistDetail, Track, UserProfile,
-};
-use crate::{
+use crate::spotify::{
     albums, artists, collection, collection2, pathfinder, playlists, profiles, radio, search, wire,
 };
-
-#[async_trait]
-pub trait SpotifyApi: Send + Sync {
-    async fn profile(&self) -> Result<UserProfile>;
-    async fn artist(&self, artist_id: &str) -> Result<Artist>;
-    async fn artist_profile(&self, artist_id: &str) -> Result<ArtistProfile>;
-    async fn artist_images(&self, ids: Vec<String>) -> Result<HashMap<String, String>>;
-    async fn saved_tracks(&self, limit: u32) -> Result<Vec<Track>>;
-    async fn set_track_saved(&self, track_id: &str, saved: bool) -> Result<()>;
-    async fn track(&self, track_id: &str) -> Result<Track>;
-    async fn track_playcount(&self, track_id: &str) -> Result<Option<u64>>;
-    async fn playlists(&self, limit: u32) -> Result<Vec<Playlist>>;
-    async fn create_playlist(&self, name: &str) -> Result<String>;
-    async fn rename_playlist(&self, playlist_id: &str, name: &str) -> Result<()>;
-    async fn delete_playlist(&self, playlist_id: &str) -> Result<()>;
-    async fn remove_playlist_from_library(&self, playlist_id: &str) -> Result<()>;
-    async fn add_playlist_to_library(&self, playlist_id: &str) -> Result<()>;
-    async fn set_playlist_public(&self, playlist_id: &str, public: bool) -> Result<()>;
-    async fn add_track_to_playlist(&self, playlist_id: &str, track_id: &str) -> Result<()>;
-    async fn remove_track_from_playlist(&self, playlist_id: &str, track_id: &str) -> Result<()>;
-    async fn saved_albums(&self, limit: u32) -> Result<Vec<Album>>;
-    async fn set_album_saved(&self, album_id: &str, saved: bool) -> Result<()>;
-    async fn album(&self, album_id: &str) -> Result<AlbumDetail>;
-    async fn album_tracks(&self, album_id: &str) -> Result<Vec<Track>>;
-    async fn playlist(&self, playlist_id: &str) -> Result<PlaylistDetail>;
-    async fn playlist_tracks(&self, playlist_id: &str) -> Result<Vec<Track>>;
-    async fn track_radio(&self, track_id: &str) -> Result<Vec<Track>>;
-    async fn search(&self, query: &str) -> Result<Vec<Track>>;
-}
+use crate::{
+    Album, AlbumDetail, Artist, ArtistProfile, Playlist, PlaylistDetail, Track, UserProfile,
+};
 
 pub struct LibrespotClient {
     session: Session,
@@ -59,7 +31,17 @@ impl LibrespotClient {
 }
 
 #[async_trait]
-impl SpotifyApi for LibrespotClient {
+impl MusicApi for LibrespotClient {
+    fn share_url(&self, kind: MediaKind, id: &str) -> Option<String> {
+        let kind = match kind {
+            MediaKind::Track => "track",
+            MediaKind::Album => "album",
+            MediaKind::Artist => "artist",
+            MediaKind::Playlist => "playlist",
+        };
+        Some(format!("https://open.spotify.com/{kind}/{id}"))
+    }
+
     async fn profile(&self) -> Result<UserProfile> {
         let username = self.session.username();
         let body = self

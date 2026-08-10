@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 use librespot_core::Session;
 use tokio::task::JoinSet;
 
-use crate::wire::Named;
+use crate::spotify::wire::Named;
 
 pub async fn display_names(
     session: &Session,

@@ -8,7 +8,7 @@ use http::header::{ACCEPT, CONTENT_TYPE};
 use http::{HeaderMap, HeaderValue, Method};
 use librespot_core::Session;
 
-use crate::pb::{Reader, Value, Writer, text};
+use crate::spotify::pb::{Reader, Value, Writer, text};
 
 const PAGING: &str = "/collection/v2/paging";
 const WRITE: &str = "/collection/v2/write";

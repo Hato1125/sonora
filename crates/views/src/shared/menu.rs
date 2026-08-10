@@ -2,8 +2,8 @@
 
 use gpui::{App, ClipboardItem, Entity, Styled as _};
 use i18n::t;
+use music::{Album, MediaKind, Playlist, Track};
 use router::{Destination, navigate};
-use spotify::{Album, Playlist, Track};
 use state::{Detail, LibraryState, Playback, Sonora};
 use ui::{Menu, MenuItem, Scrollbar, SubmenuState};
 
@@ -144,11 +144,7 @@ impl ItemMenu {
         let copy = match track.id.clone() {
             Some(id) => MenuItem::new("copy-track-link", t!("menu-copy-link"))
                 .icon("icons/link.svg")
-                .on_click(move |_, _, cx| {
-                    cx.write_to_clipboard(ClipboardItem::new_string(format!(
-                        "https://open.spotify.com/track/{id}"
-                    )));
-                }),
+                .on_click(move |_, _, cx| copy_link(MediaKind::Track, &id, cx)),
             None => MenuItem::new("copy-track-link", t!("menu-copy-link"))
                 .icon("icons/link.svg")
                 .disabled(),
@@ -366,11 +362,7 @@ pub(crate) fn album_menu(
             vec![
                 MenuItem::new("copy-album-link", t!("menu-copy-link"))
                     .icon("icons/link.svg")
-                    .on_click(move |_, _, cx| {
-                        cx.write_to_clipboard(ClipboardItem::new_string(format!(
-                            "https://open.spotify.com/album/{copied}"
-                        )));
-                    }),
+                    .on_click(move |_, _, cx| copy_link(MediaKind::Album, &copied, cx)),
             ],
         ],
     )
@@ -403,11 +395,7 @@ pub(crate) fn artist_menu(artist_id: String) -> Menu {
     Menu::new("artist-context-menu").item(
         MenuItem::new("copy-artist-link", t!("menu-copy-link"))
             .icon("icons/link.svg")
-            .on_click(move |_, _, cx| {
-                cx.write_to_clipboard(ClipboardItem::new_string(format!(
-                    "https://open.spotify.com/artist/{artist_id}"
-                )));
-            }),
+            .on_click(move |_, _, cx| copy_link(MediaKind::Artist, &artist_id, cx)),
     )
 }
 
@@ -499,14 +487,20 @@ pub(crate) fn playlist_menu(
             vec![
                 MenuItem::new("copy-playlist-link", t!("menu-copy-link"))
                     .icon("icons/link.svg")
-                    .on_click(move |_, _, cx| {
-                        cx.write_to_clipboard(ClipboardItem::new_string(format!(
-                            "https://open.spotify.com/playlist/{copied}"
-                        )));
-                    }),
+                    .on_click(move |_, _, cx| copy_link(MediaKind::Playlist, &copied, cx)),
             ],
         ],
     )
+}
+
+fn copy_link(kind: MediaKind, id: &str, cx: &mut App) {
+    let Some(client) = Sonora::global(cx).session.read(cx).client() else {
+        return;
+    };
+    let Some(url) = client.share_url(kind, id) else {
+        return;
+    };
+    cx.write_to_clipboard(ClipboardItem::new_string(url));
 }
 
 fn playlist_library_item(playlist: Playlist, cx: &App) -> MenuItem {

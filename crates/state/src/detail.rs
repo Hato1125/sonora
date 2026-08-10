@@ -2,7 +2,7 @@
 
 use gpui::{Context, Entity, Task};
 use i18n::t;
-use spotify::{Album, AlbumDetail, ArtistRef, Playlist, PlaylistDetail, Track};
+use music::{Album, AlbumDetail, ArtistRef, Playlist, PlaylistDetail, Track};
 
 use crate::{Io, Library, Session, SessionEvent, join};
 
