@@ -21,7 +21,7 @@ pub use playback::{Origin, Playback, PlaybackState, Repeat};
 pub use queue::Queue;
 pub use remote::{Remote, attach as attach_remote};
 pub use search::{AlbumHit, ArtistHit, Hit, Kind, Search};
-pub use session::{Session, SessionEvent, SessionState};
+pub use session::{ProviderInfo, Session, SessionEvent, SessionState};
 pub use settings::AppSettings;
 pub use song::SongDetail;
 pub use toast::{Note, Toast, Toasts};

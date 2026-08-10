@@ -5,7 +5,7 @@ use std::sync::Arc;
 use anyhow::Error;
 use gpui::{Context, Entity, EventEmitter, Task};
 use music::{
-    MusicApi, MusicProvider, PlaybackFactory, PromptSink, ProviderSession, SignInPrompt,
+    MusicApi, MusicProvider, PlaybackFactory, PromptSink, ProviderSession, SignIn, SignInPrompt,
     UserProfile,
 };
 use tokio::sync::mpsc::UnboundedSender;
@@ -27,6 +27,12 @@ pub enum SessionEvent {
     SignedOut,
 }
 
+pub struct ProviderInfo {
+    pub slug: &'static str,
+    pub name: &'static str,
+    pub options: Vec<SignIn>,
+}
+
 pub struct Session {
     state: SessionState,
     providers: Vec<Arc<dyn MusicProvider>>,
@@ -34,6 +40,7 @@ pub struct Session {
     settings: Entity<AppSettings>,
     client: Option<Arc<dyn MusicApi>>,
     playback: Option<Arc<dyn PlaybackFactory>>,
+    authenticated: bool,
     io: Io,
     task: Option<Task<()>>,
     prompt_task: Option<Task<()>>,
@@ -60,6 +67,7 @@ impl Session {
             settings,
             client: None,
             playback: None,
+            authenticated: false,
             io,
             task: None,
             prompt_task: None,
@@ -79,15 +87,21 @@ impl Session {
         self.playback.clone()
     }
 
-    pub fn providers(&self) -> impl Iterator<Item = (&'static str, &'static str)> {
-        self.providers
-            .iter()
-            .map(|provider| (provider.slug(), provider.name()))
+    pub fn providers(&self) -> impl Iterator<Item = ProviderInfo> + '_ {
+        self.providers.iter().map(|provider| ProviderInfo {
+            slug: provider.slug(),
+            name: provider.name(),
+            options: provider.sign_in_options(),
+        })
     }
 
     pub fn provider_name(&self) -> Option<&'static str> {
         let provider = &self.providers[self.active?];
         Some(provider.name())
+    }
+
+    pub fn authenticated(&self) -> bool {
+        self.authenticated
     }
 
     pub fn is_pending(&self) -> bool {
@@ -128,7 +142,7 @@ impl Session {
         }));
     }
 
-    pub fn sign_in(&mut self, slug: &str, cx: &mut Context<Self>) {
+    pub fn sign_in(&mut self, slug: &str, method: SignIn, cx: &mut Context<Self>) {
         if self.is_pending() {
             return;
         }
@@ -164,7 +178,8 @@ impl Session {
         let io = self.io.clone();
         self.task = Some(cx.spawn(async move |this, cx| {
             let authorized =
-                join(io.spawn(async move { provider.sign_in(prompt, input_rx).await })).await;
+                join(io.spawn(async move { provider.sign_in(method, prompt, input_rx).await }))
+                    .await;
 
             this.update(cx, |this, cx| {
                 this.prompt_task = None;
@@ -197,6 +212,7 @@ impl Session {
         self.input = None;
         self.client = None;
         self.playback = None;
+        self.authenticated = false;
         self.state = SessionState::SignedOut;
         cx.notify();
         cx.emit(SessionEvent::SignedOut);
@@ -210,6 +226,7 @@ impl Session {
         });
         self.client = Some(session.api);
         self.playback = Some(session.playback);
+        self.authenticated = session.authenticated;
         self.state = SessionState::SignedIn(session.profile);
         cx.notify();
         cx.emit(SessionEvent::SignedIn);
