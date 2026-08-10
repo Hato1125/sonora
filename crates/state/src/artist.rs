@@ -19,8 +19,13 @@ pub struct ArtistDetail {
 
 impl ArtistDetail {
     pub fn new(session: Entity<Session>, io: Io, cx: &mut Context<Self>) -> Self {
-        cx.subscribe(&session, |this, _, event, cx| {
-            if matches!(event, SessionEvent::SignedOut) {
+        cx.subscribe(&session, |this, _, event, cx| match event {
+            SessionEvent::SignedIn => {
+                if let Some(id) = this.id.clone() {
+                    this.open(&id, cx);
+                }
+            }
+            SessionEvent::SignedOut => {
                 this.clear();
                 cx.notify();
             }
