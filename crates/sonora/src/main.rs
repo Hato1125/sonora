@@ -5,6 +5,7 @@
 mod actions;
 mod assets;
 mod http;
+mod memory;
 mod single;
 
 use std::sync::Arc;
@@ -72,6 +73,7 @@ fn main() {
         ui::Theme::init(look, &overrides, cx);
 
         actions::register(cx);
+        memory::watch(cx);
 
         let Sonora {
             session,
