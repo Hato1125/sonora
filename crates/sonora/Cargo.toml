@@ -18,6 +18,7 @@ ui.workspace = true
 views.workspace = true
 reqwest.workspace = true
 tokio = { workspace = true, features = ["rt"] }
+interprocess.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 raw-window-handle.workspace = true
