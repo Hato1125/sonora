@@ -4,8 +4,8 @@ use std::rc::Rc;
 
 use gpui::prelude::*;
 use gpui::{
-    AnyElement, App, Bounds, Entity, FontWeight, MouseButton, Pixels, Point, RenderOnce,
-    SharedString, Window, div, px,
+    AnyElement, App, Entity, FontWeight, MouseButton, Pixels, Point, RenderOnce, SharedString,
+    Window, div, px,
 };
 use router::{Destination, navigate};
 use spotify::Album;
@@ -17,7 +17,6 @@ pub(crate) const CARD_MAX: Pixels = px(190.);
 const CARD_GAP: Pixels = px(32.);
 
 type ContextMenu = Rc<dyn Fn(Album, Point<Pixels>, &mut App)>;
-type LayoutListener = Rc<dyn Fn(Vec<Bounds<Pixels>>, &mut Window, &mut App)>;
 
 #[derive(Clone, Copy)]
 pub(crate) struct CardLayout {
@@ -85,7 +84,6 @@ pub(crate) struct AlbumGrid {
     albums: Vec<(usize, Album)>,
     playback: Entity<Playback>,
     on_context: Option<ContextMenu>,
-    on_layout: Option<LayoutListener>,
 }
 
 impl AlbumGrid {
@@ -101,12 +99,7 @@ impl AlbumGrid {
             albums: albums.into_iter().collect(),
             playback,
             on_context: None,
-            on_layout: None,
         }
-    }
-
-    pub(crate) fn columns(available: Pixels) -> usize {
-        CardLayout::new(available).columns
     }
 
     pub(crate) fn on_context(
@@ -114,14 +107,6 @@ impl AlbumGrid {
         listener: impl Fn(Album, Point<Pixels>, &mut App) + 'static,
     ) -> Self {
         self.on_context = Some(Rc::new(listener));
-        self
-    }
-
-    pub(crate) fn on_layout(
-        mut self,
-        listener: impl Fn(Vec<Bounds<Pixels>>, &mut Window, &mut App) + 'static,
-    ) -> Self {
-        self.on_layout = Some(Rc::new(listener));
         self
     }
 }
@@ -134,7 +119,6 @@ impl RenderOnce for AlbumGrid {
             albums,
             playback,
             on_context,
-            on_layout,
         } = self;
         let cards = albums.into_iter().map(|(index, album)| {
             let context = album.clone();
@@ -161,9 +145,6 @@ impl RenderOnce for AlbumGrid {
             .gap_x(layout.gap)
             .gap_y_6()
             .children(cards)
-            .when_some(on_layout, |grid, listener| {
-                grid.on_children_prepainted(move |bounds, window, cx| listener(bounds, window, cx))
-            })
     }
 }
 

@@ -6603,6 +6603,7 @@ dependencies = [
  "i18n",
  "input",
  "interprocess",
+ "libc",
  "log",
  "raw-window-handle",
  "reqwest",
@@ -7688,6 +7689,7 @@ version = "0.6.0"
 dependencies = [
  "gpui",
  "i18n",
+ "log",
  "serde",
 ]
 

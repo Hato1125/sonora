@@ -105,6 +105,17 @@ impl Card {
         self
     }
 
+    pub fn tile_height(art: Pixels, window: &Window, cx: &App) -> Pixels {
+        let theme = *cx.theme();
+        let rem = window.rem_size();
+        let line = |step: Text| px((theme.text(step) / px(1.) * LEADING).round());
+
+        snapped(
+            art + rem * 0.5 + line(Text::Body) + TIGHT + line(Text::Small),
+            window,
+        )
+    }
+
     pub fn play(
         mut self,
         playing: bool,
