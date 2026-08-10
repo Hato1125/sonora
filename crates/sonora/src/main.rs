@@ -90,7 +90,7 @@ fn open_window(
             window_bounds: Some(WindowBounds::Windowed(bounds)),
             window_background: WindowBackgroundAppearance::Transparent,
             titlebar: Some(TitlebarOptions {
-                title: Some("sonora".into()),
+                title: Some("Sonora".into()),
                 appears_transparent: true,
                 traffic_light_position: Some(point(
                     px(9.),
