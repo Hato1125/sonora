@@ -121,7 +121,7 @@ fn open_window(
             window_bounds: Some(WindowBounds::Windowed(bounds)),
             window_background: WindowBackgroundAppearance::Transparent,
             titlebar: Some(TitlebarOptions {
-                title: Some("sonora".into()),
+                title: Some("Sonora".into()),
                 appears_transparent: true,
                 traffic_light_position: Some(point(
                     px(9.),
@@ -136,8 +136,24 @@ fn open_window(
         },
         |window, cx| {
             window.set_rem_size(cx.theme().font_size);
+            state::attach_remote(window_handle(window), cx);
             cx.new(|cx| Root::new(session, library, playback, queue, window, cx))
         },
     )
     .expect("failed to open window");
+}
+
+#[cfg(target_os = "windows")]
+fn window_handle(window: &gpui::Window) -> Option<*mut std::ffi::c_void> {
+    use raw_window_handle::{HasWindowHandle as _, RawWindowHandle};
+
+    match window.window_handle().ok()?.as_raw() {
+        RawWindowHandle::Win32(handle) => Some(handle.hwnd.get() as *mut std::ffi::c_void),
+        _ => None,
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn window_handle(_window: &gpui::Window) -> Option<*mut std::ffi::c_void> {
+    None
 }

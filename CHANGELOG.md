@@ -9,8 +9,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Sonora answers the system media controls: media keys, the desktop's now-playing widget and
+  lock-screen controls can play, pause, skip, seek and set the volume, and they show the current
+  track with its cover art.
 - Spotify links open in Sonora: a `spotify:` link to a track, album, playlist or artist opens that
   page, handing it to the window already running instead of starting a second one.
+
+### Changed
+
+- The app presents itself as Sonora rather than sonora, in the window title, the application menu
+  and the Windows file properties.
 
 ## [0.5.0] - 2026-08-09
 
