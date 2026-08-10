@@ -31,6 +31,7 @@ struct Values {
     shuffle: bool,
     repeat: Repeat,
     language: String,
+    provider: String,
     #[serde(skip_serializing_if = "HashMap::is_empty")]
     hidden_columns: HashMap<String, Vec<String>>,
     tables: HashMap<String, Layout>,
@@ -67,6 +68,7 @@ impl Default for Values {
             shuffle: false,
             repeat: Repeat::Off,
             language: i18n::AUTO.to_owned(),
+            provider: "spotify".to_owned(),
             hidden_columns: HashMap::new(),
             tables: HashMap::new(),
             sorting: HashMap::new(),
@@ -170,6 +172,10 @@ impl AppSettings {
 
     pub fn language(&self) -> &str {
         &self.values.language
+    }
+
+    pub fn provider(&self) -> &str {
+        &self.values.provider
     }
 
     pub fn theme(&self) -> &str {
@@ -313,6 +319,15 @@ impl AppSettings {
         self.values.language = language.into();
         i18n::set(i18n::resolve(&self.values.language));
         cx.refresh_windows();
+        self.schedule_save(cx);
+    }
+
+    pub fn set_provider(&mut self, provider: impl Into<String>, cx: &mut Context<Self>) {
+        let provider = provider.into();
+        if self.values.provider == provider {
+            return;
+        }
+        self.values.provider = provider;
         self.schedule_save(cx);
     }
 

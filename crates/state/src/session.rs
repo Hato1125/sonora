@@ -3,16 +3,20 @@
 use std::sync::Arc;
 
 use anyhow::Error;
-use gpui::{Context, EventEmitter, Task};
-use music::{MusicApi, MusicProvider, PlaybackFactory, ProviderSession, UserProfile};
+use gpui::{Context, Entity, EventEmitter, Task};
+use music::{
+    MusicApi, MusicProvider, PlaybackFactory, PromptSink, ProviderSession, SignInPrompt,
+    UserProfile,
+};
 
+use crate::settings::AppSettings;
 use crate::{Io, join};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SessionState {
     SignedOut,
     Restoring,
-    Authorizing,
+    Authorizing(Option<SignInPrompt>),
     SignedIn(UserProfile),
     Failed(String),
 }
@@ -24,24 +28,39 @@ pub enum SessionEvent {
 
 pub struct Session {
     state: SessionState,
-    provider: Arc<dyn MusicProvider>,
+    providers: Vec<Arc<dyn MusicProvider>>,
+    active: Option<usize>,
+    settings: Entity<AppSettings>,
     client: Option<Arc<dyn MusicApi>>,
     playback: Option<Arc<dyn PlaybackFactory>>,
     io: Io,
     task: Option<Task<()>>,
+    prompt_task: Option<Task<()>>,
 }
 
 impl EventEmitter<SessionEvent> for Session {}
 
 impl Session {
-    pub fn new(provider: Arc<dyn MusicProvider>, io: Io) -> Self {
+    pub fn new(
+        providers: Vec<Arc<dyn MusicProvider>>,
+        settings: Entity<AppSettings>,
+        io: Io,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        let remembered = settings.read(cx).provider().to_string();
+        let active = providers
+            .iter()
+            .position(|provider| provider.slug() == remembered);
         Self {
             state: SessionState::SignedOut,
-            provider,
+            providers,
+            active,
+            settings,
             client: None,
             playback: None,
             io,
             task: None,
+            prompt_task: None,
         }
     }
 
@@ -57,10 +76,21 @@ impl Session {
         self.playback.clone()
     }
 
+    pub fn providers(&self) -> impl Iterator<Item = (&'static str, &'static str)> {
+        self.providers
+            .iter()
+            .map(|provider| (provider.slug(), provider.name()))
+    }
+
+    pub fn provider_name(&self) -> Option<&'static str> {
+        let provider = &self.providers[self.active?];
+        Some(provider.name())
+    }
+
     pub fn is_pending(&self) -> bool {
         matches!(
             self.state,
-            SessionState::Restoring | SessionState::Authorizing
+            SessionState::Restoring | SessionState::Authorizing(_)
         )
     }
 
@@ -68,16 +98,22 @@ impl Session {
         if self.is_pending() {
             return;
         }
+        let Some(active) = self.active else {
+            self.state = SessionState::SignedOut;
+            cx.notify();
+            cx.emit(SessionEvent::SignedOut);
+            return;
+        };
         self.state = SessionState::Restoring;
         cx.notify();
 
-        let provider = self.provider.clone();
+        let provider = self.providers[active].clone();
         let io = self.io.clone();
         self.task = Some(cx.spawn(async move |this, cx| {
             let restored = join(io.spawn(async move { provider.restore().await })).await;
 
             this.update(cx, |this, cx| match restored {
-                Ok(Some(session)) => this.signed_in(session, cx),
+                Ok(Some(session)) => this.signed_in(session, active, cx),
                 Ok(None) => {
                     this.state = SessionState::SignedOut;
                     cx.notify();
@@ -89,29 +125,58 @@ impl Session {
         }));
     }
 
-    pub fn sign_in(&mut self, cx: &mut Context<Self>) {
+    pub fn sign_in(&mut self, slug: &str, cx: &mut Context<Self>) {
         if self.is_pending() {
             return;
         }
-        self.state = SessionState::Authorizing;
+        let Some(index) = self
+            .providers
+            .iter()
+            .position(|provider| provider.slug() == slug)
+        else {
+            return;
+        };
+        self.state = SessionState::Authorizing(None);
         cx.notify();
 
-        let provider = self.provider.clone();
+        let (prompt_tx, mut prompt_rx) = tokio::sync::mpsc::unbounded_channel::<SignInPrompt>();
+        self.prompt_task = Some(cx.spawn(async move |this, cx| {
+            while let Some(prompt) = prompt_rx.recv().await {
+                this.update(cx, |this, cx| {
+                    if matches!(this.state, SessionState::Authorizing(_)) {
+                        this.state = SessionState::Authorizing(Some(prompt));
+                        cx.notify();
+                    }
+                })
+                .ok();
+            }
+        }));
+        let prompt: PromptSink = Arc::new(move |prompt| {
+            prompt_tx.send(prompt).ok();
+        });
+
+        let provider = self.providers[index].clone();
         let io = self.io.clone();
         self.task = Some(cx.spawn(async move |this, cx| {
-            let authorized = join(io.spawn(async move { provider.sign_in().await })).await;
+            let authorized = join(io.spawn(async move { provider.sign_in(prompt).await })).await;
 
-            this.update(cx, |this, cx| match authorized {
-                Ok(session) => this.signed_in(session, cx),
-                Err(error) => this.failed(&error, cx),
+            this.update(cx, |this, cx| {
+                this.prompt_task = None;
+                match authorized {
+                    Ok(session) => this.signed_in(session, index, cx),
+                    Err(error) => this.failed(&error, cx),
+                }
             })
             .ok();
         }));
     }
 
     pub fn sign_out(&mut self, cx: &mut Context<Self>) {
-        self.provider.sign_out();
+        if let Some(active) = self.active {
+            self.providers[active].sign_out();
+        }
         self.task = None;
+        self.prompt_task = None;
         self.client = None;
         self.playback = None;
         self.state = SessionState::SignedOut;
@@ -119,7 +184,12 @@ impl Session {
         cx.emit(SessionEvent::SignedOut);
     }
 
-    fn signed_in(&mut self, session: ProviderSession, cx: &mut Context<Self>) {
+    fn signed_in(&mut self, session: ProviderSession, index: usize, cx: &mut Context<Self>) {
+        self.active = Some(index);
+        let slug = self.providers[index].slug();
+        self.settings.update(cx, |settings, cx| {
+            settings.set_provider(slug, cx);
+        });
         self.client = Some(session.api);
         self.playback = Some(session.playback);
         self.state = SessionState::SignedIn(session.profile);

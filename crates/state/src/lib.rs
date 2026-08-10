@@ -82,11 +82,11 @@ impl Sonora {
     }
 }
 
-pub fn init(cx: &mut App, io: Io, provider: Arc<dyn MusicProvider>) {
+pub fn init(cx: &mut App, io: Io, providers: Vec<Arc<dyn MusicProvider>>) {
     cx.set_global(io.clone());
 
     let settings = cx.new(|_| AppSettings::load());
-    let session = cx.new(|_| Session::new(provider, io.clone()));
+    let session = cx.new(|cx| Session::new(providers, settings.clone(), io.clone(), cx));
     let library = cx.new(|cx| Library::new(session.clone(), io, cx));
     let queue = cx.new(|cx| Queue::new(settings.clone(), cx));
     let playback = cx.new(|cx| Playback::new(session.clone(), queue.clone(), settings.clone(), cx));
