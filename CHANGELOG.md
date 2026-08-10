@@ -7,6 +7,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Sonora answers the system media controls: media keys, the desktop's now-playing widget and
+  lock-screen controls can play, pause, skip, seek and set the volume, and they show the current
+  track with its cover art.
+
 ### Changed
 
 - The app presents itself as Sonora rather than sonora, in the window title, the application menu

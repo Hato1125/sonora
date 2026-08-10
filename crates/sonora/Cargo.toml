@@ -19,5 +19,8 @@ views.workspace = true
 reqwest.workspace = true
 tokio = { workspace = true, features = ["rt"] }
 
+[target.'cfg(windows)'.dependencies]
+raw-window-handle.workspace = true
+
 [target.'cfg(windows)'.build-dependencies]
 winresource.workspace = true
