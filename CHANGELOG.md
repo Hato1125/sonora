@@ -7,6 +7,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Spotify links open in Sonora: a `spotify:` link to a track, album, playlist or artist opens that
+  page, handing it to the window already running instead of starting a second one.
+
 ## [0.5.0] - 2026-08-09
 
 ### Added
