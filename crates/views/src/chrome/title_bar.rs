@@ -18,6 +18,7 @@ const TITLE_BAR_LEFT_INSET: f32 = 12.;
 pub(crate) struct TitleBarOptions {
     pub navigation: bool,
     pub sidebar_open: bool,
+    pub sidebar_right: Option<bool>,
     pub offset: Pixels,
     pub content: Option<AnyView>,
 }
@@ -27,6 +28,7 @@ impl Default for TitleBarOptions {
         Self {
             navigation: false,
             sidebar_open: false,
+            sidebar_right: None,
             offset: Pixels::ZERO,
             content: None,
         }
@@ -35,6 +37,7 @@ impl Default for TitleBarOptions {
 
 pub(crate) enum TitleBarEvent {
     ToggleSidebar,
+    ToggleSidebarRight,
 }
 
 pub(crate) struct TitleBar {
@@ -117,6 +120,29 @@ impl TitleBar {
             )
     }
 
+    fn lyrics_toggle(&self, open: bool, cx: &mut Context<Self>) -> impl IntoElement {
+        div()
+            .flex()
+            .flex_none()
+            .items_center()
+            .occlude()
+            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+            .child(
+                Button::new("sidebar-right-toggle")
+                    .ghost()
+                    .small()
+                    .icon(match open {
+                        true => "icons/panel-right-close.svg",
+                        false => "icons/panel-right-open.svg",
+                    })
+                    .tooltip("nav-sidebar-right")
+                    .selected(open)
+                    .on_click(
+                        cx.listener(|_, _, _, cx| cx.emit(TitleBarEvent::ToggleSidebarRight)),
+                    ),
+            )
+    }
+
     fn toggle(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let icon = match self.options.sidebar_open {
             true => "icons/panel-left-close.svg",
@@ -193,6 +219,9 @@ impl Render for TitleBar {
                     .children(content)
                     .pr_3(),
             )
+            .when_some(self.options.sidebar_right, |this, open| {
+                this.child(div().flex_none().pr_3().child(self.lyrics_toggle(open, cx)))
+            })
             .when(decorated && !leading, |this| {
                 this.child(div().flex_none().pr_2().child(WindowControls::new(false)))
             })

@@ -27,7 +27,7 @@ struct Values {
     sidebar_width: f32,
     sidebar_open: bool,
     sidebar_right_width: f32,
-    queue_open: bool,
+    sidebar_right_open: bool,
     shuffle: bool,
     repeat: Repeat,
     language: String,
@@ -64,7 +64,7 @@ impl Default for Values {
             sidebar_width: DEFAULT_SIDEBAR_WIDTH,
             sidebar_open: true,
             sidebar_right_width: DEFAULT_SIDEBAR_RIGHT_WIDTH,
-            queue_open: false,
+            sidebar_right_open: false,
             shuffle: false,
             repeat: Repeat::Off,
             language: i18n::AUTO.to_owned(),
@@ -158,8 +158,8 @@ impl AppSettings {
         self.values.sidebar_right_width
     }
 
-    pub fn queue_open(&self) -> bool {
-        self.values.queue_open
+    pub fn sidebar_right_open(&self) -> bool {
+        self.values.sidebar_right_open
     }
 
     pub fn shuffle(&self) -> bool {
@@ -300,8 +300,8 @@ impl AppSettings {
         self.schedule_save(cx);
     }
 
-    pub fn set_queue_open(&mut self, open: bool, cx: &mut Context<Self>) {
-        self.values.queue_open = open;
+    pub fn set_sidebar_right_open(&mut self, open: bool, cx: &mut Context<Self>) {
+        self.values.sidebar_right_open = open;
         self.schedule_save(cx);
     }
 

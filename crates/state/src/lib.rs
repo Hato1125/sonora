@@ -4,6 +4,7 @@ mod artist;
 mod detail;
 mod home;
 mod library;
+mod lyrics;
 mod playback;
 mod queue;
 mod remote;
@@ -17,6 +18,7 @@ pub use artist::ArtistDetail;
 pub use detail::{Collection, Detail, Header};
 pub use home::Home;
 pub use library::{Library, LibraryEvent, LibraryState};
+pub use lyrics::{Lyrics, LyricsState};
 pub use playback::{Origin, Playback, PlaybackState, Repeat};
 pub use queue::Queue;
 pub use remote::{Remote, attach as attach_remote};
@@ -31,7 +33,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use gpui::{App, AppContext as _, Entity, Global};
-use music::MusicProvider;
+use music::{LyricsProvider, MusicProvider};
 use tokio::runtime::Runtime;
 use tokio::task::JoinHandle;
 
@@ -69,6 +71,7 @@ pub(crate) async fn join<T>(handle: JoinHandle<Result<T>>) -> Result<T> {
 pub struct Sonora {
     pub session: Entity<Session>,
     pub library: Entity<Library>,
+    pub lyrics: Entity<Lyrics>,
     pub playback: Entity<Playback>,
     pub queue: Entity<Queue>,
     pub settings: Entity<AppSettings>,
@@ -82,18 +85,25 @@ impl Sonora {
     }
 }
 
-pub fn init(cx: &mut App, io: Io, providers: Vec<Arc<dyn MusicProvider>>) {
+pub fn init(
+    cx: &mut App,
+    io: Io,
+    providers: Vec<Arc<dyn MusicProvider>>,
+    lyrics_providers: Vec<Arc<dyn LyricsProvider>>,
+) {
     cx.set_global(io.clone());
 
     let settings = cx.new(|_| AppSettings::load());
     let session = cx.new(|cx| Session::new(providers, settings.clone(), io.clone(), cx));
-    let library = cx.new(|cx| Library::new(session.clone(), io, cx));
+    let library = cx.new(|cx| Library::new(session.clone(), io.clone(), cx));
     let queue = cx.new(|cx| Queue::new(settings.clone(), cx));
     let playback = cx.new(|cx| Playback::new(session.clone(), queue.clone(), settings.clone(), cx));
+    let lyrics = cx.new(|cx| Lyrics::new(playback.clone(), lyrics_providers, io, cx));
 
     cx.set_global(Sonora {
         session,
         library,
+        lyrics,
         playback,
         queue,
         settings,

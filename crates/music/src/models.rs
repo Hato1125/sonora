@@ -122,3 +122,54 @@ pub struct Artist {
     pub top_tracks: Vec<Track>,
     pub albums: Vec<Album>,
 }
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Lyrics {
+    Plain(String),
+    Synced { lines: Vec<LyricsLine> },
+}
+
+impl Lyrics {
+    pub fn synced(&self) -> bool {
+        matches!(self, Self::Synced { .. })
+    }
+
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Self::Plain(text) => text.trim().is_empty(),
+            Self::Synced { lines } => lines.is_empty(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LyricsLine {
+    pub start: Duration,
+    pub end: Option<Duration>,
+    pub text: String,
+    pub words: Option<Vec<LyricsWord>>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LyricsWord {
+    pub start: Duration,
+    pub end: Duration,
+    pub text: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LyricsQuery {
+    pub title: String,
+    pub artist: String,
+    pub album: Option<String>,
+    pub duration: Duration,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LyricsHit {
+    pub source: &'static str,
+    pub lyrics: Lyrics,
+    pub title: String,
+    pub artist: String,
+    pub duration: Option<Duration>,
+}

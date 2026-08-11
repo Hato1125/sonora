@@ -28,6 +28,7 @@ nav-playlists = Плейлисти
 nav-back = Назад
 nav-forward = Вперед
 nav-sidebar = Показати або сховати бічну панель
+nav-sidebar-right = Показати або сховати текст і чергу
 library-liked-songs = Вподобані пісні
 library-play-liked-songs = Слухати
 library-no-songs = Поки немає вподобаних треків
@@ -362,3 +363,10 @@ toast-next-playlist = Плейлист прозвучить наступним
 toast-queue-failed = Не вдалося додати до черги
 toast-keys-refused = Spotify не надає цьому обліковому запису ключі відтворення
 toast-track-unplayable = Не вдалося відтворити { $name }
+
+# lyrics
+lyrics-title = Текст
+lyrics-idle = Увімкніть трек, щоб побачити текст
+lyrics-loading = Шукаємо текст…
+lyrics-missing = Для цього треку тексту немає
+lyrics-failed = Не вдалося зв'язатися зі службою текстів

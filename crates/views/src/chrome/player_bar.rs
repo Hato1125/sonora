@@ -18,7 +18,6 @@ use ui::{
     clock,
 };
 
-use crate::chrome::SidebarRight;
 use crate::shared::menu::ItemMenu;
 
 const SEEK_MAX: f32 = 560.;
@@ -33,7 +32,6 @@ pub(crate) struct PlayerBar {
     playback: Entity<Playback>,
     queue: Entity<Queue>,
     library: Entity<Library>,
-    sidebar_right: Option<Entity<SidebarRight>>,
     track_menu: ItemMenu,
     context_menu: Option<(music::Track, Point<Pixels>)>,
     seek: ScrubberState,
@@ -45,33 +43,11 @@ pub(crate) struct PlayerBar {
 }
 
 impl PlayerBar {
-    #[allow(dead_code)]
     pub fn new(playback: Entity<Playback>, queue: Entity<Queue>, cx: &mut Context<Self>) -> Self {
-        Self::build(playback, queue, None, cx)
-    }
-
-    pub(crate) fn with_sidebar_right(
-        playback: Entity<Playback>,
-        queue: Entity<Queue>,
-        sidebar_right: Entity<SidebarRight>,
-        cx: &mut Context<Self>,
-    ) -> Self {
-        Self::build(playback, queue, Some(sidebar_right), cx)
-    }
-
-    fn build(
-        playback: Entity<Playback>,
-        queue: Entity<Queue>,
-        sidebar_right: Option<Entity<SidebarRight>>,
-        cx: &mut Context<Self>,
-    ) -> Self {
         let library = Sonora::global(cx).library.clone();
         cx.observe(&playback, |_, _, cx| cx.notify()).detach();
         cx.observe(&queue, |_, _, cx| cx.notify()).detach();
         cx.observe(&library, |_, _, cx| cx.notify()).detach();
-        if let Some(sidebar_right) = &sidebar_right {
-            cx.observe(sidebar_right, |_, _, cx| cx.notify()).detach();
-        }
 
         let playlist_scrollbar = cx.new(|_| {
             Scrollbar::new(ScrollHandle::new())
@@ -83,7 +59,6 @@ impl PlayerBar {
             playback,
             queue,
             library,
-            sidebar_right,
             track_menu: ItemMenu::new(playlist_scrollbar),
             context_menu: None,
             seek: ScrubberState::new("seek"),
@@ -284,27 +259,6 @@ impl PlayerBar {
             }))
     }
 
-    fn queue_button(&self, cx: &mut Context<Self>) -> Option<Button> {
-        let sidebar_right = self.sidebar_right.as_ref()?;
-        let open = sidebar_right.read(cx).is_open();
-
-        Some(
-            Button::new("toggle-queue")
-                .ghost()
-                .hoverless()
-                .small()
-                .icon("icons/list.svg")
-                .tooltip_above("queue-title")
-                .selected(open)
-                .on_click(cx.listener(|this, _, _, cx| {
-                    if let Some(sidebar_right) = &this.sidebar_right {
-                        sidebar_right.update(cx, |panel, cx| panel.toggle(cx));
-                    }
-                })),
-        )
-    }
-
-    #[allow(dead_code)]
     fn fullscreen_button(&self) -> Button {
         Button::new("toggle-fullscreen")
             .ghost()
@@ -593,7 +547,7 @@ impl Render for PlayerBar {
                         .w_full()
                         .child(div().flex_1().min_w_0().child(seek))
                         .child(self.sound(px(VOLUME_TIGHT), cx))
-                        .when_some(self.queue_button(cx), |this, button| this.child(button)),
+                        .child(self.fullscreen_button()),
                 ),
             false => base
                 .items_center()
@@ -620,7 +574,7 @@ impl Render for PlayerBar {
                         .flex_1()
                         .min_w_0()
                         .child(self.sound(px(VOLUME_WIDTH), cx))
-                        .when_some(self.queue_button(cx), |this, button| this.child(button)),
+                        .child(self.fullscreen_button()),
                 ),
         };
 

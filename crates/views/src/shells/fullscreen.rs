@@ -38,6 +38,7 @@ impl Shell for FullscreenView {
         TitleBarOptions {
             navigation: false,
             sidebar_open: false,
+            sidebar_right: None,
             offset: Pixels::ZERO,
             content: None,
         }

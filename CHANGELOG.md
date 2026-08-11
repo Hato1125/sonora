@@ -7,6 +7,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- The right sidebar shows the lyrics of the playing track next to the queue, switched with a pair of
+  floating pills at its foot. Timed lyrics highlight the line being sung, scroll along with it, and
+  jump playback to a line when it is clicked.
+
+### Changed
+
+- The right sidebar is opened from the toolbar rather than the player bar, and the player bar button
+  in its place opens fullscreen instead.
+- A narrow window drops the right sidebar entirely rather than letting it cover the page; lyrics and
+  the queue live in fullscreen there.
+
 ## [0.8.0] - 2026-08-11
 
 ### Added

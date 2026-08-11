@@ -28,6 +28,7 @@ nav-playlists = Playlists
 nav-back = Back
 nav-forward = Forward
 nav-sidebar = Toggle sidebar
+nav-sidebar-right = Show or hide lyrics and queue
 library-liked-songs = Liked Songs
 library-play-liked-songs = Play
 library-no-songs = No liked songs yet
@@ -359,3 +360,10 @@ toast-next-playlist = Playlist plays next
 toast-queue-failed = That could not be added to the queue
 toast-keys-refused = Spotify is not granting this account playback keys
 toast-track-unplayable = { $name } could not be played
+
+# lyrics
+lyrics-title = Lyrics
+lyrics-idle = Play something to see its lyrics
+lyrics-loading = Looking for lyrics…
+lyrics-missing = No lyrics for this track
+lyrics-failed = Could not reach the lyrics service

@@ -15,6 +15,7 @@ use gpui::{
     App, AppContext as _, Bounds, Entity, TitlebarOptions, WindowBackgroundAppearance,
     WindowBounds, WindowOptions, point, px, size,
 };
+use music::LyricsProvider;
 use router::Destination;
 use state::{Library, Playback, Queue, Session, Sonora};
 use ui::ActiveTheme as _;
@@ -59,7 +60,8 @@ fn main() {
             Arc::new(music::spotify::SpotifyProvider::from_env()),
             Arc::new(music::youtube::YouTubeProvider::new()),
         ];
-        state::init(cx, io, providers);
+        let lyrics: Vec<Arc<dyn LyricsProvider>> = vec![Arc::new(music::lrclib::LrcLib::new())];
+        state::init(cx, io, providers, lyrics);
         router::init(start, cx);
         let (look, overrides, language) = {
             let settings = Sonora::global(cx).settings.read(cx);
@@ -78,6 +80,7 @@ fn main() {
         let Sonora {
             session,
             library,
+            lyrics: _,
             playback,
             queue,
             settings: _,

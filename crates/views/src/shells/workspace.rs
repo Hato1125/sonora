@@ -30,8 +30,7 @@ impl Workspace {
     ) -> Self {
         let sidebar = cx.new(SidebarLeft::new);
         let sidebar_right = cx.new(|cx| SidebarRight::new(queue.clone(), playback.clone(), cx));
-        let player_bar =
-            cx.new(|cx| PlayerBar::with_sidebar_right(playback, queue, sidebar_right.clone(), cx));
+        let player_bar = cx.new(|cx| PlayerBar::new(playback, queue, cx));
 
         Self {
             sidebar,
@@ -50,6 +49,10 @@ impl Workspace {
 
     pub fn toggle_sidebar(&self, cx: &mut Context<Self>) {
         self.sidebar.update(cx, |sidebar, cx| sidebar.toggle(cx));
+    }
+
+    pub fn toggle_sidebar_right(&self, cx: &mut Context<Self>) {
+        self.sidebar_right.update(cx, |panel, cx| panel.toggle(cx));
     }
 
     #[allow(dead_code)]
@@ -81,6 +84,7 @@ impl Shell for Workspace {
         TitleBarOptions {
             navigation: true,
             sidebar_open: sidebar.is_open(),
+            sidebar_right: Some(self.sidebar_right.read(cx).is_open()),
             offset: sidebar.occupied_width(),
             content,
         }

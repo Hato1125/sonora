@@ -126,6 +126,10 @@ impl Root {
                 .shells
                 .workspace
                 .update(cx, |workspace, cx| workspace.toggle_sidebar(cx)),
+            TitleBarEvent::ToggleSidebarRight => this
+                .shells
+                .workspace
+                .update(cx, |workspace, cx| workspace.toggle_sidebar_right(cx)),
         })
         .detach();
 
