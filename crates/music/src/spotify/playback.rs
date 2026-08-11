@@ -11,7 +11,8 @@ use librespot_playback::mixer::NoOpVolume;
 use librespot_playback::player::{Player, PlayerEvent};
 use tokio::sync::mpsc::UnboundedReceiver;
 
-use crate::spotify::sink::{BlazingSink, Flush, Volume};
+use crate::audio::Volume;
+use crate::spotify::sink::{BlazingSink, Flush};
 use crate::{
     PlaybackConfig, PlaybackEvent, PlaybackEvents, PlaybackFactory, Player as MusicPlayer,
 };

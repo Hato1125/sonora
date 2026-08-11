@@ -2,19 +2,17 @@
 
 use std::io::Cursor;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
 
 use anyhow::{Context as _, Result};
 use async_trait::async_trait;
-use rodio::source::SeekError;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use ytmusic::YtMusic;
 
+use crate::audio::{Output, RAMP, SmoothGain, Volume};
 use crate::{PlaybackConfig, PlaybackEvent, PlaybackEvents, PlaybackFactory, Player};
 
 const NORMAL_CAP: f32 = 1.0;
-const RAMP: Duration = Duration::from_millis(24);
 const POLL: Duration = Duration::from_millis(20);
 
 enum Command {
@@ -99,106 +97,6 @@ impl PlaybackEvents for Events {
 }
 
 #[derive(Clone)]
-struct Envelope(Arc<AtomicU32>);
-
-impl Envelope {
-    fn new(gain: f32) -> Self {
-        Self(Arc::new(AtomicU32::new(gain.to_bits())))
-    }
-
-    fn set(&self, gain: f32) {
-        self.0.store(gain.to_bits(), Ordering::Relaxed);
-    }
-
-    fn get(&self) -> f32 {
-        f32::from_bits(self.0.load(Ordering::Relaxed))
-    }
-}
-
-struct Ramp<I> {
-    input: I,
-    envelope: Envelope,
-    current: f32,
-    target: f32,
-    step: f32,
-    frames_left: u32,
-    ramp_frames: u32,
-    channel: u16,
-    channels: u16,
-}
-
-impl<I: rodio::Source> Ramp<I> {
-    fn new(input: I, envelope: Envelope, initial: f32) -> Self {
-        let channels = input.channels();
-        let ramp_frames = (RAMP.as_secs_f64() * input.sample_rate() as f64)
-            .round()
-            .max(1.0) as u32;
-        Self {
-            input,
-            envelope,
-            current: initial,
-            target: initial,
-            step: 0.0,
-            frames_left: 0,
-            ramp_frames,
-            channel: 0,
-            channels,
-        }
-    }
-}
-
-impl<I: rodio::Source> Iterator for Ramp<I> {
-    type Item = f32;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let sample = self.input.next()?;
-        if self.channel == 0 {
-            let requested = self.envelope.get().max(0.0);
-            if requested.to_bits() != self.target.to_bits() {
-                self.target = requested;
-                self.frames_left = self.ramp_frames;
-                self.step = (self.target - self.current) / self.ramp_frames as f32;
-            }
-            if self.frames_left > 0 {
-                self.current += self.step;
-                self.frames_left -= 1;
-                if self.frames_left == 0 {
-                    self.current = self.target;
-                }
-            }
-        }
-        let output = sample * self.current;
-        self.channel += 1;
-        if self.channel == self.channels {
-            self.channel = 0;
-        }
-        Some(output)
-    }
-}
-
-impl<I: rodio::Source> rodio::Source for Ramp<I> {
-    fn current_span_len(&self) -> Option<usize> {
-        self.input.current_span_len()
-    }
-
-    fn channels(&self) -> u16 {
-        self.input.channels()
-    }
-
-    fn sample_rate(&self) -> u32 {
-        self.input.sample_rate()
-    }
-
-    fn total_duration(&self) -> Option<Duration> {
-        self.input.total_duration()
-    }
-
-    fn try_seek(&mut self, position: Duration) -> Result<(), SeekError> {
-        self.input.try_seek(position)
-    }
-}
-
-#[derive(Clone)]
 struct Loaded {
     data: Arc<Vec<u8>>,
     loudness_db: Option<f32>,
@@ -208,7 +106,7 @@ struct Loaded {
 struct Slot {
     id: String,
     length: Option<Duration>,
-    envelope: Envelope,
+    envelope: Volume,
     gain: f32,
 }
 
@@ -259,16 +157,15 @@ async fn engine_loop(
     mut commands: UnboundedReceiver<Command>,
     events: UnboundedSender<PlaybackEvent>,
 ) {
-    let stream = match rodio::OutputStreamBuilder::open_default_stream() {
-        Ok(stream) => stream,
+    let output = match Output::open(Volume::new(config.gain), None) {
+        Ok(output) => output,
         Err(error) => {
-            log::error!("playback: cannot open audio output: {error}");
+            log::error!("playback: cannot open audio output: {error:#}");
             return;
         }
     };
-    let sink = rodio::Sink::connect_new(stream.mixer());
+    let sink = output.sink().clone();
     sink.pause();
-    sink.set_volume(config.gain);
 
     let (fetched, mut arrivals) = unbounded_channel::<Fetched>();
     let mut ticker = tokio::time::interval(POLL);
@@ -382,7 +279,7 @@ async fn engine_loop(
                             events.send(PlaybackEvent::Position(sink.get_pos())).ok();
                         }
                     }
-                    Command::Gain(level) => sink.set_volume(level),
+                    Command::Gain(level) => output.set_volume(level),
                 }
             }
             arrival = arrivals.recv() => {
@@ -524,13 +421,13 @@ fn append(
     fade: bool,
 ) -> Result<Slot> {
     let gain = normalisation(config.normalisation, loaded.loudness_db);
-    let envelope = Envelope::new(gain);
+    let envelope = Volume::new(gain);
     let initial = match fade {
         true => 0.0,
         false => gain,
     };
     let source = decode(loaded.data.clone())?;
-    sink.append(Ramp::new(source, envelope.clone(), initial));
+    sink.append(SmoothGain::new(source, envelope.clone(), initial, RAMP));
     Ok(Slot {
         id: id.to_string(),
         length: loaded.duration,

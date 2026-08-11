@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+mod audio;
 mod models;
 pub mod spotify;
 pub mod youtube;
