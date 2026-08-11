@@ -25,7 +25,6 @@ const MAX_WIDTH: Pixels = px(560.);
 const PINNED_SHARE: f32 = 0.25;
 const PIN: f32 = 0.3;
 const GLIDE: f32 = 0.18;
-const LEAD: std::time::Duration = std::time::Duration::from_millis(500);
 const SETTLE: std::time::Duration = std::time::Duration::from_secs(4);
 
 fn fills_content(width: Pixels) -> bool {
@@ -651,7 +650,7 @@ impl SidebarRight {
                     .border_1()
                     .border_color(theme.border)
                     .bg(theme.popover)
-                    .child(pill(SideTab::Lyrics, "icons/mic.svg", "lyrics-title"))
+                    .child(pill(SideTab::Lyrics, "icons/mic-vocal.svg", "lyrics-title"))
                     .child(pill(SideTab::Queue, "icons/list.svg", "queue-title")),
             )
     }
@@ -681,7 +680,7 @@ impl SidebarRight {
                     .iter()
                     .enumerate()
                     .map(|(index, line)| {
-                        let seek = line.start.saturating_sub(LEAD);
+                        let seek = line.start;
                         div()
                             .id(("verse", index))
                             .px_2()
