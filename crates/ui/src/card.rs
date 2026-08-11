@@ -338,6 +338,7 @@ impl RenderOnce for Card {
                                     .tooltip(hint)
                                     .size(size)
                                     .rounded_full()
+                                    .shadow_sm()
                                     .on_mouse_down(MouseButton::Left, |_, _, cx| {
                                         cx.stop_propagation()
                                     })
