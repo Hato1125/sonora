@@ -21,6 +21,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   clicking, the previous track stops the moment a new one is picked, and the transport stays
   responsive while the next track loads.
 
+### Changed
+
+- Release cards on an artist page show the release year instead of repeating the artist's name.
+
 ## [0.7.0] - 2026-08-10
 
 ### Added
