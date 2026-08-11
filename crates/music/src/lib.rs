@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 mod audio;
+pub mod local;
 pub mod lrclib;
 pub mod lyrics;
 mod models;
@@ -8,6 +9,7 @@ pub mod spotify;
 pub mod youtube;
 
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -18,6 +20,16 @@ pub use models::{
     Album, AlbumDetail, Artist, ArtistProfile, ArtistRef, Credit, Lyrics, LyricsHit, LyricsLine,
     LyricsQuery, LyricsWord, Playlist, PlaylistDetail, ReleaseType, Track, UserProfile,
 };
+
+pub const LOCAL_TRACK_PREFIX: &str = "local:";
+pub const LOCAL_ALBUM_PREFIX: &str = "local-album:";
+pub const LOCAL_ARTIST_PREFIX: &str = "local-artist:";
+
+pub fn is_local_id(id: &str) -> bool {
+    id.starts_with(LOCAL_TRACK_PREFIX)
+        || id.starts_with(LOCAL_ALBUM_PREFIX)
+        || id.starts_with(LOCAL_ARTIST_PREFIX)
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MediaKind {
@@ -115,6 +127,7 @@ pub enum SignIn {
     Anonymous,
     Browser(String),
     Secret,
+    Path(PathBuf),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -132,6 +145,9 @@ pub trait MusicProvider: Send + Sync {
     fn slug(&self) -> &'static str;
     fn sign_in_options(&self) -> Vec<SignIn>;
     fn stored(&self) -> bool;
+    fn location(&self) -> Option<String> {
+        None
+    }
     async fn restore(&self) -> Result<Option<ProviderSession>>;
     async fn sign_in(
         &self,

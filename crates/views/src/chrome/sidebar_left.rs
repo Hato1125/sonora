@@ -25,10 +25,11 @@ const NAV: [(&str, &str, Option<Destination>); 4] = [
     ),
 ];
 
-const LIBRARY_TABS: [(&str, LibraryTab); 3] = [
+const LIBRARY_TABS: [(&str, LibraryTab); 4] = [
     ("nav-songs", LibraryTab::Songs),
     ("nav-albums", LibraryTab::Albums),
     ("nav-playlists", LibraryTab::Playlists),
+    ("nav-local", LibraryTab::Local),
 ];
 
 const SETTINGS_TABS: [(&str, SettingsTab); 4] = [
@@ -160,16 +161,23 @@ impl Render for SidebarLeft {
 
         let current = self.trail.read(cx).current();
         let authenticated = self.session.read(cx).authenticated();
+        let has_local = self.session.read(cx).local_client().is_some();
         self.adapt(window, cx);
 
         let mut rows: Vec<AnyElement> = Vec::new();
         for (index, (key, icon, destination)) in NAV.into_iter().enumerate() {
             if matches!(destination, Some(Destination::Library(_))) {
-                if !authenticated {
+                if !authenticated && !has_local {
                     continue;
                 }
                 let inside = matches!(current, Destination::Library(_));
                 let text = if inside { foreground } else { muted };
+                let default_tab = if authenticated {
+                    LibraryTab::Songs
+                } else {
+                    LibraryTab::Local
+                };
+                let destination = destination.map(|_| Destination::Library(default_tab));
                 let link_destination = if inside { None } else { destination };
                 let target = link_destination.unwrap_or(current.clone());
 

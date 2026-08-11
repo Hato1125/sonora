@@ -35,6 +35,7 @@ impl SongDetail {
                 this.clear();
                 cx.notify();
             }
+            SessionEvent::LocalChanged => {}
         })
         .detach();
         Self {

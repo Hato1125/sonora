@@ -25,6 +25,7 @@ nav-settings = Ustawienia
 nav-songs = Utwory
 nav-albums = Albumy
 nav-playlists = Playlisty
+nav-local = Lokalne
 nav-back = Wstecz
 nav-forward = Dalej
 nav-sidebar = Pokaż lub ukryj panel boczny
@@ -34,6 +35,8 @@ library-play-liked-songs = Odtwórz
 library-no-songs = Brak polubionych utworów
 library-no-albums = Brak zapisanych albumów
 library-no-playlists = Brak playlist
+library-no-local-songs = Nie znaleziono lokalnych utworów
+library-no-local-albums = Nie znaleziono lokalnych albumów
 library-no-matches = Brak wyników
 
 # app menu
@@ -312,6 +315,10 @@ settings-provider-current = Odtwarzanie z tego serwisu
 settings-provider-guest = Odtwarzanie jako gość
 settings-provider-switch = Przełącz
 settings-sign-out = Wyloguj się
+settings-local-folder = Folder muzyki lokalnej
+settings-local-folder-empty = Nie skonfigurowano
+settings-choose-folder = Wybierz folder…
+settings-rescan = Skanuj ponownie
 settings-tab-about = O programie
 settings-version = Wersja
 settings-version-detail = Wydanie sonory, które jest teraz uruchomione

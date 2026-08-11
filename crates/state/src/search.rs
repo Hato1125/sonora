@@ -122,6 +122,7 @@ impl Search {
                 this.query.clear();
                 this.ask(&pending, cx);
             }
+            SessionEvent::LocalChanged => {}
         })
         .detach();
 

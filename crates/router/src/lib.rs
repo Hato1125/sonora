@@ -15,6 +15,7 @@ pub enum LibraryTab {
     Songs,
     Albums,
     Playlists,
+    Local,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
