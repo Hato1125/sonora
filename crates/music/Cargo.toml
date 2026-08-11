@@ -19,7 +19,7 @@ lofty.workspace = true
 log.workspace = true
 protobuf.workspace = true
 reqwest.workspace = true
-rodio = { workspace = true, features = ["symphonia-aac", "symphonia-isomp4", "flac", "mp3", "vorbis", "wav"] }
+rodio = { workspace = true, features = ["symphonia-aac", "symphonia-alac", "symphonia-isomp4", "flac", "mp3", "vorbis", "wav"] }
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true

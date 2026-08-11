@@ -161,6 +161,10 @@ impl Library {
         matches!(self.state, LibraryState::Loading)
     }
 
+    pub fn local_is_loading(&self) -> bool {
+        matches!(self.local, LibraryState::Loading)
+    }
+
     pub fn saved(&self, track_id: &str) -> bool {
         let LibraryState::Ready { tracks, .. } = &self.state else {
             return false;

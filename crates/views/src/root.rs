@@ -290,7 +290,11 @@ impl Root {
 
         let content: AnyView = match destination {
             Destination::Home => self.screens.home.clone().into(),
-            Destination::Library(LibraryTab::Local) => self.screens.local.clone().into(),
+            Destination::Library(LibraryTab::Local) => {
+                let local = self.screens.local.clone();
+                toolbar = Some(local.read(cx).toolbar());
+                local.into()
+            }
             Destination::Library(tab) => {
                 self.screens
                     .library

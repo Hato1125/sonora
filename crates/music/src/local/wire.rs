@@ -24,6 +24,16 @@ const COVER_NAMES: &[&str] = &[
     "folder.png",
 ];
 
+const PLAYABLE_EXTENSIONS: &[&str] = &["mp3", "flac", "m4a", "mp4", "aac", "ogg", "oga", "wav"];
+
+fn is_playable(path: &Path) -> bool {
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| {
+            PLAYABLE_EXTENSIONS.contains(&extension.to_ascii_lowercase().as_str())
+        })
+}
+
 pub fn track_id(path: &Path) -> String {
     format!("{LOCAL_TRACK_PREFIX}{}", path.display())
 }
@@ -91,7 +101,7 @@ pub fn track_from_file(
     Some(Track {
         id: Some(track_id(path)),
         name,
-        playable: true,
+        playable: is_playable(path),
         artists: artist.clone(),
         artist_refs: vec![artist_ref(&artist)],
         album: album_name,
@@ -169,4 +179,28 @@ fn cache_picture(picture: &Picture, source: &Path, cache_dir: &Path) -> Option<S
         std::fs::write(&dest, picture.data()).ok()?;
     }
     Some(format!("file://{}", dest.display()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn playable_extensions_cover_the_decodable_formats() {
+        for name in [
+            "a.mp3", "a.flac", "a.m4a", "a.MP4", "a.aac", "a.ogg", "a.oga", "a.wav",
+        ] {
+            assert!(is_playable(Path::new(name)), "{name} should be playable");
+        }
+    }
+
+    #[test]
+    fn unsupported_codecs_are_not_playable() {
+        for name in ["a.opus", "a.wv", "a.ape", "a.txt"] {
+            assert!(
+                !is_playable(Path::new(name)),
+                "{name} should not be playable"
+            );
+        }
+    }
 }

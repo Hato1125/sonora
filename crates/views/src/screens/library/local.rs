@@ -7,25 +7,56 @@ use gpui::{
 };
 use i18n::t;
 use music::{Album, Track};
-use state::{Library, LibraryState, Playback};
+use state::{AppSettings, Library, LibraryState, Playback, Sonora};
 use ui::{
-    ActiveTheme as _, Button, GridDelegate, GridEvent, GridState, Popup, Scrollbar, Scroller, grid,
-    scrolled, vacant,
+    ActiveTheme as _, Button, FlagAxis, GridDelegate, GridEvent, GridState, Popovers, Popup,
+    RangeAxis, Scrollbar, Scroller, SortAxis, Unit, grid, vacant,
 };
 
 use crate::chrome::Chrome;
+use crate::chrome::tools::{self, Sift, Sliders};
+use crate::chrome::{Searchable, Toolbar, Tooled};
 use crate::shared::album_grid::AlbumGrid;
 use crate::shared::cells;
 use crate::shared::menu::album_menu;
 use crate::shared::page;
 use crate::shared::tracks::{
-    LIBRARY_COLUMNS, PlaybackStatus, TrackSource, Tracks, playback_status,
+    LIBRARY_COLUMNS, PlaybackStatus, TrackSieve, TrackSource, Tracks, playback_status,
 };
+
+use super::albums::AlbumSource;
+
+const PINNED: [&str; 3] = ["cover", "title", "name"];
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Section {
     Tracks,
     Albums,
+}
+
+impl Section {
+    const ALL: [Self; 2] = [Self::Tracks, Self::Albums];
+
+    fn key(self) -> &'static str {
+        match self {
+            Section::Tracks => "local-songs",
+            Section::Albums => "local-albums",
+        }
+    }
+
+    fn slot(self) -> usize {
+        match self {
+            Section::Tracks => 0,
+            Section::Albums => 1,
+        }
+    }
+
+    fn vacancy(self) -> &'static str {
+        match self {
+            Section::Tracks => "library-no-local-songs",
+            Section::Albums => "library-no-local-albums",
+        }
+    }
 }
 
 struct LocalTracks(Entity<Library>);
@@ -46,12 +77,17 @@ impl Tracks for LocalTracks {
 pub(crate) struct LocalView {
     library: Entity<Library>,
     playback: Entity<Playback>,
+    settings: Entity<AppSettings>,
     playback_status: PlaybackStatus,
     section: Section,
     width: Pixels,
     scrollbar: Entity<Scrollbar>,
     tracks: Entity<GridState<TrackSource>>,
+    albums: Entity<GridState<AlbumSource>>,
     context_menu: Option<(Album, Point<Pixels>)>,
+    toolbar: Entity<Toolbar>,
+    popovers: Popovers,
+    sliders: [Sliders; 2],
     me: WeakEntity<Self>,
 }
 
@@ -63,6 +99,15 @@ impl LocalView {
         cx: &mut Context<Self>,
     ) -> Self {
         let width = cells::content_width(window, Pixels::ZERO, cx);
+        let settings = Sonora::global(cx).settings.clone();
+        let stored = |section: Section, cx: &App| {
+            let settings = settings.read(cx);
+            (
+                settings.table(section.key()),
+                settings.sorting(section.key()),
+            )
+        };
+
         let scrollbar = cx.new(|_| Scrollbar::new(ScrollHandle::new()));
         let scroll = scrollbar.read(cx).scroll().clone();
 
@@ -79,12 +124,26 @@ impl LocalView {
                 playlist_scrollbar,
             );
             let source = source.table(cx.weak_entity());
-            let delegate = GridDelegate::new(source, width, cx);
+            let mut delegate = GridDelegate::new(source, width, cx);
+            let (layout, sorting) = stored(Section::Tracks, cx);
+            delegate.set_layout(layout, cx);
+            if let Some(sorting) = sorting {
+                delegate.set_sorting(sorting, cx);
+            }
+            GridState::new(delegate, cx).follow(scroll.clone())
+        });
+
+        let albums = cx.new(|cx| {
+            let source = AlbumSource::local(library.clone(), playback.clone());
+            let mut delegate = GridDelegate::new(source, width, cx);
+            let (layout, sorting) = stored(Section::Albums, cx);
+            delegate.set_layout(layout, cx);
+            delegate.set_sorting(sorting.flatten(), cx);
             GridState::new(delegate, cx).follow(scroll)
         });
 
         cx.observe(&library, |this, _, cx| {
-            this.tracks.update(cx, |table, cx| table.rebuild(cx));
+            this.rebuild(cx);
             cx.notify();
         })
         .detach();
@@ -99,28 +158,96 @@ impl LocalView {
                 return;
             }
             this.playback_status = current;
-            this.tracks.update(cx, |table, cx| table.refresh(cx));
-        })
-        .detach();
-
-        cx.subscribe(&tracks, |this, _, event, cx| {
-            if let GridEvent::DoubleClicked(display) = event {
-                page::play(&this.tracks, &this.playback, *display, cx);
+            for table in this.tables() {
+                table.refresh(cx);
             }
         })
         .detach();
 
+        cx.subscribe(&tracks, |this, _, event, cx| match event {
+            GridEvent::DoubleClicked(display) => {
+                page::play(&this.tracks, &this.playback, *display, cx)
+            }
+            _ => this.persist(Section::Tracks, cx),
+        })
+        .detach();
+
+        cx.subscribe(&albums, |this, _, event, cx| match event {
+            GridEvent::DoubleClicked(_) => {}
+            _ => this.persist(Section::Albums, cx),
+        })
+        .detach();
+
+        let me = cx.entity();
+        let toolbar = cx.new(|cx| {
+            let mut toolbar = Toolbar::new(cx);
+            toolbar.bind(&me, cx);
+            toolbar.wire(&me, cx);
+            toolbar
+        });
+
         Self {
             library,
             playback,
+            settings,
             playback_status: current_playback,
             section: Section::Tracks,
             width,
             scrollbar,
             tracks,
+            albums,
             context_menu: None,
-            me: cx.weak_entity(),
+            toolbar,
+            popovers: Popovers::default(),
+            sliders: Section::ALL.map(|_| Sliders::default()),
+            me: me.downgrade(),
         }
+    }
+
+    fn table(&self, section: Section) -> &dyn ui::Table {
+        match section {
+            Section::Tracks => &self.tracks,
+            Section::Albums => &self.albums,
+        }
+    }
+
+    fn tables(&self) -> [&dyn ui::Table; 2] {
+        [&self.tracks, &self.albums]
+    }
+
+    fn rebuild(&mut self, cx: &mut Context<Self>) {
+        for table in self.tables() {
+            table.rebuild(cx);
+        }
+    }
+
+    fn column_toggles(&self, cx: &App) -> Vec<ui::Toggle> {
+        self.table(self.section)
+            .toggles(cx)
+            .into_iter()
+            .filter(|toggle| !PINNED.contains(&toggle.key))
+            .collect()
+    }
+
+    fn switch_column(&mut self, key: &str, cx: &mut Context<Self>) {
+        if PINNED.contains(&key) {
+            return;
+        }
+        let mut layout = self.table(self.section).layout(cx);
+        layout.toggle(key);
+        self.table(self.section).set_layout(layout, cx);
+        self.persist(self.section, cx);
+        cx.notify();
+    }
+
+    fn persist(&mut self, section: Section, cx: &mut Context<Self>) {
+        page::store(
+            &self.settings.clone(),
+            self.table(section),
+            section.key(),
+            section.key(),
+            cx,
+        );
     }
 
     fn select(&mut self, section: Section, cx: &mut Context<Self>) {
@@ -132,51 +259,54 @@ impl LocalView {
             .read(cx)
             .scroll()
             .set_offset(gpui::Point::default());
+        if self.mode_is_table() {
+            self.table(section).set_width(self.width, cx);
+        }
         cx.notify();
     }
 
+    fn mode_is_table(&self) -> bool {
+        self.section == Section::Tracks
+    }
+
     fn note(&self, cx: &App) -> Option<SharedString> {
-        let state = self.library.read(cx).local_state();
-        if matches!(state, LibraryState::Loading) {
+        let settled = !matches!(
+            self.library.read(cx).local_state(),
+            LibraryState::Loading | LibraryState::Failed(_)
+        );
+        let table = self.table(self.section);
+        if !settled || table.row_count(cx) > 0 {
             return None;
         }
-        let empty = match (self.section, state) {
-            (Section::Tracks, LibraryState::Ready { tracks, .. }) => tracks.is_empty(),
-            (Section::Albums, LibraryState::Ready { albums, .. }) => albums.is_empty(),
-            _ => !matches!(state, LibraryState::Ready { .. }),
-        };
-        if !empty {
-            return None;
-        }
-        Some(match self.section {
-            Section::Tracks => t!("library-no-local-songs"),
-            Section::Albums => t!("library-no-local-albums"),
+        Some(match table.filtering(cx) {
+            true => t!("library-no-matches"),
+            false => i18n::lookup(self.section.vacancy(), None),
         })
     }
 
     fn albums(&self, cx: &App) -> AnyElement {
-        let albums = match self.library.read(cx).local_state() {
-            LibraryState::Ready { albums, .. } => albums.clone(),
-            _ => Vec::new(),
-        };
+        let state = self.albums.read(cx);
+        let delegate = state.delegate();
+        let albums: Vec<(usize, Album)> = (0..delegate.row_count())
+            .filter_map(|display| {
+                let row = delegate.row(display);
+                delegate.source().at(row, cx).map(|album| (display, album))
+            })
+            .collect();
         let view = self.me.clone();
-        AlbumGrid::new(
-            "local-album",
-            self.width,
-            albums.into_iter().enumerate(),
-            self.playback.clone(),
-        )
-        .years()
-        .on_context(move |album, position, cx| {
-            let Some(view) = view.upgrade() else {
-                return;
-            };
-            view.update(cx, |this, cx| {
-                this.context_menu = Some((album.clone(), position));
-                cx.notify();
-            });
-        })
-        .into_any_element()
+
+        AlbumGrid::new("local-album", self.width, albums, self.playback.clone())
+            .years()
+            .on_context(move |album, position, cx| {
+                let Some(view) = view.upgrade() else {
+                    return;
+                };
+                view.update(cx, |this, cx| {
+                    this.context_menu = Some((album.clone(), position));
+                    cx.notify();
+                });
+            })
+            .into_any_element()
     }
 
     fn toggle(&self, cx: &Context<Self>) -> AnyElement {
@@ -203,18 +333,6 @@ impl LocalView {
     }
 }
 
-fn viewport(scroll: &ScrollHandle, window: &Window) -> ui::Viewport {
-    let visible = scroll.bounds().size.height;
-
-    ui::Viewport {
-        top: scrolled(scroll),
-        height: match visible > Pixels::ZERO {
-            true => visible,
-            false => window.viewport_size().height,
-        },
-    }
-}
-
 impl Render for LocalView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
@@ -223,7 +341,7 @@ impl Render for LocalView {
 
         let scroll = self.scrollbar.read(cx).scroll().clone();
         if self.section == Section::Tracks {
-            let viewport = viewport(&scroll, window);
+            let viewport = page::viewport(&scroll, inset, window);
             self.tracks
                 .update(cx, |table, _| table.set_viewport(viewport));
         }
@@ -255,5 +373,190 @@ impl Render for LocalView {
             .child(page)
             .when_some(context_menu, |this, menu| this.child(menu))
             .into_any_element()
+    }
+}
+
+impl Searchable for LocalView {
+    fn search(&mut self, query: &str, cx: &mut Context<Self>) {
+        for table in self.tables() {
+            table.set_filter(query, cx);
+        }
+        cx.notify();
+    }
+
+    fn hint() -> SharedString {
+        "filter-library".into()
+    }
+}
+
+impl Tooled for LocalView {
+    fn toolbar(&self) -> Entity<Toolbar> {
+        self.toolbar.clone()
+    }
+
+    fn tools(&self, cx: &App) -> Vec<AnyElement> {
+        let columned = self.me.clone();
+        let sifted = self.me.clone();
+        let sorted = self.me.clone();
+
+        let columns = (self.section == Section::Tracks).then(|| {
+            tools::columns(&self.popovers, self.column_toggles(cx), move |key, cx| {
+                columned
+                    .update(cx, |view, cx| view.switch_column(key, cx))
+                    .ok();
+            })
+        });
+
+        let mut tools = Vec::new();
+        tools.extend(columns);
+        tools.push(tools::filters(
+            &self.popovers,
+            &self.sliders[self.section.slot()],
+            self.ranges(cx),
+            self.flags(cx),
+            move |change, cx| {
+                sifted.update(cx, |view, cx| view.narrow(change, cx)).ok();
+            },
+            cx,
+        ));
+        tools.push(tools::sorts(
+            &self.popovers,
+            self.sorts(cx),
+            move |key, cx| {
+                sorted.update(cx, |view, cx| view.set_sort(key, cx)).ok();
+            },
+            cx,
+        ));
+        tools
+    }
+}
+
+impl LocalView {
+    fn sorts(&self, cx: &App) -> Vec<SortAxis> {
+        self.table(self.section).sortables(cx)
+    }
+
+    fn set_sort(&mut self, key: &'static str, cx: &mut Context<Self>) {
+        self.table(self.section).cycle_sort(key, cx);
+        cx.notify();
+    }
+
+    fn sieve(&self, cx: &App) -> TrackSieve {
+        self.tracks.read(cx).delegate().source().sieve()
+    }
+
+    fn sift(&mut self, sieve: TrackSieve, cx: &mut Context<Self>) {
+        self.tracks.update(cx, |table, cx| {
+            table.delegate_mut().source_mut().set_sieve(sieve);
+            table.delegate_mut().resift(cx);
+            table.refresh(cx);
+        });
+        cx.notify();
+    }
+
+    fn span(&self, cx: &App) -> Option<(f32, f32)> {
+        self.albums.read(cx).delegate().source().span()
+    }
+
+    fn set_span(&mut self, span: Option<(f32, f32)>, cx: &mut Context<Self>) {
+        self.albums.update(cx, |table, cx| {
+            table.delegate_mut().source_mut().set_span(span);
+            table.delegate_mut().resift(cx);
+            table.refresh(cx);
+        });
+        cx.notify();
+    }
+
+    fn ranges(&self, cx: &App) -> Vec<RangeAxis> {
+        match self.section {
+            Section::Tracks => {
+                let table = self.tracks.read(cx);
+                let Some(bounds) = table
+                    .delegate()
+                    .source()
+                    .extent(table.delegate().query(), cx)
+                else {
+                    return Vec::new();
+                };
+                let value = self.sieve(cx).duration.unwrap_or(bounds);
+                vec![
+                    RangeAxis {
+                        key: "filter-duration",
+                        label: t!("filter-duration"),
+                        bounds,
+                        value,
+                        unit: Unit::Clock,
+                        values: None,
+                    }
+                    .clamped(),
+                ]
+            }
+            Section::Albums => {
+                let table = self.albums.read(cx);
+                let years = table
+                    .delegate()
+                    .source()
+                    .years(table.delegate().query(), cx);
+                let (Some(first), Some(last)) = (years.first(), years.last()) else {
+                    return Vec::new();
+                };
+                let bounds = (*first, *last);
+                let value = self.span(cx).unwrap_or(bounds);
+                vec![
+                    RangeAxis {
+                        key: "filter-year",
+                        label: t!("filter-year"),
+                        bounds,
+                        value,
+                        unit: Unit::Plain,
+                        values: Some(years),
+                    }
+                    .clamped(),
+                ]
+            }
+        }
+    }
+
+    fn flags(&self, cx: &App) -> Vec<FlagAxis> {
+        if self.section != Section::Tracks {
+            return Vec::new();
+        }
+        let sieve = self.sieve(cx);
+        vec![
+            FlagAxis {
+                key: "filter-explicit",
+                label: t!("filter-explicit"),
+                on: sieve.explicit,
+            },
+            FlagAxis {
+                key: "filter-playable",
+                label: t!("filter-playable"),
+                on: sieve.playable,
+            },
+        ]
+    }
+
+    fn narrow(&mut self, change: Sift, cx: &mut Context<Self>) {
+        match change {
+            Sift::Range("filter-year", value) => self.set_span(Some(value), cx),
+            Sift::Range(_, value) => {
+                let mut sieve = self.sieve(cx);
+                sieve.duration = Some(value);
+                self.sift(sieve, cx);
+            }
+            Sift::Flag(key, on) => {
+                let mut sieve = self.sieve(cx);
+                match key {
+                    "filter-explicit" => sieve.explicit = on,
+                    "filter-playable" => sieve.playable = on,
+                    _ => return,
+                }
+                self.sift(sieve, cx);
+            }
+            Sift::Reset => {
+                self.sift(TrackSieve::default(), cx);
+                self.set_span(None, cx);
+            }
+        }
     }
 }
