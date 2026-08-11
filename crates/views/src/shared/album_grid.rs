@@ -10,7 +10,7 @@ use gpui::{
 use music::Album;
 use router::{Destination, navigate};
 use state::{Origin, Playback, PlaybackState};
-use ui::{ActiveTheme as _, Card, Text};
+use ui::{ActiveTheme as _, Card, Pin, PinKind, Pinnable as _, Text};
 
 pub(crate) const CARD_MIN: Pixels = px(130.);
 pub(crate) const CARD_MAX: Pixels = px(190.);
@@ -187,6 +187,7 @@ fn album_card(
     let state = playback.read(cx).playing_from(&origin);
     let playing = matches!(state, Some(PlaybackState::Playing));
     let played = album.id.clone();
+    let pin = Pin::new(PinKind::Album, album.id.clone(), album.name.clone()).cover(cover.clone());
     let opened = SharedString::from(album.id);
 
     Card::new((id, index), SharedString::from(album.name))
@@ -204,6 +205,7 @@ fn album_card(
             });
         })
         .press(move |_, _, cx| navigate(Destination::Album(opened.clone()), cx))
+        .pin(pin)
         .into_any_element()
 }
 

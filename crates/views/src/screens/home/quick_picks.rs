@@ -8,8 +8,8 @@ use gpui::{
 };
 use i18n::t;
 use music::Track;
-use state::Playback;
-use ui::{ActiveTheme as _, Button, Card, Text, eyebrow, heading, vacant};
+use state::{Playback, PlaybackState};
+use ui::{ActiveTheme as _, Button, Card, Pin, PinKind, Pinnable, Text, eyebrow, heading, vacant};
 
 use crate::shared::cells;
 
@@ -234,10 +234,16 @@ fn pick(
     cx: &App,
 ) -> impl IntoElement {
     let theme = *cx.theme();
-    let tint = match track.id.as_deref() == active {
+    let current = track.id.as_deref() == active;
+    let tint = match current {
         true => theme.primary,
         false => theme.foreground,
     };
+    let playing = current && playback.read(cx).state() == &PlaybackState::Playing;
+    let pin = track
+        .id
+        .clone()
+        .map(|id| Pin::new(PinKind::Song, id, track.name.clone()).cover(track.cover.clone()));
 
     Card::new(
         ("quick-pick", place),
@@ -263,9 +269,20 @@ fn pick(
             handler(place, event, window, cx);
         })
     })
+    .play(playing, {
+        let playback = playback.clone();
+        let tracks = tracks.clone();
+        move |_, _, cx| {
+            playback.update(cx, |playback, cx| match playing {
+                true => playback.pause(cx),
+                false => playback.play_radio(&tracks[place], cx),
+            });
+        }
+    })
     .press(move |_, _, cx| {
         playback.update(cx, |playback, cx| playback.play_radio(&tracks[place], cx));
     })
+    .when_some(pin, Pinnable::pin)
     .min_w_0()
 }
 

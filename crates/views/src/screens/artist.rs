@@ -15,8 +15,8 @@ use music::{Album, ReleaseType, Track};
 use state::{AppSettings, ArtistDetail, Playback, Sonora};
 use ui::ActiveTheme as _;
 use ui::{
-    Button, Card, Deck, GridDelegate, GridEvent, GridState, MIN_CONTENT, Popover, Popovers, Popup,
-    Scrollbar, Scroller, Skeleton, Text, Viewport, grid, scrolled, snapped,
+    Button, Card, Deck, GridDelegate, GridEvent, GridState, MIN_CONTENT, Pin, PinKind, Popover,
+    Popovers, Popup, Scrollbar, Scroller, Skeleton, Text, Viewport, grid, scrolled, snapped,
 };
 
 use crate::shared::album_grid::{AlbumGrid, CardGrid};
@@ -411,8 +411,16 @@ impl ArtistView {
             ))
             .children(overflow);
 
+        let cover = artist.and_then(|artist| artist.cover_large.clone());
+        let pin = self
+            .detail
+            .read(cx)
+            .id()
+            .map(|id| Pin::new(PinKind::Artist, id, title.clone()).cover(cover.clone()));
+
         PageHero::new("artist-hero", title)
-            .cover(artist.and_then(|artist| artist.cover_large.clone()))
+            .pin(pin)
+            .cover(cover)
             .eyebrow(t!("artist-eyebrow"))
             .when_some(listeners, |hero, listeners| {
                 hero.meta(HeroMetaStrip::new().text(listeners))

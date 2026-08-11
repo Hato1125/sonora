@@ -10,7 +10,9 @@ use gpui::{
 use i18n::t;
 use music::Track;
 use state::{Playback, PlaybackState};
-use ui::{ActiveTheme as _, Artwork, Button, ExplicitBadge, LEADING, Text, upper};
+use ui::{
+    ActiveTheme as _, Artwork, Button, ExplicitBadge, LEADING, Pin, Pinnable as _, Text, upper,
+};
 
 pub(crate) fn release_date_label(value: &str) -> SharedString {
     let parts: Vec<_> = value.split('-').collect();
@@ -169,6 +171,7 @@ pub(crate) struct PageHero {
     circle: bool,
     explicit: bool,
     grip: Option<Grip>,
+    pin: Option<Pin>,
 }
 
 impl PageHero {
@@ -185,7 +188,13 @@ impl PageHero {
             circle: false,
             explicit: false,
             grip: None,
+            pin: None,
         }
+    }
+
+    pub(crate) fn pin(mut self, pin: Option<Pin>) -> Self {
+        self.pin = pin;
+        self
     }
 
     pub(crate) fn grip(
@@ -247,6 +256,7 @@ impl RenderOnce for PageHero {
 
         div()
             .id(self.id)
+            .when_some(self.pin, |hero, pin| hero.pin(pin))
             .flex()
             .flex_none()
             .items_end()
