@@ -66,9 +66,8 @@ fn main() {
                     .unwrap_or_else(std::env::temp_dir)
                     .join("sonora"),
             ));
-        state::init(cx, io, providers, local_provider);
         let lyrics: Vec<Arc<dyn LyricsProvider>> = vec![Arc::new(music::lrclib::LrcLib::new())];
-        state::init(cx, io, providers, lyrics);
+        state::init(cx, io, providers, local_provider, lyrics);
         router::init(start, cx);
         let (look, overrides, language) = {
             let settings = Sonora::global(cx).settings.read(cx);
@@ -150,7 +149,7 @@ fn open_window(
             window.set_rem_size(cx.theme().font_size);
             state::attach_remote(window_handle(window), cx);
             cx.new(|cx| Root::new(session, library, playback, queue, window, cx))
-        },ing
+        },
     )
     .expect("failed to open window");
 }
