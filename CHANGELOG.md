@@ -7,6 +7,36 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-08-12
+
+### Added
+
+- Anything can be pinned to the sidebar. Drag an album, artist, playlist or song out of a grid, a
+  table, a search result, the queue or a page header and drop it into the left sidebar; it stays
+  there across restarts, reorders by dragging, and opens a context menu that matches what it is.
+- Playlists that arrive without artwork get a cover of their own, stitched together from the first
+  four tracks and kept on disk so it is built only once.
+- Content cards carry a play control on their artwork — a button in the corner of a tile, a dimmed
+  cover on a row — and it stays visible while that item is playing.
+- The left sidebar scrolls once its contents outgrow the panel.
+- Local music reads more formats, gains its own toolbar, and keeps the list header in place while
+  scrolling.
+- A playlist that already holds a track marks it, and adding a second copy asks first.
+
+### Changed
+
+- Playlist covers are fetched at the largest size the service offers rather than the smallest.
+- The appearance settings put the opacity and adaptive theme switches above the font size.
+
+### Fixed
+
+- The edge used to resize a side panel no longer competes with the row sitting underneath it.
+- A playlist that lists the same track more than once keeps every copy.
+- The lyrics pane returns to the top when a new track starts, and its scrollbar stays asleep until
+  it is needed.
+- A menu item that carries only a tick no longer reserves room for an icon beside it.
+- Rounded corners nest correctly inside the container that clips them.
+
 ## [0.9.0] - 2026-08-11
 
 ### Added
@@ -284,7 +314,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Initial release: a native Spotify client with playback, an interactive queue, the saved library,
 search, album, playlist, artist and song pages, context menus and adaptive theming.
 
-[unreleased]: https://github.com/nolight132/sonora/compare/v0.9.0...HEAD
+[unreleased]: https://github.com/nolight132/sonora/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/nolight132/sonora/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/nolight132/sonora/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/nolight132/sonora/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/nolight132/sonora/compare/v0.6.0...v0.7.0
