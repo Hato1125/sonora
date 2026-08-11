@@ -191,7 +191,6 @@ fn album_card(
 
     Card::new((id, index), SharedString::from(album.name))
         .tile(width)
-        .art_radius(theme.radius)
         .cover(cover)
         .weight(FontWeight::SEMIBOLD)
         .flat()
