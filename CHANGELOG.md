@@ -7,8 +7,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-08-11
+
 ### Added
 
+- Sonora can play the music already on this device: point it at a folder in the settings and its
+  files show up as tracks, albums and artists next to the streaming services.
 - The right sidebar shows the lyrics of the playing track next to the queue, switched with a pair of
   floating pills at its foot. Timed lyrics highlight the line being sung, scroll along with it, and
   jump playback to a line when it is clicked.
@@ -280,7 +284,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Initial release: a native Spotify client with playback, an interactive queue, the saved library,
 search, album, playlist, artist and song pages, context menus and adaptive theming.
 
-[unreleased]: https://github.com/nolight132/sonora/compare/v0.8.0...HEAD
+[unreleased]: https://github.com/nolight132/sonora/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/nolight132/sonora/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/nolight132/sonora/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/nolight132/sonora/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/nolight132/sonora/compare/v0.5.0...v0.6.0
