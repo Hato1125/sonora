@@ -13,8 +13,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   both services; YouTube Music can be browsed as a guest, connected by importing an existing
   browser session, or connected by pasting cookies, and the whole library — liked songs,
   playlists, albums, artists, search, and radio — works through the same interface.
-- The general settings show which streaming service this device is signed in to, and whether it is
-  browsing as a guest.
+- The general settings turn the streaming service into a picker: every service signed in to before
+  is listed and switching between them takes effect immediately, with "Add more…" opening the login
+  screen to connect one that is still missing.
+- The login screen puts each service in its own column, and importing a YouTube Music session asks
+  which browser to read it from.
 - YouTube Music albums and playlists play the album audio of a song rather than its music video, so
   a track lasts as long as its listed length.
 - Switching, pausing, resuming, and seeking a YouTube Music track fade in and out instead of

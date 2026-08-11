@@ -2,17 +2,30 @@
 
 use gpui::prelude::*;
 use gpui::{
-    ClipboardItem, Context, Entity, FontWeight, IntoElement, Render, SharedString, Window, div, px,
+    AnyElement, ClipboardItem, Context, Entity, FontWeight, IntoElement, MouseButton, Pixels,
+    Render, SharedString, Window, div, px, svg,
 };
 use i18n::t;
 use music::{SignIn, SignInPrompt};
 use state::{Session, SessionState};
 use ui::ActiveTheme as _;
-use ui::{Button, Input, Text};
+use ui::{Button, Input, Separator, Shield, Text, heading};
+
+const COLUMN: Pixels = px(280.);
+const LOGO: Pixels = px(48.);
+const RULE: Pixels = px(220.);
+
+struct Column {
+    slug: &'static str,
+    name: &'static str,
+    options: Vec<SignIn>,
+    disabled: bool,
+}
 
 pub struct LoginView {
     session: Entity<Session>,
     secret: Entity<Input>,
+    browsers: Option<(&'static str, Vec<SharedString>)>,
 }
 
 impl LoginView {
@@ -21,6 +34,7 @@ impl LoginView {
         Self {
             session,
             secret: cx.new(|cx| Input::new("login-cookie-hint", cx)),
+            browsers: None,
         }
     }
 
@@ -34,14 +48,20 @@ impl LoginView {
             .update(cx, |session, cx| session.submit_input(text, cx));
     }
 
+    fn start(&self, slug: &'static str, method: SignIn, cx: &mut Context<Self>) {
+        self.session
+            .update(cx, |session, cx| session.sign_in(slug, method, cx));
+    }
+
     fn option_button(
         &self,
         slug: &'static str,
         provider: &str,
-        method: SignIn,
-        pending: bool,
+        method: &SignIn,
+        disabled: bool,
+        cx: &mut Context<Self>,
     ) -> Button {
-        let (id, label) = match &method {
+        let (id, label) = match method {
             SignIn::Default => (
                 format!("sign-in-{slug}"),
                 t!("login-sign-in", provider = provider),
@@ -50,9 +70,9 @@ impl LoginView {
                 format!("sign-in-{slug}-guest"),
                 t!("login-use", provider = provider),
             ),
-            SignIn::Browser(name) => (
-                format!("sign-in-{slug}-{name}"),
-                t!("login-import", browser = name.clone()),
+            SignIn::Browser(_) => (
+                format!("sign-in-{slug}-browser"),
+                t!("login-import-browser"),
             ),
             SignIn::Secret => (
                 format!("sign-in-{slug}-cookies"),
@@ -60,18 +80,96 @@ impl LoginView {
             ),
         };
         let primary = matches!(method, SignIn::Default | SignIn::Anonymous);
-        let session = self.session.clone();
+        let method = method.clone();
         let button = Button::new(SharedString::from(id))
             .label(label)
-            .disabled(pending)
-            .on_click(move |_, _, cx| {
-                let method = method.clone();
-                session.update(cx, |session, cx| session.sign_in(slug, method, cx));
-            });
+            .w_full()
+            .disabled(disabled)
+            .on_click(cx.listener(move |this, _, _, cx| match &method {
+                SignIn::Browser(_) => this.open_browsers(slug, cx),
+                method => this.start(slug, method.clone(), cx),
+            }));
         match primary {
             true => button.primary(),
             false => button.outline(),
         }
+    }
+
+    fn open_browsers(&mut self, slug: &'static str, cx: &mut Context<Self>) {
+        let names = self
+            .session
+            .read(cx)
+            .providers()
+            .find(|info| info.slug == slug)
+            .map(|info| {
+                info.options
+                    .iter()
+                    .filter_map(|option| match option {
+                        SignIn::Browser(name) => Some(SharedString::from(name.clone())),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        if names.is_empty() {
+            return;
+        }
+        self.browsers = Some((slug, names));
+        cx.notify();
+    }
+
+    fn column(&self, column: Column, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+        let Column {
+            slug,
+            name,
+            options,
+            disabled,
+        } = column;
+        let mut seen_browser = false;
+        let options: Vec<&SignIn> = options
+            .iter()
+            .filter(|option| match option {
+                SignIn::Browser(_) => !std::mem::replace(&mut seen_browser, true),
+                _ => true,
+            })
+            .collect();
+
+        div()
+            .flex()
+            .flex_col()
+            .items_center()
+            .gap_3()
+            .w(COLUMN)
+            .when(disabled, |this| this.opacity(0.45))
+            .child(
+                svg()
+                    .path(logo(slug))
+                    .size(LOGO)
+                    .flex_none()
+                    .text_color(theme.foreground),
+            )
+            .child(
+                div()
+                    .text_size(theme.text(Text::Large))
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .child(SharedString::from(name.to_string())),
+            )
+            .child(
+                div().flex().flex_col().gap_2().w_full().children(
+                    options
+                        .into_iter()
+                        .map(|method| self.option_button(slug, name, method, disabled, cx)),
+                ),
+            )
+            .when(disabled, |this| {
+                this.child(
+                    div()
+                        .text_size(theme.text(Text::Small))
+                        .text_color(theme.muted_foreground)
+                        .child(t!("login-already-connected")),
+                )
+            })
     }
 
     fn code_prompt(&self, code: String, url: String, cx: &mut Context<Self>) -> impl IntoElement {
@@ -133,26 +231,110 @@ impl LoginView {
                     .on_click(cx.listener(|this, _, _, cx| this.submit(cx))),
             )
     }
+
+    fn browser_modal(
+        &self,
+        slug: &'static str,
+        names: Vec<SharedString>,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let theme = *cx.theme();
+        div()
+            .absolute()
+            .inset_0()
+            .flex()
+            .items_center()
+            .justify_center()
+            .child(
+                Shield::new("login-browser-shield")
+                    .absolute()
+                    .inset_0()
+                    .bg(theme.background.opacity(0.8))
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(|this, _, _, cx| {
+                            this.browsers = None;
+                            cx.notify();
+                        }),
+                    ),
+            )
+            .child(
+                div()
+                    .relative()
+                    .w(theme.metrics.cover * 2.4)
+                    .flex()
+                    .flex_col()
+                    .gap_4()
+                    .p(theme.metrics.inset)
+                    .rounded(theme.radius)
+                    .border_1()
+                    .border_color(theme.border)
+                    .bg(theme.popover)
+                    .child(heading(t!("login-browser-title"), cx))
+                    .child(
+                        div()
+                            .text_size(theme.text(Text::Small))
+                            .text_color(theme.muted_foreground)
+                            .child(t!("login-browser-detail")),
+                    )
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .gap_2()
+                            .children(names.into_iter().map(|name| {
+                                Button::new(SharedString::from(format!("browser-{name}")))
+                                    .label(name.clone())
+                                    .outline()
+                                    .w_full()
+                                    .on_click(cx.listener(move |this, _, _, cx| {
+                                        this.browsers = None;
+                                        this.start(slug, SignIn::Browser(name.to_string()), cx);
+                                    }))
+                            })),
+                    )
+                    .child(
+                        div().flex().justify_end().child(
+                            Button::new("cancel-browser")
+                                .ghost()
+                                .label(t!("common-cancel"))
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.browsers = None;
+                                    cx.notify();
+                                })),
+                        ),
+                    ),
+            )
+    }
 }
 
 impl Render for LoginView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let state = self.session.read(cx).state().clone();
         let pending = self.session.read(cx).is_pending();
-        let providers: Vec<(&'static str, &'static str, Vec<SignIn>)> = self
+        let adding = self.session.read(cx).is_adding();
+        let columns: Vec<Column> = self
             .session
             .read(cx)
             .providers()
-            .map(|info| (info.slug, info.name, info.options))
+            .map(|info| Column {
+                slug: info.slug,
+                name: info.name,
+                options: info.options,
+                disabled: pending || (adding && info.stored),
+            })
             .collect();
 
-        let status = match &state {
-            SessionState::SignedOut => t!("login-signed-out"),
-            SessionState::Restoring => t!("login-restoring"),
-            SessionState::Authorizing(Some(SignInPrompt::Secret)) => t!("login-cookie-title"),
-            SessionState::Authorizing(_) => t!("login-authorizing"),
-            SessionState::SignedIn(profile) => t!("login-signed-in", name = &profile.display_name),
-            SessionState::Failed(error) => SharedString::from(error.clone()),
+        let status = match (adding, &state) {
+            (true, _) => t!("login-add-detail"),
+            (_, SessionState::SignedOut) => t!("login-signed-out"),
+            (_, SessionState::Restoring) => t!("login-restoring"),
+            (_, SessionState::Authorizing(Some(SignInPrompt::Secret))) => t!("login-cookie-title"),
+            (_, SessionState::Authorizing(_)) => t!("login-authorizing"),
+            (_, SessionState::SignedIn(profile)) => {
+                t!("login-signed-in", name = &profile.display_name)
+            }
+            (_, SessionState::Failed(error)) => SharedString::from(error.clone()),
         };
 
         let prompt = match &state {
@@ -161,39 +343,21 @@ impl Render for LoginView {
         };
 
         let theme = *cx.theme();
-        let status_color = match matches!(state, SessionState::Failed(_)) {
+        let status_color = match matches!(state, SessionState::Failed(_)) && !adding {
             true => theme.danger,
             false => theme.muted_foreground,
         };
+        let browsers = self.browsers.clone();
 
         div()
+            .relative()
             .flex()
             .flex_col()
             .items_center()
             .justify_center()
-            .gap_4()
+            .gap_6()
             .size_full()
             .child(
-                div()
-                    .child("sonora")
-                    .text_size(theme.text(Text::Display))
-                    .font_weight(FontWeight::BOLD),
-            )
-            .child(
-                div()
-                    .max_w(px(560.))
-                    .text_center()
-                    .text_size(theme.text(Text::Body))
-                    .text_color(status_color)
-                    .child(status),
-            )
-            .when_some(prompt, |this, prompt| match prompt {
-                SignInPrompt::Code { code, url } => {
-                    this.child(self.code_prompt(code, url, cx).into_any_element())
-                }
-                SignInPrompt::Secret => this.child(self.secret_prompt(cx).into_any_element()),
-            })
-            .children(providers.into_iter().map(|(slug, name, options)| {
                 div()
                     .flex()
                     .flex_col()
@@ -201,15 +365,78 @@ impl Render for LoginView {
                     .gap_2()
                     .child(
                         div()
-                            .text_size(theme.text(Text::Label))
-                            .font_weight(FontWeight::MEDIUM)
-                            .child(SharedString::from(name.to_string())),
+                            .child(match adding {
+                                true => t!("login-add-title"),
+                                false => SharedString::from("sonora"),
+                            })
+                            .text_size(theme.text(Text::Display))
+                            .font_weight(FontWeight::BOLD),
                     )
-                    .children(
-                        options
-                            .into_iter()
-                            .map(|method| self.option_button(slug, name, method, pending)),
-                    )
-            }))
+                    .child(
+                        div()
+                            .max_w(px(560.))
+                            .text_center()
+                            .text_size(theme.text(Text::Body))
+                            .text_color(status_color)
+                            .child(status),
+                    ),
+            )
+            .when_some(prompt, |this, prompt| match prompt {
+                SignInPrompt::Code { code, url } => {
+                    this.child(self.code_prompt(code, url, cx).into_any_element())
+                }
+                SignInPrompt::Secret => this.child(self.secret_prompt(cx).into_any_element()),
+            })
+            .child(
+                div()
+                    .flex()
+                    .items_start()
+                    .justify_center()
+                    .gap_8()
+                    .children(interleave(columns, cx, |column, cx| {
+                        self.column(column, cx).into_any_element()
+                    })),
+            )
+            .when(adding, |this| {
+                this.child(
+                    Button::new("cancel-add-provider")
+                        .ghost()
+                        .label(t!("common-cancel"))
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.session
+                                .update(cx, |session, cx| session.cancel_add(cx));
+                        })),
+                )
+            })
+            .when_some(browsers, |this, (slug, names)| {
+                this.child(self.browser_modal(slug, names, cx).into_any_element())
+            })
+    }
+}
+
+fn interleave<F>(
+    columns: Vec<Column>,
+    cx: &mut Context<LoginView>,
+    mut render: F,
+) -> Vec<AnyElement>
+where
+    F: FnMut(Column, &mut Context<LoginView>) -> AnyElement,
+{
+    let last = columns.len().saturating_sub(1);
+    let mut children = Vec::new();
+    for (index, column) in columns.into_iter().enumerate() {
+        children.push(render(column, cx));
+        if index < last {
+            children.push(Separator::vertical().h(RULE).into_any_element());
+        }
+    }
+    children
+}
+
+fn logo(slug: &str) -> &'static str {
+    match slug {
+        "spotify" => "icons/spotify.svg",
+        "youtube" => "icons/youtubemusic.svg",
+        _ => "icons/music.svg",
     }
 }

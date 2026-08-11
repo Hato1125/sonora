@@ -122,6 +122,7 @@ pub trait MusicProvider: Send + Sync {
     fn name(&self) -> &'static str;
     fn slug(&self) -> &'static str;
     fn sign_in_options(&self) -> Vec<SignIn>;
+    fn stored(&self) -> bool;
     async fn restore(&self) -> Result<Option<ProviderSession>>;
     async fn sign_in(
         &self,

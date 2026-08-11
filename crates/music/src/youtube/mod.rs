@@ -122,6 +122,10 @@ impl MusicProvider for YouTubeProvider {
         options
     }
 
+    fn stored(&self) -> bool {
+        self.cookies.exists() || self.guest.exists()
+    }
+
     async fn restore(&self) -> Result<Option<ProviderSession>> {
         if let Ok(cookies) = std::fs::read_to_string(&self.cookies) {
             log::debug!("youtube: restoring authenticated session from cached cookies");

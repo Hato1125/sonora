@@ -89,6 +89,7 @@ const ICONS: &[(&str, &[u8])] = icons![
     "shuffle",
     "skip-back",
     "skip-forward",
+    "spotify",
     "trash-2",
     "volume",
     "volume-1",
@@ -98,6 +99,7 @@ const ICONS: &[(&str, &[u8])] = icons![
     "window-maximize",
     "window-minimize",
     "window-restore",
+    "youtubemusic",
     "x",
 ];
 

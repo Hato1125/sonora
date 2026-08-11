@@ -24,6 +24,7 @@ const SOURCE_URL: &str = "https://github.com/nolight132/sonora";
 const THEMES: &str = "themes";
 const CORNERS: &str = "corners";
 const LANGUAGES: &str = "languages";
+const PROVIDERS: &str = "providers";
 
 #[derive(Clone, Copy)]
 struct Member {
@@ -585,25 +586,63 @@ impl SettingsView {
     fn provider_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
         let session = self.session.read(cx);
-        let name = session
+        let authenticated = session.authenticated();
+        let current = session
             .provider_name()
             .map(SharedString::from)
             .unwrap_or_else(|| t!("settings-provider-none"));
-        let authenticated = session.authenticated();
         let label = match authenticated {
-            true => name,
-            false => t!("settings-provider-guest", provider = &name),
+            true => current,
+            false => t!("settings-provider-guest", provider = &current),
         };
+        let active = session.provider_slug();
+        let entries: Vec<(&'static str, SharedString)> = session
+            .connected()
+            .map(|info| (info.slug, SharedString::from(info.name.to_string())))
+            .collect();
+        let can_add = session.can_add();
+
+        let picker = Popover::new(PROVIDERS, self.popovers.clone())
+            .button(
+                Button::new("provider-picker")
+                    .label(format!("{label}  ▾"))
+                    .small()
+                    .outline(),
+            )
+            .menu(
+                Menu::new("provider-dropdown")
+                    .top(px(30.))
+                    .right_0()
+                    .w(px(200.))
+                    .items(entries.into_iter().map(|(slug, name)| {
+                        MenuItem::new(slug, name)
+                            .selected(active == Some(slug))
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                this.popovers.close();
+                                this.session
+                                    .update(cx, |session, cx| session.switch(slug, cx));
+                                cx.notify();
+                            }))
+                    }))
+                    .item(MenuItem::separator("provider-divider"))
+                    .item(
+                        MenuItem::new("provider-add", t!("settings-provider-add"))
+                            .when(!can_add, MenuItem::disabled)
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.popovers.close();
+                                this.session
+                                    .update(cx, |session, cx| session.add_account(cx));
+                                cx.notify();
+                            })),
+                    ),
+            );
 
         self.row(
             t!("settings-provider"),
             t!("settings-provider-detail"),
             theme.muted_foreground,
             theme.text(Text::Small),
-            div()
-                .text_size(theme.text(Text::Small))
-                .child(label)
-                .into_any_element(),
+            picker.into_any_element(),
         )
     }
 

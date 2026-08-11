@@ -68,6 +68,10 @@ impl MusicProvider for SpotifyProvider {
         vec![crate::SignIn::Default]
     }
 
+    fn stored(&self) -> bool {
+        self.config.cache_dir.join("credentials.json").exists()
+    }
+
     async fn restore(&self) -> Result<Option<ProviderSession>> {
         let Some(session) = auth::restore(&self.config).await? else {
             return Ok(None);

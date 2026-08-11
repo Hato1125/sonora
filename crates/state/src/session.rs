@@ -31,6 +31,8 @@ pub struct ProviderInfo {
     pub slug: &'static str,
     pub name: &'static str,
     pub options: Vec<SignIn>,
+    pub stored: bool,
+    pub active: bool,
 }
 
 pub struct Session {
@@ -46,6 +48,7 @@ pub struct Session {
     task: Option<Task<()>>,
     prompt_task: Option<Task<()>>,
     input: Option<UnboundedSender<String>>,
+    adding: bool,
 }
 
 impl EventEmitter<SessionEvent> for Session {}
@@ -74,6 +77,7 @@ impl Session {
             task: None,
             prompt_task: None,
             input: None,
+            adding: false,
         }
     }
 
@@ -90,16 +94,71 @@ impl Session {
     }
 
     pub fn providers(&self) -> impl Iterator<Item = ProviderInfo> + '_ {
-        self.providers.iter().map(|provider| ProviderInfo {
-            slug: provider.slug(),
-            name: provider.name(),
-            options: provider.sign_in_options(),
-        })
+        self.providers
+            .iter()
+            .enumerate()
+            .map(|(index, provider)| ProviderInfo {
+                slug: provider.slug(),
+                name: provider.name(),
+                options: provider.sign_in_options(),
+                stored: provider.stored(),
+                active: self.active == Some(index),
+            })
+    }
+
+    pub fn connected(&self) -> impl Iterator<Item = ProviderInfo> + '_ {
+        self.providers().filter(|info| info.stored)
+    }
+
+    pub fn can_add(&self) -> bool {
+        self.providers.iter().any(|provider| !provider.stored())
+    }
+
+    pub fn is_adding(&self) -> bool {
+        self.adding
+    }
+
+    pub fn add_account(&mut self, cx: &mut Context<Self>) {
+        self.adding = true;
+        cx.notify();
+    }
+
+    pub fn cancel_add(&mut self, cx: &mut Context<Self>) {
+        self.adding = false;
+        cx.notify();
+    }
+
+    pub fn switch(&mut self, slug: &str, cx: &mut Context<Self>) {
+        if self.is_pending() {
+            return;
+        }
+        let Some(index) = self
+            .providers
+            .iter()
+            .position(|provider| provider.slug() == slug)
+        else {
+            return;
+        };
+        if self.active == Some(index) && matches!(self.state, SessionState::SignedIn(_)) {
+            return;
+        }
+        self.client = None;
+        self.playback = None;
+        self.authenticated = false;
+        self.playcounts = false;
+        self.active = Some(index);
+        cx.emit(SessionEvent::SignedOut);
+        self.restore(cx);
     }
 
     pub fn provider_name(&self) -> Option<&'static str> {
         let provider = &self.providers[self.active?];
         Some(provider.name())
+    }
+
+    pub fn provider_slug(&self) -> Option<&'static str> {
+        let provider = &self.providers[self.active?];
+        Some(provider.slug())
     }
 
     pub fn authenticated(&self) -> bool {
@@ -219,6 +278,7 @@ impl Session {
         self.client = None;
         self.playback = None;
         self.authenticated = false;
+        self.adding = false;
         self.state = SessionState::SignedOut;
         cx.notify();
         cx.emit(SessionEvent::SignedOut);
@@ -226,6 +286,7 @@ impl Session {
 
     fn signed_in(&mut self, session: ProviderSession, index: usize, cx: &mut Context<Self>) {
         self.active = Some(index);
+        self.adding = false;
         let slug = self.providers[index].slug();
         self.settings.update(cx, |settings, cx| {
             settings.set_provider(slug, cx);
