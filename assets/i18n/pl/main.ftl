@@ -141,6 +141,7 @@ login-browser-title = Wybierz przeglądarkę
 login-browser-detail = Sonora odczyta sesję YouTube Music z wybranej przeglądarki.
 login-use = Otwórz { $provider }
 login-guest-title = Tryb gościa
+login-guest-use = Otwórz tryb gościa
 login-guest-detail = Słuchaj bez konta. Biblioteka, polubienia i playlisty pozostaną niedostępne.
 login-device-code = Wpisz ten kod na stronie { $url }
 login-cookie-submit = Kontynuuj

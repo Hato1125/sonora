@@ -172,11 +172,16 @@ impl LoginView {
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let theme = *cx.theme();
+        let alone = guests.len() == 1;
         let mut buttons = Vec::new();
         for (slug, name) in guests {
+            let label = match alone {
+                true => t!("login-guest-use"),
+                false => t!("login-use", provider = name),
+            };
             buttons.push(
                 Button::new(SharedString::from(format!("guest-{slug}")))
-                    .label(t!("login-use", provider = name))
+                    .label(label)
                     .outline()
                     .disabled(pending)
                     .on_click(cx.listener(move |this, _, _, cx| {

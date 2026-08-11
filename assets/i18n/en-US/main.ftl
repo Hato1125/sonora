@@ -141,6 +141,7 @@ login-browser-title = Choose a browser
 login-browser-detail = Sonora reads your YouTube Music session from the browser you pick.
 login-use = Use { $provider }
 login-guest-title = Guest mode
+login-guest-use = Use Guest mode
 login-guest-detail = Browse and play without an account. Your library, likes and playlists stay out of reach.
 login-device-code = Enter this code at { $url }
 login-cookie-submit = Continue
