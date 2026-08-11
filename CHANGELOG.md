@@ -37,6 +37,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   mistake no longer leaves the login screen waiting for input.
 - Signing out of one service switches to another service still connected, and only falls back to the
   login screen once nothing is connected.
+- YouTube Music playlists you own are recognised as yours, so renaming, changing visibility and
+  deleting are offered instead of an unsupported "remove from library" that always failed.
+- Creating a YouTube Music playlist reports success instead of an error, and the new playlist
+  appears straight away rather than after a refresh.
+- Removing a track from a YouTube Music playlist works for tracks whose music video was swapped for
+  its album audio.
+- A YouTube Music playlist you own no longer lists its privacy setting as its owner.
 - The player switches to the next YouTube Music track the moment the previous one ends, instead of
   lagging up to half a second behind the audio.
 - A YouTube Music session whose saved cookies stopped working falls back to guest browsing or the

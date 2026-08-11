@@ -18,11 +18,20 @@ const PORTRAIT_LIMIT: usize = 24;
 
 pub struct YouTubeClient {
     api: Arc<YtMusic>,
+    account: String,
 }
 
 impl YouTubeClient {
     pub fn new(api: Arc<YtMusic>) -> Self {
-        Self { api }
+        Self {
+            api,
+            account: String::new(),
+        }
+    }
+
+    pub fn owned_by(mut self, account: impl Into<String>) -> Self {
+        self.account = account.into();
+        self
     }
 
     async fn hydrate_durations(&self, tracks: &mut [ytmusic::Track]) {
@@ -172,7 +181,13 @@ impl MusicApi for YouTubeClient {
             .library_playlists()
             .await?
             .into_iter()
-            .map(|playlist| wire::playlist(playlist, false, false))
+            .map(|playlist| {
+                let mut playlist = wire::playlist(playlist, false, false);
+                if playlist.owned && playlist.owner.is_empty() {
+                    playlist.owner = self.account.clone();
+                }
+                playlist
+            })
             .collect();
         playlists.truncate(limit as usize);
         Ok(playlists)
@@ -207,15 +222,24 @@ impl MusicApi for YouTubeClient {
     }
 
     async fn remove_track_from_playlist(&self, playlist_id: &str, track_id: &str) -> Result<()> {
-        let detail = self.api.playlist(playlist_id).await?;
-        let set_video_id = detail
-            .tracks
-            .iter()
-            .find(|track| track.video_id.as_deref() == Some(track_id))
-            .and_then(|track| track.set_video_id.clone())
-            .context("track is not in the playlist")?;
+        let tracks = self.api.playlist(playlist_id).await?.tracks;
+        let seat = |list: &[ytmusic::Track]| {
+            list.iter()
+                .position(|track| track.video_id.as_deref() == Some(track_id))
+        };
+        let index = match seat(&tracks) {
+            Some(index) => index,
+            None => seat(&self.api.swap_playable(tracks.clone()).await)
+                .context("track is not in the playlist")?,
+        };
+        let track = tracks.get(index).context("track is not in the playlist")?;
+        let video_id = track.video_id.as_deref().context("track has no video id")?;
+        let set_video_id = track
+            .set_video_id
+            .as_deref()
+            .context("track cannot be removed from this playlist")?;
         self.api
-            .remove_playlist_track(playlist_id, track_id, &set_video_id)
+            .remove_playlist_track(playlist_id, video_id, set_video_id)
             .await
     }
 
