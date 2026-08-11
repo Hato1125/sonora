@@ -6,22 +6,27 @@ use gpui::prelude::*;
 use gpui::{
     AnyElement, App, ClickEvent, Div, ElementId, FontWeight, Hsla, Interactivity, MouseButton,
     MouseDownEvent, Pixels, SharedString, Stateful, StyleRefinement, Window, div, px, relative,
+    svg,
 };
 
 use crate::ExplicitBadge;
-use crate::artwork::{Artwork, Avatar};
+use crate::artwork::{Artwork, Avatar, ROUNDED};
 use crate::button::Button;
 use crate::label::upper;
 use crate::metrics::{LEADING, Text, snapped};
 use crate::skeleton::Skeleton;
 use crate::theme::ActiveTheme as _;
+use crate::tooltip::{Perch, Tooltip};
 
 const TITLE: Pixels = px(120.);
 const BAR_TITLE: (Pixels, Pixels) = (px(140.), px(11.));
 const BAR_META: (Pixels, Pixels) = (px(90.), px(9.));
-const PLAY_RATIO: f32 = 0.34;
-const PLAY_MIN: Pixels = px(28.);
+const PLAY_RATIO: f32 = 0.24;
+const PLAY_MIN: Pixels = px(20.);
+const PLAY_MAX: Pixels = px(40.);
 const PLAY_INSET: Pixels = px(8.);
+const SCRIM_RATIO: f32 = 0.45;
+const SCRIM_MIN: Pixels = px(14.);
 const TIGHT: Pixels = px(2.);
 
 pub const CARD_GROUP: &str = "card";
@@ -303,39 +308,92 @@ impl RenderOnce for Card {
         };
         let leading = match play {
             None => leading,
-            Some(play) => div()
-                .relative()
-                .size(art)
-                .child(leading)
-                .child(
-                    div()
-                        .id("card-play")
-                        .absolute()
-                        .right(PLAY_INSET)
-                        .bottom(PLAY_INSET)
-                        .invisible()
-                        .group_hover(CARD_GROUP, |style| style.visible())
-                        .child(
-                            Button::new("card-play-button")
-                                .primary()
-                                .icon(match playing {
-                                    true => "icons/pause.svg",
-                                    false => "icons/play.svg",
-                                })
-                                .tooltip(match playing {
-                                    true => "play-pause",
-                                    false => "common-play",
-                                })
-                                .size(px((art / px(1.) * PLAY_RATIO).round()).max(PLAY_MIN))
-                                .rounded_full()
-                                .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                                .on_click(move |event, window, cx| {
-                                    cx.stop_propagation();
-                                    play(event, window, cx);
-                                }),
-                        ),
-                )
-                .into_any_element(),
+            Some(play) => {
+                let glyph = match playing {
+                    true => "icons/pause-filled.svg",
+                    false => "icons/play-filled.svg",
+                };
+                let hint = match playing {
+                    true => "play-pause",
+                    false => "common-play",
+                };
+                let control = match tile {
+                    Some(_) => {
+                        let size =
+                            px((art / px(1.) * PLAY_RATIO).round()).clamp(PLAY_MIN, PLAY_MAX);
+
+                        div()
+                            .id("card-play")
+                            .absolute()
+                            .right(PLAY_INSET)
+                            .bottom(PLAY_INSET)
+                            .when(!playing, |this| {
+                                this.invisible()
+                                    .group_hover(CARD_GROUP, |style| style.visible())
+                            })
+                            .child(
+                                Button::new("card-play-button")
+                                    .primary()
+                                    .icon(glyph)
+                                    .tooltip(hint)
+                                    .size(size)
+                                    .rounded_full()
+                                    .shadow_sm()
+                                    .on_mouse_down(MouseButton::Left, |_, _, cx| {
+                                        cx.stop_propagation()
+                                    })
+                                    .on_click(move |event, window, cx| {
+                                        cx.stop_propagation();
+                                        play(event, window, cx);
+                                    }),
+                            )
+                    }
+                    None => {
+                        let corner = match (circle, art_radius) {
+                            (true, _) => art / 2.,
+                            (false, Some(radius)) => radius,
+                            (false, None) => theme.radius.min(ROUNDED),
+                        };
+                        let size = px((art / px(1.) * SCRIM_RATIO).round()).max(SCRIM_MIN);
+
+                        div()
+                            .id("card-play")
+                            .absolute()
+                            .inset_0()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .rounded(corner)
+                            .cursor_pointer()
+                            .tooltip(Tooltip::build(hint, Perch::Pointer))
+                            .when(playing, |this| this.bg(theme.overlay))
+                            .group_hover(CARD_GROUP, move |style| style.bg(theme.overlay))
+                            .child(
+                                svg()
+                                    .path(glyph)
+                                    .size(size)
+                                    .flex_none()
+                                    .text_color(theme.overlay_foreground)
+                                    .when(!playing, |this| {
+                                        this.invisible()
+                                            .group_hover(CARD_GROUP, |style| style.visible())
+                                    }),
+                            )
+                            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                            .on_click(move |event, window, cx| {
+                                cx.stop_propagation();
+                                play(event, window, cx);
+                            })
+                    }
+                };
+
+                div()
+                    .relative()
+                    .size(art)
+                    .child(leading)
+                    .child(control)
+                    .into_any_element()
+            }
         };
 
         let mut card = base

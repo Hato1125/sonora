@@ -102,6 +102,8 @@ pub struct ThemeOverrides {
     pub foreground: Option<String>,
     pub border: Option<String>,
     pub muted: Option<String>,
+    pub overlay: Option<String>,
+    pub overlay_foreground: Option<String>,
     pub muted_foreground: Option<String>,
     pub secondary: Option<String>,
     pub secondary_hover: Option<String>,
@@ -136,6 +138,8 @@ pub struct Theme {
     pub foreground: Hsla,
     pub border: Hsla,
     pub muted: Hsla,
+    pub overlay: Hsla,
+    pub overlay_foreground: Hsla,
     pub muted_foreground: Hsla,
     pub secondary: Hsla,
     pub secondary_hover: Hsla,
@@ -183,6 +187,8 @@ impl Theme {
             foreground: rgb(0xfafafa).into(),
             border: rgb(0x262626).into(),
             muted: rgb(0x262626).into(),
+            overlay: rgba(0x0000008c).into(),
+            overlay_foreground: rgb(0xfafafa).into(),
             muted_foreground: rgb(0x737373).into(),
             secondary: rgb(0x171717).into(),
             secondary_hover: rgb(0x232323).into(),
@@ -221,6 +227,8 @@ impl Theme {
             foreground: rgb(0x171717).into(),
             border: rgb(0xd4d4d4).into(),
             muted: rgb(0xe5e5e5).into(),
+            overlay: rgba(0x0000008c).into(),
+            overlay_foreground: rgb(0xfafafa).into(),
             muted_foreground: rgb(0x737373).into(),
             secondary: rgb(0xf5f5f5).into(),
             secondary_hover: rgb(0xe5e5e5).into(),
@@ -259,6 +267,8 @@ impl Theme {
             foreground: rgb(0xe6edf7).into(),
             border: rgb(0x1e344d).into(),
             muted: rgb(0x15283d).into(),
+            overlay: rgba(0x0000008c).into(),
+            overlay_foreground: rgb(0xfafafa).into(),
             muted_foreground: rgb(0x8296ad).into(),
             secondary: rgb(0x102238).into(),
             secondary_hover: rgb(0x17304d).into(),
@@ -297,6 +307,8 @@ impl Theme {
             foreground: rgb(0xecf7ef).into(),
             border: rgb(0x263d30).into(),
             muted: rgb(0x203328).into(),
+            overlay: rgba(0x0000008c).into(),
+            overlay_foreground: rgb(0xfafafa).into(),
             muted_foreground: rgb(0x86a58f).into(),
             secondary: rgb(0x16261d).into(),
             secondary_hover: rgb(0x203328).into(),
@@ -569,6 +581,8 @@ impl Theme {
         apply_color!(foreground);
         apply_color!(border);
         apply_color!(muted);
+        apply_color!(overlay);
+        apply_color!(overlay_foreground);
         apply_color!(muted_foreground);
         apply_color!(secondary);
         apply_color!(secondary_hover);

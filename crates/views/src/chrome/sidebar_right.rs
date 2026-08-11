@@ -5,21 +5,23 @@ use std::ops::Range;
 use gpui::prelude::*;
 
 use gpui::{
-    App, Context, Div, DragMoveEvent, Entity, FontWeight, MouseButton, MouseDownEvent, Pixels,
-    Point, Render, ScrollHandle, ScrollStrategy, SharedString, UniformListScrollHandle, Window,
-    div, px, uniform_list,
+    Context, DragMoveEvent, Entity, FontWeight, MouseButton, MouseDownEvent, Pixels, Point, Render,
+    ScrollHandle, ScrollStrategy, SharedString, UniformListScrollHandle, Window, div, px,
+    uniform_list,
 };
 use i18n::t;
 use music::Track;
 use state::{AppSettings, Lyrics, LyricsState, Playback, Queue, SideTab, Sonora};
 use ui::{
-    ActiveTheme as _, Button, Card, MIN_CONTENT, Panel, Popup, Room, Scrollbar, Scroller, Side,
-    Text, eyebrow, snapped, vacant,
+    ActiveTheme as _, Button, Card, DraggedPin, Edge, MIN_CONTENT, Panel, Pin, PinKind,
+    Pinnable as _, Popup, Room, Scrollbar, Scroller, Side, Spot, Text, drop_gap, drop_marker,
+    eyebrow, snapped, vacant,
 };
 
-use crate::chrome::Chrome;
+use crate::chrome::{Chrome, section_label};
 use crate::shared::menu::ItemMenu;
 
+const QUEUE: &str = "queue";
 const MIN_WIDTH: Pixels = px(240.);
 const MAX_WIDTH: Pixels = px(560.);
 const PINNED_SHARE: f32 = 0.25;
@@ -31,38 +33,12 @@ fn fills_content(width: Pixels) -> bool {
     !Room::of(width).fits(Room::Wide)
 }
 
-fn section_label(key: &'static str, window: &Window, cx: &App) -> Div {
-    div()
-        .flex()
-        .flex_none()
-        .items_end()
-        .h(snapped(cx.theme().metrics.list_row, window))
-        .px_2()
-        .pb_1()
-        .child(eyebrow(i18n::lookup(key, None), cx))
-}
-
 fn track(queue: &Queue, position: QueuePosition) -> Option<Track> {
     match position {
         QueuePosition::Past(index) => queue.past().nth(index).cloned(),
         QueuePosition::Current => queue.current().cloned(),
         QueuePosition::Upcoming(index) => queue.upcoming().nth(index).cloned(),
         QueuePosition::Similar(index) => queue.similar().nth(index).cloned(),
-    }
-}
-
-#[derive(Clone)]
-struct DraggedTrack {
-    index: usize,
-    revision: u64,
-    name: SharedString,
-    position: Point<Pixels>,
-}
-
-impl DraggedTrack {
-    fn at(mut self, position: Point<Pixels>) -> Self {
-        self.position = position;
-        self
     }
 }
 
@@ -146,13 +122,6 @@ impl Sections {
     }
 }
 
-/// Which edge of a row the drop indicator line is drawn at.
-#[derive(Clone, Copy)]
-enum DropLine {
-    Above,
-    Below,
-}
-
 #[derive(Clone)]
 struct ContextMenuState {
     track: Track,
@@ -180,27 +149,6 @@ impl QueuePosition {
             Self::Similar(index) => Some(index),
             _ => None,
         }
-    }
-}
-
-impl Render for DraggedTrack {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = *cx.theme();
-
-        div()
-            .pl(self.position.x + px(8.))
-            .pt(self.position.y + px(8.))
-            .child(
-                div()
-                    .max_w(px(240.))
-                    .px_2()
-                    .py_1()
-                    .rounded(theme.radius)
-                    .bg(theme.secondary)
-                    .text_color(theme.foreground)
-                    .truncate()
-                    .child(self.name.clone()),
-            )
     }
 }
 
@@ -349,7 +297,7 @@ impl SidebarRight {
         index: usize,
         position: QueuePosition,
         queue_revision: u64,
-        drop_line: Option<DropLine>,
+        drop_line: Option<Edge>,
         cx: &Context<Self>,
     ) -> gpui::Stateful<gpui::Div> {
         let theme = *cx.theme();
@@ -361,12 +309,10 @@ impl SidebarRight {
             QueuePosition::Current => theme.primary,
             QueuePosition::Upcoming(_) | QueuePosition::Similar(_) => theme.foreground,
         };
-        let dragged = queue_index.map(|index| DraggedTrack {
-            index,
-            revision: queue_revision,
-            name: SharedString::from(track.name.clone()),
-            position: Point::default(),
-        });
+        let pin = track
+            .id
+            .clone()
+            .map(|id| Pin::new(PinKind::Song, id, track.name.clone()).cover(track.cover.clone()));
         let menu_track = track.clone();
 
         let card = Card::new(
@@ -432,29 +378,28 @@ impl SidebarRight {
                     })),
             )
             .on_drag_move(
-                cx.listener(move |this, event: &DragMoveEvent<DraggedTrack>, _, cx| {
-                    let position = event.event.position;
-                    if !event.bounds.contains(&position) {
+                cx.listener(move |this, event: &DragMoveEvent<DraggedPin>, _, cx| {
+                    let Some(gap) = drop_gap(event.bounds, event.event.position, target) else {
                         return;
-                    }
-                    let gap = if position.y < event.bounds.center().y {
-                        target
-                    } else {
-                        target + 1
                     };
-                    let dragged = event.drag(cx).index;
-                    let gap = (gap != dragged && gap != dragged + 1).then_some(gap);
+                    let Some(held) = event.drag(cx).spot(QUEUE) else {
+                        return;
+                    };
+                    let gap = (gap != held.index && gap != held.index + 1).then_some(gap);
                     if this.drop_gap != gap {
                         this.drop_gap = gap;
                         cx.notify();
                     }
                 }),
             )
-            .on_drop(cx.listener(move |this, dragged: &DraggedTrack, _, cx| {
+            .on_drop(cx.listener(move |this, dragged: &DraggedPin, _, cx| {
+                let Some(held) = dragged.spot(QUEUE) else {
+                    return;
+                };
                 if let Some(gap) = this.drop_gap.take() {
                     this.queue.update(cx, |queue, cx| {
-                        if queue.revision() == dragged.revision {
-                            queue.move_upcoming_to_gap(dragged.index, gap, cx);
+                        if queue.revision() == held.revision {
+                            queue.move_upcoming_to_gap(held.index, gap, cx);
                         }
                     });
                 }
@@ -484,10 +429,9 @@ impl SidebarRight {
                     })),
             )
         })
-        .when_some(dragged, |this, dragged| {
-            this.on_drag(dragged, |dragged, position, _, cx| {
-                cx.new(|_| dragged.clone().at(position))
-            })
+        .when_some(pin, |this, pin| match queue_index {
+            Some(index) => this.pin_from(pin, Spot::new(QUEUE, index).revision(queue_revision)),
+            None => this.pin(pin),
         });
 
         div()
@@ -495,19 +439,7 @@ impl SidebarRight {
             .relative()
             .min_w_0()
             .child(card)
-            .when_some(drop_line, |this, edge| {
-                let line = div()
-                    .absolute()
-                    .left_2()
-                    .right_2()
-                    .h(px(2.))
-                    .rounded_full()
-                    .bg(theme.primary);
-                this.child(match edge {
-                    DropLine::Above => line.top_0(),
-                    DropLine::Below => line.bottom_0(),
-                })
-            })
+            .when_some(drop_line, |this, edge| this.child(drop_marker(edge, cx)))
     }
 
     fn menu(&self, cx: &mut Context<Self>) -> Option<impl IntoElement> {
@@ -852,11 +784,11 @@ impl SidebarRight {
                         (Slot::Header(key), _) => section_label(key, window, cx).into_any_element(),
                         (Slot::Track(position), Some(found)) => {
                             let drop_line = match (position.upcoming(), drop_gap) {
-                                (Some(queued), Some(gap)) if gap == queued => Some(DropLine::Above),
+                                (Some(queued), Some(gap)) if gap == queued => Some(Edge::Above),
                                 (Some(queued), Some(gap))
                                     if gap == upcoming && queued + 1 == upcoming =>
                                 {
-                                    Some(DropLine::Below)
+                                    Some(Edge::Below)
                                 }
                                 _ => None,
                             };
@@ -906,7 +838,7 @@ impl Render for SidebarRight {
                 this.persist(cx);
                 cx.notify();
             }))
-            .on_drag_move(cx.listener(|this, _: &DragMoveEvent<DraggedTrack>, _, cx| {
+            .on_drag_move(cx.listener(|this, _: &DragMoveEvent<DraggedPin>, _, cx| {
                 if this.drop_gap.take().is_some() {
                     cx.notify();
                 }

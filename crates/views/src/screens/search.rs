@@ -15,7 +15,8 @@ use crate::shared::menu::ItemMenu;
 use state::{Hit, Kind, Playback, Search};
 use ui::ActiveTheme as _;
 use ui::{
-    Card, Popup, Room, Scrollbar, Scroller, Separator, Text, Theme, VAST, clock, eyebrow, vacant,
+    Card, Pin, PinKind, Pinnable, Popup, Room, Scrollbar, Scroller, Separator, Text, Theme, VAST,
+    clock, eyebrow, vacant,
 };
 
 use crate::shared::cells;
@@ -147,10 +148,22 @@ impl SearchView {
                 };
                 let track = track.clone();
                 let view = cx.entity().downgrade();
+                let playing = tint == theme.primary
+                    && self.playback.read(cx).state() == &state::PlaybackState::Playing;
+                let played = track.clone();
                 Card::new(("song", place), track.name.clone())
                     .cover(track.cover.clone())
                     .tint(tint)
                     .meta(meta)
+                    .play(
+                        playing,
+                        cx.listener(move |this, _, _, cx| {
+                            this.playback.update(cx, |playback, cx| match playing {
+                                true => playback.pause(cx),
+                                false => playback.play_radio(&played, cx),
+                            });
+                        }),
+                    )
                     .when(track.explicit, |card| card.explicit())
                     .trailing(
                         div()
@@ -163,6 +176,7 @@ impl SearchView {
                             .child(clock(track.duration)),
                     )
                     .press(self.pressed(Press::Song(track.clone()), cx))
+                    .when_some(pin(hit), Pinnable::pin)
                     .on_mouse_down(MouseButton::Right, move |event, window, cx| {
                         window.prevent_default();
                         let Some(view) = view.upgrade() else {
@@ -177,10 +191,28 @@ impl SearchView {
                     .into_any_element()
             }
             Hit::Artist(artist) => {
+                let origin = artist.id.clone().map(state::Origin::Artist);
+                let state = origin
+                    .as_ref()
+                    .and_then(|origin| self.playback.read(cx).playing_from(origin));
+                let playing = matches!(state, Some(state::PlaybackState::Playing));
                 let card = Card::new(("artist", place), artist.name.clone())
                     .cover(artist.cover.clone())
                     .circle()
-                    .meta(meta);
+                    .meta(meta)
+                    .when_some(artist.id.clone(), |card, id| {
+                        card.play(
+                            playing,
+                            cx.listener(move |this, _, _, cx| {
+                                this.playback.update(cx, |playback, cx| match &state {
+                                    Some(state::PlaybackState::Playing) => playback.pause(cx),
+                                    Some(state::PlaybackState::Paused) => playback.resume(cx),
+                                    _ => playback.play_artist(&id, cx),
+                                });
+                            }),
+                        )
+                    })
+                    .when_some(pin(hit), Pinnable::pin);
                 match &artist.id {
                     Some(id) => card.press(self.pressed(Press::Artist(id.clone()), cx)),
                     None => card,
@@ -188,10 +220,27 @@ impl SearchView {
                 .into_any_element()
             }
             Hit::Album(album) => {
+                let played = album.id.clone();
+                let state = self
+                    .playback
+                    .read(cx)
+                    .playing_from(&state::Origin::Album(album.id.clone()));
+                let playing = matches!(state, Some(state::PlaybackState::Playing));
                 Card::new(ElementId::Name(album.id.clone().into()), album.name.clone())
                     .cover(album.cover.clone())
                     .meta(meta)
+                    .play(
+                        playing,
+                        cx.listener(move |this, _, _, cx| {
+                            this.playback.update(cx, |playback, cx| match &state {
+                                Some(state::PlaybackState::Playing) => playback.pause(cx),
+                                Some(state::PlaybackState::Paused) => playback.resume(cx),
+                                _ => playback.play_album(&played, cx),
+                            });
+                        }),
+                    )
                     .press(self.pressed(Press::Album(album.id.clone()), cx))
+                    .when_some(pin(hit), Pinnable::pin)
                     .into_any_element()
             }
         }
@@ -247,6 +296,7 @@ impl SearchView {
             .gap_4()
             .p_3()
             .bg(theme.secondary)
+            .when_some(pin(hit), Pinnable::pin)
             .when_some(target, |card, target| card.press(self.pressed(target, cx)))
             .when_some(song, |card, track| {
                 card.on_mouse_down(MouseButton::Right, move |event, window, cx| {
@@ -377,6 +427,16 @@ fn cover(hit: &Hit) -> Option<String> {
         Hit::Artist(artist) => artist.cover.clone(),
         Hit::Album(album) => album.cover.clone(),
     }
+}
+
+fn pin(hit: &Hit) -> Option<Pin> {
+    let (kind, id, name) = match hit {
+        Hit::Song(track) => (PinKind::Song, track.id.clone()?, track.name.clone()),
+        Hit::Artist(artist) => (PinKind::Artist, artist.id.clone()?, artist.name.clone()),
+        Hit::Album(album) => (PinKind::Album, album.id.clone(), album.name.clone()),
+    };
+
+    Some(Pin::new(kind, id, name).cover(cover(hit)))
 }
 
 fn meta(hit: &Hit, compact: bool) -> SharedString {

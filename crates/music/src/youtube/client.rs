@@ -284,6 +284,11 @@ impl MusicApi for YouTubeClient {
         Ok(self.playlist(playlist_id).await?.tracks)
     }
 
+    async fn playlist_covers(&self, playlist_id: &str, wanted: usize) -> Result<Vec<String>> {
+        let tracks = self.playlist_tracks(playlist_id).await?;
+        Ok(crate::distinct_covers(&tracks, wanted))
+    }
+
     async fn track_radio(&self, track_id: &str) -> Result<Vec<Track>> {
         Ok(self
             .api

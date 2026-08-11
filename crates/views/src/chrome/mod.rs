@@ -15,8 +15,20 @@ pub(crate) use title_bar::{TitleBar, TitleBarEvent, TitleBarOptions};
 pub(crate) use toasts::ToastStack;
 pub(crate) use toolbar::{Searchable, Toolbar, Tooled};
 
-use gpui::{App, AppContext as _, Entity, Global, Pixels, Window};
-use ui::{MIN_CONTENT, Room};
+use gpui::prelude::*;
+use gpui::{App, Div, Entity, Global, Pixels, Window, div};
+use ui::{ActiveTheme as _, MIN_CONTENT, Room, eyebrow, snapped};
+
+pub(crate) fn section_label(key: &'static str, window: &Window, cx: &App) -> Div {
+    div()
+        .flex()
+        .flex_none()
+        .items_end()
+        .h(snapped(cx.theme().metrics.list_row, window))
+        .px_2()
+        .pb_1()
+        .child(eyebrow(i18n::lookup(key, None), cx))
+}
 
 pub(crate) fn cap(min: Pixels, max: Pixels, keep: Pixels, window: &Window) -> Pixels {
     let room = window.viewport_size().width - keep;

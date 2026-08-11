@@ -5,13 +5,14 @@ use std::cell::Cell;
 use gpui::prelude::*;
 use gpui::{
     AnyElement, App, Div, DragMoveEvent, ElementId, Empty, Interactivity, Pixels, Stateful,
-    StyleRefinement, Window, div, px,
+    StyleRefinement, Window, deferred, div, px,
 };
 
 use crate::metrics::snapped;
 
 const GRIP: Pixels = px(12.);
 const GRIP_INSET: Pixels = px(-6.);
+const GRIP_PRIORITY: usize = 0;
 
 type Resize = Box<dyn Fn(&Pixels, &mut Window, &mut App) + 'static>;
 
@@ -151,7 +152,7 @@ fn grip(
 ) -> impl IntoElement {
     let dragged = key.clone();
 
-    div()
+    let handle = div()
         .id("panel-grip")
         .occlude()
         .absolute()
@@ -187,5 +188,7 @@ fn grip(
                 grab.origin.set(window.mouse_position().x);
                 cx.new(|_| Empty)
             },
-        )
+        );
+
+    deferred(handle).with_priority(GRIP_PRIORITY)
 }

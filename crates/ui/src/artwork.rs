@@ -16,7 +16,7 @@ use std::{collections::HashMap, sync::Arc};
 const FILE_PREFIX: &str = "file://";
 
 const FALLBACK_ICON: &str = "icons/music.svg";
-const ROUNDED: Pixels = px(4.);
+pub(crate) const ROUNDED: Pixels = px(4.);
 const CACHE_BYTES: usize = 32 * 1024 * 1024;
 const CACHE_ITEMS: usize = 256;
 const HARD_BYTES: usize = 192 * 1024 * 1024;

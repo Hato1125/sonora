@@ -31,6 +31,20 @@ pub fn is_local_id(id: &str) -> bool {
         || id.starts_with(LOCAL_ARTIST_PREFIX)
 }
 
+pub fn distinct_covers(tracks: &[Track], wanted: usize) -> Vec<String> {
+    let mut covers: Vec<String> = Vec::with_capacity(wanted);
+    for cover in tracks.iter().filter_map(|track| track.cover.as_deref()) {
+        if covers.len() == wanted {
+            break;
+        }
+        if !covers.iter().any(|kept| kept == cover) {
+            covers.push(cover.to_owned());
+        }
+    }
+
+    covers
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MediaKind {
     Track,
@@ -65,6 +79,7 @@ pub trait MusicApi: Send + Sync {
     async fn album_tracks(&self, album_id: &str) -> Result<Vec<Track>>;
     async fn playlist(&self, playlist_id: &str) -> Result<PlaylistDetail>;
     async fn playlist_tracks(&self, playlist_id: &str) -> Result<Vec<Track>>;
+    async fn playlist_covers(&self, playlist_id: &str, wanted: usize) -> Result<Vec<String>>;
     async fn track_radio(&self, track_id: &str) -> Result<Vec<Track>>;
     async fn search(&self, query: &str) -> Result<Vec<Track>>;
 }

@@ -7,7 +7,7 @@ use gpui::{AnyElement, App, Entity, TextAlign};
 use music::Playlist;
 use router::Destination;
 use state::{Library, LibraryState, Origin, Playback};
-use ui::{Cell, ColumnSpec, GridSource, Menu, Width};
+use ui::{Cell, ColumnSpec, GridSource, Menu, Pin, PinKind, Width};
 
 use crate::shared::cells::{self, ALWAYS, NUMBER, ROOMY, SNUG, TRAILING};
 use crate::shared::menu::playlist_menu;
@@ -141,6 +141,12 @@ impl GridSource for PlaylistSource {
 
     fn is_loading(&self, cx: &App) -> bool {
         self.library.read(cx).is_loading()
+    }
+
+    fn pin(&self, row: usize, cx: &App) -> Option<Pin> {
+        let playlist = self.at(row, cx)?;
+
+        Some(Pin::new(PinKind::Playlist, playlist.id, playlist.name).cover(playlist.cover))
     }
 
     fn context_menu(&self, row: usize, _visible: &[PlaylistField], cx: &App) -> Option<Menu> {

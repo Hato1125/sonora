@@ -9,8 +9,8 @@ use music::{Credit, Track};
 use router::{Destination, Link as _};
 use state::{Playback, SongDetail};
 use ui::{
-    ActiveTheme as _, Artwork, Avatar, Button, Fact, InfoCard, Initials, Scrollbar, Skeleton, Text,
-    clock, eyebrow, heading,
+    ActiveTheme as _, Artwork, Avatar, Button, Fact, InfoCard, Initials, Pin, PinKind, Scrollbar,
+    Skeleton, Text, clock, eyebrow, heading,
 };
 
 use crate::shared::cells;
@@ -116,7 +116,13 @@ impl SongView {
                 )
             });
 
+        let pin = track
+            .id
+            .clone()
+            .map(|id| Pin::new(PinKind::Song, id, track.name.clone()).cover(cover.clone()));
+
         PageHero::new("song-hero", track.name.clone())
+            .pin(pin)
             .cover(cover)
             .eyebrow(t!("song-eyebrow"))
             .meta(meta)

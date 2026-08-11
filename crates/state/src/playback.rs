@@ -83,13 +83,14 @@ pub enum Repeat {
 pub enum Origin {
     Album(String),
     Playlist(String),
+    Artist(String),
     Radio(String),
 }
 
 impl Origin {
     fn id(&self) -> &str {
         match self {
-            Origin::Album(id) | Origin::Playlist(id) | Origin::Radio(id) => id,
+            Origin::Album(id) | Origin::Playlist(id) | Origin::Artist(id) | Origin::Radio(id) => id,
         }
     }
 }
@@ -302,6 +303,18 @@ impl Playback {
         });
     }
 
+    pub fn play_track(&mut self, track_id: &str, cx: &mut Context<Self>) {
+        let origin = Origin::Radio(track_id.to_owned());
+        let id = track_id.to_owned();
+        self.gather(origin, cx, move |client| {
+            Box::pin(async move {
+                let mut tracks = client.track_radio(&id).await?;
+                tracks.retain(|track| track.playable);
+                Ok(tracks)
+            })
+        });
+    }
+
     pub fn enqueue(&mut self, track: Track, cx: &mut Context<Self>) {
         if self.queue.read(cx).current().is_none() {
             self.begin(vec![track], 0, None, cx);
@@ -367,6 +380,14 @@ impl Playback {
         let album = album.to_owned();
         self.gather(origin, cx, move |client| {
             Box::pin(async move { client.album_tracks(&album).await })
+        });
+    }
+
+    pub fn play_artist(&mut self, artist: &str, cx: &mut Context<Self>) {
+        let origin = Origin::Artist(artist.to_owned());
+        let artist = artist.to_owned();
+        self.gather(origin, cx, move |client| {
+            Box::pin(async move { client.artist(&artist).await.map(|found| found.top_tracks) })
         });
     }
 

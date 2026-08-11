@@ -24,8 +24,9 @@ use router::{Destination, LibraryTab, navigate};
 use state::{AppSettings, Library, LibraryState, Origin, Playback, PlaybackState, Sonora};
 use ui::{
     ActiveTheme as _, Button, Card, Deck, FlagAxis, GridDelegate, GridEvent, GridSource, GridState,
-    LEADING, Menu, MenuItem, Mode, Popovers, Popup, RangeAxis, Scrollbar, Scroller, Sort, SortAxis,
-    Text, Toggle, Unit, Viewport, clock, grid, heading, scrolled, snapped, vacant,
+    LEADING, Menu, MenuItem, Mode, Pin, PinKind, Pinnable, Popovers, Popup, RangeAxis, Scrollbar,
+    Scroller, Sort, SortAxis, Text, Toggle, Unit, Viewport, clock, grid, heading, scrolled,
+    snapped, vacant,
 };
 
 use crate::shared::album_grid::{AlbumGrid, CardGrid};
@@ -631,10 +632,16 @@ impl LibraryView {
         .text_size(theme.text(Text::Small))
         .truncate();
 
+        let pin = track
+            .id
+            .clone()
+            .map(|id| Pin::new(PinKind::Song, id, track.name.clone()).cover(track.cover.clone()));
+
         Some(
             Card::new(("library-track", display), SharedString::from(track.name))
                 .tile(card)
                 .cover(track.cover)
+                .when_some(pin, Pinnable::pin)
                 .weight(FontWeight::SEMIBOLD)
                 .flat()
                 .underline()
@@ -696,6 +703,12 @@ impl LibraryView {
         let opened = SharedString::from(playlist.id.clone());
         let context = playlist.clone();
         let view = self.me.clone();
+        let pin = Pin::new(
+            PinKind::Playlist,
+            playlist.id.clone(),
+            playlist.name.clone(),
+        )
+        .cover(playlist.cover.clone());
 
         Some(
             Card::new(
@@ -716,6 +729,7 @@ impl LibraryView {
                 });
             })
             .press(move |_, _, cx| navigate(Destination::Playlist(opened.clone()), cx))
+            .pin(pin)
             .on_mouse_down(MouseButton::Right, move |event, window, cx| {
                 window.prevent_default();
                 cx.stop_propagation();

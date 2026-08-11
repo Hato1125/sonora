@@ -5,6 +5,7 @@ mod detail;
 mod home;
 mod library;
 mod lyrics;
+mod mosaic;
 mod playback;
 mod queue;
 mod remote;
