@@ -143,6 +143,10 @@ impl Scrollbar {
         self
     }
 
+    pub fn settle(&mut self, offset: Pixels) {
+        self.seen = offset;
+    }
+
     pub fn scroll(&self) -> &ScrollHandle {
         &self.scroll
     }

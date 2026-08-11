@@ -727,6 +727,10 @@ impl SidebarRight {
         if self.verse_of != following {
             self.verse_of = following;
             self.anchor_verse();
+            let scroll = self.verse_bar.read(cx).scroll().clone();
+            scroll.set_offset(gpui::point(scroll.offset().x, px(0.)));
+            self.verse_bar
+                .update(cx, |bar, _| bar.settle(scroll.offset().y));
         }
         if let Some(lines) = &lines {
             self.pin_verse(music::lyrics::active(lines, at), window, cx);
@@ -788,11 +792,13 @@ impl SidebarRight {
             scroll.set_offset(gpui::point(scroll.offset().x, goal));
             self.placed = Some(goal);
             self.goal = None;
+            self.verse_bar.update(cx, |bar, _| bar.settle(goal));
             return;
         }
         let next = current + step * GLIDE;
         scroll.set_offset(gpui::point(scroll.offset().x, next));
         self.placed = Some(next);
+        self.verse_bar.update(cx, |bar, _| bar.settle(next));
         window.request_animation_frame();
     }
 
