@@ -2,16 +2,19 @@
 
 use std::io::Cursor;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
 
 use anyhow::{Context as _, Result};
 use async_trait::async_trait;
+use rodio::source::SeekError;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use ytmusic::YtMusic;
 
 use crate::{PlaybackConfig, PlaybackEvent, PlaybackEvents, PlaybackFactory, Player};
 
 const NORMAL_CAP: f32 = 1.0;
+const RAMP: Duration = Duration::from_millis(24);
 
 enum Command {
     Load { id: String },
@@ -94,10 +97,140 @@ impl PlaybackEvents for Events {
     }
 }
 
+#[derive(Clone)]
+struct Envelope(Arc<AtomicU32>);
+
+impl Envelope {
+    fn new(gain: f32) -> Self {
+        Self(Arc::new(AtomicU32::new(gain.to_bits())))
+    }
+
+    fn set(&self, gain: f32) {
+        self.0.store(gain.to_bits(), Ordering::Relaxed);
+    }
+
+    fn get(&self) -> f32 {
+        f32::from_bits(self.0.load(Ordering::Relaxed))
+    }
+}
+
+struct Ramp<I> {
+    input: I,
+    envelope: Envelope,
+    current: f32,
+    target: f32,
+    step: f32,
+    frames_left: u32,
+    ramp_frames: u32,
+    channel: u16,
+    channels: u16,
+}
+
+impl<I: rodio::Source> Ramp<I> {
+    fn new(input: I, envelope: Envelope, initial: f32) -> Self {
+        let channels = input.channels();
+        let ramp_frames = (RAMP.as_secs_f64() * input.sample_rate() as f64)
+            .round()
+            .max(1.0) as u32;
+        Self {
+            input,
+            envelope,
+            current: initial,
+            target: initial,
+            step: 0.0,
+            frames_left: 0,
+            ramp_frames,
+            channel: 0,
+            channels,
+        }
+    }
+}
+
+impl<I: rodio::Source> Iterator for Ramp<I> {
+    type Item = f32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let sample = self.input.next()?;
+        if self.channel == 0 {
+            let requested = self.envelope.get().max(0.0);
+            if requested.to_bits() != self.target.to_bits() {
+                self.target = requested;
+                self.frames_left = self.ramp_frames;
+                self.step = (self.target - self.current) / self.ramp_frames as f32;
+            }
+            if self.frames_left > 0 {
+                self.current += self.step;
+                self.frames_left -= 1;
+                if self.frames_left == 0 {
+                    self.current = self.target;
+                }
+            }
+        }
+        let output = sample * self.current;
+        self.channel += 1;
+        if self.channel == self.channels {
+            self.channel = 0;
+        }
+        Some(output)
+    }
+}
+
+impl<I: rodio::Source> rodio::Source for Ramp<I> {
+    fn current_span_len(&self) -> Option<usize> {
+        self.input.current_span_len()
+    }
+
+    fn channels(&self) -> u16 {
+        self.input.channels()
+    }
+
+    fn sample_rate(&self) -> u32 {
+        self.input.sample_rate()
+    }
+
+    fn total_duration(&self) -> Option<Duration> {
+        self.input.total_duration()
+    }
+
+    fn try_seek(&mut self, position: Duration) -> Result<(), SeekError> {
+        self.input.try_seek(position)
+    }
+}
+
+#[derive(Clone)]
 struct Loaded {
-    data: Vec<u8>,
+    data: Arc<Vec<u8>>,
     loudness_db: Option<f32>,
     duration: Option<Duration>,
+}
+
+struct Slot {
+    id: String,
+    length: Option<Duration>,
+    envelope: Envelope,
+    gain: f32,
+}
+
+impl Slot {
+    fn mute(&self) {
+        self.envelope.set(0.0);
+    }
+
+    fn unmute(&self) {
+        self.envelope.set(self.gain);
+    }
+}
+
+enum Kind {
+    Play,
+    Ahead,
+}
+
+struct Fetched {
+    epoch: u64,
+    id: String,
+    kind: Kind,
+    result: Result<Loaded>,
 }
 
 fn run(
@@ -134,14 +267,20 @@ async fn engine_loop(
     };
     let sink = rodio::Sink::connect_new(stream.mixer());
     sink.pause();
+    sink.set_volume(config.gain);
 
-    let mut gain = config.gain;
-    sink.set_volume(gain);
+    let (fetched, mut arrivals) = unbounded_channel::<Fetched>();
     let mut ticker = tokio::time::interval(config.position_interval);
     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
     let mut playing = false;
-    let mut current: Option<(String, Option<Duration>)> = None;
-    let mut queued: Option<(String, Loaded)> = None;
+    let mut autostart = true;
+    let mut epoch = 0u64;
+    let mut pending: Option<u64> = None;
+    let mut inflight: Option<tokio::task::AbortHandle> = None;
+    let mut current: Option<Slot> = None;
+    let mut queued: Option<Slot> = None;
+    let mut ahead: Option<(String, Loaded)> = None;
     let mut prev_len = 0usize;
 
     loop {
@@ -150,94 +289,141 @@ async fn engine_loop(
                 let Some(command) = command else { break };
                 match command {
                     Command::Load { id } => {
-                        if current.as_ref().is_some_and(|(cid, _)| *cid == id) {
+                        if current.as_ref().is_some_and(|slot| slot.id == id) {
                             playing = true;
-                            if let Some((_, Some(length))) = &current {
-                                events.send(PlaybackEvent::Length(*length)).ok();
+                            autostart = true;
+                            if let Some(slot) = &current {
+                                slot.unmute();
+                                if let Some(length) = slot.length {
+                                    events.send(PlaybackEvent::Length(length)).ok();
+                                }
                             }
+                            sink.play();
                             events.send(PlaybackEvent::Playing(sink.get_pos())).ok();
                             continue;
                         }
+                        epoch += 1;
+                        if let Some(handle) = inflight.take() {
+                            handle.abort();
+                        }
+                        let cached = ahead
+                            .take_if(|(cached, _)| *cached == id)
+                            .map(|(_, loaded)| loaded);
+                        pending = None;
+                        if cached.is_none() {
+                            ahead = None;
+                            pending = Some(epoch);
+                            inflight =
+                                Some(spawn(&api, id.clone(), epoch, Kind::Play, &fetched));
+                        }
                         events.send(PlaybackEvent::Loading(Duration::ZERO)).ok();
-                        let reuse = queued.take().filter(|(qid, _)| *qid == id).map(|(_, l)| l);
-                        let fetched = match reuse {
-                            Some(loaded) => Ok(loaded),
-                            None => fetch(&api, &id).await,
-                        };
-                        match fetched.and_then(|loaded| {
-                            let length = loaded.duration;
-                            let normal = normalisation(config.normalisation, loaded.loudness_db);
-                            let source = decode(loaded.data, normal)?;
-                            Ok((source, length))
-                        }) {
-                            Ok((source, length)) => {
-                                sink.clear();
-                                sink.append(source);
-                                sink.play();
-                                playing = true;
-                                current = Some((id, length));
-                                queued = None;
+                        silence(&sink, current.as_ref()).await;
+                        current = None;
+                        queued = None;
+                        playing = false;
+                        autostart = true;
+                        prev_len = 0;
+                        let Some(loaded) = cached else { continue };
+                        match begin(&sink, &id, &loaded, &config, autostart) {
+                            Ok(slot) => {
+                                announce(&events, &slot, autostart);
                                 prev_len = sink.len();
-                                if let Some(length) = length {
-                                    events.send(PlaybackEvent::Length(length)).ok();
-                                }
-                                events.send(PlaybackEvent::Playing(Duration::ZERO)).ok();
+                                current = Some(slot);
+                                playing = autostart;
                             }
                             Err(error) => {
-                                log::warn!("playback: cannot load {id}: {error:#}");
-                                playing = false;
-                                current = None;
+                                log::warn!("playback: cannot decode {id}: {error:#}");
                                 events.send(PlaybackEvent::Unavailable).ok();
                             }
                         }
                     }
                     Command::Preload { id } => {
-                        let known = current.as_ref().is_some_and(|(cid, _)| *cid == id)
-                            || queued.as_ref().is_some_and(|(qid, _)| *qid == id);
-                        if known || current.is_none() {
+                        let known = current.as_ref().is_some_and(|slot| slot.id == id)
+                            || ahead.as_ref().is_some_and(|(cached, _)| *cached == id);
+                        if known || current.is_none() || pending.is_some() {
                             continue;
                         }
-                        match fetch(&api, &id).await {
-                            Ok(loaded) => {
-                                let normal =
-                                    normalisation(config.normalisation, loaded.loudness_db);
-                                match decode(loaded.data.clone(), normal) {
-                                    Ok(source) => {
-                                        sink.append(source);
-                                        prev_len = sink.len();
-                                        queued = Some((id, loaded));
-                                    }
-                                    Err(error) => {
-                                        log::warn!("playback: cannot decode preload {id}: {error:#}")
-                                    }
-                                }
-                            }
-                            Err(error) => log::warn!("playback: cannot preload {id}: {error:#}"),
-                        }
+                        spawn(&api, id, epoch, Kind::Ahead, &fetched);
                     }
                     Command::Play => {
-                        if current.is_some() {
+                        autostart = true;
+                        if let Some(slot) = &current {
                             sink.play();
+                            slot.unmute();
                             playing = true;
                             events.send(PlaybackEvent::Playing(sink.get_pos())).ok();
                         }
                     }
                     Command::Pause => {
-                        sink.pause();
+                        autostart = false;
                         playing = false;
-                        events.send(PlaybackEvent::Paused(sink.get_pos())).ok();
+                        let position = sink.get_pos();
+                        if let Some(slot) = &current {
+                            slot.mute();
+                            settle(&sink).await;
+                            sink.pause();
+                        }
+                        events.send(PlaybackEvent::Paused(position)).ok();
                     }
                     Command::Seek(position) => {
-                        if current.is_some() {
+                        if let Some(slot) = &current {
+                            slot.mute();
+                            settle(&sink).await;
                             if let Err(error) = sink.try_seek(position) {
                                 log::warn!("playback: cannot seek: {error}");
+                            }
+                            if playing {
+                                slot.unmute();
                             }
                             events.send(PlaybackEvent::Position(sink.get_pos())).ok();
                         }
                     }
-                    Command::Gain(level) => {
-                        gain = level;
-                        sink.set_volume(gain);
+                    Command::Gain(level) => sink.set_volume(level),
+                }
+            }
+            arrival = arrivals.recv() => {
+                let Some(Fetched { epoch: at, id, kind, result }) = arrival else { break };
+                if at != epoch {
+                    continue;
+                }
+                match kind {
+                    Kind::Play => {
+                        if pending != Some(at) {
+                            continue;
+                        }
+                        pending = None;
+                        inflight = None;
+                        match result
+                            .and_then(|loaded| begin(&sink, &id, &loaded, &config, autostart))
+                        {
+                            Ok(slot) => {
+                                announce(&events, &slot, autostart);
+                                prev_len = sink.len();
+                                current = Some(slot);
+                                playing = autostart;
+                            }
+                            Err(error) => {
+                                log::warn!("playback: cannot load {id}: {error:#}");
+                                events.send(PlaybackEvent::Unavailable).ok();
+                            }
+                        }
+                    }
+                    Kind::Ahead => {
+                        let Ok(loaded) = result else {
+                            continue;
+                        };
+                        if current.is_some() && queued.is_none() {
+                            match append(&sink, &id, &loaded, &config, false) {
+                                Ok(slot) => {
+                                    queued = Some(slot);
+                                    prev_len = sink.len();
+                                }
+                                Err(error) => {
+                                    log::warn!("playback: cannot decode preload {id}: {error:#}")
+                                }
+                            }
+                        }
+                        ahead = Some((id, loaded));
                     }
                 }
             }
@@ -245,10 +431,13 @@ async fn engine_loop(
                 let len = sink.len();
                 if current.is_some() && playing && len < prev_len {
                     events.send(PlaybackEvent::Ended).ok();
-                    current = queued.take().map(|(id, loaded)| (id, loaded.duration));
+                    current = queued.take();
+                    ahead = None;
                     playing = current.is_some();
-                    if let Some((_, Some(length))) = &current {
-                        events.send(PlaybackEvent::Length(*length)).ok();
+                    if let Some(slot) = &current
+                        && let Some(length) = slot.length
+                    {
+                        events.send(PlaybackEvent::Length(length)).ok();
                     }
                 } else if playing {
                     events.send(PlaybackEvent::Position(sink.get_pos())).ok();
@@ -259,27 +448,123 @@ async fn engine_loop(
     }
 }
 
+fn spawn(
+    api: &Arc<YtMusic>,
+    id: String,
+    epoch: u64,
+    kind: Kind,
+    fetched: &UnboundedSender<Fetched>,
+) -> tokio::task::AbortHandle {
+    let api = api.clone();
+    let fetched = fetched.clone();
+    tokio::spawn(async move {
+        let result = fetch(&api, &id).await;
+        fetched
+            .send(Fetched {
+                epoch,
+                id,
+                kind,
+                result,
+            })
+            .ok();
+    })
+    .abort_handle()
+}
+
+async fn silence(sink: &rodio::Sink, slot: Option<&Slot>) {
+    let Some(slot) = slot else {
+        sink.clear();
+        return;
+    };
+    slot.mute();
+    settle(sink).await;
+    sink.clear();
+}
+
+async fn settle(sink: &rodio::Sink) {
+    if sink.is_paused() {
+        return;
+    }
+    tokio::time::sleep(RAMP).await;
+}
+
+fn begin(
+    sink: &rodio::Sink,
+    id: &str,
+    loaded: &Loaded,
+    config: &PlaybackConfig,
+    start: bool,
+) -> Result<Slot> {
+    sink.clear();
+    let slot = append(sink, id, loaded, config, true)?;
+    match start {
+        true => sink.play(),
+        false => sink.pause(),
+    }
+    Ok(slot)
+}
+
+fn append(
+    sink: &rodio::Sink,
+    id: &str,
+    loaded: &Loaded,
+    config: &PlaybackConfig,
+    fade: bool,
+) -> Result<Slot> {
+    let gain = normalisation(config.normalisation, loaded.loudness_db);
+    let envelope = Envelope::new(gain);
+    let initial = match fade {
+        true => 0.0,
+        false => gain,
+    };
+    let source = decode(loaded.data.clone())?;
+    sink.append(Ramp::new(source, envelope.clone(), initial));
+    Ok(Slot {
+        id: id.to_string(),
+        length: loaded.duration,
+        envelope,
+        gain,
+    })
+}
+
+fn announce(events: &UnboundedSender<PlaybackEvent>, slot: &Slot, playing: bool) {
+    if let Some(length) = slot.length {
+        events.send(PlaybackEvent::Length(length)).ok();
+    }
+    let event = match playing {
+        true => PlaybackEvent::Playing(Duration::ZERO),
+        false => PlaybackEvent::Paused(Duration::ZERO),
+    };
+    events.send(event).ok();
+}
+
 async fn fetch(api: &YtMusic, id: &str) -> Result<Loaded> {
     let format = api.best_audio(id).await?;
     let duration = format.duration;
     let data = api.download(&format).await?;
     Ok(Loaded {
-        data,
+        data: Arc::new(data),
         loudness_db: format.loudness_db,
         duration,
     })
 }
 
-fn decode(data: Vec<u8>, gain: f32) -> Result<impl rodio::Source + Send + 'static> {
-    use rodio::Source as _;
+fn decode(data: Arc<Vec<u8>>) -> Result<impl rodio::Source + Send + 'static> {
     let length = data.len() as u64;
-    let decoder = rodio::Decoder::builder()
-        .with_data(Cursor::new(data))
+    rodio::Decoder::builder()
+        .with_data(Cursor::new(Bytes(data)))
         .with_byte_len(length)
         .with_seekable(true)
         .build()
-        .context("cannot decode audio")?;
-    Ok(decoder.amplify(gain))
+        .context("cannot decode audio")
+}
+
+struct Bytes(Arc<Vec<u8>>);
+
+impl AsRef<[u8]> for Bytes {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_slice()
+    }
 }
 
 fn normalisation(enabled: bool, loudness_db: Option<f32>) -> f32 {
