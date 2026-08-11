@@ -137,12 +137,8 @@ impl Session {
         if self.active == Some(index) && matches!(self.state, SessionState::SignedIn(_)) {
             return;
         }
-        self.client = None;
-        self.playback = None;
-        self.authenticated = false;
-        self.playcounts = false;
+        self.release(cx);
         self.active = Some(index);
-        cx.emit(SessionEvent::SignedOut);
         self.restore(cx);
     }
 
@@ -260,9 +256,18 @@ impl Session {
         self.task = None;
         self.prompt_task = None;
         self.input = None;
-        self.state = SessionState::SignedOut;
-        cx.notify();
-        cx.emit(SessionEvent::SignedOut);
+        match self.remaining() {
+            Some(index) => {
+                self.active = Some(index);
+                self.state = SessionState::SignedOut;
+                self.restore(cx);
+            }
+            None => {
+                self.state = SessionState::SignedOut;
+                cx.notify();
+                cx.emit(SessionEvent::SignedOut);
+            }
+        }
     }
 
     pub fn submit_input(&mut self, text: String, cx: &mut Context<Self>) {
@@ -279,12 +284,27 @@ impl Session {
         if let Some(active) = self.active {
             self.providers[active].sign_out();
         }
+        self.release(cx);
+        if let Some(index) = self.remaining() {
+            self.active = Some(index);
+            self.restore(cx);
+        }
+    }
+
+    fn remaining(&self) -> Option<usize> {
+        self.active
+            .filter(|index| self.providers[*index].stored())
+            .or_else(|| self.providers.iter().position(|provider| provider.stored()))
+    }
+
+    fn release(&mut self, cx: &mut Context<Self>) {
         self.task = None;
         self.prompt_task = None;
         self.input = None;
         self.client = None;
         self.playback = None;
         self.authenticated = false;
+        self.playcounts = false;
         self.state = SessionState::SignedOut;
         cx.notify();
         cx.emit(SessionEvent::SignedOut);
