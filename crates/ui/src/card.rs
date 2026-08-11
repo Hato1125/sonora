@@ -279,6 +279,7 @@ impl RenderOnce for Card {
         let height = snapped(theme.metrics.list_row, window);
         let listed = art.is_none() && tile.is_none();
         let has_trailing = trailing.is_some();
+        let art_radius = art_radius.or_else(|| tile.map(|_| theme.radius));
         let art = art.or(tile).unwrap_or(snapped(height - inset * 2., window));
         let hovered = match (hovered, fill) {
             (Some(style), _) => Some(style),

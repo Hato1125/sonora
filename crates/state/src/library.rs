@@ -244,7 +244,20 @@ impl Library {
                 if let Some(track) = track {
                     client.add_track_to_playlist(&id, &track).await?;
                 }
-                client.playlist(&id).await.map(|detail| detail.playlist)
+                let fetched = client.playlist(&id).await.map(|detail| detail.playlist);
+                Ok(fetched.unwrap_or_else(|error| {
+                    log::warn!("library: a new playlist is not readable yet: {error:#}");
+                    Playlist {
+                        id,
+                        name,
+                        owner: String::new(),
+                        owned: true,
+                        collaborative: false,
+                        public: false,
+                        cover: None,
+                        track_count: 0,
+                    }
+                }))
             },
             Self::insert_playlist,
             cx,

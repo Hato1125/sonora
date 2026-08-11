@@ -42,9 +42,10 @@ impl YouTubeProvider {
     }
 
     fn authenticated_session(&self, api: Arc<YtMusic>, profile: UserProfile) -> ProviderSession {
+        let client = YouTubeClient::new(api.clone()).owned_by(profile.display_name.clone());
         ProviderSession {
             profile,
-            api: Arc::new(YouTubeClient::new(api.clone())),
+            api: Arc::new(client),
             playback: Arc::new(Factory::new(api)),
             authenticated: true,
             playcounts: false,
