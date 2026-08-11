@@ -5,12 +5,15 @@ use crate::skeleton::Skeleton;
 use crate::theme::ActiveTheme as _;
 use gpui::prelude::*;
 use gpui::{
-    App, Context, Div, Entity, Global, Hsla, ImageCache, ImageCacheError, ImgResourceLoader,
-    Interactivity, ObjectFit, Pixels, RenderImage, Resource, SharedString, SharedUri,
-    StyleRefinement, Styled, Task, Window, div, img, px, svg,
+    App, Context, Div, Entity, Global, Hsla, ImageCache, ImageCacheError, ImageSource,
+    ImgResourceLoader, Interactivity, ObjectFit, Pixels, RenderImage, Resource, SharedString,
+    SharedUri, StyleRefinement, Styled, Task, Window, div, img, px, svg,
 };
+use std::path::Path;
 use std::time::{Duration, Instant};
 use std::{collections::HashMap, sync::Arc};
+
+const FILE_PREFIX: &str = "file://";
 
 const FALLBACK_ICON: &str = "icons/music.svg";
 const ROUNDED: Pixels = px(4.);
@@ -340,8 +343,12 @@ impl RenderOnce for Artwork {
         match url {
             Some(url) => {
                 let cache = ArtworkCache::entity(cx);
+                let source = match url.strip_prefix(FILE_PREFIX) {
+                    Some(path) => ImageSource::Resource(Resource::Path(Arc::from(Path::new(path)))),
+                    None => ImageSource::from(SharedUri::from(url)),
+                };
                 refined(
-                    img(SharedUri::from(url))
+                    img(source)
                         .image_cache(&cache)
                         .size(size)
                         .object_fit(ObjectFit::Cover)

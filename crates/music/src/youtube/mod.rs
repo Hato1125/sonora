@@ -175,6 +175,9 @@ impl MusicProvider for YouTubeProvider {
                 let cookies = input.recv().await.context("sign-in was cancelled")?;
                 self.connect(&cookies).await
             }
+            SignIn::Path(_) => Err(anyhow::anyhow!(
+                "youtube does not sign in with a folder path"
+            )),
         }
     }
 

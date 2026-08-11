@@ -26,9 +26,12 @@ impl ArtistDetail {
                 }
             }
             SessionEvent::SignedOut => {
-                this.clear();
-                cx.notify();
+                if !this.id.as_deref().is_some_and(music::is_local_id) {
+                    this.clear();
+                    cx.notify();
+                }
             }
+            SessionEvent::LocalChanged => {}
         })
         .detach();
 
@@ -82,7 +85,12 @@ impl ArtistDetail {
         self.clear();
         self.id = Some(id.to_owned());
 
-        let Some(client) = self.session.read(cx).client() else {
+        let session = self.session.read(cx);
+        let client = match music::is_local_id(id) {
+            true => session.local_client(),
+            false => session.client(),
+        };
+        let Some(client) = client else {
             cx.notify();
             return;
         };

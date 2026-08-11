@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::shared::browsers::BrowserPicker;
 use gpui::{
-    AnyElement, Context, Entity, FontWeight, Pixels, Render, SharedString, Window, div, px,
+    AnyElement, Context, Entity, FontWeight, PathPromptOptions, Pixels, Render, SharedString,
+    Window, div, px,
 };
 use gpui::{ScrollHandle, prelude::*, svg};
 use i18n::{Language, t};
@@ -40,6 +41,7 @@ fn offered(method: &SignIn, stored: bool, guest: bool) -> bool {
     match method {
         SignIn::Default | SignIn::Anonymous => !stored,
         SignIn::Browser(_) | SignIn::Secret => !stored || guest,
+        SignIn::Path(_) => false,
     }
 }
 
@@ -130,6 +132,7 @@ impl SettingsView {
             SettingsTab::General => vec![
                 self.language_row(cx).into_any_element(),
                 self.accounts_row(cx).into_any_element(),
+                self.local_folder_row(cx).into_any_element(),
             ],
             SettingsTab::Appearance => vec![
                 self.theme_row(cx).into_any_element(),
@@ -601,6 +604,76 @@ impl SettingsView {
         )
     }
 
+    fn local_folder_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+        let muted = theme.muted_foreground;
+        let small = theme.text(Text::Small);
+        let path = self.session.read(cx).local_path();
+        let detail = match &path {
+            Some(path) => SharedString::from(path.clone()),
+            None => t!("settings-local-folder-empty"),
+        };
+
+        let choose = Button::new("choose-local-folder")
+            .label(t!("settings-choose-folder"))
+            .small()
+            .outline()
+            .on_click(cx.listener(|this, _, _, cx| this.choose_local_folder(cx)));
+
+        let rescan = path.is_some().then(|| {
+            Button::new("rescan-local-folder")
+                .label(t!("settings-rescan"))
+                .small()
+                .ghost()
+                .on_click(cx.listener(|this, _, _, cx| this.rescan_local_folder(cx)))
+        });
+
+        self.row(
+            t!("settings-local-folder"),
+            detail,
+            muted,
+            small,
+            div()
+                .flex()
+                .gap_2()
+                .child(choose)
+                .children(rescan)
+                .into_any_element(),
+        )
+    }
+
+    fn choose_local_folder(&mut self, cx: &mut Context<Self>) {
+        let receiver = cx.prompt_for_paths(PathPromptOptions {
+            files: false,
+            directories: true,
+            multiple: false,
+            prompt: None,
+        });
+        let library = Sonora::global(cx).library.clone();
+        cx.spawn(async move |_, cx| {
+            let Ok(Ok(Some(mut paths))) = receiver.await else {
+                return;
+            };
+            let Some(path) = paths.pop() else {
+                return;
+            };
+            library.update(cx, |library, cx| library.rescan_local(path, cx));
+        })
+        .detach();
+    }
+
+    fn rescan_local_folder(&mut self, cx: &mut Context<Self>) {
+        let Some(path) = self.session.read(cx).local_path() else {
+            return;
+        };
+        Sonora::global(cx)
+            .library
+            .clone()
+            .update(cx, |library, cx| {
+                library.rescan_local(PathBuf::from(path), cx)
+            });
+    }
+
     fn accounts_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
         let session = self.session.read(cx);
@@ -780,6 +853,10 @@ impl SettingsView {
             SignIn::Secret => (
                 format!("connect-{slug}-cookies"),
                 t!("login-connect-cookies"),
+            ),
+            SignIn::Path(_) => (
+                format!("connect-{slug}-path"),
+                t!("login-sign-in", provider = provider),
             ),
         };
 

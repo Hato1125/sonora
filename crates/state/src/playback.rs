@@ -86,12 +86,21 @@ pub enum Origin {
     Radio(String),
 }
 
+impl Origin {
+    fn id(&self) -> &str {
+        match self {
+            Origin::Album(id) | Origin::Playlist(id) | Origin::Radio(id) => id,
+        }
+    }
+}
+
 pub struct Playback {
     state: PlaybackState,
     origin: Option<Origin>,
     position: Duration,
     track: Option<Track>,
     engine: Option<Box<dyn Player>>,
+    local_engine: Option<Box<dyn Player>>,
     session: Entity<Session>,
     queue: Entity<Queue>,
     settings: Entity<AppSettings>,
@@ -102,6 +111,7 @@ pub struct Playback {
     radio: bool,
     seeded: Option<String>,
     task: Option<Task<()>>,
+    local_task: Option<Task<()>>,
     load: Option<Task<()>>,
     fetch: Option<Task<()>>,
     enqueue: Option<Task<()>>,
@@ -129,6 +139,13 @@ impl Playback {
                 this.start_engine(playback, cx);
             }
             SessionEvent::SignedOut => this.teardown(cx),
+            SessionEvent::LocalChanged => {
+                if this.local_engine.is_none()
+                    && let Some(playback) = session.read(cx).local_playback()
+                {
+                    this.start_local_engine(playback, cx);
+                }
+            }
         })
         .detach();
         cx.observe(&queue, |this, _, cx| this.suggest_similar(cx))
@@ -145,6 +162,7 @@ impl Playback {
             position: Duration::ZERO,
             track: None,
             engine: None,
+            local_engine: None,
             session,
             queue,
             settings,
@@ -155,6 +173,7 @@ impl Playback {
             radio: false,
             seeded: None,
             task: None,
+            local_task: None,
             load: None,
             fetch: None,
             enqueue: None,
@@ -170,13 +189,35 @@ impl Playback {
         self.load_after(track, Start::Pick, cx);
     }
 
-    pub fn preload(&mut self, track: &Track) {
-        let Some(engine) = self.engine.as_ref() else {
-            return;
+    fn engine_for(&self, id: &str) -> Option<&dyn Player> {
+        match music::is_local_id(id) {
+            true => self.local_engine.as_deref(),
+            false => self.engine.as_deref(),
+        }
+    }
+
+    fn active_engine(&self) -> Option<&dyn Player> {
+        let id = self.track.as_ref()?.id.as_deref()?;
+        self.engine_for(id)
+    }
+
+    fn silence_other(&self, id: &str) {
+        let other = match music::is_local_id(id) {
+            true => self.engine.as_deref(),
+            false => self.local_engine.as_deref(),
         };
+        if let Some(engine) = other {
+            engine.pause();
+        }
+    }
+
+    pub fn preload(&mut self, track: &Track) {
         let Some(id) = track.id.as_deref() else {
             return;
         };
+        if self.engine_for(id).is_none() {
+            return;
+        }
         if !track.playable || self.track.as_ref().and_then(|track| track.id.as_deref()) == Some(id)
         {
             return;
@@ -185,6 +226,9 @@ impl Playback {
             return;
         }
         self.preloaded = Some(id.to_owned());
+        let Some(engine) = self.engine_for(id) else {
+            return;
+        };
         if let Err(error) = engine.preload(id) {
             self.preloaded = None;
             log::warn!("playback: cannot preload {}: {error:#}", track.name);
@@ -192,9 +236,6 @@ impl Playback {
     }
 
     fn load_after(&mut self, track: &Track, start: Start, cx: &mut Context<Self>) {
-        if self.engine.is_none() {
-            return;
-        }
         if self.refused {
             return self.refuse(cx);
         }
@@ -204,6 +245,10 @@ impl Playback {
         if !track.playable {
             return self.failed(format!("{} is not available to stream", track.name), cx);
         }
+        if self.engine_for(&id).is_none() {
+            return;
+        }
+        self.silence_other(&id);
 
         self.track = Some(track.clone());
         self.state = PlaybackState::Loading;
@@ -220,7 +265,7 @@ impl Playback {
         self.load = Some(cx.spawn(async move |this, cx| {
             cx.background_executor().timer(wait).await;
             this.update(cx, |this, cx| {
-                let Some(engine) = this.engine.as_ref() else {
+                let Some(engine) = this.engine_for(&id) else {
                     return;
                 };
                 if let Err(error) = engine.load(&id, start == Start::Segue) {
@@ -302,15 +347,17 @@ impl Playback {
     }
 
     pub fn enqueue_album(&mut self, album: &str, cx: &mut Context<Self>) {
+        let id = album.to_owned();
         let album = album.to_owned();
-        self.enqueue_from("album", QueuePlacement::End, cx, move |client| {
+        self.enqueue_from("album", &id, QueuePlacement::End, cx, move |client| {
             Box::pin(async move { client.album_tracks(&album).await })
         });
     }
 
     pub fn play_album_next(&mut self, album: &str, cx: &mut Context<Self>) {
+        let id = album.to_owned();
         let album = album.to_owned();
-        self.enqueue_from("album", QueuePlacement::Next, cx, move |client| {
+        self.enqueue_from("album", &id, QueuePlacement::Next, cx, move |client| {
             Box::pin(async move { client.album_tracks(&album).await })
         });
     }
@@ -324,15 +371,17 @@ impl Playback {
     }
 
     pub fn enqueue_playlist(&mut self, playlist: &str, cx: &mut Context<Self>) {
+        let id = playlist.to_owned();
         let playlist = playlist.to_owned();
-        self.enqueue_from("playlist", QueuePlacement::End, cx, move |client| {
+        self.enqueue_from("playlist", &id, QueuePlacement::End, cx, move |client| {
             Box::pin(async move { client.playlist_tracks(&playlist).await })
         });
     }
 
     pub fn play_playlist_next(&mut self, playlist: &str, cx: &mut Context<Self>) {
+        let id = playlist.to_owned();
         let playlist = playlist.to_owned();
-        self.enqueue_from("playlist", QueuePlacement::Next, cx, move |client| {
+        self.enqueue_from("playlist", &id, QueuePlacement::Next, cx, move |client| {
             Box::pin(async move { client.playlist_tracks(&playlist).await })
         });
     }
@@ -345,9 +394,18 @@ impl Playback {
         });
     }
 
+    fn client_for(&self, id: &str, cx: &Context<Self>) -> Option<Arc<dyn MusicApi>> {
+        let session = self.session.read(cx);
+        match music::is_local_id(id) {
+            true => session.local_client(),
+            false => session.client(),
+        }
+    }
+
     fn enqueue_from<F>(
         &mut self,
         source: &'static str,
+        id: &str,
         placement: QueuePlacement,
         cx: &mut Context<Self>,
         tracks: F,
@@ -357,7 +415,7 @@ impl Playback {
         if self.enqueue.is_some() {
             return;
         }
-        let Some(client) = self.session.read(cx).client() else {
+        let Some(client) = self.client_for(id, cx) else {
             return;
         };
         let io = Io::global(cx);
@@ -419,7 +477,7 @@ impl Playback {
     where
         F: FnOnce(Arc<dyn MusicApi>) -> Fetch + Send + 'static,
     {
-        let Some(client) = self.session.read(cx).client() else {
+        let Some(client) = self.client_for(origin.id(), cx) else {
             return;
         };
 
@@ -529,7 +587,7 @@ impl Playback {
         if self.seeded.as_deref() == Some(id.as_str()) {
             return;
         }
-        let Some(client) = self.session.read(cx).client() else {
+        let Some(client) = self.client_for(&id, cx) else {
             return self.forget_similar(cx);
         };
 
@@ -605,7 +663,10 @@ impl Playback {
     }
 
     fn extend_radio(&mut self, seed: &Track, cx: &mut Context<Self>) {
-        let (Some(id), Some(client)) = (seed.id.clone(), self.session.read(cx).client()) else {
+        let Some(id) = seed.id.clone() else {
+            return self.next(cx);
+        };
+        let Some(client) = self.client_for(&id, cx) else {
             return self.next(cx);
         };
 
@@ -675,14 +736,14 @@ impl Playback {
     }
 
     pub fn resume(&mut self, cx: &mut Context<Self>) {
-        if let Some(engine) = self.engine.as_ref() {
+        if let Some(engine) = self.active_engine() {
             engine.play();
             cx.notify();
         }
     }
 
     pub fn pause(&mut self, cx: &mut Context<Self>) {
-        if let Some(engine) = self.engine.as_ref() {
+        if let Some(engine) = self.active_engine() {
             engine.pause();
             cx.notify();
         }
@@ -697,7 +758,7 @@ impl Playback {
     }
 
     pub fn seek(&mut self, position: Duration, cx: &mut Context<Self>) {
-        if let Some(engine) = self.engine.as_ref() {
+        if let Some(engine) = self.active_engine() {
             engine.seek(position);
             self.position = position;
             cx.notify();
@@ -760,8 +821,12 @@ impl Playback {
         self.level = level.clamp(0., 1.);
         self.settings
             .update(cx, |settings, cx| settings.set_volume(self.level, cx));
+        let level = gain(self.level);
         if let Some(engine) = self.engine.as_ref() {
-            engine.set_gain(gain(self.level));
+            engine.set_gain(level);
+        }
+        if let Some(engine) = self.local_engine.as_ref() {
+            engine.set_gain(level);
         }
         cx.notify();
     }
@@ -814,24 +879,59 @@ impl Playback {
         };
         let (engine, events) = playback.start(config);
 
-        self.listen(events, cx);
+        self.listen(events, false, cx);
         self.engine = Some(engine);
-        self.state = PlaybackState::Idle;
-        self.position = Duration::ZERO;
+        let local_active = self
+            .track
+            .as_ref()
+            .and_then(|track| track.id.as_deref())
+            .is_some_and(music::is_local_id);
+        if !local_active {
+            self.state = PlaybackState::Idle;
+            self.position = Duration::ZERO;
+        }
         cx.notify();
     }
 
-    fn listen(&mut self, mut events: Box<dyn PlaybackEvents>, cx: &mut Context<Self>) {
-        self.task = Some(cx.spawn(async move |this, cx| {
+    fn start_local_engine(&mut self, playback: Arc<dyn PlaybackFactory>, cx: &mut Context<Self>) {
+        let config = PlaybackConfig {
+            normalisation: self.normalisation,
+            gapless: self.gapless,
+            position_interval: POSITION_INTERVAL,
+            gain: gain(self.level),
+        };
+        let (engine, events) = playback.start(config);
+
+        self.listen(events, true, cx);
+        self.local_engine = Some(engine);
+    }
+
+    fn listen(&mut self, mut events: Box<dyn PlaybackEvents>, local: bool, cx: &mut Context<Self>) {
+        let task = Some(cx.spawn(async move |this, cx| {
             while let Some(event) = events.next().await {
-                if this.update(cx, |this, cx| this.apply(event, cx)).is_err() {
+                if this
+                    .update(cx, |this, cx| this.apply(event, local, cx))
+                    .is_err()
+                {
                     break;
                 }
             }
         }));
+        match local {
+            true => self.local_task = task,
+            false => self.task = task,
+        }
     }
 
-    fn apply(&mut self, event: BackendEvent, cx: &mut Context<Self>) {
+    fn apply(&mut self, event: BackendEvent, local: bool, cx: &mut Context<Self>) {
+        let active = self
+            .track
+            .as_ref()
+            .and_then(|track| track.id.as_deref())
+            .is_some_and(music::is_local_id);
+        if local != active {
+            return;
+        }
         match event {
             BackendEvent::Loading(position) => {
                 self.state = PlaybackState::Loading;
@@ -891,20 +991,28 @@ impl Playback {
 
     fn teardown(&mut self, cx: &mut Context<Self>) {
         self.task = None;
-        self.load = None;
-        self.fetch = None;
-        self.enqueue = None;
-        self.suggest = None;
-        self.seeded = None;
-        self.preloaded = None;
-        self.skipped = None;
-        self.blocked_until = None;
-        self.refused = false;
         self.engine = None;
-        self.track = None;
-        self.origin = None;
-        self.state = PlaybackState::Idle;
-        self.position = Duration::ZERO;
+
+        let local_active = self
+            .track
+            .as_ref()
+            .and_then(|track| track.id.as_deref())
+            .is_some_and(music::is_local_id);
+        if !local_active {
+            self.load = None;
+            self.fetch = None;
+            self.enqueue = None;
+            self.suggest = None;
+            self.seeded = None;
+            self.preloaded = None;
+            self.skipped = None;
+            self.blocked_until = None;
+            self.refused = false;
+            self.track = None;
+            self.origin = None;
+            self.state = PlaybackState::Idle;
+            self.position = Duration::ZERO;
+        }
         cx.notify();
     }
 

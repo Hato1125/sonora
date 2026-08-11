@@ -25,6 +25,7 @@ nav-settings = Settings
 nav-songs = Songs
 nav-albums = Albums
 nav-playlists = Playlists
+nav-local = Local
 nav-back = Back
 nav-forward = Forward
 nav-sidebar = Toggle sidebar
@@ -34,6 +35,8 @@ library-play-liked-songs = Play
 library-no-songs = No liked songs yet
 library-no-albums = No saved albums yet
 library-no-playlists = No playlists yet
+library-no-local-songs = No local songs found
+library-no-local-albums = No local albums found
 library-no-matches = No matches
 
 # app menu
@@ -309,6 +312,10 @@ settings-provider-current = Playing from this service
 settings-provider-guest = Playing as a guest
 settings-provider-switch = Switch to
 settings-sign-out = Sign out
+settings-local-folder = Local music folder
+settings-local-folder-empty = Not configured
+settings-choose-folder = Choose folder…
+settings-rescan = Rescan
 settings-tab-about = About
 settings-version = Version
 settings-version-detail = The build of sonora you are running

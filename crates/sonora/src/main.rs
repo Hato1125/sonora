@@ -60,6 +60,13 @@ fn main() {
             Arc::new(music::spotify::SpotifyProvider::from_env()),
             Arc::new(music::youtube::YouTubeProvider::new()),
         ];
+        let local_provider: Arc<dyn music::MusicProvider> =
+            Arc::new(music::local::LocalProvider::new(
+                dirs::config_dir()
+                    .unwrap_or_else(std::env::temp_dir)
+                    .join("sonora"),
+            ));
+        state::init(cx, io, providers, local_provider);
         let lyrics: Vec<Arc<dyn LyricsProvider>> = vec![Arc::new(music::lrclib::LrcLib::new())];
         state::init(cx, io, providers, lyrics);
         router::init(start, cx);
@@ -143,7 +150,7 @@ fn open_window(
             window.set_rem_size(cx.theme().font_size);
             state::attach_remote(window_handle(window), cx);
             cx.new(|cx| Root::new(session, library, playback, queue, window, cx))
-        },
+        },ing
     )
     .expect("failed to open window");
 }
