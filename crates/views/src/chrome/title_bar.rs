@@ -6,6 +6,7 @@ use gpui::{Window, div, px};
 use ui::WindowControls;
 use ui::{ActiveTheme as _, Button};
 
+use crate::chrome::SidebarRight;
 use router::Navigation;
 use state::{AppSettings, Sonora};
 
@@ -219,9 +220,14 @@ impl Render for TitleBar {
                     .children(content)
                     .pr_3(),
             )
-            .when_some(self.options.sidebar_right, |this, open| {
-                this.child(div().flex_none().pr_3().child(self.lyrics_toggle(open, cx)))
-            })
+            .when_some(
+                self.options
+                    .sidebar_right
+                    .filter(|_| SidebarRight::available(window)),
+                |this, open| {
+                    this.child(div().flex_none().pr_3().child(self.lyrics_toggle(open, cx)))
+                },
+            )
             .when(decorated && !leading, |this| {
                 this.child(div().flex_none().pr_2().child(WindowControls::new(false)))
             })

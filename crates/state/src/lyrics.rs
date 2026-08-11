@@ -56,6 +56,10 @@ impl Lyrics {
         &self.state
     }
 
+    pub fn following(&self) -> Option<&str> {
+        self.following.as_deref()
+    }
+
     pub fn hits(&self) -> &[LyricsHit] {
         &self.hits
     }

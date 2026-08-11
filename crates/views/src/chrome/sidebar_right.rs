@@ -26,6 +26,7 @@ const PINNED_SHARE: f32 = 0.25;
 const PIN: f32 = 0.3;
 const GLIDE: f32 = 0.18;
 const LEAD: std::time::Duration = std::time::Duration::from_millis(500);
+const SETTLE: std::time::Duration = std::time::Duration::from_secs(4);
 
 fn fills_content(width: Pixels) -> bool {
     !Room::of(width).fits(Room::Wide)
@@ -214,6 +215,8 @@ pub(crate) struct SidebarRight {
     goal: Option<Pixels>,
     placed: Option<Pixels>,
     pinned: bool,
+    nudged: Option<std::time::Instant>,
+    verse_of: Option<String>,
     context_menu: Option<ContextMenuState>,
     track_menu: ItemMenu,
     drop_gap: Option<usize>,
@@ -274,6 +277,8 @@ impl SidebarRight {
             goal: None,
             placed: None,
             pinned: true,
+            nudged: None,
+            verse_of: None,
             context_menu: None,
             track_menu: ItemMenu::new(playlist_scrollbar),
             drop_gap: None,
@@ -602,8 +607,7 @@ impl SidebarRight {
             })
             .on_click(cx.listener(move |this, _, _, cx| {
                 this.tab = tab;
-                this.followed = None;
-                this.pinned = true;
+                this.anchor_verse();
                 this.settings
                     .update(cx, |settings, cx| settings.set_sidebar_right_tab(tab, cx));
                 cx.notify();
@@ -632,9 +636,7 @@ impl SidebarRight {
                         .border_color(theme.border)
                         .bg(theme.popover)
                         .on_click(cx.listener(|this, _, _, cx| {
-                            this.pinned = true;
-                            this.followed = None;
-                            this.goal = None;
+                            this.anchor_verse();
                             cx.notify();
                         })),
                 )
@@ -656,23 +658,23 @@ impl SidebarRight {
 
     fn verses(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
-        let lyrics = self.lyrics.read(cx);
         let at = self.playback.read(cx).position();
+        let lyrics = self.lyrics.read(cx);
+        let state = lyrics.state().clone();
+        let shown = lyrics.current().map(|hit| hit.lyrics.clone());
+        let following = lyrics.following().map(str::to_owned);
 
         let empty = |key: &'static str, cx: &mut Context<Self>| {
             vacant(i18n::lookup(key, None), cx)
                 .flex_1()
                 .into_any_element()
         };
-        let lines = match lyrics.state() {
-            LyricsState::Ready => match lyrics.current().map(|hit| &hit.lyrics) {
-                Some(music::Lyrics::Synced { lines }) => Some(lines.clone()),
-                _ => None,
-            },
+        let lines = match (&state, &shown) {
+            (LyricsState::Ready, Some(music::Lyrics::Synced { lines })) => Some(lines.clone()),
             _ => None,
         };
 
-        let body: Vec<gpui::AnyElement> = match (&lines, lyrics.state()) {
+        let body: Vec<gpui::AnyElement> = match (&lines, &state) {
             (Some(lines), _) => {
                 let sung = music::lyrics::active(lines, at);
                 lines
@@ -705,7 +707,7 @@ impl SidebarRight {
                     })
                     .collect()
             }
-            (None, LyricsState::Ready) => match lyrics.current().map(|hit| &hit.lyrics) {
+            (None, LyricsState::Ready) => match &shown {
                 Some(music::Lyrics::Plain(text)) => vec![
                     div()
                         .px_2()
@@ -722,6 +724,10 @@ impl SidebarRight {
             (None, LyricsState::Failed(_)) => vec![empty("lyrics-failed", cx)],
         };
 
+        if self.verse_of != following {
+            self.verse_of = following;
+            self.anchor_verse();
+        }
         if let Some(lines) = &lines {
             self.pin_verse(music::lyrics::active(lines, at), window, cx);
         }
@@ -737,6 +743,14 @@ impl SidebarRight {
             .children(body)
     }
 
+    fn anchor_verse(&mut self) {
+        self.pinned = true;
+        self.followed = None;
+        self.goal = None;
+        self.placed = None;
+        self.nudged = None;
+    }
+
     fn pin_verse(&mut self, sung: Option<usize>, window: &mut Window, cx: &mut Context<Self>) {
         let scroll = self.verse_bar.read(cx).scroll().clone();
         if let Some(placed) = self.placed
@@ -745,10 +759,15 @@ impl SidebarRight {
             self.pinned = false;
             self.goal = None;
             self.placed = None;
+            self.nudged = Some(std::time::Instant::now());
         }
         if !self.pinned {
             self.followed = sung;
-            return;
+            if self.nudged.is_some_and(|at| at.elapsed() >= SETTLE) {
+                self.anchor_verse();
+            } else {
+                return;
+            }
         }
         if let Some(index) = sung
             && self.followed != sung
