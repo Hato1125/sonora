@@ -31,6 +31,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Fixed
 
 - A disabled button reads clearly instead of fading its label into its own background.
+- The player switches to the next YouTube Music track the moment the previous one ends, instead of
+  lagging up to half a second behind the audio.
 - A YouTube Music session whose saved cookies stopped working falls back to guest browsing or the
   login screen instead of failing with an error.
 

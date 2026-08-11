@@ -15,6 +15,7 @@ use crate::{PlaybackConfig, PlaybackEvent, PlaybackEvents, PlaybackFactory, Play
 
 const NORMAL_CAP: f32 = 1.0;
 const RAMP: Duration = Duration::from_millis(24);
+const POLL: Duration = Duration::from_millis(20);
 
 enum Command {
     Load { id: String },
@@ -270,8 +271,10 @@ async fn engine_loop(
     sink.set_volume(config.gain);
 
     let (fetched, mut arrivals) = unbounded_channel::<Fetched>();
-    let mut ticker = tokio::time::interval(config.position_interval);
+    let mut ticker = tokio::time::interval(POLL);
     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    let report_every = (config.position_interval.as_millis() / POLL.as_millis()).max(1) as u32;
+    let mut ticks = 0u32;
 
     let mut playing = false;
     let mut autostart = true;
@@ -339,8 +342,9 @@ async fn engine_loop(
                     }
                     Command::Preload { id } => {
                         let known = current.as_ref().is_some_and(|slot| slot.id == id)
+                            || queued.as_ref().is_some_and(|slot| slot.id == id)
                             || ahead.as_ref().is_some_and(|(cached, _)| *cached == id);
-                        if known || current.is_none() || pending.is_some() {
+                        if known || current.is_none() {
                             continue;
                         }
                         spawn(&api, id, epoch, Kind::Ahead, &fetched);
@@ -415,6 +419,7 @@ async fn engine_loop(
                         if current.is_some() && queued.is_none() {
                             match append(&sink, &id, &loaded, &config, false) {
                                 Ok(slot) => {
+                                    log::debug!("playback: {id} is queued for a gapless segue");
                                     queued = Some(slot);
                                     prev_len = sink.len();
                                 }
@@ -429,17 +434,24 @@ async fn engine_loop(
             }
             _ = ticker.tick() => {
                 let len = sink.len();
+                ticks += 1;
                 if current.is_some() && playing && len < prev_len {
+                    ticks = 0;
                     events.send(PlaybackEvent::Ended).ok();
                     current = queued.take();
                     ahead = None;
                     playing = current.is_some();
-                    if let Some(slot) = &current
-                        && let Some(length) = slot.length
-                    {
-                        events.send(PlaybackEvent::Length(length)).ok();
+                    match &current {
+                        Some(slot) => {
+                            if let Some(length) = slot.length {
+                                events.send(PlaybackEvent::Length(length)).ok();
+                            }
+                            events.send(PlaybackEvent::Position(sink.get_pos())).ok();
+                        }
+                        None => log::debug!("playback: track ended with nothing queued ahead"),
                     }
-                } else if playing {
+                } else if playing && ticks >= report_every {
+                    ticks = 0;
                     events.send(PlaybackEvent::Position(sink.get_pos())).ok();
                 }
                 prev_len = len;
