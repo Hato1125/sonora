@@ -5,16 +5,16 @@ use std::ops::Range;
 use gpui::prelude::*;
 
 use gpui::{
-    App, Context, Div, DragMoveEvent, Entity, MouseButton, MouseDownEvent, Pixels, Point, Render,
-    ScrollHandle, ScrollStrategy, SharedString, UniformListScrollHandle, Window, div, px,
-    uniform_list,
+    App, Context, Div, DragMoveEvent, Entity, FontWeight, MouseButton, MouseDownEvent, Pixels,
+    Point, Render, ScrollHandle, ScrollStrategy, SharedString, UniformListScrollHandle, Window,
+    div, px, uniform_list,
 };
 use i18n::t;
 use music::Track;
-use state::{AppSettings, Playback, Queue, Sonora};
+use state::{AppSettings, Lyrics, LyricsState, Playback, Queue, SideTab, Sonora};
 use ui::{
-    ActiveTheme as _, Button, Card, MIN_CONTENT, Panel, Popup, Room, Scrollbar, Side, Text,
-    eyebrow, snapped, vacant,
+    ActiveTheme as _, Button, Card, MIN_CONTENT, Panel, Popup, Room, Scrollbar, Scroller, Side,
+    Text, eyebrow, snapped, vacant,
 };
 
 use crate::chrome::Chrome;
@@ -23,6 +23,9 @@ use crate::shared::menu::ItemMenu;
 const MIN_WIDTH: Pixels = px(240.);
 const MAX_WIDTH: Pixels = px(560.);
 const PINNED_SHARE: f32 = 0.25;
+const PIN: f32 = 0.3;
+const GLIDE: f32 = 0.18;
+const SETTLE: std::time::Duration = std::time::Duration::from_secs(4);
 
 fn fills_content(width: Pixels) -> bool {
     !Room::of(width).fits(Room::Wide)
@@ -204,6 +207,15 @@ impl Render for DraggedTrack {
 pub(crate) struct SidebarRight {
     queue: Entity<Queue>,
     playback: Entity<Playback>,
+    lyrics: Entity<Lyrics>,
+    tab: SideTab,
+    verse_bar: Entity<Scrollbar>,
+    followed: Option<usize>,
+    goal: Option<Pixels>,
+    placed: Option<Pixels>,
+    pinned: bool,
+    nudged: Option<std::time::Instant>,
+    verse_of: Option<String>,
     context_menu: Option<ContextMenuState>,
     track_menu: ItemMenu,
     drop_gap: Option<usize>,
@@ -246,13 +258,26 @@ impl SidebarRight {
                 .always_visible()
                 .track_inset(px(4.))
         });
+        let lyrics = Sonora::global(cx).lyrics.clone();
+        cx.observe(&lyrics, |_, _, cx| cx.notify()).detach();
+        let verse_bar = cx.new(|_| Scrollbar::new(ScrollHandle::new()));
         let settings = Sonora::global(cx).settings.clone();
         let width = px(settings.read(cx).sidebar_right_width()).clamp(MIN_WIDTH, MAX_WIDTH);
-        let open = settings.read(cx).queue_open();
+        let open = settings.read(cx).sidebar_right_open();
+        let tab = settings.read(cx).sidebar_right_tab();
 
         Self {
             queue,
             playback,
+            lyrics,
+            tab,
+            verse_bar,
+            followed: None,
+            goal: None,
+            placed: None,
+            pinned: true,
+            nudged: None,
+            verse_of: None,
             context_menu: None,
             track_menu: ItemMenu::new(playlist_scrollbar),
             drop_gap: None,
@@ -270,14 +295,17 @@ impl SidebarRight {
         self.open
     }
 
-    pub(crate) fn covers_content(&self, window: &Window) -> bool {
-        self.open && fills_content(window.viewport_size().width)
+    pub(crate) fn available(window: &Window) -> bool {
+        !fills_content(window.viewport_size().width)
+    }
+
+    pub(crate) fn covers_content(&self, _window: &Window) -> bool {
+        false
     }
 
     pub(crate) fn occupied_width(&self, window: &Window) -> Pixels {
-        match self.open {
+        match self.open && Self::available(window) {
             false => Pixels::ZERO,
-            true if self.covers_content(window) => window.viewport_size().width,
             true => self.width,
         }
     }
@@ -307,7 +335,7 @@ impl SidebarRight {
     fn remember(&self, cx: &mut Context<Self>) {
         let open = self.open;
         self.settings
-            .update(cx, |settings, cx| settings.set_queue_open(open, cx));
+            .update(cx, |settings, cx| settings.set_sidebar_right_open(open, cx));
     }
 
     fn dismiss_menu(&mut self, cx: &mut Context<Self>) {
@@ -506,50 +534,265 @@ impl SidebarRight {
             .px_2()
             .border_b_1()
             .border_color(theme.border)
-            .child(eyebrow(t!("queue-title"), cx))
+            .child(eyebrow(
+                match self.tab {
+                    SideTab::Queue => t!("queue-title"),
+                    SideTab::Lyrics => t!("lyrics-title"),
+                },
+                cx,
+            ))
+            .when(self.tab == SideTab::Queue, |this| {
+                this.child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap_1()
+                        .child(
+                            Button::new("toggle-radio")
+                                .ghost()
+                                .small()
+                                .icon("icons/radio.svg")
+                                .tooltip("queue-radio")
+                                .tint(match self.playback.read(cx).radio() {
+                                    true => theme.primary,
+                                    false => theme.muted_foreground,
+                                })
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.playback
+                                        .update(cx, |playback, cx| playback.toggle_radio(cx));
+                                })),
+                        )
+                        .child(
+                            Button::new("reset-queue")
+                                .ghost()
+                                .small()
+                                .label(t!("queue-reset"))
+                                .tint(theme.muted_foreground)
+                                .disabled(!self.queue.read(cx).reordered())
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.queue.update(cx, |queue, cx| queue.reset(cx));
+                                })),
+                        )
+                        .child(
+                            Button::new("clear-queue")
+                                .ghost()
+                                .small()
+                                .label(t!("queue-clear"))
+                                .tint(theme.muted_foreground)
+                                .disabled(sections.upcoming == 0)
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.queue.update(cx, |queue, cx| queue.clear_upcoming(cx));
+                                })),
+                        ),
+                )
+            })
+    }
+
+    fn pills(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+        let pill = |tab: SideTab, icon: &'static str, tooltip: &'static str| {
+            Button::new(match tab {
+                SideTab::Queue => "pill-queue",
+                SideTab::Lyrics => "pill-lyrics",
+            })
+            .ghost()
+            .small()
+            .icon(icon)
+            .tooltip(tooltip)
+            .selected(self.tab == tab)
+            .tint(match self.tab == tab {
+                true => theme.foreground,
+                false => theme.muted_foreground,
+            })
+            .on_click(cx.listener(move |this, _, _, cx| {
+                this.tab = tab;
+                this.anchor_verse();
+                this.settings
+                    .update(cx, |settings, cx| settings.set_sidebar_right_tab(tab, cx));
+                cx.notify();
+            }))
+        };
+
+        let adrift = self.tab == SideTab::Lyrics && !self.pinned;
+
+        div()
+            .absolute()
+            .bottom_3()
+            .w_full()
+            .flex()
+            .flex_col()
+            .items_center()
+            .gap_2()
+            .child(div().flex().justify_center().when(adrift, |this| {
+                this.child(
+                    Button::new("resume-pin")
+                        .ghost()
+                        .small()
+                        .icon("icons/undo-2.svg")
+                        .tooltip("lyrics-follow")
+                        .rounded_full()
+                        .border_1()
+                        .border_color(theme.border)
+                        .bg(theme.popover)
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.anchor_verse();
+                            cx.notify();
+                        })),
+                )
+            }))
             .child(
                 div()
                     .flex()
                     .items_center()
                     .gap_1()
-                    .child(
-                        Button::new("toggle-radio")
-                            .ghost()
-                            .small()
-                            .icon("icons/radio.svg")
-                            .tooltip("queue-radio")
-                            .tint(match self.playback.read(cx).radio() {
-                                true => theme.primary,
-                                false => theme.muted_foreground,
-                            })
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                this.playback
-                                    .update(cx, |playback, cx| playback.toggle_radio(cx));
-                            })),
-                    )
-                    .child(
-                        Button::new("reset-queue")
-                            .ghost()
-                            .small()
-                            .label(t!("queue-reset"))
-                            .tint(theme.muted_foreground)
-                            .disabled(!self.queue.read(cx).reordered())
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                this.queue.update(cx, |queue, cx| queue.reset(cx));
-                            })),
-                    )
-                    .child(
-                        Button::new("clear-queue")
-                            .ghost()
-                            .small()
-                            .label(t!("queue-clear"))
-                            .tint(theme.muted_foreground)
-                            .disabled(sections.upcoming == 0)
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                this.queue.update(cx, |queue, cx| queue.clear_upcoming(cx));
-                            })),
-                    ),
+                    .p_1()
+                    .rounded_full()
+                    .border_1()
+                    .border_color(theme.border)
+                    .bg(theme.popover)
+                    .child(pill(SideTab::Lyrics, "icons/mic-vocal.svg", "lyrics-title"))
+                    .child(pill(SideTab::Queue, "icons/list.svg", "queue-title")),
             )
+    }
+
+    fn verses(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+        let at = self.playback.read(cx).position();
+        let lyrics = self.lyrics.read(cx);
+        let state = lyrics.state().clone();
+        let shown = lyrics.current().map(|hit| hit.lyrics.clone());
+        let following = lyrics.following().map(str::to_owned);
+
+        let empty = |key: &'static str, cx: &mut Context<Self>| {
+            vacant(i18n::lookup(key, None), cx)
+                .flex_1()
+                .into_any_element()
+        };
+        let lines = match (&state, &shown) {
+            (LyricsState::Ready, Some(music::Lyrics::Synced { lines })) => Some(lines.clone()),
+            _ => None,
+        };
+
+        let body: Vec<gpui::AnyElement> = match (&lines, &state) {
+            (Some(lines), _) => {
+                let sung = music::lyrics::active(lines, at);
+                lines
+                    .iter()
+                    .enumerate()
+                    .map(|(index, line)| {
+                        let seek = line.start;
+                        div()
+                            .id(("verse", index))
+                            .px_2()
+                            .py_1()
+                            .rounded(theme.radius)
+                            .cursor_pointer()
+                            .hover(|style| style.bg(theme.table_hover))
+                            .text_size(theme.text(Text::Large))
+                            .when_else(
+                                Some(index) == sung,
+                                |this| {
+                                    this.text_color(theme.foreground)
+                                        .font_weight(FontWeight::SEMIBOLD)
+                                },
+                                |this| this.text_color(theme.muted_foreground),
+                            )
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                this.playback
+                                    .update(cx, |playback, cx| playback.seek(seek, cx));
+                            }))
+                            .child(SharedString::from(line.text.clone()))
+                            .into_any_element()
+                    })
+                    .collect()
+            }
+            (None, LyricsState::Ready) => match &shown {
+                Some(music::Lyrics::Plain(text)) => vec![
+                    div()
+                        .px_2()
+                        .text_size(theme.text(Text::Body))
+                        .text_color(theme.muted_foreground)
+                        .child(SharedString::from(text.clone()))
+                        .into_any_element(),
+                ],
+                _ => vec![empty("lyrics-missing", cx)],
+            },
+            (None, LyricsState::Idle) => vec![empty("lyrics-idle", cx)],
+            (None, LyricsState::Loading) => vec![empty("lyrics-loading", cx)],
+            (None, LyricsState::Missing) => vec![empty("lyrics-missing", cx)],
+            (None, LyricsState::Failed(_)) => vec![empty("lyrics-failed", cx)],
+        };
+
+        if self.verse_of != following {
+            self.verse_of = following;
+            self.anchor_verse();
+        }
+        if let Some(lines) = &lines {
+            self.pin_verse(music::lyrics::active(lines, at), window, cx);
+        }
+
+        Scroller::new("lyrics", &self.verse_bar)
+            .flex()
+            .flex_col()
+            .gap_1()
+            .flex_1()
+            .min_h_0()
+            .px_1()
+            .pb_12()
+            .children(body)
+    }
+
+    fn anchor_verse(&mut self) {
+        self.pinned = true;
+        self.followed = None;
+        self.goal = None;
+        self.placed = None;
+        self.nudged = None;
+    }
+
+    fn pin_verse(&mut self, sung: Option<usize>, window: &mut Window, cx: &mut Context<Self>) {
+        let scroll = self.verse_bar.read(cx).scroll().clone();
+        if let Some(placed) = self.placed
+            && (scroll.offset().y - placed).abs() > px(1.)
+        {
+            self.pinned = false;
+            self.goal = None;
+            self.placed = None;
+            self.nudged = Some(std::time::Instant::now());
+        }
+        if !self.pinned {
+            self.followed = sung;
+            if self.nudged.is_some_and(|at| at.elapsed() >= SETTLE) {
+                self.anchor_verse();
+            } else {
+                return;
+            }
+        }
+        if let Some(index) = sung
+            && self.followed != sung
+            && let Some(item) = scroll.bounds_for_item(index)
+        {
+            self.followed = sung;
+            let view = scroll.bounds();
+            let rest = view.origin.y - item.origin.y + view.size.height * PIN;
+            self.goal = Some(rest.clamp(-scroll.max_offset().y, px(0.)));
+        }
+
+        let Some(goal) = self.goal else {
+            return;
+        };
+        let current = scroll.offset().y;
+        let step = goal - current;
+        if step.abs() < px(0.5) {
+            scroll.set_offset(gpui::point(scroll.offset().x, goal));
+            self.placed = Some(goal);
+            self.goal = None;
+            return;
+        }
+        let next = current + step * GLIDE;
+        scroll.set_offset(gpui::point(scroll.offset().x, next));
+        self.placed = Some(next);
+        window.request_animation_frame();
     }
 
     fn pin(&mut self, sections: Sections, window: &Window, cx: &Context<Self>) {
@@ -623,12 +866,11 @@ impl SidebarRight {
 
 impl Render for SidebarRight {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        if !self.open {
+        if !self.open || !Self::available(window) {
             return div().into_any_element();
         }
 
         let theme = *cx.theme();
-        let fullscreen = fills_content(window.viewport_size().width);
         let queue = self.queue.read(cx);
         let sections = Sections {
             past: queue.past().len(),
@@ -652,7 +894,6 @@ impl Render for SidebarRight {
         Panel::new("sidebar-right", Side::Right, self.width)
             .limits(MIN_WIDTH, MAX_WIDTH)
             .reach(super::cap(MIN_WIDTH, MAX_WIDTH, MIN_CONTENT, window))
-            .fill(fullscreen)
             .on_resize(cx.listener(|this, width: &Pixels, _, cx| {
                 this.width = *width;
                 this.persist(cx);
@@ -668,14 +909,18 @@ impl Render for SidebarRight {
             .child(self.header(sections, cx))
             .child(
                 div()
+                    .relative()
                     .flex()
                     .flex_col()
                     .flex_1()
                     .min_h_0()
-                    .when(empty, |this| {
+                    .when(self.tab == SideTab::Lyrics, |this| {
+                        this.child(self.verses(window, cx))
+                    })
+                    .when(self.tab == SideTab::Queue && empty, |this| {
                         this.child(vacant(t!("queue-empty"), cx).flex_1())
                     })
-                    .when(!empty, |this| {
+                    .when(self.tab == SideTab::Queue && !empty, |this| {
                         this.child(
                             div()
                                 .relative()
@@ -684,13 +929,14 @@ impl Render for SidebarRight {
                                 .child(
                                     self.rows(sections, cx)
                                         .px_2()
-                                        .pb_2()
+                                        .pb_12()
                                         .track_scroll(&self.scroll)
                                         .size_full(),
                                 )
                                 .child(self.scrollbar.clone()),
                         )
-                    }),
+                    })
+                    .child(self.pills(cx)),
             )
             .children(self.menu(cx))
             .into_any_element()

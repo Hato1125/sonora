@@ -4,6 +4,7 @@ mod artist;
 mod detail;
 mod home;
 mod library;
+mod lyrics;
 mod playback;
 mod queue;
 mod remote;
@@ -17,12 +18,13 @@ pub use artist::ArtistDetail;
 pub use detail::{Collection, Detail, Header};
 pub use home::Home;
 pub use library::{Library, LibraryEvent, LibraryState};
+pub use lyrics::{Lyrics, LyricsState};
 pub use playback::{Origin, Playback, PlaybackState, Repeat};
 pub use queue::Queue;
 pub use remote::{Remote, attach as attach_remote};
 pub use search::{AlbumHit, ArtistHit, Hit, Kind, Search};
 pub use session::{ProviderInfo, Session, SessionEvent, SessionState};
-pub use settings::AppSettings;
+pub use settings::{AppSettings, SideTab};
 pub use song::SongDetail;
 pub use toast::{Note, Toast, Toasts};
 
@@ -31,7 +33,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use gpui::{App, AppContext as _, Entity, Global};
-use music::MusicProvider;
+use music::{LyricsProvider, MusicProvider};
 use tokio::runtime::Runtime;
 use tokio::task::JoinHandle;
 
@@ -66,9 +68,10 @@ pub(crate) async fn join<T>(handle: JoinHandle<Result<T>>) -> Result<T> {
     handle.await?
 }
 
-pub struct Sonora {
+ingpub struct Sonora {
     pub session: Entity<Session>,
     pub library: Entity<Library>,
+    pub lyrics: Entity<Lyrics>,
     pub playback: Entity<Playback>,
     pub queue: Entity<Queue>,
     pub settings: Entity<AppSettings>,
@@ -87,6 +90,7 @@ pub fn init(
     io: Io,
     providers: Vec<Arc<dyn MusicProvider>>,
     local_provider: Arc<dyn MusicProvider>,
+    lyrics_providers: Vec<Arc<dyn LyricsProvider>>,
 ) {
     cx.set_global(io.clone());
 
@@ -96,10 +100,12 @@ pub fn init(
     let library = cx.new(|cx| Library::new(session.clone(), io, cx));
     let queue = cx.new(|cx| Queue::new(settings.clone(), cx));
     let playback = cx.new(|cx| Playback::new(session.clone(), queue.clone(), settings.clone(), cx));
+    let lyrics = cx.new(|cx| Lyrics::new(playback.clone(), lyrics_providers, io, cx));
 
     cx.set_global(Sonora {
         session,
         library,
+        lyrics,
         playback,
         queue,
         settings,

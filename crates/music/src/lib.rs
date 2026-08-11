@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 pub mod local;
+mod audio;
+pub mod lrclib;
+pub mod lyrics;
 mod models;
 pub mod spotify;
 pub mod youtube;
@@ -14,8 +17,8 @@ use anyhow::Result;
 use async_trait::async_trait;
 
 pub use models::{
-    Album, AlbumDetail, Artist, ArtistProfile, ArtistRef, Credit, Playlist, PlaylistDetail,
-    ReleaseType, Track, UserProfile,
+    Album, AlbumDetail, Artist, ArtistProfile, ArtistRef, Credit, Lyrics, LyricsHit, LyricsLine,
+    LyricsQuery, LyricsWord, Playlist, PlaylistDetail, ReleaseType, Track, UserProfile,
 };
 
 pub const LOCAL_TRACK_PREFIX: &str = "local:";
@@ -64,6 +67,12 @@ pub trait MusicApi: Send + Sync {
     async fn playlist_tracks(&self, playlist_id: &str) -> Result<Vec<Track>>;
     async fn track_radio(&self, track_id: &str) -> Result<Vec<Track>>;
     async fn search(&self, query: &str) -> Result<Vec<Track>>;
+}
+
+#[async_trait]
+pub trait LyricsProvider: Send + Sync {
+    fn name(&self) -> &'static str;
+    async fn search(&self, query: &LyricsQuery) -> Result<Vec<LyricsHit>>;
 }
 
 #[derive(Clone, Copy, Debug)]

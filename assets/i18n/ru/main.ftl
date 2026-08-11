@@ -29,6 +29,7 @@ nav-local = Локальные
 nav-back = Назад
 nav-forward = Вперёд
 nav-sidebar = Показать или скрыть боковую панель
+nav-sidebar-right = Показать или скрыть текст и очередь
 library-liked-songs = Любимые треки
 library-play-liked-songs = Слушать
 library-no-songs = Пока нет любимых треков
@@ -369,3 +370,11 @@ toast-next-playlist = Плейлист прозвучит следующим
 toast-queue-failed = Не удалось добавить в очередь
 toast-keys-refused = Spotify не выдаёт этому аккаунту ключи воспроизведения
 toast-track-unplayable = Не удалось воспроизвести { $name }
+
+# lyrics
+lyrics-title = Текст
+lyrics-idle = Включите трек, чтобы увидеть текст
+lyrics-loading = Ищем текст…
+lyrics-missing = Для этого трека текста нет
+lyrics-failed = Не удалось связаться со службой текстов
+lyrics-follow = Снова следовать за песней

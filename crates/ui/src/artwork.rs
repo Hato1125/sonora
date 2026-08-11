@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+use crate::metrics::snapped;
 use crate::skeleton::Skeleton;
 use crate::theme::ActiveTheme as _;
 use gpui::prelude::*;
@@ -312,7 +313,7 @@ impl InteractiveElement for Artwork {
 }
 
 impl RenderOnce for Artwork {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let Self {
             url,
             size,
@@ -328,6 +329,7 @@ impl RenderOnce for Artwork {
             true => theme.tint.unwrap_or(theme.primary),
             false => muted.opacity(0.5),
         };
+        let size = snapped(size, window);
         let rounded = match (circle, radius) {
             (true, _) => size / 2.,
             (false, Some(radius)) => radius,
