@@ -9,7 +9,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use gpui::{Context, Entity, Task};
 use music::{Album, MusicApi, Playlist, Track};
 
-use crate::{Io, Note, Session, SessionEvent, Toasts, join};
+use crate::{Io, Note, Session, SessionEvent, Toasts, join, mosaic};
 
 const PAGE_LIMIT: u32 = 10000;
 
@@ -88,6 +88,7 @@ pub struct Library {
     pending_albums: HashMap<String, Task<()>>,
     contents: HashMap<String, HashSet<String>>,
     reading: HashMap<String, Task<()>>,
+    mosaics: HashMap<String, Task<()>>,
 }
 
 impl Library {
@@ -107,6 +108,7 @@ impl Library {
             SessionEvent::SignedOut => {
                 this.contents.clear();
                 this.reading.clear();
+                this.mosaics.clear();
                 this.task = None;
                 this.playlist_task = None;
                 this.pending.clear();
@@ -137,6 +139,7 @@ impl Library {
             pending_albums: HashMap::new(),
             contents: HashMap::new(),
             reading: HashMap::new(),
+            mosaics: HashMap::new(),
         };
         if let Some(client) = local_client {
             library.load_local(client, cx);
@@ -426,6 +429,126 @@ impl Library {
         Some(self.contents.get(playlist_id)?.contains(track_id))
     }
 
+    fn adopt_mosaics(&mut self) -> Vec<(String, u32)> {
+        let LibraryState::Ready { playlists, .. } = &mut self.state else {
+            return Vec::new();
+        };
+
+        let mut wanted = Vec::new();
+        for playlist in playlists.iter_mut() {
+            if playlist.cover.is_some() || (playlist.track_count as usize) < mosaic::TILES {
+                continue;
+            }
+            match mosaic::cached(&playlist.id, playlist.track_count) {
+                Some(cover) => playlist.cover = Some(cover),
+                None => wanted.push((playlist.id.clone(), playlist.track_count)),
+            }
+        }
+
+        wanted
+    }
+
+    fn build_mosaics(&mut self, cx: &mut Context<Self>) {
+        let wanted = self.adopt_mosaics();
+        let Some(client) = self.session.read(cx).client() else {
+            return;
+        };
+
+        for (id, stamp) in wanted {
+            if self.mosaics.contains_key(&id) {
+                continue;
+            }
+            if self.holds_tracks(&id) {
+                continue;
+            }
+
+            let io = self.io.clone();
+            let client = client.clone();
+            let asked = id.clone();
+            let key = id.clone();
+            let task = cx.spawn(async move |this, cx| {
+                let covers = join(
+                    io.spawn(async move { client.playlist_covers(&asked, mosaic::TILES).await }),
+                )
+                .await;
+                match covers {
+                    Ok(covers) => {
+                        this.update(cx, |this, cx| this.paint_mosaic(id, stamp, covers, cx))
+                            .ok();
+                    }
+                    Err(error) => log::warn!("library: cannot read playlist covers: {error:#}"),
+                }
+            });
+            self.mosaics.insert(key, task);
+        }
+    }
+
+    fn uncovered(&self, id: &str) -> Option<u32> {
+        let LibraryState::Ready { playlists, .. } = &self.state else {
+            return None;
+        };
+        let playlist = playlists.iter().find(|playlist| playlist.id == id)?;
+
+        (playlist.cover.is_none() && playlist.track_count as usize >= mosaic::TILES)
+            .then_some(playlist.track_count)
+    }
+
+    fn holds_tracks(&self, id: &str) -> bool {
+        let LibraryState::Ready { playlists, .. } = &self.state else {
+            return false;
+        };
+
+        playlists
+            .iter()
+            .find(|playlist| playlist.id == id)
+            .is_some_and(|playlist| playlist.owned || playlist.collaborative)
+    }
+
+    fn paint_mosaic(
+        &mut self,
+        id: String,
+        stamp: u32,
+        covers: Vec<String>,
+        cx: &mut Context<Self>,
+    ) {
+        if covers.len() < mosaic::TILES {
+            self.mosaics.remove(&id);
+            return;
+        }
+
+        let io = self.io.clone();
+        let http = cx.http_client();
+        let built_for = id.clone();
+        let key = id.clone();
+        let task = cx.spawn(async move |this, cx| {
+            let built =
+                join(io.spawn(async move { mosaic::build(http, &built_for, stamp, covers).await }))
+                    .await;
+
+            this.update(cx, |this, cx| {
+                this.mosaics.remove(&id);
+                match built {
+                    Ok(cover) => {
+                        this.set_playlist_cover(&id, cover);
+                        cx.notify();
+                    }
+                    Err(error) => log::warn!("library: cannot build a mosaic: {error:#}"),
+                }
+            })
+            .ok();
+        });
+        self.mosaics.insert(key, task);
+    }
+
+    fn set_playlist_cover(&mut self, id: &str, cover: String) {
+        let LibraryState::Ready { playlists, .. } = &mut self.state else {
+            return;
+        };
+        if let Some(playlist) = playlists.iter_mut().find(|playlist| playlist.id == id) {
+            playlist.cover = Some(cover);
+        }
+    }
+
     pub fn read_playlists(&mut self, cx: &mut Context<Self>) {
         let LibraryState::Ready { playlists, .. } = &self.state else {
             return;
@@ -453,6 +576,10 @@ impl Library {
                     this.reading.remove(&key);
                     match listed {
                         Ok(tracks) => {
+                            if let Some(stamp) = this.uncovered(&key) {
+                                let covers = music::distinct_covers(&tracks, mosaic::TILES);
+                                this.paint_mosaic(key.clone(), stamp, covers, cx);
+                            }
                             let ids = tracks.into_iter().filter_map(|track| track.id).collect();
                             this.contents.insert(key, ids);
                             cx.notify();
@@ -604,6 +731,7 @@ impl Library {
                     Err(error) => LibraryState::Failed(format!("{error:#}")),
                 };
                 this.read_playlists(cx);
+                this.build_mosaics(cx);
                 cx.notify();
             })
             .ok();
