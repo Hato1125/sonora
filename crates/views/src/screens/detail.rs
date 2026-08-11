@@ -11,8 +11,8 @@ use music::{Album, Playlist, Track};
 use state::{AppSettings, Collection, Detail, LibraryEvent, Playback, Sonora};
 use ui::{ActiveTheme as _, Button, Menu, Popover, Popovers, Popup, SortAxis};
 use ui::{
-    ColumnSpec, FlagAxis, GridDelegate, GridEvent, GridState, RangeAxis, Scrollbar, Scroller,
-    Table as _, Toggle, Unit, clock, grid,
+    ColumnSpec, FlagAxis, GridDelegate, GridEvent, GridState, MIN_CONTENT, RangeAxis, Scrollbar,
+    Scroller, Table as _, Toggle, Unit, clock, grid,
 };
 
 use crate::shared::menu::{album_menu, playlist_menu};
@@ -68,12 +68,11 @@ impl DetailView {
         columns: &'static [ColumnSpec<TrackField>],
         show_liked: bool,
         section: &'static str,
-        window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
         let settings = Sonora::global(cx).settings.clone();
         let saved = settings.read(cx).table(section);
-        let width = cells::content_width(window, Pixels::ZERO, cx);
+        let width = MIN_CONTENT;
 
         let scrollbar = cx.new(|_| Scrollbar::new(ScrollHandle::new()));
         let scroll = scrollbar.read(cx).scroll().clone();

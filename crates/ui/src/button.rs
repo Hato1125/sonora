@@ -10,6 +10,8 @@ use crate::metrics::Text;
 use crate::theme::ActiveTheme as _;
 use crate::tooltip::{Perch, Tooltip};
 
+const FADED: f32 = 0.55;
+
 enum Variant {
     Secondary,
     Ghost,
@@ -220,10 +222,23 @@ impl RenderOnce for Button {
             palette.hover = None;
             palette.active = None;
         }
+        if disabled {
+            palette.foreground = match palette.background.is_some() {
+                true => theme.muted_foreground,
+                false => theme.muted_foreground.opacity(FADED),
+            };
+            palette.background = palette.background.map(|_| theme.muted);
+            palette.hover = None;
+            palette.active = None;
+        }
 
         let selected_background = theme.secondary_active;
         let radius = theme.radius;
         let interactive = !disabled;
+        let foreground = match disabled {
+            true => palette.foreground,
+            false => tint.unwrap_or(palette.foreground),
+        };
         let (height, padding, gap) = match small {
             true => (theme.metrics.control_small, px(8.), px(4.)),
             false => (theme.metrics.control, px(12.), px(6.)),
@@ -248,9 +263,8 @@ impl RenderOnce for Button {
             .h(height)
             .px(padding)
             .rounded(radius)
-            .text_color(tint.unwrap_or(palette.foreground))
+            .text_color(foreground)
             .when(small, |this| this.text_size(theme.text(Text::Label)))
-            .when(disabled, |this| this.opacity(0.4))
             .when_some(palette.background, |this, background| this.bg(background))
             .when(selected && !backgroundless, |this| {
                 this.bg(selected_background)
@@ -270,7 +284,7 @@ impl RenderOnce for Button {
                         .path(path)
                         .size(px(16.))
                         .flex_none()
-                        .text_color(tint.unwrap_or(palette.foreground)),
+                        .text_color(foreground),
                 )
             })
             .when_some(label, |this, label| {

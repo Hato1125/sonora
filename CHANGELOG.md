@@ -7,6 +7,48 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Sonora can now sign in to YouTube Music as an alternative to Spotify. The login screen offers
+  both services; YouTube Music can be browsed as a guest, connected by importing an existing
+  browser session, or connected by pasting cookies, and the whole library — liked songs,
+  playlists, albums, artists, search, and radio — works through the same interface.
+- The general settings gain a "Manage accounts" section: every service is listed with its own sign
+  out, switching to a service already connected takes effect immediately, and a service that is not
+  connected yet offers its sign-in options right there — including importing from a named browser.
+- The login screen puts each service in its own column with guest mode below them, and importing a
+  YouTube Music session asks which browser to read it from — Firefox, Zen, LibreWolf, Floorp,
+  Waterfox, Mullvad, Tor, Pale Moon, Basilisk, SeaMonkey, Chrome, Chromium, Brave, Edge, Vivaldi,
+  Opera, Yandex, Arc, Thorium and Helium are recognised, including Flatpak and Snap installs.
+- YouTube Music albums and playlists play the album audio of a song rather than its music video, so
+  a track lasts as long as its listed length.
+- Switching, pausing, resuming, and seeking a YouTube Music track fade in and out instead of
+  clicking, the previous track stops the moment a new one is picked, and the transport stays
+  responsive while the next track loads.
+
+### Changed
+
+- Release cards on an artist page show the release year instead of repeating the artist's name.
+
+### Fixed
+
+- A disabled button reads clearly instead of fading its label into its own background.
+- Pasting YouTube Music cookies happens in a dialog that can be dismissed, so a sign-in started by
+  mistake no longer leaves the login screen waiting for input.
+- Signing out of one service switches to another service still connected, and only falls back to the
+  login screen once nothing is connected.
+- YouTube Music playlists you own are recognised as yours, so renaming, changing visibility and
+  deleting are offered instead of an unsupported "remove from library" that always failed.
+- Creating a YouTube Music playlist reports success instead of an error, and the new playlist
+  appears straight away rather than after a refresh.
+- Removing a track from a YouTube Music playlist works for tracks whose music video was swapped for
+  its album audio.
+- A YouTube Music playlist you own no longer lists its privacy setting as its owner.
+- The player switches to the next YouTube Music track the moment the previous one ends, instead of
+  lagging up to half a second behind the audio.
+- A YouTube Music session whose saved cookies stopped working falls back to guest browsing or the
+  login screen instead of failing with an error.
+
 ## [0.7.0] - 2026-08-10
 
 ### Added

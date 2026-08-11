@@ -853,6 +853,14 @@ impl Playback {
                 self.position = position;
                 self.preload_next(position, cx);
             }
+            BackendEvent::Length(duration) => {
+                if let Some(track) = self.track.as_mut()
+                    && !duration.is_zero()
+                    && track.duration != duration
+                {
+                    track.duration = duration;
+                }
+            }
             BackendEvent::Ended => {
                 let ended = self.track.take();
                 self.state = PlaybackState::Idle;
