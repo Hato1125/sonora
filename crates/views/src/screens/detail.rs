@@ -11,8 +11,8 @@ use music::{Album, Playlist, Track};
 use state::{AppSettings, Collection, Detail, LibraryEvent, Playback, Sonora};
 use ui::{ActiveTheme as _, Button, Menu, Popover, Popovers, Popup, SortAxis};
 use ui::{
-    ColumnSpec, FlagAxis, GridDelegate, GridEvent, GridState, MIN_CONTENT, RangeAxis, Scrollbar,
-    Scroller, Table as _, Toggle, Unit, clock, grid,
+    ColumnSpec, FlagAxis, GridDelegate, GridEvent, GridState, MIN_CONTENT, Pin, PinKind, RangeAxis,
+    Scrollbar, Scroller, Table as _, Toggle, Unit, clock, grid,
 };
 
 use crate::shared::menu::{album_menu, playlist_menu};
@@ -297,9 +297,19 @@ impl DetailView {
             .children(self.library_button(cx))
             .children(overflow);
 
+        let cover = header.and_then(|header| header.cover.clone());
+        let pin = self.detail.read(cx).id().map(|id| {
+            let kind = match kind {
+                Collection::Album => PinKind::Album,
+                Collection::Playlist => PinKind::Playlist,
+            };
+            Pin::new(kind, id, title.clone()).cover(cover.clone())
+        });
+
         let view = self.me.clone();
         PageHero::new("detail-hero", title)
-            .cover(header.and_then(|header| header.cover.clone()))
+            .pin(pin)
+            .cover(cover)
             .eyebrow(eyebrow)
             .meta(strip)
             .actions(actions)

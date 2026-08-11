@@ -30,6 +30,9 @@ nav-back = Назад
 nav-forward = Вперед
 nav-sidebar = Показати або сховати бічну панель
 nav-sidebar-right = Показати або сховати текст і чергу
+nav-pinned = Закріплене
+nav-unpin = Відкріпити
+nav-pin-hint = Перетягніть сюди, щоб закріпити
 library-liked-songs = Вподобані пісні
 library-play-liked-songs = Слухати
 library-no-songs = Поки немає вподобаних треків
@@ -214,6 +217,7 @@ search-saved =
 kind-song = Трек
 kind-artist = Виконавець
 kind-album = Альбом
+kind-playlist = Плейлист
 
 # song page
 song-eyebrow = Трек

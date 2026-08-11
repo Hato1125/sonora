@@ -8,7 +8,7 @@ use i18n::t;
 use music::Album;
 use router::Destination;
 use state::{Library, LibraryState, Origin, Playback};
-use ui::{Cell, ColumnSpec, GridSource, Menu, Width};
+use ui::{Cell, ColumnSpec, GridSource, Menu, Pin, PinKind, Width};
 
 use crate::shared::cells::{self, ALWAYS, NUMBER, ROOMY, TRAILING, WIDE, YEAR};
 use crate::shared::menu::album_menu;
@@ -207,6 +207,12 @@ impl GridSource for AlbumSource {
             true => self.library.read(cx).local_is_loading(),
             false => self.library.read(cx).is_loading(),
         }
+    }
+
+    fn pin(&self, row: usize, cx: &App) -> Option<Pin> {
+        let album = self.at(row, cx)?;
+
+        Some(Pin::new(PinKind::Album, album.id, album.name).cover(album.cover))
     }
 
     fn context_menu(&self, row: usize, _visible: &[AlbumField], cx: &App) -> Option<Menu> {

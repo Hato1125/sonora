@@ -18,7 +18,10 @@ use jiff::Timestamp;
 use music::Track;
 use router::Destination;
 use state::{Detail, Library, Playback, PlaybackState};
-use ui::{Button, Cell, ColumnSpec, GridSource, GridState, Menu, ROW_GROUP, Scrollbar, clock};
+use ui::{
+    Button, Cell, ColumnSpec, GridSource, GridState, Menu, Pin, PinKind, ROW_GROUP, Scrollbar,
+    clock,
+};
 
 use crate::shared::cells;
 use crate::shared::hero::release_date_label;
@@ -302,6 +305,12 @@ impl GridSource for TrackSource {
 
     fn is_loading(&self, cx: &App) -> bool {
         self.provider.is_loading(cx)
+    }
+
+    fn pin(&self, row: usize, cx: &App) -> Option<Pin> {
+        let track = self.at(row, cx)?;
+
+        Some(Pin::new(PinKind::Song, track.id?, track.name).cover(track.cover))
     }
 
     fn cell(&self, cell: Cell<TrackField>, cx: &mut App) -> AnyElement {

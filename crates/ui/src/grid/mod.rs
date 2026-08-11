@@ -16,6 +16,7 @@ use gpui::{
 use crate::SortAxis;
 use crate::menu::Menu;
 use crate::metrics::{snapped, text_width};
+use crate::pin::{Pin, Pinnable};
 use crate::popup::Popup;
 use crate::theme::ActiveTheme as _;
 
@@ -62,6 +63,10 @@ pub trait GridSource: 'static {
     }
 
     fn context_menu_will_open(&self, _row: usize, _cx: &App) {}
+
+    fn pin(&self, _row: usize, _cx: &App) -> Option<Pin> {
+        None
+    }
 
     fn group(&self, _field: Self::Field, _row: usize, _cx: &App) -> Option<SharedString> {
         None
@@ -802,6 +807,7 @@ impl<S: GridSource> GridState<S> {
                     .when(!selected, |this| {
                         this.hover(move |style| style.bg(theme.table_hover))
                     })
+                    .when_some(self.delegate.source.pin(row, cx), Pinnable::pin)
                     .on_mouse_down(
                         MouseButton::Left,
                         cx.listener(move |this, event: &MouseDownEvent, window, cx| {
