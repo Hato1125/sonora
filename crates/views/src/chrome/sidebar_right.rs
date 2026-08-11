@@ -689,7 +689,7 @@ impl SidebarRight {
                             .rounded(theme.radius)
                             .cursor_pointer()
                             .hover(|style| style.bg(theme.table_hover))
-                            .text_size(theme.text(Text::Body))
+                            .text_size(theme.text(Text::Large))
                             .when_else(
                                 Some(index) == sung,
                                 |this| {
@@ -775,8 +775,8 @@ impl SidebarRight {
         {
             self.followed = sung;
             let view = scroll.bounds();
-            let drift = item.origin.y - view.origin.y - view.size.height * PIN;
-            self.goal = Some((scroll.offset().y - drift).min(px(0.)));
+            let rest = view.origin.y - item.origin.y + view.size.height * PIN;
+            self.goal = Some(rest.clamp(-scroll.max_offset().y, px(0.)));
         }
 
         let Some(goal) = self.goal else {
