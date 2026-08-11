@@ -136,13 +136,13 @@ async fn engine_loop(
     sink.pause();
 
     let mut gain = config.gain;
-    let mut normal = 1.0f32;
     sink.set_volume(gain);
     let mut ticker = tokio::time::interval(config.position_interval);
     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut playing = false;
-    let mut loaded = false;
-    let mut preloaded: Option<(String, Loaded)> = None;
+    let mut current: Option<(String, Option<Duration>)> = None;
+    let mut queued: Option<(String, Loaded)> = None;
+    let mut prev_len = 0usize;
 
     loop {
         tokio::select! {
@@ -150,27 +150,34 @@ async fn engine_loop(
                 let Some(command) = command else { break };
                 match command {
                     Command::Load { id } => {
+                        if current.as_ref().is_some_and(|(cid, _)| *cid == id) {
+                            playing = true;
+                            if let Some((_, Some(length))) = &current {
+                                events.send(PlaybackEvent::Length(*length)).ok();
+                            }
+                            events.send(PlaybackEvent::Playing(sink.get_pos())).ok();
+                            continue;
+                        }
                         events.send(PlaybackEvent::Loading(Duration::ZERO)).ok();
-                        let cached = preloaded
-                            .take_if(|(cached_id, _)| *cached_id == id)
-                            .map(|(_, loaded)| loaded);
-                        let fetched = match cached {
+                        let reuse = queued.take().filter(|(qid, _)| *qid == id).map(|(_, l)| l);
+                        let fetched = match reuse {
                             Some(loaded) => Ok(loaded),
                             None => fetch(&api, &id).await,
                         };
                         match fetched.and_then(|loaded| {
                             let length = loaded.duration;
-                            let source = decode(loaded.data)?;
-                            Ok((source, loaded.loudness_db, length))
+                            let normal = normalisation(config.normalisation, loaded.loudness_db);
+                            let source = decode(loaded.data, normal)?;
+                            Ok((source, length))
                         }) {
-                            Ok((source, loudness_db, length)) => {
-                                normal = normalisation(config.normalisation, loudness_db);
-                                sink.set_volume(gain * normal);
+                            Ok((source, length)) => {
                                 sink.clear();
                                 sink.append(source);
                                 sink.play();
                                 playing = true;
-                                loaded = true;
+                                current = Some((id, length));
+                                queued = None;
+                                prev_len = sink.len();
                                 if let Some(length) = length {
                                     events.send(PlaybackEvent::Length(length)).ok();
                                 }
@@ -179,23 +186,37 @@ async fn engine_loop(
                             Err(error) => {
                                 log::warn!("playback: cannot load {id}: {error:#}");
                                 playing = false;
-                                loaded = false;
+                                current = None;
                                 events.send(PlaybackEvent::Unavailable).ok();
                             }
                         }
                     }
                     Command::Preload { id } => {
-                        if preloaded.as_ref().is_none_or(|(cached_id, _)| *cached_id != id) {
-                            match fetch(&api, &id).await {
-                                Ok(fetched) => preloaded = Some((id, fetched)),
-                                Err(error) => {
-                                    log::warn!("playback: cannot preload {id}: {error:#}");
+                        let known = current.as_ref().is_some_and(|(cid, _)| *cid == id)
+                            || queued.as_ref().is_some_and(|(qid, _)| *qid == id);
+                        if known || current.is_none() {
+                            continue;
+                        }
+                        match fetch(&api, &id).await {
+                            Ok(loaded) => {
+                                let normal =
+                                    normalisation(config.normalisation, loaded.loudness_db);
+                                match decode(loaded.data.clone(), normal) {
+                                    Ok(source) => {
+                                        sink.append(source);
+                                        prev_len = sink.len();
+                                        queued = Some((id, loaded));
+                                    }
+                                    Err(error) => {
+                                        log::warn!("playback: cannot decode preload {id}: {error:#}")
+                                    }
                                 }
                             }
+                            Err(error) => log::warn!("playback: cannot preload {id}: {error:#}"),
                         }
                     }
                     Command::Play => {
-                        if loaded {
+                        if current.is_some() {
                             sink.play();
                             playing = true;
                             events.send(PlaybackEvent::Playing(sink.get_pos())).ok();
@@ -207,7 +228,7 @@ async fn engine_loop(
                         events.send(PlaybackEvent::Paused(sink.get_pos())).ok();
                     }
                     Command::Seek(position) => {
-                        if loaded {
+                        if current.is_some() {
                             if let Err(error) = sink.try_seek(position) {
                                 log::warn!("playback: cannot seek: {error}");
                             }
@@ -216,18 +237,23 @@ async fn engine_loop(
                     }
                     Command::Gain(level) => {
                         gain = level;
-                        sink.set_volume(gain * normal);
+                        sink.set_volume(gain);
                     }
                 }
             }
             _ = ticker.tick() => {
-                if loaded && playing && sink.empty() {
-                    playing = false;
-                    loaded = false;
+                let len = sink.len();
+                if current.is_some() && playing && len < prev_len {
                     events.send(PlaybackEvent::Ended).ok();
+                    current = queued.take().map(|(id, loaded)| (id, loaded.duration));
+                    playing = current.is_some();
+                    if let Some((_, Some(length))) = &current {
+                        events.send(PlaybackEvent::Length(*length)).ok();
+                    }
                 } else if playing {
                     events.send(PlaybackEvent::Position(sink.get_pos())).ok();
                 }
+                prev_len = len;
             }
         }
     }
@@ -244,14 +270,16 @@ async fn fetch(api: &YtMusic, id: &str) -> Result<Loaded> {
     })
 }
 
-fn decode(data: Vec<u8>) -> Result<rodio::Decoder<Cursor<Vec<u8>>>> {
+fn decode(data: Vec<u8>, gain: f32) -> Result<impl rodio::Source + Send + 'static> {
+    use rodio::Source as _;
     let length = data.len() as u64;
-    rodio::Decoder::builder()
+    let decoder = rodio::Decoder::builder()
         .with_data(Cursor::new(data))
         .with_byte_len(length)
         .with_seekable(true)
         .build()
-        .context("cannot decode audio")
+        .context("cannot decode audio")?;
+    Ok(decoder.amplify(gain))
 }
 
 fn normalisation(enabled: bool, loudness_db: Option<f32>) -> f32 {

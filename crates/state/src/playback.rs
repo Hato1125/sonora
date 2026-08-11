@@ -855,7 +855,8 @@ impl Playback {
             }
             BackendEvent::Length(duration) => {
                 if let Some(track) = self.track.as_mut()
-                    && track.duration.is_zero()
+                    && !duration.is_zero()
+                    && track.duration != duration
                 {
                     track.duration = duration;
                 }

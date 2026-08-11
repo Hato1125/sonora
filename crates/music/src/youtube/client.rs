@@ -241,7 +241,9 @@ impl MusicApi for YouTubeClient {
     }
 
     async fn album(&self, album_id: &str) -> Result<AlbumDetail> {
-        Ok(wire::album_detail(self.api.album(album_id).await?))
+        let mut detail = self.api.album(album_id).await?;
+        detail.tracks = self.api.swap_playable(detail.tracks).await;
+        Ok(wire::album_detail(detail))
     }
 
     async fn album_tracks(&self, album_id: &str) -> Result<Vec<Track>> {
@@ -249,7 +251,9 @@ impl MusicApi for YouTubeClient {
     }
 
     async fn playlist(&self, playlist_id: &str) -> Result<PlaylistDetail> {
-        Ok(wire::playlist_detail(self.api.playlist(playlist_id).await?))
+        let mut detail = self.api.playlist(playlist_id).await?;
+        detail.tracks = self.api.swap_playable(detail.tracks).await;
+        Ok(wire::playlist_detail(detail))
     }
 
     async fn playlist_tracks(&self, playlist_id: &str) -> Result<Vec<Track>> {
