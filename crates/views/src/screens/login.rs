@@ -85,6 +85,10 @@ impl LoginView {
                 format!("sign-in-{slug}-cookies"),
                 t!("login-connect-cookies"),
             ),
+            SignIn::Path(_) => (
+                format!("sign-in-{slug}-path"),
+                t!("login-sign-in", provider = provider),
+            ),
         };
         let primary = matches!(method, SignIn::Default | SignIn::Anonymous);
         let method = method.clone();

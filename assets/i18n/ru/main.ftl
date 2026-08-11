@@ -25,6 +25,7 @@ nav-settings = Настройки
 nav-songs = Треки
 nav-albums = Альбомы
 nav-playlists = Плейлисты
+nav-local = Локальные
 nav-back = Назад
 nav-forward = Вперёд
 nav-sidebar = Показать или скрыть боковую панель
@@ -33,6 +34,8 @@ library-play-liked-songs = Слушать
 library-no-songs = Пока нет любимых треков
 library-no-albums = Пока нет сохранённых альбомов
 library-no-playlists = Пока нет плейлистов
+library-no-local-songs = Локальные песни не найдены
+library-no-local-albums = Локальные альбомы не найдены
 library-no-matches = Ничего не найдено
 
 # app menu
@@ -311,6 +314,10 @@ settings-provider-current = Воспроизведение из этого се�
 settings-provider-guest = Воспроизведение в гостевом режиме
 settings-provider-switch = Переключиться
 settings-sign-out = Выйти
+settings-local-folder = Папка с локальной музыкой
+settings-local-folder-empty = Не настроено
+settings-choose-folder = Выбрать папку…
+settings-rescan = Пересканировать
 settings-tab-about = О программе
 settings-version = Версия
 settings-version-detail = Сборка Sonora, которая сейчас запущена

@@ -11,6 +11,7 @@ use screens::artist::ArtistView;
 use screens::detail::DetailView;
 use screens::home::HomeView;
 pub use screens::library::LibraryView;
+use screens::library::LocalView;
 pub use screens::login::LoginView;
 pub use screens::settings::SettingsView;
 use screens::song::SongView;

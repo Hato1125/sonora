@@ -59,7 +59,13 @@ fn main() {
             Arc::new(music::spotify::SpotifyProvider::from_env()),
             Arc::new(music::youtube::YouTubeProvider::new()),
         ];
-        state::init(cx, io, providers);
+        let local_provider: Arc<dyn music::MusicProvider> =
+            Arc::new(music::local::LocalProvider::new(
+                dirs::config_dir()
+                    .unwrap_or_else(std::env::temp_dir)
+                    .join("sonora"),
+            ));
+        state::init(cx, io, providers, local_provider);
         router::init(start, cx);
         let (look, overrides, language) = {
             let settings = Sonora::global(cx).settings.read(cx);

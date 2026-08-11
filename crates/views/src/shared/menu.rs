@@ -494,7 +494,12 @@ pub(crate) fn playlist_menu(
 }
 
 fn copy_link(kind: MediaKind, id: &str, cx: &mut App) {
-    let Some(client) = Sonora::global(cx).session.read(cx).client() else {
+    let session = Sonora::global(cx).session.read(cx);
+    let client = match music::is_local_id(id) {
+        true => session.local_client(),
+        false => session.client(),
+    };
+    let Some(client) = client else {
         return;
     };
     let Some(url) = client.share_url(kind, id) else {

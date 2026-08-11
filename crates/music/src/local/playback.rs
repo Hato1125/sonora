@@ -1,0 +1,249 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+use std::time::Duration;
+
+use anyhow::{Context as _, Result, anyhow};
+use async_trait::async_trait;
+use rodio::Source as _;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
+
+use super::wire;
+use crate::{PlaybackConfig, PlaybackEvent, PlaybackEvents, PlaybackFactory, Player};
+
+const POLL: Duration = Duration::from_millis(20);
+
+enum Command {
+    Load { id: String },
+    Preload { id: String },
+    Play,
+    Pause,
+    Seek(Duration),
+    Gain(f32),
+}
+
+#[derive(Default)]
+pub struct Factory;
+
+impl PlaybackFactory for Factory {
+    fn start(&self, config: PlaybackConfig) -> (Box<dyn Player>, Box<dyn PlaybackEvents>) {
+        let (commands, command_rx) = unbounded_channel();
+        let (events, event_rx) = unbounded_channel();
+        let spawned = std::thread::Builder::new()
+            .name("local-playback".to_owned())
+            .spawn(move || run(config, command_rx, events));
+        if let Err(error) = spawned {
+            log::error!("playback: cannot spawn local engine thread: {error}");
+        }
+        (Box::new(Engine { commands }), Box::new(Events(event_rx)))
+    }
+}
+
+struct Engine {
+    commands: UnboundedSender<Command>,
+}
+
+impl Player for Engine {
+    fn load(&self, track_id: &str, _seamless: bool) -> Result<()> {
+        self.commands
+            .send(Command::Load {
+                id: track_id.to_owned(),
+            })
+            .context("cannot reach local playback engine")
+    }
+
+    fn preload(&self, track_id: &str) -> Result<()> {
+        self.commands
+            .send(Command::Preload {
+                id: track_id.to_owned(),
+            })
+            .context("cannot reach local playback engine")
+    }
+
+    fn play(&self) {
+        self.commands.send(Command::Play).ok();
+    }
+
+    fn pause(&self) {
+        self.commands.send(Command::Pause).ok();
+    }
+
+    fn seek(&self, position: Duration) {
+        self.commands.send(Command::Seek(position)).ok();
+    }
+
+    fn set_gain(&self, gain: f32) {
+        self.commands.send(Command::Gain(gain)).ok();
+    }
+}
+
+struct Events(UnboundedReceiver<PlaybackEvent>);
+
+#[async_trait]
+impl PlaybackEvents for Events {
+    async fn next(&mut self) -> Option<PlaybackEvent> {
+        self.0.recv().await
+    }
+}
+
+struct Slot {
+    id: String,
+    length: Option<Duration>,
+}
+
+fn run(
+    config: PlaybackConfig,
+    commands: UnboundedReceiver<Command>,
+    events: UnboundedSender<PlaybackEvent>,
+) {
+    let runtime = match tokio::runtime::Builder::new_current_thread()
+        .enable_time()
+        .build()
+    {
+        Ok(runtime) => runtime,
+        Err(error) => {
+            log::error!("playback: cannot build local engine runtime: {error}");
+            return;
+        }
+    };
+    runtime.block_on(engine_loop(config, commands, events));
+}
+
+async fn engine_loop(
+    config: PlaybackConfig,
+    mut commands: UnboundedReceiver<Command>,
+    events: UnboundedSender<PlaybackEvent>,
+) {
+    let stream = match rodio::OutputStreamBuilder::open_default_stream() {
+        Ok(stream) => stream,
+        Err(error) => {
+            log::error!("playback: cannot open audio output: {error}");
+            return;
+        }
+    };
+    let sink = rodio::Sink::connect_new(stream.mixer());
+    sink.pause();
+    sink.set_volume(config.gain);
+
+    let mut ticker = tokio::time::interval(POLL);
+    ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    let report_every = (config.position_interval.as_millis() / POLL.as_millis()).max(1) as u32;
+    let mut ticks = 0u32;
+
+    let mut playing = false;
+    let mut current: Option<Slot> = None;
+    let mut queued: Option<Slot> = None;
+    let mut prev_len = 0usize;
+
+    loop {
+        tokio::select! {
+            command = commands.recv() => {
+                let Some(command) = command else { break };
+                match command {
+                    Command::Load { id } => {
+                        events.send(PlaybackEvent::Loading(Duration::ZERO)).ok();
+                        sink.clear();
+                        current = None;
+                        queued = None;
+                        prev_len = 0;
+                        match load(&sink, &id) {
+                            Ok(slot) => {
+                                sink.play();
+                                if let Some(length) = slot.length {
+                                    events.send(PlaybackEvent::Length(length)).ok();
+                                }
+                                prev_len = sink.len();
+                                current = Some(slot);
+                                playing = true;
+                                events.send(PlaybackEvent::Playing(Duration::ZERO)).ok();
+                            }
+                            Err(error) => {
+                                log::warn!("playback: cannot load {id}: {error:#}");
+                                events.send(PlaybackEvent::Unavailable).ok();
+                            }
+                        }
+                    }
+                    Command::Preload { id } => {
+                        let known = current.as_ref().is_some_and(|slot| slot.id == id)
+                            || queued.as_ref().is_some_and(|slot| slot.id == id);
+                        if known || current.is_none() {
+                            continue;
+                        }
+                        match load(&sink, &id) {
+                            Ok(slot) => {
+                                queued = Some(slot);
+                                prev_len = sink.len();
+                            }
+                            Err(error) => log::warn!("playback: cannot preload {id}: {error:#}"),
+                        }
+                    }
+                    Command::Play => {
+                        if current.is_some() {
+                            sink.play();
+                            playing = true;
+                            events.send(PlaybackEvent::Playing(sink.get_pos())).ok();
+                        }
+                    }
+                    Command::Pause => {
+                        playing = false;
+                        let position = sink.get_pos();
+                        sink.pause();
+                        events.send(PlaybackEvent::Paused(position)).ok();
+                    }
+                    Command::Seek(position) => {
+                        if current.is_some() {
+                            if let Err(error) = sink.try_seek(position) {
+                                log::warn!("playback: cannot seek: {error}");
+                            }
+                            events.send(PlaybackEvent::Position(sink.get_pos())).ok();
+                        }
+                    }
+                    Command::Gain(level) => sink.set_volume(level),
+                }
+            }
+            _ = ticker.tick() => {
+                let len = sink.len();
+                ticks += 1;
+                if current.is_some() && playing && len < prev_len {
+                    ticks = 0;
+                    events.send(PlaybackEvent::Ended).ok();
+                    current = queued.take();
+                    playing = current.is_some();
+                    if let Some(slot) = &current {
+                        if let Some(length) = slot.length {
+                            events.send(PlaybackEvent::Length(length)).ok();
+                        }
+                        events.send(PlaybackEvent::Position(sink.get_pos())).ok();
+                    }
+                } else if playing && ticks >= report_every {
+                    ticks = 0;
+                    events.send(PlaybackEvent::Position(sink.get_pos())).ok();
+                }
+                prev_len = len;
+            }
+        }
+    }
+}
+
+fn load(sink: &rodio::Sink, id: &str) -> Result<Slot> {
+    let path =
+        wire::path_from_track_id(id).ok_or_else(|| anyhow!("{id} is not a local track id"))?;
+    let file =
+        std::fs::File::open(path).with_context(|| format!("cannot open {}", path.display()))?;
+    let length = file.metadata().ok().map(|meta| meta.len());
+    let reader = std::io::BufReader::new(file);
+
+    let mut builder = rodio::Decoder::builder()
+        .with_data(reader)
+        .with_seekable(true);
+    if let Some(length) = length {
+        builder = builder.with_byte_len(length);
+    }
+    let source = builder.build().context("cannot decode audio")?;
+    let duration = source.total_duration();
+    sink.append(source);
+
+    Ok(Slot {
+        id: id.to_owned(),
+        length: duration,
+    })
+}

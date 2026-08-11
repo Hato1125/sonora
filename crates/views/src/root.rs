@@ -4,7 +4,7 @@ use gpui::{AnyView, Context, Entity, MouseButton, NavigationDirection, Render};
 use gpui::{Window, div};
 use gpui::{font, prelude::*};
 use input::{OpenFilter, OpenSearch, OpenSettings, ToggleFullscreen};
-use router::{Destination, NavigationEvent, SettingsTab, back, forward, navigate};
+use router::{Destination, LibraryTab, NavigationEvent, SettingsTab, back, forward, navigate};
 use state::{
     ArtistDetail, Detail, Home, Io, Library, Playback, Queue, Search, Session, SessionState,
     SongDetail, Sonora,
@@ -17,13 +17,14 @@ use crate::shared::tracks::{LIBRARY_COLUMNS, album_columns};
 use crate::shells::Shell;
 use crate::shells::workspace::Workspace;
 use crate::{
-    Adaptive, ArtistView, DetailView, FullscreenView, HomeView, LibraryView, LoginView,
+    Adaptive, ArtistView, DetailView, FullscreenView, HomeView, LibraryView, LocalView, LoginView,
     SettingsView, SongView,
 };
 
 struct Screens {
     home: Entity<HomeView>,
     library: Entity<LibraryView>,
+    local: Entity<LocalView>,
     artist: Option<Entity<ArtistView>>,
     artist_detail: Option<Entity<ArtistDetail>>,
     album: Option<Entity<DetailView>>,
@@ -100,6 +101,7 @@ impl Root {
 
         let library_view =
             cx.new(|cx| LibraryView::new(library.clone(), playback.clone(), window, cx));
+        let local_view = cx.new(|cx| LocalView::new(library.clone(), playback.clone(), window, cx));
 
         let home_state = cx.new(|cx| Home::new(library.clone(), cx));
         let home = cx.new(|cx| HomeView::new(home_state, playback.clone(), cx));
@@ -147,6 +149,7 @@ impl Root {
             screens: Screens {
                 home,
                 library: library_view,
+                local: local_view,
                 artist: None,
                 artist_detail: None,
                 album: None,
@@ -283,6 +286,7 @@ impl Root {
 
         let content: AnyView = match destination {
             Destination::Home => self.screens.home.clone().into(),
+            Destination::Library(LibraryTab::Local) => self.screens.local.clone().into(),
             Destination::Library(tab) => {
                 self.screens
                     .library

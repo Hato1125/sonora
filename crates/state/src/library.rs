@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 use std::future::Future;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -18,6 +19,8 @@ type Loaded = (
     anyhow::Result<Vec<Album>>,
 );
 
+type LoadedLocal = (anyhow::Result<Vec<Track>>, anyhow::Result<Vec<Album>>);
+
 fn partial(loaded: Loaded) -> LibraryState {
     let (tracks, playlists, albums) = loaded;
     if let (Err(tracks), Err(playlists), Err(albums)) = (&tracks, &playlists, &albums) {
@@ -29,6 +32,21 @@ fn partial(loaded: Loaded) -> LibraryState {
         tracks: take("Songs", tracks, &mut problems),
         playlists: take("Playlists", playlists, &mut problems),
         albums: take("Albums", albums, &mut problems),
+        problems,
+    }
+}
+
+fn partial_local(loaded: LoadedLocal) -> LibraryState {
+    let (tracks, albums) = loaded;
+    if let (Err(tracks), Err(albums)) = (&tracks, &albums) {
+        return LibraryState::Failed(format!("{tracks:#}\n{albums:#}"));
+    }
+
+    let mut problems = Vec::new();
+    LibraryState::Ready {
+        tracks: take("Local songs", tracks, &mut problems),
+        playlists: Vec::new(),
+        albums: take("Local albums", albums, &mut problems),
         problems,
     }
 }
@@ -60,9 +78,11 @@ impl gpui::EventEmitter<LibraryEvent> for Library {}
 
 pub struct Library {
     state: LibraryState,
+    local: LibraryState,
     session: Entity<Session>,
     io: Io,
     task: Option<Task<()>>,
+    local_task: Option<Task<()>>,
     playlist_task: Option<Task<()>>,
     pending: HashMap<String, Task<()>>,
     pending_albums: HashMap<String, Task<()>>,
@@ -90,22 +110,45 @@ impl Library {
                 this.state = LibraryState::Empty;
                 cx.notify();
             }
+            SessionEvent::LocalChanged => {
+                let client = session.read(cx).local_client();
+                if let Some(client) = client {
+                    this.load_local(client, cx);
+                }
+            }
         })
         .detach();
 
-        Self {
+        let local_client = session.read(cx).local_client();
+
+        let mut library = Self {
             state: LibraryState::Loading,
+            local: LibraryState::Empty,
             session,
             io,
             task: None,
+            local_task: None,
             playlist_task: None,
             pending: HashMap::new(),
             pending_albums: HashMap::new(),
+        };
+        if let Some(client) = local_client {
+            library.load_local(client, cx);
         }
+        library
     }
 
     pub fn state(&self) -> &LibraryState {
         &self.state
+    }
+
+    pub fn local_state(&self) -> &LibraryState {
+        &self.local
+    }
+
+    pub fn rescan_local(&mut self, path: PathBuf, cx: &mut Context<Self>) {
+        self.session
+            .update(cx, |session, cx| session.choose_local_folder(path, cx));
     }
 
     pub fn is_loading(&self) -> bool {
@@ -358,6 +401,13 @@ impl Library {
         albums.iter().find(|album| album.id == id)
     }
 
+    pub fn local_album(&self, id: &str) -> Option<&Album> {
+        let LibraryState::Ready { albums, .. } = &self.local else {
+            return None;
+        };
+        albums.iter().find(|album| album.id == id)
+    }
+
     pub fn playlist(&self, id: &str) -> Option<&Playlist> {
         let LibraryState::Ready { playlists, .. } = &self.state else {
             return None;
@@ -491,6 +541,31 @@ impl Library {
             this.update(cx, |this, cx| {
                 this.state = match loaded {
                     Ok(loaded) => partial(loaded),
+                    Err(error) => LibraryState::Failed(format!("{error:#}")),
+                };
+                cx.notify();
+            })
+            .ok();
+        }));
+    }
+
+    fn load_local(&mut self, client: Arc<dyn MusicApi>, cx: &mut Context<Self>) {
+        self.local = LibraryState::Loading;
+        cx.notify();
+
+        let io = self.io.clone();
+        self.local_task = Some(cx.spawn(async move |this, cx| {
+            let loaded = join(io.spawn(async move {
+                anyhow::Ok(tokio::join!(
+                    client.saved_tracks(PAGE_LIMIT),
+                    client.saved_albums(PAGE_LIMIT)
+                ))
+            }))
+            .await;
+
+            this.update(cx, |this, cx| {
+                this.local = match loaded {
+                    Ok(loaded) => partial_local(loaded),
                     Err(error) => LibraryState::Failed(format!("{error:#}")),
                 };
                 cx.notify();

@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 mod albums;
+mod local;
 mod playlists;
+
+pub(crate) use local::LocalView;
 
 use std::rc::Rc;
 
@@ -41,6 +44,7 @@ impl From<LibraryTab> for Section {
             LibraryTab::Songs => Section::Tracks,
             LibraryTab::Albums => Section::Albums,
             LibraryTab::Playlists => Section::Playlists,
+            LibraryTab::Local => Section::Tracks,
         }
     }
 }

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::Error;
@@ -25,6 +26,7 @@ pub enum SessionState {
 pub enum SessionEvent {
     SignedIn,
     SignedOut,
+    LocalChanged,
 }
 
 pub struct ProviderInfo {
@@ -48,6 +50,10 @@ pub struct Session {
     task: Option<Task<()>>,
     prompt_task: Option<Task<()>>,
     input: Option<UnboundedSender<String>>,
+    local_provider: Arc<dyn MusicProvider>,
+    local_client: Option<Arc<dyn MusicApi>>,
+    local_playback: Option<Arc<dyn PlaybackFactory>>,
+    local_task: Option<Task<()>>,
 }
 
 impl EventEmitter<SessionEvent> for Session {}
@@ -55,6 +61,7 @@ impl EventEmitter<SessionEvent> for Session {}
 impl Session {
     pub fn new(
         providers: Vec<Arc<dyn MusicProvider>>,
+        local_provider: Arc<dyn MusicProvider>,
         settings: Entity<AppSettings>,
         io: Io,
         cx: &mut Context<Self>,
@@ -63,7 +70,7 @@ impl Session {
         let active = providers
             .iter()
             .position(|provider| provider.slug() == remembered);
-        Self {
+        let mut session = Self {
             state: SessionState::SignedOut,
             providers,
             active,
@@ -76,7 +83,13 @@ impl Session {
             task: None,
             prompt_task: None,
             input: None,
-        }
+            local_provider,
+            local_client: None,
+            local_playback: None,
+            local_task: None,
+        };
+        session.restore_local(cx);
+        session
     }
 
     pub fn state(&self) -> &SessionState {
@@ -89,6 +102,18 @@ impl Session {
 
     pub fn playback(&self) -> Option<Arc<dyn PlaybackFactory>> {
         self.playback.clone()
+    }
+
+    pub fn local_client(&self) -> Option<Arc<dyn MusicApi>> {
+        self.local_client.clone()
+    }
+
+    pub fn local_playback(&self) -> Option<Arc<dyn PlaybackFactory>> {
+        self.local_playback.clone()
+    }
+
+    pub fn local_path(&self) -> Option<String> {
+        self.local_provider.location()
     }
 
     pub fn providers(&self) -> impl Iterator<Item = ProviderInfo> + '_ {
@@ -331,5 +356,47 @@ impl Session {
         self.state = SessionState::Failed(format!("{error:#}"));
         cx.notify();
         cx.emit(SessionEvent::SignedOut);
+    }
+
+    fn restore_local(&mut self, cx: &mut Context<Self>) {
+        let provider = self.local_provider.clone();
+        let io = self.io.clone();
+        self.local_task = Some(cx.spawn(async move |this, cx| {
+            let restored = join(io.spawn(async move { provider.restore().await })).await;
+            this.update(cx, |this, cx| {
+                if let Ok(Some(session)) = restored {
+                    this.local_signed_in(session, cx);
+                }
+            })
+            .ok();
+        }));
+    }
+
+    pub fn choose_local_folder(&mut self, path: PathBuf, cx: &mut Context<Self>) {
+        let provider = self.local_provider.clone();
+        let io = self.io.clone();
+        self.local_task = Some(cx.spawn(async move |this, cx| {
+            let prompt: PromptSink = Arc::new(|_| {});
+            let (_tx, rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+            let signed_in = join(
+                io.spawn(async move { provider.sign_in(SignIn::Path(path), prompt, rx).await }),
+            )
+            .await;
+
+            this.update(cx, |this, cx| match signed_in {
+                Ok(session) => this.local_signed_in(session, cx),
+                Err(error) => {
+                    log::warn!("session: cannot set local music folder: {error:#}");
+                }
+            })
+            .ok();
+        }));
+    }
+
+    fn local_signed_in(&mut self, session: ProviderSession, cx: &mut Context<Self>) {
+        self.local_client = Some(session.api);
+        self.local_playback = Some(session.playback);
+        cx.notify();
+        cx.emit(SessionEvent::LocalChanged);
     }
 }
