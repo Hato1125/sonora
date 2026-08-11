@@ -10,10 +10,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - Sonora can now sign in to YouTube Music as an alternative to Spotify. The login screen offers
-  both services; signing in to YouTube Music shows a short code to enter on youtube.com/activate,
-  and the whole library — liked songs, playlists, albums, artists, search, and radio — works
-  through the same interface.
-- The general settings show which streaming service this device is signed in to.
+  both services; YouTube Music can be browsed as a guest, connected by importing an existing
+  browser session, or connected by pasting cookies, and the whole library — liked songs,
+  playlists, albums, artists, search, and radio — works through the same interface.
+- The general settings show which streaming service this device is signed in to, and whether it is
+  browsing as a guest.
+- YouTube Music albums and playlists play the album audio of a song rather than its music video, so
+  a track lasts as long as its listed length.
+- Switching, pausing, resuming, and seeking a YouTube Music track fade in and out instead of
+  clicking, the previous track stops the moment a new one is picked, and the transport stays
+  responsive while the next track loads.
 
 ## [0.7.0] - 2026-08-10
 
