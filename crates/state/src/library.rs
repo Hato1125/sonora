@@ -72,6 +72,11 @@ impl Library {
     pub fn new(session: Entity<Session>, io: Io, cx: &mut Context<Self>) -> Self {
         cx.subscribe(&session, |this, session, event, cx| match event {
             SessionEvent::SignedIn => {
+                if !session.read(cx).authenticated() {
+                    this.state = LibraryState::Empty;
+                    cx.notify();
+                    return;
+                }
                 let client = session.read(cx).client();
                 if let Some(client) = client {
                     this.load(client, cx);

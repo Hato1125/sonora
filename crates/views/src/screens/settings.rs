@@ -3,11 +3,13 @@
 use std::path::Path;
 use std::process::Command;
 
+use crate::shared::browsers::BrowserPicker;
 use gpui::{
     AnyElement, Context, Entity, FontWeight, Pixels, Render, SharedString, Window, div, px,
 };
-use gpui::{ScrollHandle, prelude::*};
+use gpui::{ScrollHandle, prelude::*, svg};
 use i18n::{Language, t};
+use music::SignIn;
 use router::SettingsTab;
 use state::{AppSettings, Playback, Session, SessionState, Sonora};
 use ui::{ActiveTheme as _, Scrollbar, Scroller};
@@ -24,6 +26,22 @@ const SOURCE_URL: &str = "https://github.com/nolight132/sonora";
 const THEMES: &str = "themes";
 const CORNERS: &str = "corners";
 const LANGUAGES: &str = "languages";
+
+struct Account {
+    slug: &'static str,
+    name: &'static str,
+    options: Vec<SignIn>,
+    stored: bool,
+    active: bool,
+    guest: bool,
+}
+
+fn offered(method: &SignIn, stored: bool) -> bool {
+    match method {
+        SignIn::Default | SignIn::Anonymous => !stored,
+        SignIn::Browser(_) | SignIn::Secret => true,
+    }
+}
 
 #[derive(Clone, Copy)]
 struct Member {
@@ -77,6 +95,7 @@ pub struct SettingsView {
     scrollbar: Entity<Scrollbar>,
     opacity: ScrubberState,
     popovers: Popovers,
+    browsers: Option<(&'static str, Vec<SharedString>)>,
 }
 
 impl SettingsView {
@@ -96,6 +115,7 @@ impl SettingsView {
             scrollbar: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
             opacity: ScrubberState::new("opacity"),
             popovers: Popovers::default(),
+            browsers: None,
         }
     }
 
@@ -109,7 +129,7 @@ impl SettingsView {
         let rows: Vec<AnyElement> = match self.tab {
             SettingsTab::General => vec![
                 self.language_row(cx).into_any_element(),
-                self.account_row(cx).into_any_element(),
+                self.accounts_row(cx).into_any_element(),
             ],
             SettingsTab::Appearance => vec![
                 self.theme_row(cx).into_any_element(),
@@ -581,27 +601,242 @@ impl SettingsView {
         )
     }
 
-    fn account_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn accounts_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
-        let muted = theme.muted_foreground;
-        let small = theme.text(Text::Small);
-        let session = self.session.clone();
+        let session = self.session.read(cx);
+        let pending = session.is_pending();
+        let signed_out = matches!(session.state(), SessionState::SignedOut);
+        let guest = !session.authenticated();
+        let accounts: Vec<Account> = session
+            .providers()
+            .map(|info| Account {
+                slug: info.slug,
+                name: info.name,
+                options: info.options,
+                stored: info.stored,
+                active: info.active && !signed_out,
+                guest: info.active && !signed_out && guest,
+            })
+            .collect();
+        let mut cards = Vec::new();
+        for account in accounts {
+            cards.push(self.account_card(account, pending, cx).into_any_element());
+        }
 
-        self.row(
-            t!("settings-account"),
-            t!("settings-account-detail"),
-            muted,
-            small,
-            Button::new("sign-out")
-                .label(t!("settings-sign-out"))
-                .small()
-                .outline()
-                .icon("icons/log-out.svg")
-                .on_click(move |_, _, cx| {
-                    session.update(cx, |session, cx| session.sign_out(cx));
-                })
-                .into_any_element(),
-        )
+        div()
+            .flex()
+            .flex_col()
+            .gap_3()
+            .py_3()
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap_1()
+                    .child(t!("settings-accounts"))
+                    .child(
+                        div()
+                            .text_color(theme.muted_foreground)
+                            .text_size(theme.text(Text::Small))
+                            .child(t!("settings-accounts-detail")),
+                    ),
+            )
+            .children(cards)
+    }
+
+    fn account_card(
+        &self,
+        account: Account,
+        pending: bool,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let theme = *cx.theme();
+        let Account {
+            slug,
+            name,
+            options,
+            stored,
+            active,
+            guest,
+        } = account;
+        let status = match (active, guest, stored) {
+            (true, true, _) => t!("settings-provider-guest"),
+            (true, false, _) => t!("settings-provider-current"),
+            (false, _, true) => t!("settings-provider-connected"),
+            (false, _, false) => t!("settings-provider-none"),
+        };
+        let mut seen_browser = false;
+        let methods: Vec<SignIn> = options
+            .into_iter()
+            .filter(|option| match option {
+                SignIn::Browser(_) => !std::mem::replace(&mut seen_browser, true),
+                option => offered(option, stored),
+            })
+            .collect();
+
+        div()
+            .flex()
+            .flex_col()
+            .gap_3()
+            .p(theme.metrics.pad)
+            .rounded(theme.radius)
+            .border_1()
+            .border_color(theme.border)
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap_3()
+                    .pl_2()
+                    .child(
+                        svg()
+                            .path(crate::shared::provider_logo(slug))
+                            .size(theme.metrics.control_small)
+                            .flex_none()
+                            .text_color(theme.foreground),
+                    )
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .flex_1()
+                            .min_w_0()
+                            .gap_0p5()
+                            .child(div().font_weight(FontWeight::MEDIUM).child(name))
+                            .child(
+                                div()
+                                    .text_color(theme.muted_foreground)
+                                    .text_size(theme.text(Text::Small))
+                                    .child(status),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .flex()
+                            .flex_none()
+                            .gap_2()
+                            .when(stored && !active, |this| {
+                                this.child(
+                                    Button::new(SharedString::from(format!("switch-{slug}")))
+                                        .label(t!("settings-provider-switch"))
+                                        .small()
+                                        .outline()
+                                        .disabled(pending)
+                                        .on_click(cx.listener(move |this, _, _, cx| {
+                                            this.session
+                                                .update(cx, |session, cx| session.switch(slug, cx));
+                                        })),
+                                )
+                            })
+                            .when(stored, |this| {
+                                this.child(
+                                    Button::new(SharedString::from(format!("sign-out-{slug}")))
+                                        .label(t!("settings-sign-out"))
+                                        .small()
+                                        .ghost()
+                                        .icon("icons/log-out.svg")
+                                        .disabled(pending)
+                                        .on_click(cx.listener(move |this, _, _, cx| {
+                                            this.session
+                                                .update(cx, |session, cx| session.forget(slug, cx));
+                                        })),
+                                )
+                            }),
+                    ),
+            )
+            .when(!methods.is_empty(), |this| {
+                this.child(
+                    div().flex().flex_wrap().gap_2().children(
+                        methods
+                            .into_iter()
+                            .map(|method| self.method_button(slug, name, method, pending, cx)),
+                    ),
+                )
+            })
+    }
+
+    fn method_button(
+        &self,
+        slug: &'static str,
+        provider: &'static str,
+        method: SignIn,
+        pending: bool,
+        cx: &mut Context<Self>,
+    ) -> Button {
+        let (id, label) = match &method {
+            SignIn::Default => (
+                format!("connect-{slug}"),
+                t!("login-sign-in", provider = provider),
+            ),
+            SignIn::Anonymous => (
+                format!("connect-{slug}-guest"),
+                t!("login-use", provider = provider),
+            ),
+            SignIn::Browser(_) => (
+                format!("connect-{slug}-browser"),
+                t!("login-import-browser"),
+            ),
+            SignIn::Secret => (
+                format!("connect-{slug}-cookies"),
+                t!("login-connect-cookies"),
+            ),
+        };
+
+        Button::new(SharedString::from(id))
+            .label(label)
+            .small()
+            .outline()
+            .disabled(pending)
+            .on_click(cx.listener(move |this, _, _, cx| match &method {
+                SignIn::Browser(_) => this.open_browsers(slug, cx),
+                method => {
+                    let method = method.clone();
+                    this.session
+                        .update(cx, |session, cx| session.sign_in(slug, method, cx));
+                }
+            }))
+    }
+
+    fn open_browsers(&mut self, slug: &'static str, cx: &mut Context<Self>) {
+        let names: Vec<SharedString> = self
+            .session
+            .read(cx)
+            .providers()
+            .find(|info| info.slug == slug)
+            .map(|info| {
+                info.options
+                    .iter()
+                    .filter_map(|option| match option {
+                        SignIn::Browser(name) => Some(SharedString::from(name.clone())),
+                        _ => None,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        if names.is_empty() {
+            return;
+        }
+        self.browsers = Some((slug, names));
+        cx.notify();
+    }
+
+    fn browser_modal(
+        &self,
+        slug: &'static str,
+        names: Vec<SharedString>,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        BrowserPicker::new(names)
+            .on_pick(cx.listener(move |this, name: &SharedString, _, cx| {
+                this.browsers = None;
+                let method = SignIn::Browser(name.to_string());
+                this.session
+                    .update(cx, |session, cx| session.sign_in(slug, method, cx));
+            }))
+            .on_cancel(cx.listener(|this, _, _, cx| {
+                this.browsers = None;
+                cx.notify();
+            }))
     }
 
     fn version_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -773,26 +1008,36 @@ fn open_settings_file(path: &Path) -> std::io::Result<()> {
 
 impl Render for SettingsView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        Scroller::new("settings", &self.scrollbar)
-            .flex()
-            .flex_col()
-            .items_center()
+        let browsers = self.browsers.clone();
+
+        div()
+            .relative()
+            .size_full()
             .child(
-                div()
+                Scroller::new("settings", &self.scrollbar)
                     .flex()
                     .flex_col()
-                    .gap_6()
-                    .w_full()
-                    .max_w(px(640.))
-                    .p_6()
-                    .when(self.tab == SettingsTab::General, |this| {
-                        this.child(self.profile(cx))
-                            .child(Separator::horizontal().w_full())
-                    })
-                    .child(self.panel(cx))
-                    .when(self.tab == SettingsTab::About, |this| {
-                        this.child(self.team(cx)).child(self.notice(cx))
-                    }),
+                    .items_center()
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .gap_6()
+                            .w_full()
+                            .max_w(px(640.))
+                            .p_6()
+                            .when(self.tab == SettingsTab::General, |this| {
+                                this.child(self.profile(cx))
+                                    .child(Separator::horizontal().w_full())
+                            })
+                            .child(self.panel(cx))
+                            .when(self.tab == SettingsTab::About, |this| {
+                                this.child(self.team(cx)).child(self.notice(cx))
+                            }),
+                    ),
             )
+            .when_some(browsers, |this, (slug, names)| {
+                this.child(self.browser_modal(slug, names, cx).into_any_element())
+            })
     }
 }

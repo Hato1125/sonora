@@ -84,6 +84,7 @@ pub(crate) struct AlbumGrid {
     albums: Vec<(usize, Album)>,
     playback: Entity<Playback>,
     on_context: Option<ContextMenu>,
+    years: bool,
 }
 
 impl AlbumGrid {
@@ -99,7 +100,13 @@ impl AlbumGrid {
             albums: albums.into_iter().collect(),
             playback,
             on_context: None,
+            years: false,
         }
+    }
+
+    pub(crate) fn years(mut self) -> Self {
+        self.years = true;
+        self
     }
 
     pub(crate) fn on_context(
@@ -119,10 +126,11 @@ impl RenderOnce for AlbumGrid {
             albums,
             playback,
             on_context,
+            years,
         } = self;
         let cards = albums.into_iter().map(|(index, album)| {
             let context = album.clone();
-            let card = album_card(id, index, album, playback.clone(), layout.card, cx);
+            let card = album_card(id, index, album, playback.clone(), layout.card, years, cx);
             let Some(listener) = on_context.clone() else {
                 return card;
             };
@@ -154,18 +162,27 @@ fn album_card(
     album: Album,
     playback: Entity<Playback>,
     width: Pixels,
+    years: bool,
     cx: &App,
 ) -> AnyElement {
     let theme = *cx.theme();
     let cover = album.cover_large.clone().or_else(|| album.cover.clone());
-    let artists = crate::shared::cells::artist_links(
-        SharedString::from(format!("{id}-artist-{index}")),
-        album.artist_refs.clone(),
-        album.artists.clone(),
-        theme.muted_foreground,
-    )
-    .text_size(theme.text(Text::Small))
-    .truncate();
+    let meta = match years {
+        true => div()
+            .text_size(theme.text(Text::Small))
+            .text_color(theme.muted_foreground)
+            .child(year(album.year))
+            .into_any_element(),
+        false => crate::shared::cells::artist_links(
+            SharedString::from(format!("{id}-artist-{index}")),
+            album.artist_refs.clone(),
+            album.artists.clone(),
+            theme.muted_foreground,
+        )
+        .text_size(theme.text(Text::Small))
+        .truncate()
+        .into_any_element(),
+    };
     let origin = Origin::Album(album.id.clone());
     let state = playback.read(cx).playing_from(&origin);
     let playing = matches!(state, Some(PlaybackState::Playing));
@@ -179,7 +196,7 @@ fn album_card(
         .weight(FontWeight::SEMIBOLD)
         .flat()
         .underline()
-        .bare_meta(div().child(artists))
+        .bare_meta(meta)
         .play(playing, move |_, _, cx| {
             playback.update(cx, |playback, cx| match &state {
                 Some(PlaybackState::Playing) => playback.pause(cx),
@@ -189,6 +206,13 @@ fn album_card(
         })
         .press(move |_, _, cx| navigate(Destination::Album(opened.clone()), cx))
         .into_any_element()
+}
+
+fn year(year: i32) -> SharedString {
+    match year {
+        0 => SharedString::default(),
+        year => SharedString::from(year.to_string()),
+    }
 }
 
 #[cfg(test)]

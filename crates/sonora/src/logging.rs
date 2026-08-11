@@ -7,7 +7,7 @@ use env_logger::{Env, Logger, Target};
 use log::{Log, Metadata, Record};
 
 const CONSOLE: &str = "warn,symphonia=error";
-const DISK: &str = "warn,symphonia=error,sonora=debug,ui=debug";
+const DISK: &str = "warn,symphonia=error,sonora=debug,ui=debug,music=debug,ytmusic=debug";
 const FILTER: &str = "SONORA_LOG";
 const FILE: &str = "sonora.log";
 const PREVIOUS: &str = "sonora.log.1";

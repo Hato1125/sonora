@@ -108,5 +108,24 @@ pub(crate) const LIBRARY_COLUMNS: &[ColumnSpec<TrackField>] =
 pub(crate) const ARTIST_COLUMNS: &[ColumnSpec<TrackField>] =
     &[INDEX, COVER, TITLE, ARTISTS, ALBUM, PLAYS, DURATION];
 
+pub(crate) const ARTIST_COLUMNS_LEAN: &[ColumnSpec<TrackField>] =
+    &[INDEX, COVER, TITLE, ARTISTS, ALBUM, DURATION];
+
 pub(crate) const ALBUM_COLUMNS: &[ColumnSpec<TrackField>] =
     &[INDEX, TITLE, ARTISTS, PLAYS, DURATION];
+
+pub(crate) const ALBUM_COLUMNS_LEAN: &[ColumnSpec<TrackField>] = &[INDEX, TITLE, ARTISTS, DURATION];
+
+pub(crate) fn artist_columns(playcounts: bool) -> &'static [ColumnSpec<TrackField>] {
+    match playcounts {
+        true => ARTIST_COLUMNS,
+        false => ARTIST_COLUMNS_LEAN,
+    }
+}
+
+pub(crate) fn album_columns(playcounts: bool) -> &'static [ColumnSpec<TrackField>] {
+    match playcounts {
+        true => ALBUM_COLUMNS,
+        false => ALBUM_COLUMNS_LEAN,
+    }
+}

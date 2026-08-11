@@ -48,12 +48,30 @@ impl SpotifyProvider {
             profile,
             api: Arc::new(client),
             playback,
+            authenticated: true,
+            playcounts: true,
         })
     }
 }
 
 #[async_trait]
 impl MusicProvider for SpotifyProvider {
+    fn name(&self) -> &'static str {
+        "Spotify"
+    }
+
+    fn slug(&self) -> &'static str {
+        "spotify"
+    }
+
+    fn sign_in_options(&self) -> Vec<crate::SignIn> {
+        vec![crate::SignIn::Default]
+    }
+
+    fn stored(&self) -> bool {
+        self.config.cache_dir.join("credentials.json").exists()
+    }
+
     async fn restore(&self) -> Result<Option<ProviderSession>> {
         let Some(session) = auth::restore(&self.config).await? else {
             return Ok(None);
@@ -61,7 +79,12 @@ impl MusicProvider for SpotifyProvider {
         self.session(LibrespotClient::new(session)).await.map(Some)
     }
 
-    async fn sign_in(&self) -> Result<ProviderSession> {
+    async fn sign_in(
+        &self,
+        _method: crate::SignIn,
+        _prompt: crate::PromptSink,
+        _input: crate::InputSource,
+    ) -> Result<ProviderSession> {
         let session = auth::login(&self.config).await?;
         self.session(LibrespotClient::new(session)).await
     }

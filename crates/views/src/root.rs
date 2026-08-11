@@ -7,13 +7,13 @@ use input::{OpenFilter, OpenSearch, OpenSettings, ToggleFullscreen};
 use router::{Destination, NavigationEvent, SettingsTab, back, forward, navigate};
 use state::{
     ArtistDetail, Detail, Home, Io, Library, Playback, Queue, Search, Session, SessionState,
-    SongDetail,
+    SongDetail, Sonora,
 };
 use ui::ActiveTheme as _;
 
 use crate::chrome::{TitleBar, TitleBarEvent, TitleBarOptions, Toolbar, Tooled};
 use crate::screens::search::SearchView;
-use crate::shared::tracks::{ALBUM_COLUMNS, ARTIST_COLUMNS, LIBRARY_COLUMNS};
+use crate::shared::tracks::{LIBRARY_COLUMNS, album_columns};
 use crate::shells::Shell;
 use crate::shells::workspace::Workspace;
 use crate::{
@@ -26,12 +26,12 @@ struct Screens {
     library: Entity<LibraryView>,
     artist: Option<Entity<ArtistView>>,
     artist_detail: Option<Entity<ArtistDetail>>,
-    album: Entity<DetailView>,
-    album_detail: Entity<Detail>,
+    album: Option<Entity<DetailView>>,
+    album_detail: Option<Entity<Detail>>,
     song: Entity<SongView>,
     song_detail: Entity<SongDetail>,
-    playlist: Entity<DetailView>,
-    playlist_detail: Entity<Detail>,
+    playlist: Option<Entity<DetailView>>,
+    playlist_detail: Option<Entity<Detail>>,
     search: Entity<SearchView>,
     settings: Entity<SettingsView>,
 }
@@ -75,7 +75,18 @@ impl Root {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        cx.observe(&session, |_, _, cx| cx.notify()).detach();
+        cx.observe(&session, |this, session, cx| {
+            if matches!(session.read(cx).state(), SessionState::SignedOut) {
+                this.screens.artist = None;
+                this.screens.artist_detail = None;
+                this.screens.album = None;
+                this.screens.album_detail = None;
+                this.screens.playlist = None;
+                this.screens.playlist_detail = None;
+            }
+            cx.notify();
+        })
+        .detach();
 
         let login = cx.new(|cx| LoginView::new(session.clone(), cx));
 
@@ -95,32 +106,6 @@ impl Root {
 
         let io = Io::global(cx);
         let search_library = library.clone();
-        let album_detail =
-            cx.new(|cx| Detail::new(session.clone(), library.clone(), io.clone(), cx));
-        let album = cx.new(|cx| {
-            DetailView::new(
-                album_detail.clone(),
-                playback.clone(),
-                ALBUM_COLUMNS,
-                true,
-                "album",
-                window,
-                cx,
-            )
-        });
-
-        let playlist_detail = cx.new(|cx| Detail::new(session.clone(), library, io.clone(), cx));
-        let playlist = cx.new(|cx| {
-            DetailView::new(
-                playlist_detail.clone(),
-                playback.clone(),
-                LIBRARY_COLUMNS,
-                true,
-                "playlist",
-                window,
-                cx,
-            )
-        });
 
         let queries = cx.new(|cx| Search::new(session.clone(), search_library, io.clone(), cx));
         let search = cx.new(|cx| SearchView::new(queries, playback.clone(), cx));
@@ -164,12 +149,12 @@ impl Root {
                 library: library_view,
                 artist: None,
                 artist_detail: None,
-                album,
-                album_detail,
+                album: None,
+                album_detail: None,
                 song,
                 song_detail,
-                playlist,
-                playlist_detail,
+                playlist: None,
+                playlist_detail: None,
                 search,
                 settings,
             },
@@ -185,10 +170,65 @@ impl Root {
         }
 
         let detail = cx.new(|cx| ArtistDetail::new(self.session.clone(), self.io.clone(), cx));
-        let view =
-            cx.new(|cx| ArtistView::new(detail.clone(), self.playback.clone(), ARTIST_COLUMNS, cx));
+        let view = cx.new(|cx| ArtistView::new(detail.clone(), self.playback.clone(), cx));
         self.screens.artist = Some(view.clone());
         self.screens.artist_detail = Some(detail.clone());
+        (view, detail)
+    }
+
+    fn album(&mut self, cx: &mut Context<Self>) -> (Entity<DetailView>, Entity<Detail>) {
+        if let (Some(view), Some(detail)) = (&self.screens.album, &self.screens.album_detail) {
+            return (view.clone(), detail.clone());
+        }
+        let playcounts = self.session.read(cx).playcounts();
+        let detail = cx.new(|cx| {
+            Detail::new(
+                self.session.clone(),
+                Sonora::global(cx).library.clone(),
+                self.io.clone(),
+                cx,
+            )
+        });
+        let view = cx.new(|cx| {
+            DetailView::new(
+                detail.clone(),
+                self.playback.clone(),
+                album_columns(playcounts),
+                true,
+                "album",
+                cx,
+            )
+        });
+        self.screens.album = Some(view.clone());
+        self.screens.album_detail = Some(detail.clone());
+        (view, detail)
+    }
+
+    fn playlist(&mut self, cx: &mut Context<Self>) -> (Entity<DetailView>, Entity<Detail>) {
+        if let (Some(view), Some(detail)) = (&self.screens.playlist, &self.screens.playlist_detail)
+        {
+            return (view.clone(), detail.clone());
+        }
+        let detail = cx.new(|cx| {
+            Detail::new(
+                self.session.clone(),
+                Sonora::global(cx).library.clone(),
+                self.io.clone(),
+                cx,
+            )
+        });
+        let view = cx.new(|cx| {
+            DetailView::new(
+                detail.clone(),
+                self.playback.clone(),
+                LIBRARY_COLUMNS,
+                true,
+                "playlist",
+                cx,
+            )
+        });
+        self.screens.playlist = Some(view.clone());
+        self.screens.playlist_detail = Some(detail.clone());
         (view, detail)
     }
 
@@ -252,10 +292,8 @@ impl Root {
                 library.into()
             }
             Destination::Album(id) => {
-                self.screens
-                    .album_detail
-                    .update(cx, |detail, cx| detail.open_album(&id, cx));
-                let album = self.screens.album.clone();
+                let (album, detail) = self.album(cx);
+                detail.update(cx, |detail, cx| detail.open_album(&id, cx));
                 toolbar = Some(album.read(cx).toolbar());
                 album.into()
             }
@@ -266,10 +304,8 @@ impl Root {
                 self.screens.song.clone().into()
             }
             Destination::Playlist(id) => {
-                self.screens
-                    .playlist_detail
-                    .update(cx, |detail, cx| detail.open_playlist(&id, cx));
-                let playlist = self.screens.playlist.clone();
+                let (playlist, detail) = self.playlist(cx);
+                detail.update(cx, |detail, cx| detail.open_playlist(&id, cx));
                 toolbar = Some(playlist.read(cx).toolbar());
                 playlist.into()
             }
@@ -299,7 +335,9 @@ impl Root {
 impl Render for Root {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let show_sign_in = match self.session.read(cx).state() {
-            SessionState::SignedOut | SessionState::Failed(_) | SessionState::Authorizing => true,
+            SessionState::SignedOut | SessionState::Failed(_) | SessionState::Authorizing(_) => {
+                true
+            }
             SessionState::Restoring | SessionState::SignedIn(_) => false,
         };
 
