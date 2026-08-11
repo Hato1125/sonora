@@ -253,6 +253,18 @@ impl Session {
         }));
     }
 
+    pub fn cancel_sign_in(&mut self, cx: &mut Context<Self>) {
+        if !matches!(self.state, SessionState::Authorizing(_)) {
+            return;
+        }
+        self.task = None;
+        self.prompt_task = None;
+        self.input = None;
+        self.state = SessionState::SignedOut;
+        cx.notify();
+        cx.emit(SessionEvent::SignedOut);
+    }
+
     pub fn submit_input(&mut self, text: String, cx: &mut Context<Self>) {
         if let Some(input) = &self.input {
             input.send(text).ok();

@@ -10,7 +10,7 @@ use i18n::t;
 use music::{SignIn, SignInPrompt};
 use state::{Session, SessionState};
 use ui::ActiveTheme as _;
-use ui::{Button, Input, Separator, Text};
+use ui::{Button, Input, Modal, Separator, Text};
 
 const COLUMN: Pixels = px(280.);
 const LOGO: Pixels = px(48.);
@@ -47,6 +47,12 @@ impl LoginView {
         self.secret.update(cx, |input, cx| input.set_text("", cx));
         self.session
             .update(cx, |session, cx| session.submit_input(text, cx));
+    }
+
+    fn abandon(&mut self, cx: &mut Context<Self>) {
+        self.secret.update(cx, |input, cx| input.set_text("", cx));
+        self.session
+            .update(cx, |session, cx| session.cancel_sign_in(cx));
     }
 
     fn start(&self, slug: &'static str, method: SignIn, cx: &mut Context<Self>) {
@@ -252,27 +258,23 @@ impl LoginView {
     }
 
     fn secret_prompt(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = *cx.theme();
-        div()
-            .flex()
-            .flex_col()
-            .items_center()
-            .gap_2()
-            .w(px(560.))
-            .child(
-                div()
-                    .text_size(theme.text(Text::Small))
-                    .text_color(theme.muted_foreground)
-                    .text_center()
-                    .child(t!("login-cookie-detail")),
+        Modal::new("cookie-prompt", t!("login-cookie-title"))
+            .width(px(560.))
+            .detail(t!("login-cookie-detail"))
+            .child(self.secret.clone())
+            .action(
+                Button::new("cancel-cookies")
+                    .ghost()
+                    .label(t!("common-cancel"))
+                    .on_click(cx.listener(|this, _, _, cx| this.abandon(cx))),
             )
-            .child(div().w_full().child(self.secret.clone()))
-            .child(
+            .action(
                 Button::new("submit-cookies")
                     .label(t!("login-cookie-submit"))
                     .primary()
                     .on_click(cx.listener(|this, _, _, cx| this.submit(cx))),
             )
+            .on_dismiss(cx.listener(|this, _, _, cx| this.abandon(cx)))
     }
 
     fn browser_modal(
@@ -320,7 +322,7 @@ impl Render for LoginView {
         let status = match &state {
             SessionState::SignedOut => t!("login-signed-out"),
             SessionState::Restoring => t!("login-restoring"),
-            SessionState::Authorizing(Some(SignInPrompt::Secret)) => t!("login-cookie-title"),
+            SessionState::Authorizing(Some(SignInPrompt::Secret)) => t!("login-signed-out"),
             SessionState::Authorizing(_) => t!("login-authorizing"),
             SessionState::SignedIn(profile) => t!("login-signed-in", name = &profile.display_name),
             SessionState::Failed(error) => SharedString::from(error.clone()),
