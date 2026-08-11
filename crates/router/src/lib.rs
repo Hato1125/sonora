@@ -38,6 +38,18 @@ pub enum Destination {
     Settings(SettingsTab),
 }
 
+impl From<&ui::Pin> for Destination {
+    fn from(pin: &ui::Pin) -> Self {
+        let id = SharedString::from(pin.id.clone());
+        match pin.kind {
+            ui::PinKind::Album => Destination::Album(id),
+            ui::PinKind::Artist => Destination::Artist(id),
+            ui::PinKind::Playlist => Destination::Playlist(id),
+            ui::PinKind::Song => Destination::Song(id),
+        }
+    }
+}
+
 impl Destination {
     pub fn same_section(&self, other: &Destination) -> bool {
         match (self, other) {
