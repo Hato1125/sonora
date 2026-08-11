@@ -97,6 +97,7 @@ pub(super) const COLUMNS: &[ColumnSpec<AlbumField>] =
 pub(super) struct AlbumSource {
     library: Entity<Library>,
     playback: Entity<Playback>,
+    local: bool,
     span: Option<(f32, f32)>,
 }
 
@@ -105,6 +106,16 @@ impl AlbumSource {
         Self {
             library,
             playback,
+            local: false,
+            span: None,
+        }
+    }
+
+    pub(super) fn local(library: Entity<Library>, playback: Entity<Playback>) -> Self {
+        Self {
+            library,
+            playback,
+            local: true,
             span: None,
         }
     }
@@ -145,7 +156,12 @@ impl AlbumSource {
     }
 
     fn albums<'a>(&self, cx: &'a App) -> &'a [Album] {
-        match self.library.read(cx).state() {
+        let library = self.library.read(cx);
+        let state = match self.local {
+            true => library.local_state(),
+            false => library.state(),
+        };
+        match state {
             LibraryState::Ready { albums, .. } => albums.as_slice(),
             _ => &[],
         }
@@ -187,7 +203,10 @@ impl GridSource for AlbumSource {
     }
 
     fn is_loading(&self, cx: &App) -> bool {
-        self.library.read(cx).is_loading()
+        match self.local {
+            true => self.library.read(cx).local_is_loading(),
+            false => self.library.read(cx).is_loading(),
+        }
     }
 
     fn context_menu(&self, row: usize, _visible: &[AlbumField], cx: &App) -> Option<Menu> {
