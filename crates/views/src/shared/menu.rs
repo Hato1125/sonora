@@ -129,7 +129,7 @@ impl ItemMenu {
                     let item =
                         MenuItem::new(format!("playlist-{}", playlist.id), playlist.name.clone())
                             .artwork(playlist.cover.clone())
-                            .selected(held);
+                            .checked(held);
                     match track.id.clone() {
                         Some(track_id) => {
                             let library = library.clone();

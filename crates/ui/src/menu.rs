@@ -156,6 +156,7 @@ pub struct MenuItem {
     id: ElementId,
     label: SharedString,
     selected: bool,
+    checked: bool,
     disabled: bool,
     separator: bool,
     content: Option<AnyElement>,
@@ -173,6 +174,7 @@ impl MenuItem {
             id: id.into(),
             label: label.into(),
             selected: false,
+            checked: false,
             disabled: false,
             separator: false,
             content: None,
@@ -181,6 +183,11 @@ impl MenuItem {
             press: None,
             submenu: None,
         }
+    }
+
+    pub fn checked(mut self, checked: bool) -> Self {
+        self.checked = checked;
+        self
     }
 
     pub fn selected(mut self, selected: bool) -> Self {
@@ -193,6 +200,7 @@ impl MenuItem {
             id: id.into(),
             label: SharedString::default(),
             selected: false,
+            checked: false,
             disabled: true,
             separator: true,
             content: None,
@@ -368,6 +376,7 @@ impl RenderOnce for Menu {
                 id,
                 label,
                 selected,
+                checked,
                 disabled,
                 separator,
                 content,
@@ -439,7 +448,7 @@ impl RenderOnce for Menu {
                         })
                         .child(div().truncate().child(label)),
                 )
-                .when(selected, |this| this.child("✓"))
+                .when(selected || checked, |this| this.child("✓"))
                 .when(submenu.is_some(), |this| this.child("›"))
                 .when_some(submenu_state, |this, state| {
                     this.on_hover(move |hovered, window, cx| {
