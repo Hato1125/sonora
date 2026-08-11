@@ -97,7 +97,7 @@ fn in_order<'a, T: PartialEq + 'a>(sequence: impl Iterator<Item = &'a T>, source
     sequence.eq(source.iter())
 }
 
-fn gap_target(from: usize, gap: usize, len: usize) -> usize {
+pub(crate) fn gap_target(from: usize, gap: usize, len: usize) -> usize {
     let gap = gap.min(len);
     if gap > from { gap - 1 } else { gap }
 }

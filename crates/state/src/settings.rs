@@ -7,9 +7,10 @@ use std::time::Duration;
 
 use gpui::{Context, Task};
 use serde::{Deserialize, Serialize};
-use ui::{Layout, Look, Mode, Rounding, Sorting, ThemeKind, ThemeOverrides};
+use ui::{Layout, Look, Mode, Pin, Rounding, Sorting, ThemeKind, ThemeOverrides};
 
 use crate::Repeat;
+use crate::queue::gap_target;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -46,6 +47,7 @@ struct Values {
     tables: HashMap<String, Layout>,
     sorting: HashMap<String, Option<Sorting>>,
     views: HashMap<String, Mode>,
+    pinned: Vec<Pin>,
     appearance: Appearance,
 }
 
@@ -83,6 +85,7 @@ impl Default for Values {
             tables: HashMap::new(),
             sorting: HashMap::new(),
             views: HashMap::new(),
+            pinned: Vec::new(),
             appearance: Appearance::default(),
         }
     }
@@ -303,6 +306,25 @@ impl AppSettings {
         self.schedule_save(cx);
     }
 
+    pub fn pinned(&self) -> &[Pin] {
+        &self.values.pinned
+    }
+
+    pub fn pin(&mut self, pin: Pin, gap: Option<usize>, cx: &mut Context<Self>) {
+        if !place(&mut self.values.pinned, pin, gap) {
+            return;
+        }
+        self.schedule_save(cx);
+    }
+
+    pub fn unpin(&mut self, pin: &Pin, cx: &mut Context<Self>) {
+        let Some(index) = self.values.pinned.iter().position(|it| it.same(pin)) else {
+            return;
+        };
+        self.values.pinned.remove(index);
+        self.schedule_save(cx);
+    }
+
     pub fn set_sidebar(&mut self, width: f32, open: bool, cx: &mut Context<Self>) {
         self.values.sidebar_width = width;
         self.values.sidebar_open = open;
@@ -428,4 +450,92 @@ fn settings_path() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."))
         .join("sonora")
         .join("settings.json")
+}
+
+fn place(pinned: &mut Vec<Pin>, pin: Pin, gap: Option<usize>) -> bool {
+    let gap = gap.unwrap_or(pinned.len()).min(pinned.len());
+    let Some(from) = pinned.iter().position(|it| it.same(&pin)) else {
+        pinned.insert(gap, pin);
+        return true;
+    };
+
+    let to = gap_target(from, gap, pinned.len());
+    if to == from {
+        return false;
+    }
+
+    let moved = pinned.remove(from);
+    pinned.insert(to, moved);
+    true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ui::PinKind;
+
+    fn pin(id: &str) -> Pin {
+        Pin::new(PinKind::Album, id, id)
+    }
+
+    fn ids(pinned: &[Pin]) -> Vec<&str> {
+        pinned.iter().map(|it| it.id.as_str()).collect()
+    }
+
+    #[test]
+    fn a_fresh_pin_lands_at_the_gap() {
+        let mut pinned = vec![pin("a"), pin("b")];
+
+        assert!(place(&mut pinned, pin("c"), Some(1)));
+        assert_eq!(ids(&pinned), ["a", "c", "b"]);
+    }
+
+    #[test]
+    fn no_gap_appends() {
+        let mut pinned = vec![pin("a")];
+
+        assert!(place(&mut pinned, pin("b"), None));
+        assert_eq!(ids(&pinned), ["a", "b"]);
+    }
+
+    #[test]
+    fn a_gap_past_the_end_still_appends() {
+        let mut pinned = vec![pin("a")];
+
+        assert!(place(&mut pinned, pin("b"), Some(9)));
+        assert_eq!(ids(&pinned), ["a", "b"]);
+    }
+
+    #[test]
+    fn pinning_twice_moves_instead_of_duplicating() {
+        let mut pinned = vec![pin("a"), pin("b"), pin("c")];
+
+        assert!(place(&mut pinned, pin("a"), Some(3)));
+        assert_eq!(ids(&pinned), ["b", "c", "a"]);
+    }
+
+    #[test]
+    fn a_move_backwards_keeps_the_gap() {
+        let mut pinned = vec![pin("a"), pin("b"), pin("c")];
+
+        assert!(place(&mut pinned, pin("c"), Some(0)));
+        assert_eq!(ids(&pinned), ["c", "a", "b"]);
+    }
+
+    #[test]
+    fn the_gaps_around_an_item_are_no_ops() {
+        let mut pinned = vec![pin("a"), pin("b"), pin("c")];
+
+        assert!(!place(&mut pinned, pin("b"), Some(1)));
+        assert!(!place(&mut pinned, pin("b"), Some(2)));
+        assert_eq!(ids(&pinned), ["a", "b", "c"]);
+    }
+
+    #[test]
+    fn kinds_with_the_same_id_stay_apart() {
+        let mut pinned = vec![Pin::new(PinKind::Album, "x", "x")];
+
+        assert!(place(&mut pinned, Pin::new(PinKind::Song, "x", "x"), None));
+        assert_eq!(pinned.len(), 2);
+    }
 }
