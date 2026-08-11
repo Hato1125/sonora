@@ -78,15 +78,15 @@ async fn legacy_artist(session: &Session, artist_id: &str) -> Result<Artist> {
         }
     };
     let (tracks, releases) = tokio::join!(tracks, releases);
-    let mut known_tracks = tracks?;
-    let mut known_albums = releases?;
+    let known_tracks = tracks?;
+    let known_albums = releases?;
     let top_tracks = track_uris
         .iter()
-        .filter_map(|uri| known_tracks.remove(uri))
+        .filter_map(|uri| known_tracks.get(uri).cloned())
         .collect();
     let releases = release_uris
         .iter()
-        .filter_map(|uri| known_albums.remove(uri))
+        .filter_map(|uri| known_albums.get(uri).cloned())
         .collect();
 
     Ok(artist_from(&message, top_tracks, releases))

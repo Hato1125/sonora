@@ -149,8 +149,11 @@ async fn tracks_from(session: &Session, content: &SelectedListContent) -> Result
         return Ok(Vec::new());
     }
 
-    let mut known = collection::metadata(session, &uris).await?;
-    Ok(uris.iter().filter_map(|uri| known.remove(uri)).collect())
+    let known = collection::metadata(session, &uris).await?;
+    Ok(uris
+        .iter()
+        .filter_map(|uri| known.get(uri).cloned())
+        .collect())
 }
 
 async fn snapshot(session: &Session, playlist_id: &str) -> Result<SelectedListContent> {

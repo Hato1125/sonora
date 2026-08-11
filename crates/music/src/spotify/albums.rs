@@ -23,8 +23,11 @@ pub async fn saved_albums(session: &Session, limit: u32) -> Result<Vec<Album>> {
         return Ok(Vec::new());
     }
 
-    let mut known = metadata(session, &uris).await?;
-    Ok(uris.iter().filter_map(|uri| known.remove(uri)).collect())
+    let known = metadata(session, &uris).await?;
+    Ok(uris
+        .iter()
+        .filter_map(|uri| known.get(uri).cloned())
+        .collect())
 }
 
 pub async fn album(session: &Session, album_id: &str) -> Result<AlbumDetail> {
@@ -59,8 +62,10 @@ async fn legacy_album(session: &Session, album_id: &str) -> Result<AlbumDetail> 
     let tracks = match uris.is_empty() {
         true => Vec::new(),
         false => {
-            let mut known = collection::metadata(session, &uris).await?;
-            uris.iter().filter_map(|uri| known.remove(uri)).collect()
+            let known = collection::metadata(session, &uris).await?;
+            uris.iter()
+                .filter_map(|uri| known.get(uri).cloned())
+                .collect()
         }
     };
     Ok(AlbumDetail { album, tracks })

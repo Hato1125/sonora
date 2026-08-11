@@ -241,7 +241,7 @@ impl SidebarRight {
                 .as_ref()
                 .is_some_and(|menu| menu.revision != revision)
             {
-                this.track_menu.reset();
+                this.track_menu.reset(cx);
                 this.context_menu = None;
             }
             cx.notify();
@@ -325,7 +325,7 @@ impl SidebarRight {
     }
 
     pub(crate) fn close(&mut self, cx: &mut Context<Self>) {
-        self.track_menu.reset();
+        self.track_menu.reset(cx);
         self.context_menu = None;
         self.open = false;
         self.remember(cx);
@@ -339,7 +339,7 @@ impl SidebarRight {
     }
 
     fn dismiss_menu(&mut self, cx: &mut Context<Self>) {
-        self.track_menu.reset();
+        self.track_menu.reset(cx);
         self.context_menu = None;
         cx.notify();
     }
@@ -390,7 +390,7 @@ impl SidebarRight {
             MouseButton::Right,
             cx.listener(move |this, event: &MouseDownEvent, window, cx| {
                 window.prevent_default();
-                this.track_menu.reset();
+                this.track_menu.reset(cx);
                 this.context_menu = Some(ContextMenuState {
                     track: menu_track.clone(),
                     revision: queue_revision,
@@ -727,6 +727,10 @@ impl SidebarRight {
         if self.verse_of != following {
             self.verse_of = following;
             self.anchor_verse();
+            let scroll = self.verse_bar.read(cx).scroll().clone();
+            scroll.set_offset(gpui::point(scroll.offset().x, px(0.)));
+            self.verse_bar
+                .update(cx, |bar, _| bar.settle(scroll.offset().y));
         }
         if let Some(lines) = &lines {
             self.pin_verse(music::lyrics::active(lines, at), window, cx);
@@ -788,11 +792,13 @@ impl SidebarRight {
             scroll.set_offset(gpui::point(scroll.offset().x, goal));
             self.placed = Some(goal);
             self.goal = None;
+            self.verse_bar.update(cx, |bar, _| bar.settle(goal));
             return;
         }
         let next = current + step * GLIDE;
         scroll.set_offset(gpui::point(scroll.offset().x, next));
         self.placed = Some(next);
+        self.verse_bar.update(cx, |bar, _| bar.settle(next));
         window.request_animation_frame();
     }
 

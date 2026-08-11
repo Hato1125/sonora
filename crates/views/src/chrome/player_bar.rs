@@ -76,7 +76,7 @@ impl PlayerBar {
         position: Point<Pixels>,
         cx: &mut Context<Self>,
     ) {
-        self.track_menu.reset();
+        self.track_menu.reset(cx);
         self.context_menu = Some((track, position));
         cx.notify();
     }
