@@ -17,7 +17,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   out, switching to a service already connected takes effect immediately, and a service that is not
   connected yet offers its sign-in options right there — including importing from a named browser.
 - The login screen puts each service in its own column with guest mode below them, and importing a
-  YouTube Music session asks which browser to read it from.
+  YouTube Music session asks which browser to read it from — Firefox, Zen, LibreWolf, Floorp,
+  Waterfox, Mullvad, Tor, Pale Moon, Basilisk, SeaMonkey, Chrome, Chromium, Brave, Edge, Vivaldi,
+  Opera, Yandex, Arc, Thorium and Helium are recognised, including Flatpak and Snap installs.
 - YouTube Music albums and playlists play the album audio of a song rather than its music video, so
   a track lasts as long as its listed length.
 - Switching, pausing, resuming, and seeking a YouTube Music track fade in and out instead of

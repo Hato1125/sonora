@@ -3,6 +3,7 @@
 use std::path::Path;
 use std::process::Command;
 
+use crate::shared::browsers::BrowserPicker;
 use gpui::{
     AnyElement, Context, Entity, FontWeight, Pixels, Render, SharedString, Window, div, px,
 };
@@ -94,6 +95,7 @@ pub struct SettingsView {
     scrollbar: Entity<Scrollbar>,
     opacity: ScrubberState,
     popovers: Popovers,
+    browsers: Option<(&'static str, Vec<SharedString>)>,
 }
 
 impl SettingsView {
@@ -113,6 +115,7 @@ impl SettingsView {
             scrollbar: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
             opacity: ScrubberState::new("opacity"),
             popovers: Popovers::default(),
+            browsers: None,
         }
     }
 
@@ -662,9 +665,13 @@ impl SettingsView {
             (false, _, true) => t!("settings-provider-connected"),
             (false, _, false) => t!("settings-provider-none"),
         };
+        let mut seen_browser = false;
         let methods: Vec<SignIn> = options
             .into_iter()
-            .filter(|option| offered(option, stored))
+            .filter(|option| match option {
+                SignIn::Browser(_) => !std::mem::replace(&mut seen_browser, true),
+                option => offered(option, stored),
+            })
             .collect();
 
         div()
@@ -680,6 +687,7 @@ impl SettingsView {
                     .flex()
                     .items_center()
                     .gap_3()
+                    .pl_2()
                     .child(
                         svg()
                             .path(crate::shared::provider_logo(slug))
@@ -764,9 +772,9 @@ impl SettingsView {
                 format!("connect-{slug}-guest"),
                 t!("login-use", provider = provider),
             ),
-            SignIn::Browser(browser) => (
-                format!("connect-{slug}-{browser}"),
-                t!("settings-import-from", browser = browser.clone()),
+            SignIn::Browser(_) => (
+                format!("connect-{slug}-browser"),
+                t!("login-import-browser"),
             ),
             SignIn::Secret => (
                 format!("connect-{slug}-cookies"),
@@ -779,10 +787,55 @@ impl SettingsView {
             .small()
             .outline()
             .disabled(pending)
-            .on_click(cx.listener(move |this, _, _, cx| {
-                let method = method.clone();
+            .on_click(cx.listener(move |this, _, _, cx| match &method {
+                SignIn::Browser(_) => this.open_browsers(slug, cx),
+                method => {
+                    let method = method.clone();
+                    this.session
+                        .update(cx, |session, cx| session.sign_in(slug, method, cx));
+                }
+            }))
+    }
+
+    fn open_browsers(&mut self, slug: &'static str, cx: &mut Context<Self>) {
+        let names: Vec<SharedString> = self
+            .session
+            .read(cx)
+            .providers()
+            .find(|info| info.slug == slug)
+            .map(|info| {
+                info.options
+                    .iter()
+                    .filter_map(|option| match option {
+                        SignIn::Browser(name) => Some(SharedString::from(name.clone())),
+                        _ => None,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        if names.is_empty() {
+            return;
+        }
+        self.browsers = Some((slug, names));
+        cx.notify();
+    }
+
+    fn browser_modal(
+        &self,
+        slug: &'static str,
+        names: Vec<SharedString>,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        BrowserPicker::new(names)
+            .on_pick(cx.listener(move |this, name: &SharedString, _, cx| {
+                this.browsers = None;
+                let method = SignIn::Browser(name.to_string());
                 this.session
                     .update(cx, |session, cx| session.sign_in(slug, method, cx));
+            }))
+            .on_cancel(cx.listener(|this, _, _, cx| {
+                this.browsers = None;
+                cx.notify();
             }))
     }
 
@@ -955,26 +1008,36 @@ fn open_settings_file(path: &Path) -> std::io::Result<()> {
 
 impl Render for SettingsView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        Scroller::new("settings", &self.scrollbar)
-            .flex()
-            .flex_col()
-            .items_center()
+        let browsers = self.browsers.clone();
+
+        div()
+            .relative()
+            .size_full()
             .child(
-                div()
+                Scroller::new("settings", &self.scrollbar)
                     .flex()
                     .flex_col()
-                    .gap_6()
-                    .w_full()
-                    .max_w(px(640.))
-                    .p_6()
-                    .when(self.tab == SettingsTab::General, |this| {
-                        this.child(self.profile(cx))
-                            .child(Separator::horizontal().w_full())
-                    })
-                    .child(self.panel(cx))
-                    .when(self.tab == SettingsTab::About, |this| {
-                        this.child(self.team(cx)).child(self.notice(cx))
-                    }),
+                    .items_center()
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .gap_6()
+                            .w_full()
+                            .max_w(px(640.))
+                            .p_6()
+                            .when(self.tab == SettingsTab::General, |this| {
+                                this.child(self.profile(cx))
+                                    .child(Separator::horizontal().w_full())
+                            })
+                            .child(self.panel(cx))
+                            .when(self.tab == SettingsTab::About, |this| {
+                                this.child(self.team(cx)).child(self.notice(cx))
+                            }),
+                    ),
             )
+            .when_some(browsers, |this, (slug, names)| {
+                this.child(self.browser_modal(slug, names, cx).into_any_element())
+            })
     }
 }

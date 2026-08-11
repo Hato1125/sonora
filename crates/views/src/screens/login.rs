@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+use crate::shared::browsers::BrowserPicker;
 use gpui::prelude::*;
 use gpui::{
-    AnyElement, ClipboardItem, Context, Entity, FontWeight, IntoElement, MouseButton, Pixels,
-    Render, SharedString, Window, div, px, svg,
+    AnyElement, ClipboardItem, Context, Entity, FontWeight, IntoElement, Pixels, Render,
+    SharedString, Window, div, px, svg,
 };
 use i18n::t;
 use music::{SignIn, SignInPrompt};
 use state::{Session, SessionState};
 use ui::ActiveTheme as _;
-use ui::{Button, Input, Separator, Shield, Text, heading};
+use ui::{Button, Input, Separator, Text};
 
 const COLUMN: Pixels = px(280.);
 const LOGO: Pixels = px(48.);
@@ -275,73 +276,15 @@ impl LoginView {
         names: Vec<SharedString>,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
-        let theme = *cx.theme();
-        div()
-            .absolute()
-            .inset_0()
-            .flex()
-            .items_center()
-            .justify_center()
-            .child(
-                Shield::new("login-browser-shield")
-                    .absolute()
-                    .inset_0()
-                    .bg(theme.background.opacity(0.8))
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(|this, _, _, cx| {
-                            this.browsers = None;
-                            cx.notify();
-                        }),
-                    ),
-            )
-            .child(
-                div()
-                    .relative()
-                    .w(theme.metrics.cover * 2.4)
-                    .flex()
-                    .flex_col()
-                    .gap_4()
-                    .p(theme.metrics.inset)
-                    .rounded(theme.radius)
-                    .border_1()
-                    .border_color(theme.border)
-                    .bg(theme.popover)
-                    .child(heading(t!("login-browser-title"), cx))
-                    .child(
-                        div()
-                            .text_size(theme.text(Text::Small))
-                            .text_color(theme.muted_foreground)
-                            .child(t!("login-browser-detail")),
-                    )
-                    .child(
-                        div()
-                            .flex()
-                            .flex_col()
-                            .gap_2()
-                            .children(names.into_iter().map(|name| {
-                                Button::new(SharedString::from(format!("browser-{name}")))
-                                    .label(name.clone())
-                                    .outline()
-                                    .w_full()
-                                    .on_click(cx.listener(move |this, _, _, cx| {
-                                        this.browsers = None;
-                                        this.start(slug, SignIn::Browser(name.to_string()), cx);
-                                    }))
-                            })),
-                    )
-                    .child(
-                        div().flex().justify_end().child(
-                            Button::new("cancel-browser")
-                                .ghost()
-                                .label(t!("common-cancel"))
-                                .on_click(cx.listener(|this, _, _, cx| {
-                                    this.browsers = None;
-                                    cx.notify();
-                                })),
-                        ),
-                    ),
-            )
+        BrowserPicker::new(names)
+            .on_pick(cx.listener(move |this, name: &SharedString, _, cx| {
+                this.browsers = None;
+                this.start(slug, SignIn::Browser(name.to_string()), cx);
+            }))
+            .on_cancel(cx.listener(|this, _, _, cx| {
+                this.browsers = None;
+                cx.notify();
+            }))
     }
 }
 
@@ -406,7 +349,7 @@ impl Render for LoginView {
                     .gap_2()
                     .child(
                         div()
-                            .child("sonora")
+                            .child("Sonora")
                             .text_size(theme.text(Text::Display))
                             .font_weight(FontWeight::BOLD),
                     )
