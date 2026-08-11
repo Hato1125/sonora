@@ -5,7 +5,7 @@ use i18n::t;
 use music::{Album, MediaKind, Playlist, Track};
 use router::{Destination, navigate};
 use state::{Detail, LibraryState, Playback, Sonora};
-use ui::{Menu, MenuItem, Scrollbar, SubmenuState};
+use ui::{Menu, MenuItem, Pin, PinKind, Scrollbar, SubmenuState};
 
 use crate::shared::playlist_editor::{Edit, PlaylistEditor};
 
@@ -502,6 +502,98 @@ pub(crate) fn playlist_menu(
             ],
         ],
     )
+}
+
+pub(crate) fn pin_menu(pin: &Pin, tracks: &ItemMenu, playback: Entity<Playback>, cx: &App) -> Menu {
+    let library = Sonora::global(cx).library.clone();
+    let built = match pin.kind {
+        PinKind::Album => library
+            .read(cx)
+            .album(&pin.id)
+            .cloned()
+            .map(|album| album_menu(album, playback.clone(), false, cx)),
+        PinKind::Playlist => library
+            .read(cx)
+            .playlist(&pin.id)
+            .cloned()
+            .map(|playlist| playlist_menu(playlist, playback.clone(), false, cx)),
+        PinKind::Artist => Some(artist_menu(pin.id.clone())),
+        PinKind::Song => saved_track(&pin.id, cx).map(|track| tracks.for_track(&track, cx)),
+    };
+
+    let menu = built.unwrap_or_else(|| sparse_pin_menu(pin, playback));
+
+    menu.item(MenuItem::separator("pin-separator"))
+        .item(unpin_item(pin))
+}
+
+fn sparse_pin_menu(pin: &Pin, playback: Entity<Playback>) -> Menu {
+    let played = pin.id.clone();
+    let copied = pin.id.clone();
+    let kind = media_kind(pin.kind);
+    let play = match pin.kind {
+        PinKind::Album => Some(
+            MenuItem::new("play-pin", t!("common-play"))
+                .icon("icons/play.svg")
+                .on_click(move |_, _, cx| {
+                    playback.update(cx, |playback, cx| playback.play_album(&played, cx));
+                }),
+        ),
+        PinKind::Playlist => Some(
+            MenuItem::new("play-pin", t!("common-play"))
+                .icon("icons/play.svg")
+                .on_click(move |_, _, cx| {
+                    playback.update(cx, |playback, cx| playback.play_playlist(&played, cx));
+                }),
+        ),
+        PinKind::Artist | PinKind::Song => None,
+    };
+
+    sections(
+        Menu::new("pin-context-menu"),
+        vec![
+            play.into_iter().collect(),
+            vec![
+                MenuItem::new("copy-pin-link", t!("menu-copy-link"))
+                    .icon("icons/link.svg")
+                    .on_click(move |_, _, cx| copy_link(kind, &copied, cx)),
+            ],
+        ],
+    )
+}
+
+fn unpin_item(pin: &Pin) -> MenuItem {
+    let unpinned = pin.clone();
+
+    MenuItem::new("unpin", t!("nav-unpin"))
+        .icon("icons/x.svg")
+        .on_click(move |_, _, cx| {
+            Sonora::global(cx)
+                .settings
+                .clone()
+                .update(cx, |settings, cx| settings.unpin(&unpinned, cx));
+        })
+}
+
+fn media_kind(kind: PinKind) -> MediaKind {
+    match kind {
+        PinKind::Album => MediaKind::Album,
+        PinKind::Artist => MediaKind::Artist,
+        PinKind::Playlist => MediaKind::Playlist,
+        PinKind::Song => MediaKind::Track,
+    }
+}
+
+fn saved_track(id: &str, cx: &App) -> Option<Track> {
+    let library = Sonora::global(cx).library.read(cx);
+    let LibraryState::Ready { tracks, .. } = library.state() else {
+        return None;
+    };
+
+    tracks
+        .iter()
+        .find(|track| track.id.as_deref() == Some(id))
+        .cloned()
 }
 
 fn copy_link(kind: MediaKind, id: &str, cx: &mut App) {

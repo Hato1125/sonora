@@ -30,6 +30,9 @@ nav-back = Wstecz
 nav-forward = Dalej
 nav-sidebar = Pokaż lub ukryj panel boczny
 nav-sidebar-right = Pokaż lub ukryj tekst i kolejkę
+nav-pinned = Przypięte
+nav-unpin = Odepnij
+nav-pin-hint = Upuść tutaj, aby przypiąć
 library-liked-songs = Polubione utwory
 library-play-liked-songs = Odtwórz
 library-no-songs = Brak polubionych utworów
@@ -214,6 +217,7 @@ search-saved =
 kind-song = Utwór
 kind-artist = Wykonawca
 kind-album = Album
+kind-playlist = Playlista
 
 # song page
 song-eyebrow = Utwór

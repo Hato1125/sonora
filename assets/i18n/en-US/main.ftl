@@ -30,6 +30,9 @@ nav-back = Back
 nav-forward = Forward
 nav-sidebar = Toggle sidebar
 nav-sidebar-right = Show or hide lyrics and queue
+nav-pinned = Pinned
+nav-unpin = Unpin
+nav-pin-hint = Drop here to pin
 library-liked-songs = Liked Songs
 library-play-liked-songs = Play
 library-no-songs = No liked songs yet
@@ -212,6 +215,7 @@ search-saved =
 kind-song = Song
 kind-artist = Artist
 kind-album = Album
+kind-playlist = Playlist
 
 # song page
 song-eyebrow = Song
