@@ -90,6 +90,9 @@ playlist-create-title = Create playlist
 playlist-rename-title = Rename playlist
 playlist-delete-title = Delete playlist
 playlist-delete-confirm = Delete “{ $name }”? This cannot be undone.
+playlist-again-title = Add it again?
+playlist-again-confirm = This track is already in “{ $name }”. Add another copy?
+playlist-again-add = Add again
 
 # queue panel
 queue-title = Queue

@@ -13,6 +13,7 @@ pub(crate) enum Edit {
     Create(Option<String>),
     Rename(Playlist),
     Delete(Playlist),
+    Again { playlist: Playlist, track: String },
 }
 
 pub(crate) struct PlaylistEditor {
@@ -48,11 +49,11 @@ impl PlaylistEditor {
     fn show(&mut self, edit: Edit, window: &mut Window, cx: &mut Context<Self>) {
         let name = match &edit {
             Edit::Rename(playlist) => playlist.name.clone(),
-            Edit::Create(_) | Edit::Delete(_) => String::new(),
+            _ => String::new(),
         };
         self.restore = window.focused(cx);
         self.name.update(cx, |input, cx| input.set_text(name, cx));
-        match matches!(edit, Edit::Delete(_)) {
+        match plain(&edit) {
             true => window.focus(&self.focus, cx),
             false => self.name.update(cx, |input, cx| input.focus(window, cx)),
         }
@@ -90,10 +91,17 @@ impl PlaylistEditor {
             Edit::Delete(playlist) => library.update(cx, |library, cx| {
                 library.delete_playlist(playlist.id, cx);
             }),
+            Edit::Again { playlist, track } => library.update(cx, |library, cx| {
+                library.add_to_playlist(playlist.id, track, cx);
+            }),
             _ => {}
         }
         cx.notify();
     }
+}
+
+fn plain(edit: &Edit) -> bool {
+    matches!(edit, Edit::Delete(_) | Edit::Again { .. })
 }
 
 impl Render for PlaylistEditor {
@@ -103,13 +111,18 @@ impl Render for PlaylistEditor {
         };
         let theme = *cx.theme();
         let deleting = matches!(edit, Edit::Delete(_));
+        let asking = plain(&edit);
         let title = match &edit {
             Edit::Create(_) => t!("playlist-create-title"),
             Edit::Rename(_) => t!("playlist-rename-title"),
             Edit::Delete(_) => t!("playlist-delete-title"),
+            Edit::Again { .. } => t!("playlist-again-title"),
         };
         let detail = match &edit {
             Edit::Delete(playlist) => Some(t!("playlist-delete-confirm", name = &playlist.name)),
+            Edit::Again { playlist, .. } => {
+                Some(t!("playlist-again-confirm", name = &playlist.name))
+            }
             _ => None,
         };
 
@@ -130,7 +143,7 @@ impl Render for PlaylistEditor {
                 Modal::new("playlist-editor", title)
                     .width(theme.metrics.cover * 2.8)
                     .when_some(detail, Modal::detail)
-                    .when(!deleting, |modal| modal.child(self.name.clone()))
+                    .when(!asking, |modal| modal.child(self.name.clone()))
                     .action(
                         Button::new("cancel-playlist-edit")
                             .ghost()
@@ -144,9 +157,10 @@ impl Render for PlaylistEditor {
                                 |button| button.danger(),
                                 |button| button.primary(),
                             )
-                            .label(match deleting {
-                                true => t!("common-delete"),
-                                false => t!("common-save"),
+                            .label(match &edit {
+                                Edit::Delete(_) => t!("common-delete"),
+                                Edit::Again { .. } => t!("playlist-again-add"),
+                                _ => t!("common-save"),
                             })
                             .on_click(cx.listener(|this, _, window, cx| this.apply(window, cx))),
                     )

@@ -121,20 +121,37 @@ impl ItemMenu {
                 .item(new_playlist)
                 .item(MenuItem::separator("playlist-separator"))
                 .items(playlists.into_iter().map(|playlist| {
-                    let item = MenuItem::new(format!("playlist-{}", playlist.id), playlist.name)
-                        .artwork(playlist.cover);
+                    let held = track
+                        .id
+                        .as_deref()
+                        .and_then(|id| library.read(cx).holds(&playlist.id, id))
+                        .unwrap_or(false);
+                    let item =
+                        MenuItem::new(format!("playlist-{}", playlist.id), playlist.name.clone())
+                            .artwork(playlist.cover.clone())
+                            .selected(held);
                     match track.id.clone() {
                         Some(track_id) => {
                             let library = library.clone();
-                            let playlist_id = playlist.id;
-                            item.on_click(move |_, _, cx| {
-                                library.update(cx, |library, cx| {
-                                    library.add_to_playlist(
-                                        playlist_id.clone(),
-                                        track_id.clone(),
-                                        cx,
-                                    )
-                                });
+                            let playlist_id = playlist.id.clone();
+                            item.on_click(move |_, window, cx| match held {
+                                true => PlaylistEditor::open(
+                                    Edit::Again {
+                                        playlist: playlist.clone(),
+                                        track: track_id.clone(),
+                                    },
+                                    window,
+                                    cx,
+                                ),
+                                false => {
+                                    library.update(cx, |library, cx| {
+                                        library.add_to_playlist(
+                                            playlist_id.clone(),
+                                            track_id.clone(),
+                                            cx,
+                                        )
+                                    });
+                                }
                             })
                         }
                         None => item.disabled(),

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -86,6 +86,8 @@ pub struct Library {
     playlist_task: Option<Task<()>>,
     pending: HashMap<String, Task<()>>,
     pending_albums: HashMap<String, Task<()>>,
+    contents: HashMap<String, HashSet<String>>,
+    reading: HashMap<String, Task<()>>,
 }
 
 impl Library {
@@ -103,6 +105,8 @@ impl Library {
                 }
             }
             SessionEvent::SignedOut => {
+                this.contents.clear();
+                this.reading.clear();
                 this.task = None;
                 this.playlist_task = None;
                 this.pending.clear();
@@ -131,6 +135,8 @@ impl Library {
             playlist_task: None,
             pending: HashMap::new(),
             pending_albums: HashMap::new(),
+            contents: HashMap::new(),
+            reading: HashMap::new(),
         };
         if let Some(client) = local_client {
             library.load_local(client, cx);
@@ -343,6 +349,7 @@ impl Library {
         cx: &mut Context<Self>,
     ) {
         let added = playlist_id.clone();
+        let held = track_id.clone();
         let name = self
             .playlist(&playlist_id)
             .map(|playlist| playlist.name.clone());
@@ -353,6 +360,9 @@ impl Library {
             move |client| async move { client.add_track_to_playlist(&playlist_id, &track_id).await },
             move |this, _, cx| {
                 this.amend_playlist(&added, |playlist| playlist.track_count += 1, cx);
+                if let Some(ids) = this.contents.get_mut(&added) {
+                    ids.insert(held);
+                }
             },
             cx,
         );
@@ -406,6 +416,52 @@ impl Library {
             return None;
         };
         albums.iter().find(|album| album.id == id)
+    }
+
+    pub fn holds(&self, playlist_id: &str, track_id: &str) -> Option<bool> {
+        Some(self.contents.get(playlist_id)?.contains(track_id))
+    }
+
+    pub fn read_playlists(&mut self, cx: &mut Context<Self>) {
+        let LibraryState::Ready { playlists, .. } = &self.state else {
+            return;
+        };
+        let wanted: Vec<String> = playlists
+            .iter()
+            .filter(|playlist| playlist.owned || playlist.collaborative)
+            .map(|playlist| playlist.id.clone())
+            .filter(|id| !self.contents.contains_key(id) && !self.reading.contains_key(id))
+            .collect();
+        let Some(client) = self.session.read(cx).client() else {
+            return;
+        };
+
+        for id in wanted {
+            let io = self.io.clone();
+            let client = client.clone();
+            let key = id.clone();
+            let asked = id.clone();
+            let task = cx.spawn(async move |this, cx| {
+                let listed =
+                    join(io.spawn(async move { client.playlist_tracks(&asked).await })).await;
+
+                this.update(cx, |this, cx| {
+                    this.reading.remove(&key);
+                    match listed {
+                        Ok(tracks) => {
+                            let ids = tracks.into_iter().filter_map(|track| track.id).collect();
+                            this.contents.insert(key, ids);
+                            cx.notify();
+                        }
+                        Err(error) => {
+                            log::warn!("library: cannot read a playlist: {error:#}")
+                        }
+                    }
+                })
+                .ok();
+            });
+            self.reading.insert(id.clone(), task);
+        }
     }
 
     pub fn playlist(&self, id: &str) -> Option<&Playlist> {
@@ -543,6 +599,7 @@ impl Library {
                     Ok(loaded) => partial(loaded),
                     Err(error) => LibraryState::Failed(format!("{error:#}")),
                 };
+                this.read_playlists(cx);
                 cx.notify();
             })
             .ok();
