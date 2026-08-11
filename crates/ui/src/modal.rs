@@ -102,6 +102,7 @@ impl RenderOnce for Modal {
             .child(
                 div()
                     .relative()
+                    .occlude()
                     .w(width.unwrap_or(theme.metrics.cover * WIDTH))
                     .flex()
                     .flex_col()

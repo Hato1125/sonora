@@ -332,6 +332,11 @@ impl Render for LoginView {
             SessionState::Authorizing(prompt) => prompt.clone(),
             _ => None,
         };
+        let secret = matches!(prompt, Some(SignInPrompt::Secret));
+        let code = match prompt {
+            Some(SignInPrompt::Code { code, url }) => Some((code, url)),
+            _ => None,
+        };
 
         let theme = *cx.theme();
         let status_color = match matches!(state, SessionState::Failed(_)) {
@@ -369,11 +374,8 @@ impl Render for LoginView {
                             .child(status),
                     ),
             )
-            .when_some(prompt, |this, prompt| match prompt {
-                SignInPrompt::Code { code, url } => {
-                    this.child(self.code_prompt(code, url, cx).into_any_element())
-                }
-                SignInPrompt::Secret => this.child(self.secret_prompt(cx).into_any_element()),
+            .when_some(code, |this, (code, url)| {
+                this.child(self.code_prompt(code, url, cx).into_any_element())
             })
             .child(
                 div()
@@ -387,6 +389,9 @@ impl Render for LoginView {
             )
             .when(!guests.is_empty(), |this| {
                 this.child(self.guest_mode(guests, pending, cx))
+            })
+            .when(secret, |this| {
+                this.child(self.secret_prompt(cx).into_any_element())
             })
             .when_some(browsers, |this, (slug, names)| {
                 this.child(self.browser_modal(slug, names, cx).into_any_element())
