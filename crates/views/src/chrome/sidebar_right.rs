@@ -599,6 +599,7 @@ impl SidebarRight {
             .small()
             .icon(icon)
             .tooltip(tooltip)
+            .rounded_full()
             .selected(self.tab == tab)
             .tint(match self.tab == tab {
                 true => theme.foreground,

@@ -90,6 +90,9 @@ playlist-create-title = Создать плейлист
 playlist-rename-title = Переименовать плейлист
 playlist-delete-title = Удалить плейлист
 playlist-delete-confirm = Удалить «{ $name }»? Это действие нельзя отменить.
+playlist-again-title = Добавить ещё раз?
+playlist-again-confirm = Этот трек уже есть в «{ $name }». Добавить копию?
+playlist-again-add = Добавить ещё раз
 
 # queue panel
 queue-title = Очередь

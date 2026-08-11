@@ -24,6 +24,8 @@ const SUBMENU_TOP: Pixels = px(-14.);
 const SCROLLBAR_GUTTER: Pixels = px(8.);
 const WINDOW_MARGIN: Pixels = px(8.);
 const PANEL_SLACK: Pixels = px(6.);
+const PAD: f32 = 0.25;
+const BORDER: Pixels = px(1.);
 
 type Press = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 type Dismiss = Box<dyn Fn(&(), &mut Window, &mut App) + 'static>;
@@ -154,6 +156,7 @@ pub struct MenuItem {
     id: ElementId,
     label: SharedString,
     selected: bool,
+    checked: bool,
     disabled: bool,
     separator: bool,
     content: Option<AnyElement>,
@@ -171,6 +174,7 @@ impl MenuItem {
             id: id.into(),
             label: label.into(),
             selected: false,
+            checked: false,
             disabled: false,
             separator: false,
             content: None,
@@ -179,6 +183,11 @@ impl MenuItem {
             press: None,
             submenu: None,
         }
+    }
+
+    pub fn checked(mut self, checked: bool) -> Self {
+        self.checked = checked;
+        self
     }
 
     pub fn selected(mut self, selected: bool) -> Self {
@@ -191,6 +200,7 @@ impl MenuItem {
             id: id.into(),
             label: SharedString::default(),
             selected: false,
+            checked: false,
             disabled: true,
             separator: true,
             content: None,
@@ -359,12 +369,14 @@ impl RenderOnce for Menu {
             .collect();
         let bounds_guards = dismiss_guards.clone();
         let viewport_width = window.viewport_size().width;
+        let tucked = (theme.radius - window.rem_size() * PAD - BORDER).max(Pixels::ZERO);
 
         let rows = items.into_iter().map(move |item| {
             let MenuItem {
                 id,
                 label,
                 selected,
+                checked,
                 disabled,
                 separator,
                 content,
@@ -406,7 +418,7 @@ impl RenderOnce for Menu {
                 .justify_between()
                 .px_3()
                 .py_1()
-                .rounded(theme.radius)
+                .rounded(tucked)
                 .when_else(
                     disabled,
                     |this| this.text_color(theme.muted_foreground).cursor_default(),
@@ -436,7 +448,7 @@ impl RenderOnce for Menu {
                         })
                         .child(div().truncate().child(label)),
                 )
-                .when(selected, |this| this.child("✓"))
+                .when(selected || checked, |this| this.child("✓"))
                 .when(submenu.is_some(), |this| this.child("›"))
                 .when_some(submenu_state, |this, state| {
                     this.on_hover(move |hovered, window, cx| {
