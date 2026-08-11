@@ -41,11 +41,11 @@ impl ItemMenu {
     }
 
     pub fn for_track(&self, track: &Track, cx: &App) -> Menu {
-        self.build(track, None, None, None, TrackColumns::default(), cx)
+        self.build(track, None, None, TrackColumns::default(), cx)
     }
 
     pub fn for_table_track(&self, track: &Track, columns: TrackColumns, cx: &App) -> Menu {
-        self.build(track, None, None, None, columns, cx)
+        self.build(track, None, None, columns, cx)
     }
 
     pub fn for_album_track(
@@ -55,7 +55,7 @@ impl ItemMenu {
         columns: TrackColumns,
         cx: &App,
     ) -> Menu {
-        self.build(track, None, None, Some(album_id), columns, cx)
+        self.build(track, None, Some(album_id), columns, cx)
     }
 
     pub fn for_playlist_track(
@@ -65,7 +65,6 @@ impl ItemMenu {
         columns: TrackColumns,
         cx: &App,
     ) -> Menu {
-        let playlist_id = detail.read(cx).id().map(str::to_owned);
         let remove = match track.id.clone() {
             Some(id) => MenuItem::new("remove-from-playlist", t!("menu-remove-from-playlist"))
                 .icon("icons/x.svg")
@@ -76,21 +75,13 @@ impl ItemMenu {
                 .icon("icons/x.svg")
                 .disabled(),
         };
-        self.build(
-            track,
-            Some(remove),
-            playlist_id.as_deref(),
-            None,
-            columns,
-            cx,
-        )
+        self.build(track, Some(remove), None, columns, cx)
     }
 
     fn build(
         &self,
         track: &Track,
         library_action: Option<MenuItem>,
-        current_playlist: Option<&str>,
         current_album: Option<&str>,
         columns: TrackColumns,
         cx: &App,
@@ -100,7 +91,6 @@ impl ItemMenu {
             LibraryState::Ready { playlists, .. } => playlists
                 .iter()
                 .filter(|playlist| playlist.owned || playlist.collaborative)
-                .filter(|playlist| Some(playlist.id.as_str()) != current_playlist)
                 .cloned()
                 .collect(),
             _ => Vec::new(),

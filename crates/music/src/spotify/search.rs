@@ -32,8 +32,11 @@ pub async fn search(session: &Session, query: &str) -> Result<Vec<Track>> {
         return Ok(Vec::new());
     }
 
-    let mut known = collection::metadata(session, &uris).await?;
-    Ok(uris.iter().filter_map(|uri| known.remove(uri)).collect())
+    let known = collection::metadata(session, &uris).await?;
+    Ok(uris
+        .iter()
+        .filter_map(|uri| known.get(uri).cloned())
+        .collect())
 }
 
 fn escaped(query: &str) -> String {
