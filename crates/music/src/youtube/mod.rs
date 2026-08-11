@@ -137,11 +137,9 @@ impl MusicProvider for YouTubeProvider {
                         self.authenticated_session(api, wire::profile(profile)),
                     ));
                 }
-                Err(error) if format!("{error:#}").contains("40") => {
-                    log::warn!("youtube: cached cookies expired, falling back to guest");
-                    let _ = std::fs::remove_file(&self.cookies);
+                Err(error) => {
+                    log::warn!("youtube: cached cookies are no longer usable: {error:#}");
                 }
-                Err(error) => return Err(error).context("cannot restore youtube session"),
             }
         }
         if self.guest.exists() {

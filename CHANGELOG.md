@@ -13,11 +13,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   both services; YouTube Music can be browsed as a guest, connected by importing an existing
   browser session, or connected by pasting cookies, and the whole library — liked songs,
   playlists, albums, artists, search, and radio — works through the same interface.
-- The general settings turn the streaming service into a picker: every service signed in to before
-  is listed and switching between them takes effect immediately, with "Add more…" opening the login
-  screen to connect one that is still missing.
-- The login screen puts each service in its own column, and importing a YouTube Music session asks
-  which browser to read it from.
+- The general settings gain a "Manage accounts" section: every service is listed with its own sign
+  out, switching to a service already connected takes effect immediately, and a service that is not
+  connected yet offers its sign-in options right there — including importing from a named browser.
+- The login screen puts each service in its own column with guest mode below them, and importing a
+  YouTube Music session asks which browser to read it from.
 - YouTube Music albums and playlists play the album audio of a song rather than its music video, so
   a track lasts as long as its listed length.
 - Switching, pausing, resuming, and seeking a YouTube Music track fade in and out instead of
@@ -27,6 +27,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 
 - Release cards on an artist page show the release year instead of repeating the artist's name.
+
+### Fixed
+
+- A disabled button reads clearly instead of fading its label into its own background.
+- A YouTube Music session whose saved cookies stopped working falls back to guest browsing or the
+  login screen instead of failing with an error.
 
 ## [0.7.0] - 2026-08-10
 

@@ -130,6 +130,7 @@ impl LoginView {
         let options: Vec<&SignIn> = options
             .iter()
             .filter(|option| match option {
+                SignIn::Anonymous => false,
                 SignIn::Browser(_) => !std::mem::replace(&mut seen_browser, true),
                 _ => true,
             })
@@ -141,10 +142,9 @@ impl LoginView {
             .items_center()
             .gap_3()
             .w(COLUMN)
-            .when(disabled, |this| this.opacity(0.45))
             .child(
                 svg()
-                    .path(logo(slug))
+                    .path(crate::shared::provider_logo(slug))
                     .size(LOGO)
                     .flex_none()
                     .text_color(theme.foreground),
@@ -162,14 +162,51 @@ impl LoginView {
                         .map(|method| self.option_button(slug, name, method, disabled, cx)),
                 ),
             )
-            .when(disabled, |this| {
-                this.child(
-                    div()
-                        .text_size(theme.text(Text::Small))
-                        .text_color(theme.muted_foreground)
-                        .child(t!("login-already-connected")),
-                )
-            })
+    }
+
+    fn guest_mode(
+        &self,
+        guests: Vec<(&'static str, &'static str)>,
+        pending: bool,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let theme = *cx.theme();
+        let mut buttons = Vec::new();
+        for (slug, name) in guests {
+            buttons.push(
+                Button::new(SharedString::from(format!("guest-{slug}")))
+                    .label(t!("login-use", provider = name))
+                    .outline()
+                    .disabled(pending)
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.start(slug, SignIn::Anonymous, cx);
+                    })),
+            );
+        }
+
+        div()
+            .flex()
+            .flex_col()
+            .items_center()
+            .gap_2()
+            .pt_4()
+            .border_t_1()
+            .border_color(theme.border)
+            .w(COLUMN * 2. + px(64.))
+            .child(
+                div()
+                    .font_weight(FontWeight::MEDIUM)
+                    .child(t!("login-guest-title")),
+            )
+            .child(
+                div()
+                    .max_w(px(420.))
+                    .text_center()
+                    .text_size(theme.text(Text::Small))
+                    .text_color(theme.muted_foreground)
+                    .child(t!("login-guest-detail")),
+            )
+            .child(div().flex().gap_2().children(buttons))
     }
 
     fn code_prompt(&self, code: String, url: String, cx: &mut Context<Self>) -> impl IntoElement {
@@ -312,29 +349,33 @@ impl Render for LoginView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let state = self.session.read(cx).state().clone();
         let pending = self.session.read(cx).is_pending();
-        let adding = self.session.read(cx).is_adding();
-        let columns: Vec<Column> = self
-            .session
-            .read(cx)
-            .providers()
+        let providers: Vec<state::ProviderInfo> = self.session.read(cx).providers().collect();
+        let guests: Vec<(&'static str, &'static str)> = providers
+            .iter()
+            .filter(|info| {
+                info.options
+                    .iter()
+                    .any(|option| matches!(option, SignIn::Anonymous))
+            })
+            .map(|info| (info.slug, info.name))
+            .collect();
+        let columns: Vec<Column> = providers
+            .into_iter()
             .map(|info| Column {
                 slug: info.slug,
                 name: info.name,
                 options: info.options,
-                disabled: pending || (adding && info.stored),
+                disabled: pending,
             })
             .collect();
 
-        let status = match (adding, &state) {
-            (true, _) => t!("login-add-detail"),
-            (_, SessionState::SignedOut) => t!("login-signed-out"),
-            (_, SessionState::Restoring) => t!("login-restoring"),
-            (_, SessionState::Authorizing(Some(SignInPrompt::Secret))) => t!("login-cookie-title"),
-            (_, SessionState::Authorizing(_)) => t!("login-authorizing"),
-            (_, SessionState::SignedIn(profile)) => {
-                t!("login-signed-in", name = &profile.display_name)
-            }
-            (_, SessionState::Failed(error)) => SharedString::from(error.clone()),
+        let status = match &state {
+            SessionState::SignedOut => t!("login-signed-out"),
+            SessionState::Restoring => t!("login-restoring"),
+            SessionState::Authorizing(Some(SignInPrompt::Secret)) => t!("login-cookie-title"),
+            SessionState::Authorizing(_) => t!("login-authorizing"),
+            SessionState::SignedIn(profile) => t!("login-signed-in", name = &profile.display_name),
+            SessionState::Failed(error) => SharedString::from(error.clone()),
         };
 
         let prompt = match &state {
@@ -343,7 +384,7 @@ impl Render for LoginView {
         };
 
         let theme = *cx.theme();
-        let status_color = match matches!(state, SessionState::Failed(_)) && !adding {
+        let status_color = match matches!(state, SessionState::Failed(_)) {
             true => theme.danger,
             false => theme.muted_foreground,
         };
@@ -365,10 +406,7 @@ impl Render for LoginView {
                     .gap_2()
                     .child(
                         div()
-                            .child(match adding {
-                                true => t!("login-add-title"),
-                                false => SharedString::from("sonora"),
-                            })
+                            .child("sonora")
                             .text_size(theme.text(Text::Display))
                             .font_weight(FontWeight::BOLD),
                     )
@@ -397,16 +435,8 @@ impl Render for LoginView {
                         self.column(column, cx).into_any_element()
                     })),
             )
-            .when(adding, |this| {
-                this.child(
-                    Button::new("cancel-add-provider")
-                        .ghost()
-                        .label(t!("common-cancel"))
-                        .on_click(cx.listener(|this, _, _, cx| {
-                            this.session
-                                .update(cx, |session, cx| session.cancel_add(cx));
-                        })),
-                )
+            .when(!guests.is_empty(), |this| {
+                this.child(self.guest_mode(guests, pending, cx))
             })
             .when_some(browsers, |this, (slug, names)| {
                 this.child(self.browser_modal(slug, names, cx).into_any_element())
@@ -431,12 +461,4 @@ where
         }
     }
     children
-}
-
-fn logo(slug: &str) -> &'static str {
-    match slug {
-        "spotify" => "icons/spotify.svg",
-        "youtube" => "icons/youtubemusic.svg",
-        _ => "icons/music.svg",
-    }
 }

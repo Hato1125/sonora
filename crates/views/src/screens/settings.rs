@@ -6,8 +6,9 @@ use std::process::Command;
 use gpui::{
     AnyElement, Context, Entity, FontWeight, Pixels, Render, SharedString, Window, div, px,
 };
-use gpui::{ScrollHandle, prelude::*};
+use gpui::{ScrollHandle, prelude::*, svg};
 use i18n::{Language, t};
+use music::SignIn;
 use router::SettingsTab;
 use state::{AppSettings, Playback, Session, SessionState, Sonora};
 use ui::{ActiveTheme as _, Scrollbar, Scroller};
@@ -24,7 +25,22 @@ const SOURCE_URL: &str = "https://github.com/nolight132/sonora";
 const THEMES: &str = "themes";
 const CORNERS: &str = "corners";
 const LANGUAGES: &str = "languages";
-const PROVIDERS: &str = "providers";
+
+struct Account {
+    slug: &'static str,
+    name: &'static str,
+    options: Vec<SignIn>,
+    stored: bool,
+    active: bool,
+    guest: bool,
+}
+
+fn offered(method: &SignIn, stored: bool) -> bool {
+    match method {
+        SignIn::Default | SignIn::Anonymous => !stored,
+        SignIn::Browser(_) | SignIn::Secret => true,
+    }
+}
 
 #[derive(Clone, Copy)]
 struct Member {
@@ -110,8 +126,7 @@ impl SettingsView {
         let rows: Vec<AnyElement> = match self.tab {
             SettingsTab::General => vec![
                 self.language_row(cx).into_any_element(),
-                self.provider_row(cx).into_any_element(),
-                self.account_row(cx).into_any_element(),
+                self.accounts_row(cx).into_any_element(),
             ],
             SettingsTab::Appearance => vec![
                 self.theme_row(cx).into_any_element(),
@@ -583,90 +598,192 @@ impl SettingsView {
         )
     }
 
-    fn provider_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn accounts_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
         let session = self.session.read(cx);
-        let authenticated = session.authenticated();
-        let current = session
-            .provider_name()
-            .map(SharedString::from)
-            .unwrap_or_else(|| t!("settings-provider-none"));
-        let label = match authenticated {
-            true => current,
-            false => t!("settings-provider-guest", provider = &current),
-        };
-        let active = session.provider_slug();
-        let entries: Vec<(&'static str, SharedString)> = session
-            .connected()
-            .map(|info| (info.slug, SharedString::from(info.name.to_string())))
+        let pending = session.is_pending();
+        let signed_out = matches!(session.state(), SessionState::SignedOut);
+        let guest = !session.authenticated();
+        let accounts: Vec<Account> = session
+            .providers()
+            .map(|info| Account {
+                slug: info.slug,
+                name: info.name,
+                options: info.options,
+                stored: info.stored,
+                active: info.active && !signed_out,
+                guest: info.active && !signed_out && guest,
+            })
             .collect();
-        let can_add = session.can_add();
+        let mut cards = Vec::new();
+        for account in accounts {
+            cards.push(self.account_card(account, pending, cx).into_any_element());
+        }
 
-        let picker = Popover::new(PROVIDERS, self.popovers.clone())
-            .button(
-                Button::new("provider-picker")
-                    .label(format!("{label}  ▾"))
-                    .small()
-                    .outline(),
-            )
-            .menu(
-                Menu::new("provider-dropdown")
-                    .top(px(30.))
-                    .right_0()
-                    .w(px(200.))
-                    .items(entries.into_iter().map(|(slug, name)| {
-                        MenuItem::new(slug, name)
-                            .selected(active == Some(slug))
-                            .on_click(cx.listener(move |this, _, _, cx| {
-                                this.popovers.close();
-                                this.session
-                                    .update(cx, |session, cx| session.switch(slug, cx));
-                                cx.notify();
-                            }))
-                    }))
-                    .item(MenuItem::separator("provider-divider"))
-                    .item(
-                        MenuItem::new("provider-add", t!("settings-provider-add"))
-                            .when(!can_add, MenuItem::disabled)
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                this.popovers.close();
-                                this.session
-                                    .update(cx, |session, cx| session.add_account(cx));
-                                cx.notify();
-                            })),
+        div()
+            .flex()
+            .flex_col()
+            .gap_3()
+            .py_3()
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap_1()
+                    .child(t!("settings-accounts"))
+                    .child(
+                        div()
+                            .text_color(theme.muted_foreground)
+                            .text_size(theme.text(Text::Small))
+                            .child(t!("settings-accounts-detail")),
                     ),
-            );
-
-        self.row(
-            t!("settings-provider"),
-            t!("settings-provider-detail"),
-            theme.muted_foreground,
-            theme.text(Text::Small),
-            picker.into_any_element(),
-        )
+            )
+            .children(cards)
     }
 
-    fn account_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn account_card(
+        &self,
+        account: Account,
+        pending: bool,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         let theme = *cx.theme();
-        let muted = theme.muted_foreground;
-        let small = theme.text(Text::Small);
-        let session = self.session.clone();
+        let Account {
+            slug,
+            name,
+            options,
+            stored,
+            active,
+            guest,
+        } = account;
+        let status = match (active, guest, stored) {
+            (true, true, _) => t!("settings-provider-guest"),
+            (true, false, _) => t!("settings-provider-current"),
+            (false, _, true) => t!("settings-provider-connected"),
+            (false, _, false) => t!("settings-provider-none"),
+        };
+        let methods: Vec<SignIn> = options
+            .into_iter()
+            .filter(|option| offered(option, stored))
+            .collect();
 
-        self.row(
-            t!("settings-account"),
-            t!("settings-account-detail"),
-            muted,
-            small,
-            Button::new("sign-out")
-                .label(t!("settings-sign-out"))
-                .small()
-                .outline()
-                .icon("icons/log-out.svg")
-                .on_click(move |_, _, cx| {
-                    session.update(cx, |session, cx| session.sign_out(cx));
-                })
-                .into_any_element(),
-        )
+        div()
+            .flex()
+            .flex_col()
+            .gap_3()
+            .p(theme.metrics.pad)
+            .rounded(theme.radius)
+            .border_1()
+            .border_color(theme.border)
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap_3()
+                    .child(
+                        svg()
+                            .path(crate::shared::provider_logo(slug))
+                            .size(theme.metrics.control_small)
+                            .flex_none()
+                            .text_color(theme.foreground),
+                    )
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .flex_1()
+                            .min_w_0()
+                            .gap_0p5()
+                            .child(div().font_weight(FontWeight::MEDIUM).child(name))
+                            .child(
+                                div()
+                                    .text_color(theme.muted_foreground)
+                                    .text_size(theme.text(Text::Small))
+                                    .child(status),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .flex()
+                            .flex_none()
+                            .gap_2()
+                            .when(stored && !active, |this| {
+                                this.child(
+                                    Button::new(SharedString::from(format!("switch-{slug}")))
+                                        .label(t!("settings-provider-switch"))
+                                        .small()
+                                        .outline()
+                                        .disabled(pending)
+                                        .on_click(cx.listener(move |this, _, _, cx| {
+                                            this.session
+                                                .update(cx, |session, cx| session.switch(slug, cx));
+                                        })),
+                                )
+                            })
+                            .when(stored, |this| {
+                                this.child(
+                                    Button::new(SharedString::from(format!("sign-out-{slug}")))
+                                        .label(t!("settings-sign-out"))
+                                        .small()
+                                        .ghost()
+                                        .icon("icons/log-out.svg")
+                                        .disabled(pending)
+                                        .on_click(cx.listener(move |this, _, _, cx| {
+                                            this.session
+                                                .update(cx, |session, cx| session.forget(slug, cx));
+                                        })),
+                                )
+                            }),
+                    ),
+            )
+            .when(!methods.is_empty(), |this| {
+                this.child(
+                    div().flex().flex_wrap().gap_2().children(
+                        methods
+                            .into_iter()
+                            .map(|method| self.method_button(slug, name, method, pending, cx)),
+                    ),
+                )
+            })
+    }
+
+    fn method_button(
+        &self,
+        slug: &'static str,
+        provider: &'static str,
+        method: SignIn,
+        pending: bool,
+        cx: &mut Context<Self>,
+    ) -> Button {
+        let (id, label) = match &method {
+            SignIn::Default => (
+                format!("connect-{slug}"),
+                t!("login-sign-in", provider = provider),
+            ),
+            SignIn::Anonymous => (
+                format!("connect-{slug}-guest"),
+                t!("login-use", provider = provider),
+            ),
+            SignIn::Browser(browser) => (
+                format!("connect-{slug}-{browser}"),
+                t!("settings-import-from", browser = browser.clone()),
+            ),
+            SignIn::Secret => (
+                format!("connect-{slug}-cookies"),
+                t!("login-connect-cookies"),
+            ),
+        };
+
+        Button::new(SharedString::from(id))
+            .label(label)
+            .small()
+            .outline()
+            .disabled(pending)
+            .on_click(cx.listener(move |this, _, _, cx| {
+                let method = method.clone();
+                this.session
+                    .update(cx, |session, cx| session.sign_in(slug, method, cx));
+            }))
     }
 
     fn version_row(&self, cx: &mut Context<Self>) -> impl IntoElement {

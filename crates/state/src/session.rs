@@ -48,7 +48,6 @@ pub struct Session {
     task: Option<Task<()>>,
     prompt_task: Option<Task<()>>,
     input: Option<UnboundedSender<String>>,
-    adding: bool,
 }
 
 impl EventEmitter<SessionEvent> for Session {}
@@ -77,7 +76,6 @@ impl Session {
             task: None,
             prompt_task: None,
             input: None,
-            adding: false,
         }
     }
 
@@ -110,21 +108,18 @@ impl Session {
         self.providers().filter(|info| info.stored)
     }
 
-    pub fn can_add(&self) -> bool {
-        self.providers.iter().any(|provider| !provider.stored())
-    }
-
-    pub fn is_adding(&self) -> bool {
-        self.adding
-    }
-
-    pub fn add_account(&mut self, cx: &mut Context<Self>) {
-        self.adding = true;
-        cx.notify();
-    }
-
-    pub fn cancel_add(&mut self, cx: &mut Context<Self>) {
-        self.adding = false;
+    pub fn forget(&mut self, slug: &str, cx: &mut Context<Self>) {
+        let Some(index) = self
+            .providers
+            .iter()
+            .position(|provider| provider.slug() == slug)
+        else {
+            return;
+        };
+        if self.active == Some(index) {
+            return self.sign_out(cx);
+        }
+        self.providers[index].sign_out();
         cx.notify();
     }
 
@@ -278,7 +273,6 @@ impl Session {
         self.client = None;
         self.playback = None;
         self.authenticated = false;
-        self.adding = false;
         self.state = SessionState::SignedOut;
         cx.notify();
         cx.emit(SessionEvent::SignedOut);
@@ -286,7 +280,6 @@ impl Session {
 
     fn signed_in(&mut self, session: ProviderSession, index: usize, cx: &mut Context<Self>) {
         self.active = Some(index);
-        self.adding = false;
         let slug = self.providers[index].slug();
         self.settings.update(cx, |settings, cx| {
             settings.set_provider(slug, cx);

@@ -334,13 +334,12 @@ impl Root {
 
 impl Render for Root {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let show_sign_in = self.session.read(cx).is_adding()
-            || match self.session.read(cx).state() {
-                SessionState::SignedOut
-                | SessionState::Failed(_)
-                | SessionState::Authorizing(_) => true,
-                SessionState::Restoring | SessionState::SignedIn(_) => false,
-            };
+        let show_sign_in = match self.session.read(cx).state() {
+            SessionState::SignedOut | SessionState::Failed(_) | SessionState::Authorizing(_) => {
+                true
+            }
+            SessionState::Restoring | SessionState::SignedIn(_) => false,
+        };
 
         match self.pending.take() {
             Some(Focus::Search) => self
