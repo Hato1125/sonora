@@ -33,7 +33,7 @@ pub fn register(cx: &mut App) {
     });
 
     cx.set_menus(vec![Menu {
-        name: "sonora".into(),
+        name: "Sonora".into(),
         disabled: false,
         items: vec![
             MenuItem::action(t!("app-refresh-library"), RefreshLibrary),
