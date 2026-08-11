@@ -39,7 +39,7 @@ impl HomeView {
 
         cx.observe(&home, |this, _, cx| {
             this.quick_picks_page = 0;
-            this.track_menu.reset();
+            this.track_menu.reset(cx);
             this.context_menu = None;
             cx.notify();
         })
@@ -125,7 +125,7 @@ impl Render for HomeView {
                             return;
                         };
                         home.update(cx, |this, cx| {
-                            this.track_menu.reset();
+                            this.track_menu.reset(cx);
                             this.context_menu = Some((place, event.position));
                             cx.notify();
                         });

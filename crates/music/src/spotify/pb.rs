@@ -63,7 +63,7 @@ impl Writer {
 pub(crate) enum Value<'a> {
     Varint(u64),
     Bytes(&'a [u8]),
-    Fixed,
+    Fixed(u64),
 }
 
 pub(crate) struct Reader<'a> {
@@ -85,8 +85,8 @@ impl<'a> Reader<'a> {
         let value = match key & 7 {
             VARINT => Value::Varint(self.varint()?),
             LENGTH => Value::Bytes(self.slice()?),
-            FIXED64 => self.skip(8)?,
-            FIXED32 => self.skip(4)?,
+            FIXED64 => self.fixed(8)?,
+            FIXED32 => self.fixed(4)?,
             kind => bail!("unsupported wire type {kind}"),
         };
 
@@ -114,13 +114,15 @@ impl<'a> Reader<'a> {
         Ok(slice)
     }
 
-    fn skip(&mut self, width: usize) -> Result<Value<'a>> {
+    fn fixed(&mut self, width: usize) -> Result<Value<'a>> {
         let end = self.at.checked_add(width).context("length overflows")?;
-        if end > self.bytes.len() {
-            bail!("truncated field");
-        }
+        let bytes = self.bytes.get(self.at..end).context("truncated field")?;
         self.at = end;
-        Ok(Value::Fixed)
+        let mut value = 0u64;
+        for (shift, byte) in bytes.iter().enumerate() {
+            value |= u64::from(*byte) << (shift * 8);
+        }
+        Ok(Value::Fixed(value))
     }
 }
 

@@ -55,7 +55,7 @@ impl SearchView {
         .detach();
 
         cx.observe(&search, |this, _, cx| {
-            this.track_menu.reset();
+            this.track_menu.reset(cx);
             this.context_menu = None;
             cx.notify();
         })
@@ -169,7 +169,7 @@ impl SearchView {
                             return;
                         };
                         view.update(cx, |this, cx| {
-                            this.track_menu.reset();
+                            this.track_menu.reset(cx);
                             this.context_menu = Some((track.clone(), event.position));
                             cx.notify();
                         });
@@ -255,7 +255,7 @@ impl SearchView {
                         return;
                     };
                     view.update(cx, |this, cx| {
-                        this.track_menu.reset();
+                        this.track_menu.reset(cx);
                         this.context_menu = Some((track.clone(), event.position));
                         cx.notify();
                     });

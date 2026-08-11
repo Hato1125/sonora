@@ -90,6 +90,9 @@ playlist-create-title = Utwórz playlistę
 playlist-rename-title = Zmień nazwę playlisty
 playlist-delete-title = Usuń playlistę
 playlist-delete-confirm = Usunąć „{ $name }”? Tej operacji nie można cofnąć.
+playlist-again-title = Dodać ponownie?
+playlist-again-confirm = Ten utwór jest już w „{ $name }”. Dodać kopię?
+playlist-again-add = Dodaj ponownie
 
 # queue panel
 queue-title = Kolejka

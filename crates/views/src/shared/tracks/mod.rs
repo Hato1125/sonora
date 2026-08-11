@@ -364,8 +364,8 @@ impl GridSource for TrackSource {
         })
     }
 
-    fn context_menu_will_open(&self, _row: usize, _cx: &App) {
-        self.menu.reset();
+    fn context_menu_will_open(&self, _row: usize, cx: &App) {
+        self.menu.reset(cx);
     }
 
     fn compare(&self, field: TrackField, a: usize, b: usize, cx: &App) -> Ordering {

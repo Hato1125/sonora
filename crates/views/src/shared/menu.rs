@@ -31,17 +31,21 @@ impl ItemMenu {
         }
     }
 
-    pub fn reset(&self) {
+    pub fn reset(&self, cx: &App) {
         self.playlist_submenu.reset();
         self.artist_submenu.reset();
+        self.playlist_scrollbar
+            .read(cx)
+            .scroll()
+            .set_offset(gpui::Point::default());
     }
 
     pub fn for_track(&self, track: &Track, cx: &App) -> Menu {
-        self.build(track, None, None, None, TrackColumns::default(), cx)
+        self.build(track, None, None, TrackColumns::default(), cx)
     }
 
     pub fn for_table_track(&self, track: &Track, columns: TrackColumns, cx: &App) -> Menu {
-        self.build(track, None, None, None, columns, cx)
+        self.build(track, None, None, columns, cx)
     }
 
     pub fn for_album_track(
@@ -51,7 +55,7 @@ impl ItemMenu {
         columns: TrackColumns,
         cx: &App,
     ) -> Menu {
-        self.build(track, None, None, Some(album_id), columns, cx)
+        self.build(track, None, Some(album_id), columns, cx)
     }
 
     pub fn for_playlist_track(
@@ -61,7 +65,6 @@ impl ItemMenu {
         columns: TrackColumns,
         cx: &App,
     ) -> Menu {
-        let playlist_id = detail.read(cx).id().map(str::to_owned);
         let remove = match track.id.clone() {
             Some(id) => MenuItem::new("remove-from-playlist", t!("menu-remove-from-playlist"))
                 .icon("icons/x.svg")
@@ -72,21 +75,13 @@ impl ItemMenu {
                 .icon("icons/x.svg")
                 .disabled(),
         };
-        self.build(
-            track,
-            Some(remove),
-            playlist_id.as_deref(),
-            None,
-            columns,
-            cx,
-        )
+        self.build(track, Some(remove), None, columns, cx)
     }
 
     fn build(
         &self,
         track: &Track,
         library_action: Option<MenuItem>,
-        current_playlist: Option<&str>,
         current_album: Option<&str>,
         columns: TrackColumns,
         cx: &App,
@@ -96,7 +91,6 @@ impl ItemMenu {
             LibraryState::Ready { playlists, .. } => playlists
                 .iter()
                 .filter(|playlist| playlist.owned || playlist.collaborative)
-                .filter(|playlist| Some(playlist.id.as_str()) != current_playlist)
                 .cloned()
                 .collect(),
             _ => Vec::new(),
@@ -121,20 +115,37 @@ impl ItemMenu {
                 .item(new_playlist)
                 .item(MenuItem::separator("playlist-separator"))
                 .items(playlists.into_iter().map(|playlist| {
-                    let item = MenuItem::new(format!("playlist-{}", playlist.id), playlist.name)
-                        .artwork(playlist.cover);
+                    let held = track
+                        .id
+                        .as_deref()
+                        .and_then(|id| library.read(cx).holds(&playlist.id, id))
+                        .unwrap_or(false);
+                    let item =
+                        MenuItem::new(format!("playlist-{}", playlist.id), playlist.name.clone())
+                            .artwork(playlist.cover.clone())
+                            .checked(held);
                     match track.id.clone() {
                         Some(track_id) => {
                             let library = library.clone();
-                            let playlist_id = playlist.id;
-                            item.on_click(move |_, _, cx| {
-                                library.update(cx, |library, cx| {
-                                    library.add_to_playlist(
-                                        playlist_id.clone(),
-                                        track_id.clone(),
-                                        cx,
-                                    )
-                                });
+                            let playlist_id = playlist.id.clone();
+                            item.on_click(move |_, window, cx| match held {
+                                true => PlaylistEditor::open(
+                                    Edit::Again {
+                                        playlist: playlist.clone(),
+                                        track: track_id.clone(),
+                                    },
+                                    window,
+                                    cx,
+                                ),
+                                false => {
+                                    library.update(cx, |library, cx| {
+                                        library.add_to_playlist(
+                                            playlist_id.clone(),
+                                            track_id.clone(),
+                                            cx,
+                                        )
+                                    });
+                                }
                             })
                         }
                         None => item.disabled(),

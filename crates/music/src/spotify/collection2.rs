@@ -178,7 +178,7 @@ fn kept(bytes: &[u8]) -> Result<Option<SavedItem>> {
     while let Some((field, value)) = reader.field()? {
         match (field, value) {
             (ITEM_URI, Value::Bytes(raw)) => uri = Some(text(raw)?),
-            (ITEM_ADDED_AT, Value::Varint(raw)) => {
+            (ITEM_ADDED_AT, Value::Varint(raw) | Value::Fixed(raw)) => {
                 added_at = Some(raw as u32 as i32 as i64);
             }
             (ITEM_REMOVED, Value::Varint(flag)) => removed = flag != 0,
@@ -186,9 +186,29 @@ fn kept(bytes: &[u8]) -> Result<Option<SavedItem>> {
         }
     }
 
+    if added_at.is_none() && uri.is_some() && !removed {
+        log::debug!(
+            "collection: saved item has no date, fields: {}",
+            fields(bytes)
+        );
+    }
+
     Ok(uri
         .filter(|_| !removed)
         .map(|uri| SavedItem { uri, added_at }))
+}
+
+fn fields(bytes: &[u8]) -> String {
+    let mut reader = Reader::new(bytes);
+    let mut seen = Vec::new();
+    while let Ok(Some((field, value))) = reader.field() {
+        seen.push(match value {
+            Value::Varint(raw) => format!("{field}=varint({raw})"),
+            Value::Fixed(raw) => format!("{field}=fixed({raw})"),
+            Value::Bytes(raw) => format!("{field}=bytes({})", raw.len()),
+        });
+    }
+    seen.join(", ")
 }
 
 #[cfg(test)]
