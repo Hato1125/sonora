@@ -21,6 +21,7 @@ const GUEST_ID: &str = "youtube-guest";
 pub struct YouTubeProvider {
     cookies: PathBuf,
     guest: PathBuf,
+    resolved: PathBuf,
 }
 
 impl YouTubeProvider {
@@ -32,7 +33,12 @@ impl YouTubeProvider {
         Self {
             cookies: cache.join("cookies.txt"),
             guest: cache.join("guest"),
+            resolved: cache.join("resolved.json"),
         }
+    }
+
+    fn cookie_client(&self, cookies: &str) -> Arc<YtMusic> {
+        Arc::new(YtMusic::with_cookies(cookies).cache_resolutions(self.resolved.clone()))
     }
 
     fn authenticated_session(&self, api: Arc<YtMusic>, profile: UserProfile) -> ProviderSession {
@@ -41,6 +47,7 @@ impl YouTubeProvider {
             api: Arc::new(YouTubeClient::new(api.clone())),
             playback: Arc::new(Factory::new(api)),
             authenticated: true,
+            playcounts: false,
         }
     }
 
@@ -53,6 +60,7 @@ impl YouTubeProvider {
             api: Arc::new(YouTubeClient::new(api.clone())),
             playback: Arc::new(Factory::new(api)),
             authenticated: false,
+            playcounts: false,
         }
     }
 
@@ -61,7 +69,7 @@ impl YouTubeProvider {
         if cookies.is_empty() {
             anyhow::bail!("cookie header is empty");
         }
-        let api = Arc::new(YtMusic::with_cookies(&cookies));
+        let api = self.cookie_client(&cookies);
         let profile = wire::profile(
             api.profile()
                 .await
@@ -117,7 +125,7 @@ impl MusicProvider for YouTubeProvider {
     async fn restore(&self) -> Result<Option<ProviderSession>> {
         if let Ok(cookies) = std::fs::read_to_string(&self.cookies) {
             log::debug!("youtube: restoring authenticated session from cached cookies");
-            let api = Arc::new(YtMusic::with_cookies(cookies.trim()));
+            let api = self.cookie_client(cookies.trim());
             let profile = api.profile().await;
             match profile {
                 Ok(profile) => {

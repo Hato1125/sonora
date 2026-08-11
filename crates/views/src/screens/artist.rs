@@ -15,17 +15,15 @@ use music::{Album, ReleaseType, Track};
 use state::{AppSettings, ArtistDetail, Playback, Sonora};
 use ui::ActiveTheme as _;
 use ui::{
-    Button, Card, ColumnSpec, Deck, GridDelegate, GridEvent, GridState, MIN_CONTENT, Popover,
-    Popovers, Popup, Scrollbar, Scroller, Skeleton, Text, Viewport, grid, scrolled, snapped,
+    Button, Card, Deck, GridDelegate, GridEvent, GridState, MIN_CONTENT, Popover, Popovers, Popup,
+    Scrollbar, Scroller, Skeleton, Text, Viewport, grid, scrolled, snapped,
 };
 
 use crate::shared::album_grid::{AlbumGrid, CardGrid};
 use crate::shared::hero::{HeroMetaStrip, HeroPlayButton, PageHero};
 use crate::shared::menu::{album_menu, artist_menu};
 use crate::shared::page;
-use crate::shared::tracks::{
-    self, PlaybackStatus, TrackField, TrackSource, Tracks, playback_status,
-};
+use crate::shared::tracks::{self, PlaybackStatus, TrackSource, Tracks, playback_status};
 
 const SECTION: &str = "artist";
 const END_WIDTH: Pixels = px(72.);
@@ -257,10 +255,11 @@ impl ArtistView {
     pub(crate) fn new(
         detail: Entity<ArtistDetail>,
         playback: Entity<Playback>,
-        columns: &'static [ColumnSpec<TrackField>],
         cx: &mut Context<Self>,
     ) -> Self {
         let width = MIN_CONTENT;
+        let columns =
+            crate::shared::tracks::artist_columns(Sonora::global(cx).session.read(cx).playcounts());
         let settings = Sonora::global(cx).settings.clone();
         let saved = settings.read(cx).table(SECTION);
         let sorting = settings.read(cx).sorting(SECTION);

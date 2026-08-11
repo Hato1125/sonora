@@ -72,7 +72,7 @@ impl MusicApi for YouTubeClient {
     async fn saved_tracks(&self, limit: u32) -> Result<Vec<Track>> {
         let mut tracks: Vec<Track> = self
             .api
-            .liked_songs()
+            .liked_songs_resolved()
             .await?
             .into_iter()
             .enumerate()
@@ -125,6 +125,7 @@ impl MusicApi for YouTubeClient {
             thumbnails: Vec::new(),
             explicit: false,
             available: true,
+            kind: ytmusic::TrackKind::Song,
             set_video_id: None,
             liked: None,
             views: None,

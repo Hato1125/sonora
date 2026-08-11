@@ -41,6 +41,7 @@ pub struct Session {
     client: Option<Arc<dyn MusicApi>>,
     playback: Option<Arc<dyn PlaybackFactory>>,
     authenticated: bool,
+    playcounts: bool,
     io: Io,
     task: Option<Task<()>>,
     prompt_task: Option<Task<()>>,
@@ -68,6 +69,7 @@ impl Session {
             client: None,
             playback: None,
             authenticated: false,
+            playcounts: false,
             io,
             task: None,
             prompt_task: None,
@@ -102,6 +104,10 @@ impl Session {
 
     pub fn authenticated(&self) -> bool {
         self.authenticated
+    }
+
+    pub fn playcounts(&self) -> bool {
+        self.playcounts
     }
 
     pub fn is_pending(&self) -> bool {
@@ -227,6 +233,7 @@ impl Session {
         self.client = Some(session.api);
         self.playback = Some(session.playback);
         self.authenticated = session.authenticated;
+        self.playcounts = session.playcounts;
         self.state = SessionState::SignedIn(session.profile);
         cx.notify();
         cx.emit(SessionEvent::SignedIn);

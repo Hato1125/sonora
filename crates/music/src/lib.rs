@@ -68,6 +68,7 @@ pub enum PlaybackEvent {
     Playing(Duration),
     Paused(Duration),
     Position(Duration),
+    Length(Duration),
     Ended,
     Unavailable,
     Refused,
@@ -96,6 +97,7 @@ pub struct ProviderSession {
     pub api: Arc<dyn MusicApi>,
     pub playback: Arc<dyn PlaybackFactory>,
     pub authenticated: bool,
+    pub playcounts: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

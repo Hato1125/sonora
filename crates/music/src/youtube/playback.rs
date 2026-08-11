@@ -97,6 +97,7 @@ impl PlaybackEvents for Events {
 struct Loaded {
     data: Vec<u8>,
     loudness_db: Option<f32>,
+    duration: Option<Duration>,
 }
 
 fn run(
@@ -158,10 +159,11 @@ async fn engine_loop(
                             None => fetch(&api, &id).await,
                         };
                         match fetched.and_then(|loaded| {
+                            let length = loaded.duration;
                             let source = decode(loaded.data)?;
-                            Ok((source, loaded.loudness_db))
+                            Ok((source, loaded.loudness_db, length))
                         }) {
-                            Ok((source, loudness_db)) => {
+                            Ok((source, loudness_db, length)) => {
                                 normal = normalisation(config.normalisation, loudness_db);
                                 sink.set_volume(gain * normal);
                                 sink.clear();
@@ -169,6 +171,9 @@ async fn engine_loop(
                                 sink.play();
                                 playing = true;
                                 loaded = true;
+                                if let Some(length) = length {
+                                    events.send(PlaybackEvent::Length(length)).ok();
+                                }
                                 events.send(PlaybackEvent::Playing(Duration::ZERO)).ok();
                             }
                             Err(error) => {
@@ -230,10 +235,12 @@ async fn engine_loop(
 
 async fn fetch(api: &YtMusic, id: &str) -> Result<Loaded> {
     let format = api.best_audio(id).await?;
+    let duration = format.duration;
     let data = api.download(&format).await?;
     Ok(Loaded {
         data,
         loudness_db: format.loudness_db,
+        duration,
     })
 }
 

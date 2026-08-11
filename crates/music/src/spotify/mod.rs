@@ -49,6 +49,7 @@ impl SpotifyProvider {
             api: Arc::new(client),
             playback,
             authenticated: true,
+            playcounts: true,
         })
     }
 }
