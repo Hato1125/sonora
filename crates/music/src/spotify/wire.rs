@@ -9,7 +9,7 @@ use crate::models;
 
 pub const UNKNOWN: &str = "Unknown";
 const IMAGE_CDN: &str = "https://i.scdn.co/image/";
-const SMALLEST: [&str; 2] = ["small", "default"];
+const BY_SIZE: [&str; 4] = ["xlarge", "large", "default", "small"];
 
 pub fn image_url(file_id: &[u8]) -> Option<String> {
     if file_id.is_empty() {
@@ -24,7 +24,7 @@ pub fn image_url(file_id: &[u8]) -> Option<String> {
 }
 
 fn playlist_cover(attributes: &ListAttributes) -> Option<String> {
-    for target in SMALLEST {
+    for target in BY_SIZE {
         if let Some(size) = attributes
             .picture_size
             .iter()
