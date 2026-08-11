@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use gpui::prelude::*;
-use gpui::{App, Context, Entity, FocusHandle, Global, MouseButton, Render, Window, div};
+use gpui::{App, Context, Entity, FocusHandle, Global, Render, Window, div};
 use i18n::t;
 use music::Playlist;
 use state::Sonora;
-use ui::{ActiveTheme as _, Button, Shield, heading};
+use ui::{ActiveTheme as _, Button, Modal};
 use ui::{Dismiss, FORM_CONTEXT, Input, Submit};
 
 #[derive(Clone)]
@@ -116,9 +116,6 @@ impl Render for PlaylistEditor {
         div()
             .absolute()
             .inset_0()
-            .flex()
-            .items_center()
-            .justify_center()
             .key_context(FORM_CONTEXT)
             .track_focus(&self.focus)
             .on_action(cx.listener(|this, _: &Dismiss, window, cx| {
@@ -130,59 +127,30 @@ impl Render for PlaylistEditor {
                 this.apply(window, cx);
             }))
             .child(
-                Shield::new("playlist-editor")
-                    .absolute()
-                    .inset_0()
-                    .bg(theme.background.opacity(0.8))
-                    .on_mouse_down(MouseButton::Right, |_, _, cx| cx.stop_propagation()),
-            )
-            .child(
-                div()
-                    .relative()
-                    .on_mouse_down_out(cx.listener(|this, _, window, cx| this.close(window, cx)))
-                    .w(theme.metrics.cover * 2.8)
-                    .flex()
-                    .flex_col()
-                    .gap_4()
-                    .p(theme.metrics.inset)
-                    .rounded(theme.radius)
-                    .border_1()
-                    .border_color(theme.border)
-                    .bg(theme.popover)
-                    .child(heading(title, cx))
-                    .when_some(detail, |this, detail| {
-                        this.child(div().text_color(theme.muted_foreground).child(detail))
-                    })
-                    .when(!deleting, |this| this.child(self.name.clone()))
-                    .child(
-                        div()
-                            .flex()
-                            .justify_end()
-                            .gap_2()
-                            .child(
-                                Button::new("cancel-playlist-edit")
-                                    .ghost()
-                                    .label(t!("common-cancel"))
-                                    .on_click(
-                                        cx.listener(|this, _, window, cx| this.close(window, cx)),
-                                    ),
+                Modal::new("playlist-editor", title)
+                    .width(theme.metrics.cover * 2.8)
+                    .when_some(detail, Modal::detail)
+                    .when(!deleting, |modal| modal.child(self.name.clone()))
+                    .action(
+                        Button::new("cancel-playlist-edit")
+                            .ghost()
+                            .label(t!("common-cancel"))
+                            .on_click(cx.listener(|this, _, window, cx| this.close(window, cx))),
+                    )
+                    .action(
+                        Button::new("apply-playlist-edit")
+                            .when_else(
+                                deleting,
+                                |button| button.danger(),
+                                |button| button.primary(),
                             )
-                            .child(
-                                Button::new("apply-playlist-edit")
-                                    .when_else(
-                                        deleting,
-                                        |button| button.danger(),
-                                        |button| button.primary(),
-                                    )
-                                    .label(match deleting {
-                                        true => t!("common-delete"),
-                                        false => t!("common-save"),
-                                    })
-                                    .on_click(
-                                        cx.listener(|this, _, window, cx| this.apply(window, cx)),
-                                    ),
-                            ),
-                    ),
+                            .label(match deleting {
+                                true => t!("common-delete"),
+                                false => t!("common-save"),
+                            })
+                            .on_click(cx.listener(|this, _, window, cx| this.apply(window, cx))),
+                    )
+                    .on_dismiss(cx.listener(|this, _, window, cx| this.close(window, cx))),
             )
             .into_any_element()
     }

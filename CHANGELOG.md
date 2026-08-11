@@ -33,6 +33,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Fixed
 
 - A disabled button reads clearly instead of fading its label into its own background.
+- Pasting YouTube Music cookies happens in a dialog that can be dismissed, so a sign-in started by
+  mistake no longer leaves the login screen waiting for input.
+- Signing out of one service switches to another service still connected, and only falls back to the
+  login screen once nothing is connected.
 - The player switches to the next YouTube Music track the moment the previous one ends, instead of
   lagging up to half a second behind the audio.
 - A YouTube Music session whose saved cookies stopped working falls back to guest browsing or the

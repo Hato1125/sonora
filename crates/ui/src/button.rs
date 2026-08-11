@@ -10,6 +10,8 @@ use crate::metrics::Text;
 use crate::theme::ActiveTheme as _;
 use crate::tooltip::{Perch, Tooltip};
 
+const FADED: f32 = 0.55;
+
 enum Variant {
     Secondary,
     Ghost,
@@ -221,10 +223,13 @@ impl RenderOnce for Button {
             palette.active = None;
         }
         if disabled {
+            palette.foreground = match palette.background.is_some() {
+                true => theme.muted_foreground,
+                false => theme.muted_foreground.opacity(FADED),
+            };
             palette.background = palette.background.map(|_| theme.muted);
             palette.hover = None;
             palette.active = None;
-            palette.foreground = theme.muted_foreground;
         }
 
         let selected_background = theme.secondary_active;

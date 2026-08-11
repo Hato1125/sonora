@@ -36,10 +36,10 @@ struct Account {
     guest: bool,
 }
 
-fn offered(method: &SignIn, stored: bool) -> bool {
+fn offered(method: &SignIn, stored: bool, guest: bool) -> bool {
     match method {
         SignIn::Default | SignIn::Anonymous => !stored,
-        SignIn::Browser(_) | SignIn::Secret => true,
+        SignIn::Browser(_) | SignIn::Secret => !stored || guest,
     }
 }
 
@@ -668,9 +668,10 @@ impl SettingsView {
         let mut seen_browser = false;
         let methods: Vec<SignIn> = options
             .into_iter()
+            .filter(|option| offered(option, stored, guest))
             .filter(|option| match option {
                 SignIn::Browser(_) => !std::mem::replace(&mut seen_browser, true),
-                option => offered(option, stored),
+                _ => true,
             })
             .collect();
 

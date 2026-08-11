@@ -69,7 +69,6 @@ impl TitleBar {
 
     fn history(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let hover = cx.theme().sidebar_accent;
-        let muted = cx.theme().muted_foreground;
         let navigation = self.navigation.read(cx);
         let (can_back, can_forward) = (navigation.can_go_back(), navigation.can_go_forward());
         let back = self.navigation.clone();
@@ -87,7 +86,6 @@ impl TitleBar {
                     .ghost()
                     .icon("icons/chevron-left.svg")
                     .tooltip("nav-back")
-                    .tint(muted)
                     .disabled(!can_back)
                     .size_8()
                     .px_0()
@@ -105,7 +103,6 @@ impl TitleBar {
                     .ghost()
                     .icon("icons/chevron-right.svg")
                     .tooltip("nav-forward")
-                    .tint(muted)
                     .disabled(!can_forward)
                     .size_8()
                     .px_0()
