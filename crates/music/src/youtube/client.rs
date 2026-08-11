@@ -24,6 +24,25 @@ impl YouTubeClient {
     pub fn new(api: Arc<YtMusic>) -> Self {
         Self { api }
     }
+
+    async fn hydrate_durations(&self, tracks: &mut [ytmusic::Track]) {
+        let mut tasks = JoinSet::new();
+        for (index, track) in tracks.iter().enumerate() {
+            if track.duration.is_some() {
+                continue;
+            }
+            let Some(video_id) = track.video_id.clone() else {
+                continue;
+            };
+            let api = self.api.clone();
+            tasks.spawn(async move { (index, api.track_duration(&video_id).await) });
+        }
+        while let Some(result) = tasks.join_next().await {
+            if let Ok((index, Some(duration))) = result {
+                tracks[index].duration = Some(duration);
+            }
+        }
+    }
 }
 
 #[async_trait]
@@ -43,7 +62,9 @@ impl MusicApi for YouTubeClient {
     }
 
     async fn artist(&self, artist_id: &str) -> Result<Artist> {
-        Ok(wire::artist(self.api.artist(artist_id).await?))
+        let mut artist = self.api.artist(artist_id).await?;
+        self.hydrate_durations(&mut artist.top_tracks).await;
+        Ok(wire::artist(artist))
     }
 
     async fn artist_profile(&self, artist_id: &str) -> Result<ArtistProfile> {
