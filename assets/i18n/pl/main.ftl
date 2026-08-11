@@ -370,3 +370,4 @@ lyrics-idle = Włącz utwór, aby zobaczyć tekst
 lyrics-loading = Szukamy tekstu…
 lyrics-missing = Brak tekstu dla tego utworu
 lyrics-failed = Nie udało się połączyć z serwisem tekstów
+lyrics-follow = Znów podążaj za utworem

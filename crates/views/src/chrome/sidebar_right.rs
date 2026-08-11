@@ -11,7 +11,7 @@ use gpui::{
 };
 use i18n::t;
 use music::Track;
-use state::{AppSettings, Lyrics, LyricsState, Playback, Queue, Sonora};
+use state::{AppSettings, Lyrics, LyricsState, Playback, Queue, SideTab, Sonora};
 use ui::{
     ActiveTheme as _, Button, Card, MIN_CONTENT, Panel, Popup, Room, Scrollbar, Scroller, Side,
     Text, eyebrow, snapped, vacant,
@@ -204,20 +204,16 @@ impl Render for DraggedTrack {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Tab {
-    Queue,
-    Lyrics,
-}
-
 pub(crate) struct SidebarRight {
     queue: Entity<Queue>,
     playback: Entity<Playback>,
     lyrics: Entity<Lyrics>,
-    tab: Tab,
+    tab: SideTab,
     verse_bar: Entity<Scrollbar>,
     followed: Option<usize>,
     goal: Option<Pixels>,
+    placed: Option<Pixels>,
+    pinned: bool,
     context_menu: Option<ContextMenuState>,
     track_menu: ItemMenu,
     drop_gap: Option<usize>,
@@ -266,15 +262,18 @@ impl SidebarRight {
         let settings = Sonora::global(cx).settings.clone();
         let width = px(settings.read(cx).sidebar_right_width()).clamp(MIN_WIDTH, MAX_WIDTH);
         let open = settings.read(cx).sidebar_right_open();
+        let tab = settings.read(cx).sidebar_right_tab();
 
         Self {
             queue,
             playback,
             lyrics,
-            tab: Tab::Queue,
+            tab,
             verse_bar,
             followed: None,
             goal: None,
+            placed: None,
+            pinned: true,
             context_menu: None,
             track_menu: ItemMenu::new(playlist_scrollbar),
             drop_gap: None,
@@ -533,12 +532,12 @@ impl SidebarRight {
             .border_color(theme.border)
             .child(eyebrow(
                 match self.tab {
-                    Tab::Queue => t!("queue-title"),
-                    Tab::Lyrics => t!("lyrics-title"),
+                    SideTab::Queue => t!("queue-title"),
+                    SideTab::Lyrics => t!("lyrics-title"),
                 },
                 cx,
             ))
-            .when(self.tab == Tab::Queue, |this| {
+            .when(self.tab == SideTab::Queue, |this| {
                 this.child(
                     div()
                         .flex()
@@ -587,10 +586,10 @@ impl SidebarRight {
 
     fn pills(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
-        let pill = |tab: Tab, icon: &'static str, tooltip: &'static str| {
+        let pill = |tab: SideTab, icon: &'static str, tooltip: &'static str| {
             Button::new(match tab {
-                Tab::Queue => "pill-queue",
-                Tab::Lyrics => "pill-lyrics",
+                SideTab::Queue => "pill-queue",
+                SideTab::Lyrics => "pill-lyrics",
             })
             .ghost()
             .small()
@@ -604,16 +603,42 @@ impl SidebarRight {
             .on_click(cx.listener(move |this, _, _, cx| {
                 this.tab = tab;
                 this.followed = None;
+                this.pinned = true;
+                this.settings
+                    .update(cx, |settings, cx| settings.set_sidebar_right_tab(tab, cx));
                 cx.notify();
             }))
         };
+
+        let adrift = self.tab == SideTab::Lyrics && !self.pinned;
 
         div()
             .absolute()
             .bottom_3()
             .w_full()
             .flex()
-            .justify_center()
+            .flex_col()
+            .items_center()
+            .gap_2()
+            .child(div().flex().justify_center().when(adrift, |this| {
+                this.child(
+                    Button::new("resume-pin")
+                        .ghost()
+                        .small()
+                        .icon("icons/undo-2.svg")
+                        .tooltip("lyrics-follow")
+                        .rounded_full()
+                        .border_1()
+                        .border_color(theme.border)
+                        .bg(theme.popover)
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.pinned = true;
+                            this.followed = None;
+                            this.goal = None;
+                            cx.notify();
+                        })),
+                )
+            }))
             .child(
                 div()
                     .flex()
@@ -624,8 +649,8 @@ impl SidebarRight {
                     .border_1()
                     .border_color(theme.border)
                     .bg(theme.popover)
-                    .child(pill(Tab::Lyrics, "icons/mic.svg", "lyrics-title"))
-                    .child(pill(Tab::Queue, "icons/list.svg", "queue-title")),
+                    .child(pill(SideTab::Lyrics, "icons/mic.svg", "lyrics-title"))
+                    .child(pill(SideTab::Queue, "icons/list.svg", "queue-title")),
             )
     }
 
@@ -714,6 +739,17 @@ impl SidebarRight {
 
     fn pin_verse(&mut self, sung: Option<usize>, window: &mut Window, cx: &mut Context<Self>) {
         let scroll = self.verse_bar.read(cx).scroll().clone();
+        if let Some(placed) = self.placed
+            && (scroll.offset().y - placed).abs() > px(1.)
+        {
+            self.pinned = false;
+            self.goal = None;
+            self.placed = None;
+        }
+        if !self.pinned {
+            self.followed = sung;
+            return;
+        }
         if let Some(index) = sung
             && self.followed != sung
             && let Some(item) = scroll.bounds_for_item(index)
@@ -731,10 +767,13 @@ impl SidebarRight {
         let step = goal - current;
         if step.abs() < px(0.5) {
             scroll.set_offset(gpui::point(scroll.offset().x, goal));
+            self.placed = Some(goal);
             self.goal = None;
             return;
         }
-        scroll.set_offset(gpui::point(scroll.offset().x, current + step * GLIDE));
+        let next = current + step * GLIDE;
+        scroll.set_offset(gpui::point(scroll.offset().x, next));
+        self.placed = Some(next);
         window.request_animation_frame();
     }
 
@@ -857,13 +896,13 @@ impl Render for SidebarRight {
                     .flex_col()
                     .flex_1()
                     .min_h_0()
-                    .when(self.tab == Tab::Lyrics, |this| {
+                    .when(self.tab == SideTab::Lyrics, |this| {
                         this.child(self.verses(window, cx))
                     })
-                    .when(self.tab == Tab::Queue && empty, |this| {
+                    .when(self.tab == SideTab::Queue && empty, |this| {
                         this.child(vacant(t!("queue-empty"), cx).flex_1())
                     })
-                    .when(self.tab == Tab::Queue && !empty, |this| {
+                    .when(self.tab == SideTab::Queue && !empty, |this| {
                         this.child(
                             div()
                                 .relative()

@@ -24,7 +24,7 @@ pub use queue::Queue;
 pub use remote::{Remote, attach as attach_remote};
 pub use search::{AlbumHit, ArtistHit, Hit, Kind, Search};
 pub use session::{ProviderInfo, Session, SessionEvent, SessionState};
-pub use settings::AppSettings;
+pub use settings::{AppSettings, SideTab};
 pub use song::SongDetail;
 pub use toast::{Note, Toast, Toasts};
 

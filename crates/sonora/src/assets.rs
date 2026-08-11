@@ -94,6 +94,7 @@ const ICONS: &[(&str, &[u8])] = icons![
     "skip-forward",
     "spotify",
     "trash-2",
+    "undo-2",
     "volume",
     "volume-1",
     "volume-2",

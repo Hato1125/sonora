@@ -11,6 +11,14 @@ use ui::{Layout, Look, Mode, Rounding, Sorting, ThemeKind, ThemeOverrides};
 
 use crate::Repeat;
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SideTab {
+    #[default]
+    Queue,
+    Lyrics,
+}
+
 const SAVE_DELAY: Duration = Duration::from_millis(300);
 const DEFAULT_VOLUME: f32 = 0.7;
 const DEFAULT_SIDEBAR_WIDTH: f32 = 220.;
@@ -28,6 +36,7 @@ struct Values {
     sidebar_open: bool,
     sidebar_right_width: f32,
     sidebar_right_open: bool,
+    sidebar_right_tab: SideTab,
     shuffle: bool,
     repeat: Repeat,
     language: String,
@@ -65,6 +74,7 @@ impl Default for Values {
             sidebar_open: true,
             sidebar_right_width: DEFAULT_SIDEBAR_RIGHT_WIDTH,
             sidebar_right_open: false,
+            sidebar_right_tab: SideTab::Queue,
             shuffle: false,
             repeat: Repeat::Off,
             language: i18n::AUTO.to_owned(),
@@ -160,6 +170,10 @@ impl AppSettings {
 
     pub fn sidebar_right_open(&self) -> bool {
         self.values.sidebar_right_open
+    }
+
+    pub fn sidebar_right_tab(&self) -> SideTab {
+        self.values.sidebar_right_tab
     }
 
     pub fn shuffle(&self) -> bool {
@@ -302,6 +316,14 @@ impl AppSettings {
 
     pub fn set_sidebar_right_open(&mut self, open: bool, cx: &mut Context<Self>) {
         self.values.sidebar_right_open = open;
+        self.schedule_save(cx);
+    }
+
+    pub fn set_sidebar_right_tab(&mut self, tab: SideTab, cx: &mut Context<Self>) {
+        if self.values.sidebar_right_tab == tab {
+            return;
+        }
+        self.values.sidebar_right_tab = tab;
         self.schedule_save(cx);
     }
 
