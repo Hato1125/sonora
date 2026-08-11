@@ -31,9 +31,13 @@ impl ItemMenu {
         }
     }
 
-    pub fn reset(&self) {
+    pub fn reset(&self, cx: &App) {
         self.playlist_submenu.reset();
         self.artist_submenu.reset();
+        self.playlist_scrollbar
+            .read(cx)
+            .scroll()
+            .set_offset(gpui::Point::default());
     }
 
     pub fn for_track(&self, track: &Track, cx: &App) -> Menu {

@@ -241,7 +241,7 @@ impl SidebarRight {
                 .as_ref()
                 .is_some_and(|menu| menu.revision != revision)
             {
-                this.track_menu.reset();
+                this.track_menu.reset(cx);
                 this.context_menu = None;
             }
             cx.notify();
@@ -325,7 +325,7 @@ impl SidebarRight {
     }
 
     pub(crate) fn close(&mut self, cx: &mut Context<Self>) {
-        self.track_menu.reset();
+        self.track_menu.reset(cx);
         self.context_menu = None;
         self.open = false;
         self.remember(cx);
@@ -339,7 +339,7 @@ impl SidebarRight {
     }
 
     fn dismiss_menu(&mut self, cx: &mut Context<Self>) {
-        self.track_menu.reset();
+        self.track_menu.reset(cx);
         self.context_menu = None;
         cx.notify();
     }
@@ -390,7 +390,7 @@ impl SidebarRight {
             MouseButton::Right,
             cx.listener(move |this, event: &MouseDownEvent, window, cx| {
                 window.prevent_default();
-                this.track_menu.reset();
+                this.track_menu.reset(cx);
                 this.context_menu = Some(ContextMenuState {
                     track: menu_track.clone(),
                     revision: queue_revision,
