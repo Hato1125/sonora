@@ -114,6 +114,10 @@ impl MusicApi for LibrespotClient {
         Ok(detail)
     }
 
+    async fn playlist_covers(&self, playlist_id: &str, wanted: usize) -> Result<Vec<String>> {
+        playlists::covers(&self.session, playlist_id, wanted).await
+    }
+
     async fn playlist_tracks(&self, playlist_id: &str) -> Result<Vec<Track>> {
         playlists::playlist_tracks(&self.session, playlist_id).await
     }

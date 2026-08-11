@@ -4,7 +4,7 @@ use gpui::{Context, Entity, Task};
 use i18n::t;
 use music::{Album, AlbumDetail, ArtistRef, Playlist, PlaylistDetail, Track};
 
-use crate::{Io, Library, Session, SessionEvent, join};
+use crate::{Io, Library, Session, SessionEvent, join, mosaic};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Collection {
@@ -41,6 +41,7 @@ pub struct Detail {
     io: Io,
     task: Option<Task<()>>,
     mutation: Option<Task<()>>,
+    mosaic: Option<Task<()>>,
 }
 
 impl Detail {
@@ -66,9 +67,12 @@ impl Detail {
             let Some(id) = this.id.clone() else {
                 return;
             };
-            let Some(playlist) = library.read(cx).playlist(&id).cloned() else {
+            let Some(mut playlist) = library.read(cx).playlist(&id).cloned() else {
                 return;
             };
+            if playlist.cover.is_none() {
+                playlist.cover = this.playlist.as_ref().and_then(|shown| shown.cover.clone());
+            }
             if this.playlist.as_ref() == Some(&playlist) {
                 return;
             }
@@ -92,6 +96,7 @@ impl Detail {
             io,
             task: None,
             mutation: None,
+            mosaic: None,
         }
     }
 
@@ -244,7 +249,13 @@ impl Detail {
                         this.album = Some(detail.album);
                         this.tracks = detail.tracks;
                     }
-                    Ok(Loaded::Playlist(detail)) => {
+                    Ok(Loaded::Playlist(mut detail)) => {
+                        if detail.playlist.cover.is_none() {
+                            detail.playlist.cover = this.known_mosaic(&detail.playlist, cx);
+                        }
+                        if detail.playlist.cover.is_none() {
+                            this.paint_mosaic(&detail.playlist, &detail.tracks, cx);
+                        }
                         this.header = Some(playlist_header(&detail.playlist));
                         this.playlist = Some(detail.playlist);
                         this.tracks = detail.tracks;
@@ -252,6 +263,44 @@ impl Detail {
                     Err(error) => this.error = Some(format!("{error:#}")),
                 }
                 cx.notify();
+            })
+            .ok();
+        }));
+    }
+
+    fn known_mosaic(&self, playlist: &Playlist, cx: &Context<Self>) -> Option<String> {
+        self.library
+            .read(cx)
+            .playlist(&playlist.id)
+            .and_then(|known| known.cover.clone())
+            .or_else(|| mosaic::cached(&playlist.id, playlist.track_count))
+    }
+
+    fn paint_mosaic(&mut self, playlist: &Playlist, tracks: &[Track], cx: &mut Context<Self>) {
+        let covers = music::distinct_covers(tracks, mosaic::TILES);
+        if covers.len() < mosaic::TILES {
+            return;
+        }
+
+        let id = playlist.id.clone();
+        let stamp = playlist.track_count;
+        let io = self.io.clone();
+        let http = cx.http_client();
+        self.mosaic = Some(cx.spawn(async move |this, cx| {
+            let built =
+                join(io.spawn(async move { mosaic::build(http, &id, stamp, covers).await })).await;
+
+            this.update(cx, |this, cx| match built {
+                Ok(cover) => {
+                    if let Some(header) = this.header.as_mut() {
+                        header.cover = Some(cover.clone());
+                    }
+                    if let Some(playlist) = this.playlist.as_mut() {
+                        playlist.cover = Some(cover);
+                    }
+                    cx.notify();
+                }
+                Err(error) => log::warn!("detail: cannot build a mosaic: {error:#}"),
             })
             .ok();
         }));
@@ -265,6 +314,7 @@ impl Detail {
     fn clear(&mut self) {
         self.task = None;
         self.mutation = None;
+        self.mosaic = None;
         self.id = None;
         self.header = None;
         self.kind = None;

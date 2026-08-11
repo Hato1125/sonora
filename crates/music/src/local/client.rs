@@ -197,6 +197,10 @@ impl MusicApi for LocalClient {
         Err(anyhow!(NOT_SUPPORTED))
     }
 
+    async fn playlist_covers(&self, _playlist_id: &str, _wanted: usize) -> Result<Vec<String>> {
+        Ok(Vec::new())
+    }
+
     async fn track_radio(&self, _track_id: &str) -> Result<Vec<Track>> {
         Ok(Vec::new())
     }
