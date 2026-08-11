@@ -16,6 +16,7 @@ use crate::{PlaylistDetail, Track};
 const TRACK_PREFIX: &str = "spotify:track:";
 const PLAYLIST_PREFIX: &str = "spotify:playlist:";
 const ROOTLIST_LIMIT: usize = 10000;
+const COVER_SLACK: usize = 4;
 
 pub async fn create(session: &Session, name: &str) -> Result<String> {
     let body = changes(None, rename_op(name));
@@ -134,6 +135,30 @@ pub async fn playlist(session: &Session, playlist_id: &str) -> Result<PlaylistDe
 pub async fn playlist_tracks(session: &Session, playlist_id: &str) -> Result<Vec<Track>> {
     let content = snapshot(session, playlist_id).await?;
     tracks_from(session, &content).await
+}
+
+pub async fn covers(session: &Session, playlist_id: &str, wanted: usize) -> Result<Vec<String>> {
+    let content = snapshot(session, playlist_id).await?;
+    let uris: Vec<String> = content
+        .contents
+        .items
+        .iter()
+        .map(|item| item.uri())
+        .filter(|uri| uri.starts_with(TRACK_PREFIX))
+        .take(wanted * COVER_SLACK)
+        .map(str::to_owned)
+        .collect();
+    if uris.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let known = collection::metadata(session, &uris).await?;
+    let tracks: Vec<Track> = uris
+        .iter()
+        .filter_map(|uri| known.get(uri).cloned())
+        .collect();
+
+    Ok(crate::distinct_covers(&tracks, wanted))
 }
 
 async fn tracks_from(session: &Session, content: &SelectedListContent) -> Result<Vec<Track>> {
