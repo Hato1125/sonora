@@ -136,13 +136,13 @@ impl SettingsView {
             ],
             SettingsTab::Appearance => vec![
                 self.theme_row(cx).into_any_element(),
-                self.font_row(cx).into_any_element(),
+                self.opacity_row(cx).into_any_element(),
+                self.adaptive_row(cx).into_any_element(),
             ]
             .into_iter()
             .chain([
-                self.adaptive_row(cx).into_any_element(),
                 self.corners_row(cx).into_any_element(),
-                self.opacity_row(cx).into_any_element(),
+                self.font_row(cx).into_any_element(),
             ])
             .chain(decorated().then(|| self.decorations_row(cx).into_any_element()))
             .chain(decorated().then(|| self.side_row(cx).into_any_element()))
