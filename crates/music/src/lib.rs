@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-pub mod local;
 mod audio;
+pub mod local;
 pub mod lrclib;
 pub mod lyrics;
 mod models;

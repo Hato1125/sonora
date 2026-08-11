@@ -68,7 +68,7 @@ pub(crate) async fn join<T>(handle: JoinHandle<Result<T>>) -> Result<T> {
     handle.await?
 }
 
-ingpub struct Sonora {
+pub struct Sonora {
     pub session: Entity<Session>,
     pub library: Entity<Library>,
     pub lyrics: Entity<Lyrics>,
@@ -97,7 +97,7 @@ pub fn init(
     let settings = cx.new(|_| AppSettings::load());
     let session =
         cx.new(|cx| Session::new(providers, local_provider, settings.clone(), io.clone(), cx));
-    let library = cx.new(|cx| Library::new(session.clone(), io, cx));
+    let library = cx.new(|cx| Library::new(session.clone(), io.clone(), cx));
     let queue = cx.new(|cx| Queue::new(settings.clone(), cx));
     let playback = cx.new(|cx| Playback::new(session.clone(), queue.clone(), settings.clone(), cx));
     let lyrics = cx.new(|cx| Lyrics::new(playback.clone(), lyrics_providers, io, cx));
