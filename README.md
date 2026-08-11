@@ -5,7 +5,7 @@
 [![Build](https://img.shields.io/github/actions/workflow/status/nolight132/sonora/release.yml)](https://github.com/nolight132/sonora/actions/workflows/release.yml)
 [![License](https://img.shields.io/github/license/nolight132/sonora)](./COPYING)
 
-### A native Spotify client built with Rust and GPUI.
+### A native streaming client built with Rust and GPUI.
 This project would not be possible without [librespot](https://github.com/librespot-org/librespot).
 </div>
 
@@ -13,15 +13,15 @@ This project would not be possible without [librespot](https://github.com/libres
     <table>
       <tr>
         <td colspan="2">
-          <img width="1532" height="967" alt="image" src="https://github.com/user-attachments/assets/90bad3c1-6ad1-4354-930f-511ea8480d74" />
+          <img width="1499" height="935" alt="image" src="https://github.com/user-attachments/assets/30202af9-5612-4107-8ef5-679b2b9c16e8" />
         </td>
       </tr>
       <tr>
         <td width="50%">
-          <img width="100%" alt="Sonora" src="https://github.com/user-attachments/assets/619b5d7a-08c9-4367-a28b-0f9485865c82" />
+          <img width="1499" height="935" alt="image" src="https://github.com/user-attachments/assets/7f6cddb1-90ab-4f0a-a7f4-a7ba0081119f" />
         </td>
         <td width="50%">
-          <img width="100%" alt="Sonora" src="https://github.com/user-attachments/assets/7aca84c2-4610-4a78-af21-8adb3276a4a1" />
+          <img width="1499" height="935" alt="image" src="https://github.com/user-attachments/assets/76a73338-8cbf-4cb6-8c05-decc6a481671" />
         </td>
       </tr>
     </table>
@@ -32,9 +32,15 @@ This project would not be possible without [librespot](https://github.com/libres
     </sub>
 </div>
 
-
-
-
+## Features
+- **Spotify**, **YouTube**, and local playback.
+- Library management within supported providers.
+- Gapless playback (Spotify).
+- Synced lyrics.
+- Cross-platform support.
+- Audio normalization.
+- Custom themes.
+- Offline local playback.
 
 ## Install
 
