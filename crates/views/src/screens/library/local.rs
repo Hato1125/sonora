@@ -10,7 +10,7 @@ use music::{Album, Track};
 use state::{AppSettings, Library, LibraryState, Playback, Sonora};
 use ui::{
     ActiveTheme as _, Button, FlagAxis, GridDelegate, GridEvent, GridState, Popovers, Popup,
-    RangeAxis, Scrollbar, Scroller, SortAxis, Unit, grid, scrolled, vacant,
+    RangeAxis, Scrollbar, Scroller, SortAxis, Unit, grid, vacant,
 };
 
 use crate::chrome::Chrome;
@@ -333,18 +333,6 @@ impl LocalView {
     }
 }
 
-fn viewport(scroll: &ScrollHandle, window: &Window) -> ui::Viewport {
-    let visible = scroll.bounds().size.height;
-
-    ui::Viewport {
-        top: scrolled(scroll),
-        height: match visible > Pixels::ZERO {
-            true => visible,
-            false => window.viewport_size().height,
-        },
-    }
-}
-
 impl Render for LocalView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
@@ -353,7 +341,7 @@ impl Render for LocalView {
 
         let scroll = self.scrollbar.read(cx).scroll().clone();
         if self.section == Section::Tracks {
-            let viewport = viewport(&scroll, window);
+            let viewport = page::viewport(&scroll, inset, window);
             self.tracks
                 .update(cx, |table, _| table.set_viewport(viewport));
         }

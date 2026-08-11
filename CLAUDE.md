@@ -152,7 +152,7 @@ them unless the task is about them.
 | OAuth redirect    | `http://127.0.0.1:8989/login`, override with `SONORA_REDIRECT_URI` |
 | Instance socket   | `sonora.sock`, `sonora-dev.sock` in debug builds, so `cargo run` starts beside an installed Sonora rather than handing over to it |
 | Log file          | `$XDG_STATE_HOME/sonora/sonora.log`, rotated to `.1` past 8 MiB    |
-| Console logging   | `RUST_LOG`; default filter `warn,symphonia=error`                  |
+| Console logging   | `RUST_LOG`; default filter `warn,symphonia=error,lofty=error`      |
 | File logging      | `SONORA_LOG`; default adds `sonora=debug,ui=debug`                 |
 
 ## Before you build a component
