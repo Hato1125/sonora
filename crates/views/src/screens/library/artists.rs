@@ -5,9 +5,10 @@ use gpui::{AnyElement, App, Entity, SharedString, TextAlign};
 use music::SavedArtist;
 use router::Destination;
 use state::{Library, LibraryState, Origin, Playback};
+use ui::rank::{ESSENTIAL, HANDY};
 use ui::{Cell, ColumnSpec, GridSource, Menu, Pin, PinKind, Width};
 
-use crate::shared::cells::{self, ALWAYS, DATE, NUMBER, ROOMY};
+use crate::shared::cells::{self, DATE, NUMBER};
 use crate::shared::menu::artist_menu;
 use crate::shared::tracks::initial;
 
@@ -27,7 +28,7 @@ const COLUMN: ColumnSpec<ArtistField> = ColumnSpec {
     width: Width::Fill(1.),
     anchored: false,
     sortable: true,
-    hide_below: ALWAYS,
+    rank: ESSENTIAL,
 };
 
 const INDEX: ColumnSpec<ArtistField> = ColumnSpec {
@@ -54,6 +55,7 @@ const NAME: ColumnSpec<ArtistField> = ColumnSpec {
     field: ArtistField::Name,
     key: "name",
     header: "column-name",
+    rank: ESSENTIAL,
     ..COLUMN
 };
 
@@ -62,7 +64,7 @@ const ADDED_AT: ColumnSpec<ArtistField> = ColumnSpec {
     key: "added-at",
     header: "column-date-added",
     width: Width::Fixed(DATE),
-    hide_below: ROOMY,
+    rank: HANDY,
     ..COLUMN
 };
 

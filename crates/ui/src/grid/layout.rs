@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 use std::collections::HashMap;
 
 use gpui::{Pixels, SharedString, TextAlign, px};
@@ -10,11 +9,20 @@ const SLACK: Pixels = px(2.);
 const MIN_FLEX: Pixels = px(96.);
 const MIN_RIGID: Pixels = px(48.);
 const MIN_TABLE: Pixels = px(160.);
+const COMFORT: Pixels = px(164.);
 
 pub(super) const PADDING: Pixels = px(8.);
 pub(super) const TRAIL: Pixels = px(4.);
 pub(super) const SORT_ROOM: Pixels = px(16.);
 const CUSHION: Pixels = px(1.);
+
+pub mod rank {
+    pub const SPARE: u8 = 10;
+    pub const NICE: u8 = 30;
+    pub const HANDY: u8 = 50;
+    pub const USEFUL: u8 = 70;
+    pub const ESSENTIAL: u8 = 90;
+}
 
 #[derive(Clone, Copy)]
 pub enum Width {
@@ -57,7 +65,7 @@ pub struct ColumnSpec<F: 'static> {
     pub width: Width,
     pub anchored: bool,
     pub sortable: bool,
-    pub hide_below: Pixels,
+    pub rank: u8,
 }
 
 impl<F: 'static> ColumnSpec<F> {
@@ -95,6 +103,16 @@ impl<F: 'static> ColumnSpec<F> {
             true => bare,
             false => bare.max(head + self.chrome()),
         }
+    }
+
+    fn comfort(&self, metrics: Metrics, head: Pixels) -> Pixels {
+        let wish = match self.width {
+            Width::Fill(_) => COMFORT,
+            Width::Fixed(width) => width,
+            Width::Thumb => self.natural(metrics),
+        };
+
+        wish.max(self.floor(metrics, head))
     }
 }
 
@@ -174,7 +192,6 @@ pub fn resolve<F: 'static>(
     let mut visible = ordered(specs, layout)
         .into_iter()
         .filter(|(_, spec)| !layout.hides(spec.key))
-        .filter(|(_, spec)| available >= spec.hide_below)
         .collect::<Vec<_>>();
     if visible.is_empty() {
         visible.extend(specs.iter().enumerate().take(1));
@@ -213,12 +230,12 @@ fn crowd<F: 'static>(
     metrics: Metrics,
     head: &impl Fn(usize) -> Pixels,
 ) {
-    while visible.len() > 1 {
-        let needed = visible
+    while movable(visible) > 1 {
+        let wanted = visible
             .iter()
-            .map(|(ix, spec)| spec.floor(metrics, head(*ix)))
-            .fold(Pixels::ZERO, |total, floor| total + floor);
-        if needed <= available {
+            .map(|(ix, spec)| spec.comfort(metrics, head(*ix)))
+            .fold(Pixels::ZERO, |total, comfort| total + comfort);
+        if wanted <= available {
             return;
         }
 
@@ -226,11 +243,8 @@ fn crowd<F: 'static>(
             .iter()
             .enumerate()
             .filter(|(_, (_, spec))| !spec.anchored)
-            .max_by(|(left, (_, one)), (right, (_, other))| {
-                one.hide_below
-                    .partial_cmp(&other.hide_below)
-                    .unwrap_or(Ordering::Equal)
-                    .then(left.cmp(right))
+            .min_by(|(left, (_, one)), (right, (_, other))| {
+                one.rank.cmp(&other.rank).then(right.cmp(left))
             })
             .map(|(at, _)| at);
         let Some(evicted) = evicted else {
@@ -238,6 +252,10 @@ fn crowd<F: 'static>(
         };
         visible.remove(evicted);
     }
+}
+
+fn movable<F: 'static>(visible: &[Seat<F>]) -> usize {
+    visible.iter().filter(|(_, spec)| !spec.anchored).count()
 }
 
 fn seed<F: 'static>(
@@ -530,7 +548,7 @@ mod tests {
             width: Width::Fixed(px(44.)),
             anchored: true,
             sortable: false,
-            hide_below: px(0.),
+            rank: rank::ESSENTIAL,
         },
         ColumnSpec {
             field: Field::Cover,
@@ -540,7 +558,7 @@ mod tests {
             width: Width::Thumb,
             anchored: true,
             sortable: false,
-            hide_below: px(0.),
+            rank: rank::ESSENTIAL,
         },
         ColumnSpec {
             field: Field::Title,
@@ -550,7 +568,7 @@ mod tests {
             width: Width::Fill(0.5),
             anchored: false,
             sortable: true,
-            hide_below: px(0.),
+            rank: rank::ESSENTIAL,
         },
         ColumnSpec {
             field: Field::Artist,
@@ -560,7 +578,7 @@ mod tests {
             width: Width::Fill(0.5),
             anchored: false,
             sortable: true,
-            hide_below: px(0.),
+            rank: rank::SPARE,
         },
         ColumnSpec {
             field: Field::Added,
@@ -570,7 +588,7 @@ mod tests {
             width: Width::Fixed(px(112.)),
             anchored: false,
             sortable: true,
-            hide_below: px(620.),
+            rank: rank::NICE,
         },
         ColumnSpec {
             field: Field::Length,
@@ -580,7 +598,7 @@ mod tests {
             width: Width::Fixed(px(72.)),
             anchored: false,
             sortable: true,
-            hide_below: px(0.),
+            rank: rank::USEFUL,
         },
     ];
 
@@ -808,8 +826,55 @@ mod tests {
         let heads: Vec<Pixels> = SPECS.iter().map(|_| px(150.)).collect();
         let columns = headed(px(700.), &heads);
 
-        assert!(!keys(&columns).contains(&"added"));
+        assert!(!keys(&columns).contains(&"artist"));
         assert!(keys(&columns).contains(&"title"));
+    }
+
+    #[test]
+    fn columns_leave_in_order_of_rank() {
+        let mut leaving: Vec<&str> = Vec::new();
+        let mut wider = keys(&laid(px(2000.), &Layout::default()));
+        for room in (200..2000).step_by(4).rev() {
+            let present = keys(&laid(px(room as f32), &Layout::default()));
+            leaving.extend(wider.iter().filter(|key| !present.contains(key)));
+            wider = present;
+        }
+
+        assert_eq!(leaving, ["artist", "added", "length"]);
+    }
+
+    #[test]
+    fn widening_never_takes_a_column_away() {
+        let mut previous: Vec<&str> = Vec::new();
+        for room in (200..2000).step_by(4) {
+            let present = keys(&laid(px(room as f32), &Layout::default()));
+            for key in &previous {
+                assert!(
+                    present.contains(key),
+                    "{key} vanished when the room grew to {room}"
+                );
+            }
+            previous = present;
+        }
+    }
+
+    #[test]
+    fn a_kept_column_has_room_to_read() {
+        let heads: Vec<Pixels> = SPECS.iter().map(|_| px(40.)).collect();
+        for room in [px(300.), px(560.), px(900.), px(1600.)] {
+            let columns = headed(room, &heads);
+            let last = columns.len() - 1;
+            for (at, column) in columns.iter().enumerate() {
+                if column.spec.anchored || !column.spec.width.fills() || at == last {
+                    continue;
+                }
+                assert!(
+                    column.width >= MIN_FLEX,
+                    "{} is unreadable at room {room:?}",
+                    column.spec.key
+                );
+            }
+        }
     }
 
     #[test]

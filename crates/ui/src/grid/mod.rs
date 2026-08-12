@@ -18,7 +18,7 @@ use crate::pin::{Pin, Pinnable};
 use crate::popup::Popup;
 use crate::theme::ActiveTheme as _;
 
-pub use layout::{ColumnSpec, Layout, Sort, Sorting, Width};
+pub use layout::{ColumnSpec, Layout, Sort, Sorting, Width, rank};
 use layout::{PADDING, Resolved, SORT_ROOM, TRAIL, reordered, resolve, shifted, stretch};
 
 actions!(grid, [SelectNext, SelectPrevious, Deselect]);

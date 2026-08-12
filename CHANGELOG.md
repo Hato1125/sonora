@@ -29,6 +29,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the date they were last edited, and albums, playlists and followed artists all open sorted by that
   date until a different sort is chosen. Both dates are new sortable columns.
 
+- A narrowing table now gives up one column at a time, in order of how much each column matters,
+  instead of dropping three of them at one width and squeezing the rest. The artist of a song is the
+  first to go, since the album column carries the same information.
+
 ### Fixed
 
 - A pinned table header no longer trembles by a pixel while the page scrolls, and the wheel now

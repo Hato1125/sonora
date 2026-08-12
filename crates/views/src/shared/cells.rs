@@ -33,8 +33,6 @@ pub(crate) const DATE: Pixels = px(112.);
 pub(crate) const YEAR: Pixels = px(64.);
 pub(crate) const HIT: Pixels = px(18.);
 
-pub(crate) use ui::{ALWAYS, ROOMY, SNUG, WIDE};
-
 pub(crate) fn glyph(theme: &Theme) -> Pixels {
     px((theme.metrics.row / px(1.) * 0.23).round())
 }

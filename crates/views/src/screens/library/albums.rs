@@ -6,9 +6,10 @@ use i18n::t;
 use music::Album;
 use router::Destination;
 use state::{Library, LibraryState, Origin, Playback};
+use ui::rank::{ESSENTIAL, HANDY, NICE, SPARE, USEFUL};
 use ui::{Cell, ColumnSpec, GridSource, Menu, Pin, PinKind, Width};
 
-use crate::shared::cells::{self, ALWAYS, DATE, NUMBER, ROOMY, TRAILING, WIDE, YEAR};
+use crate::shared::cells::{self, DATE, NUMBER, TRAILING, YEAR};
 use crate::shared::menu::album_menu;
 use crate::shared::tracks::initial;
 
@@ -31,7 +32,7 @@ const COLUMN: ColumnSpec<AlbumField> = ColumnSpec {
     width: Width::Fill(1.),
     anchored: false,
     sortable: true,
-    hide_below: ALWAYS,
+    rank: ESSENTIAL,
 };
 
 const INDEX: ColumnSpec<AlbumField> = ColumnSpec {
@@ -67,6 +68,7 @@ const ARTISTS: ColumnSpec<AlbumField> = ColumnSpec {
     key: "artists",
     header: "column-artist",
     width: Width::Fill(0.45),
+    rank: USEFUL,
     ..COLUMN
 };
 
@@ -76,7 +78,7 @@ const RELEASE_YEAR: ColumnSpec<AlbumField> = ColumnSpec {
     header: "column-year",
     align: TextAlign::Right,
     width: Width::Fixed(YEAR),
-    hide_below: ROOMY,
+    rank: HANDY,
     ..COLUMN
 };
 
@@ -86,7 +88,7 @@ const TRACK_COUNT: ColumnSpec<AlbumField> = ColumnSpec {
     header: "column-tracks",
     align: TextAlign::Right,
     width: Width::Fixed(TRAILING),
-    hide_below: WIDE,
+    rank: SPARE,
     ..COLUMN
 };
 
@@ -95,7 +97,7 @@ const ADDED_AT: ColumnSpec<AlbumField> = ColumnSpec {
     key: "added-at",
     header: "column-date-added",
     width: Width::Fixed(DATE),
-    hide_below: ROOMY,
+    rank: NICE,
     ..COLUMN
 };
 

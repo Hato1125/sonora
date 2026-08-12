@@ -5,9 +5,10 @@ use gpui::{AnyElement, App, Entity, TextAlign};
 use music::Playlist;
 use router::Destination;
 use state::{Library, LibraryState, Origin, Playback};
+use ui::rank::{ESSENTIAL, HANDY, NICE, SPARE};
 use ui::{Cell, ColumnSpec, GridSource, Menu, Pin, PinKind, Width};
 
-use crate::shared::cells::{self, ALWAYS, DATE, NUMBER, ROOMY, SNUG, TRAILING};
+use crate::shared::cells::{self, DATE, NUMBER, TRAILING};
 use crate::shared::menu::playlist_menu;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -28,7 +29,7 @@ const COLUMN: ColumnSpec<PlaylistField> = ColumnSpec {
     width: Width::Fill(1.),
     anchored: false,
     sortable: true,
-    hide_below: ALWAYS,
+    rank: ESSENTIAL,
 };
 
 const INDEX: ColumnSpec<PlaylistField> = ColumnSpec {
@@ -56,6 +57,7 @@ const NAME: ColumnSpec<PlaylistField> = ColumnSpec {
     key: "name",
     header: "column-name",
     width: Width::Fill(0.55),
+    rank: ESSENTIAL,
     ..COLUMN
 };
 
@@ -64,7 +66,7 @@ const OWNER: ColumnSpec<PlaylistField> = ColumnSpec {
     key: "owner",
     header: "column-owner",
     width: Width::Fill(0.45),
-    hide_below: ROOMY,
+    rank: NICE,
     ..COLUMN
 };
 
@@ -74,7 +76,7 @@ const TRACK_COUNT: ColumnSpec<PlaylistField> = ColumnSpec {
     header: "column-tracks",
     align: TextAlign::Right,
     width: Width::Fixed(TRAILING),
-    hide_below: SNUG,
+    rank: SPARE,
     ..COLUMN
 };
 
@@ -83,7 +85,7 @@ const MODIFIED: ColumnSpec<PlaylistField> = ColumnSpec {
     key: "modified",
     header: "column-modified",
     width: Width::Fixed(DATE),
-    hide_below: ROOMY,
+    rank: HANDY,
     ..COLUMN
 };
 

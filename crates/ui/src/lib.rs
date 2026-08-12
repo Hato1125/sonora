@@ -48,7 +48,7 @@ pub use form::{FORM_CONTEXT, Submit};
 pub use grid::{
     Cell, ColumnSpec, Deselect, GRID_CONTEXT, Grid, GridDelegate, GridEvent, GridSource, GridState,
     Layout, ROW_GROUP, SelectNext, SelectPrevious, Sort, Sorting, Table, Toggle, Viewport, Width,
-    grid,
+    grid, rank,
 };
 pub use info_card::{Fact, InfoCard};
 pub use inline_links::{InlineLink, InlineLinks};

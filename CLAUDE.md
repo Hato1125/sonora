@@ -169,7 +169,7 @@ renderers), `crates/views/src/chrome/` (chrome). Extend what's there — add a b
 | `Card`                                                                  | artwork + title + eyebrow + meta row/tile. `.art()` for tile mode, `.circle()`, `.loading()`, `.trailing()`, `.explicit()`, `.press()` |
 | `Artwork`                                                               | cover images with skeleton loading and a music-note fallback                                                                           |
 | `Skeleton`, `Initials`                                                  | pulsing loading placeholder; avatar initials                                                                                           |
-| `Grid`, `GridSource`, `GridDelegate`, `GridState`, `ColumnSpec`, `Cell` | every table. Virtualized, sortable, filterable, hideable columns, responsive `hide_below`                                              |
+| `Grid`, `GridSource`, `GridDelegate`, `GridState`, `ColumnSpec`, `Cell` | every table. Virtualized, sortable, filterable, hideable columns, columns dropped by `rank` when the room runs out                    |
 | `Scroller` + `Scrollbar`                                                | any scrolling region. Do not use bare `overflow_y_scroll`                                                                              |
 | `Scrubber` + `ScrubberState`                                            | any draggable 0..1 track (seek bar, volume)                                                                                            |
 | `Panel` + `Side`                                                        | a resizable side panel shell: clamped width, drag grip, pixel snapping. `.limits()`, `.fill()`, `.on_resize()`                         |
@@ -302,7 +302,7 @@ Room::of(width).fits(Room::Roomy)   // ">= Roomy", the only comparison you need
 ```
 
 `Room` is `Ord`, so `fits` is just `>=`. The raw `Pixels` consts exist for the places that need a
-number rather than a step: `ColumnSpec::hide_below` and centering maths.
+number rather than a step: centering maths, mostly.
 
 A breakpoint is a branch — "below this width, lay the page out differently". A packing minimum is
 not: `MIN_COLUMN_WIDTH` in `home/quick_picks.rs`, `PANEL` in `screens/song.rs`, the column widths in
@@ -516,9 +516,12 @@ fixed-size arrays (`views`, `sliders`, `Section::ALL`, `tables()`) are all index
 
 **Tables.** Implement `GridSource` (`columns`, `rows`, `cell`, and optionally `compare`, `matches`,
 `playing`, `is_loading`), define a `&'static [ColumnSpec<Field>]`, hold a
-`GridState<Source>` entity, render `grid(&state)`. Column widths use `Width::{Fixed, Fill, Thumb}`
-and `hide_below` for responsive dropping. Hidden columns persist through
-`AppSettings::{hidden_columns, set_hidden_columns}`.
+`GridState<Source>` entity, render `grid(&state)`. Column widths use `Width::{Fixed, Fill, Thumb}`.
+A table never carries pixel breakpoints: every column declares a `rank` from `ui::rank`
+(`SPARE` < `NICE` < `HANDY` < `USEFUL` < `ESSENTIAL`, the default), and the layout drops the
+lowest-ranked column whenever the survivors no longer fit their comfortable widths, keeping at least
+one unanchored column. Give the columns of one table distinct ranks — equal ranks are evicted
+right-to-left. Hidden columns persist through `AppSettings::{hidden_columns, set_hidden_columns}`.
 
 **Toolbar.** `chrome::Toolbar` owns only the search field and lays out whatever a screen hands it.
 A screen implements `chrome::Tooled` — `toolbar()` returns its `Entity<Toolbar>`, `tools(&self, cx)`
