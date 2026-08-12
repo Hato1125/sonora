@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use crate::metrics::Text;
 use crate::theme::ActiveTheme as _;
 use std::cell::Cell;
@@ -15,6 +13,9 @@ const TRACK: f32 = 0.5;
 const THUMB: f32 = 1.5;
 const HIT: f32 = 3.;
 const BUBBLE: f32 = 7.;
+
+type Slide = Box<dyn Fn(&f32, &mut Window, &mut App) + 'static>;
+type Release = Box<dyn Fn(&MouseUpEvent, &mut Window, &mut App) + 'static>;
 
 fn track(pad: Pixels) -> Pixels {
     px((pad / px(1.) * TRACK).round())
@@ -79,8 +80,8 @@ pub struct Scrubber {
     enabled: bool,
     bubble: Option<(f32, SharedString)>,
     lift: Pixels,
-    on_move: Option<Box<dyn Fn(&f32, &mut Window, &mut App) + 'static>>,
-    on_release: Option<Box<dyn Fn(&MouseUpEvent, &mut Window, &mut App) + 'static>>,
+    on_move: Option<Slide>,
+    on_release: Option<Release>,
 }
 
 impl Scrubber {

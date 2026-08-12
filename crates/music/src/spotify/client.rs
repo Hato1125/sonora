@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use std::collections::{HashMap, HashSet};
 
 use crate::{MediaKind, MusicApi};
@@ -13,7 +11,8 @@ use crate::spotify::{
     albums, artists, collection, collection2, pathfinder, playlists, profiles, radio, search, wire,
 };
 use crate::{
-    Album, AlbumDetail, Artist, ArtistProfile, Playlist, PlaylistDetail, Track, UserProfile,
+    Album, AlbumDetail, Artist, ArtistProfile, Playlist, PlaylistDetail, SavedArtist, Track,
+    UserProfile,
 };
 
 pub struct LibrespotClient {
@@ -91,6 +90,14 @@ impl MusicApi for LibrespotClient {
 
     async fn set_album_saved(&self, album_id: &str, saved: bool) -> Result<()> {
         collection2::set_album_saved(&self.session, album_id, saved).await
+    }
+
+    async fn saved_artists(&self, limit: u32) -> Result<Vec<SavedArtist>> {
+        artists::saved_artists(&self.session, limit).await
+    }
+
+    async fn set_artist_saved(&self, artist_id: &str, saved: bool) -> Result<()> {
+        collection2::set_artist_saved(&self.session, artist_id, saved).await
     }
 
     async fn album(&self, album_id: &str) -> Result<AlbumDetail> {
@@ -178,13 +185,21 @@ impl MusicApi for LibrespotClient {
             .map(|playlist| playlist.owner.clone())
             .filter(|owner| owner != wire::UNKNOWN)
             .collect();
-        let names = profiles::display_names(&self.session, owners).await;
+        let ids = playlists
+            .iter()
+            .map(|playlist| playlist.id.clone())
+            .collect();
+        let (names, stamps) = tokio::join!(
+            profiles::display_names(&self.session, owners),
+            playlists::modified(&self.session, ids)
+        );
 
         for playlist in &mut playlists {
             playlist.owned = playlist.owner == self.session.username();
             if let Some(name) = names.get(&playlist.owner) {
                 playlist.owner = name.clone();
             }
+            playlist.modified_at = stamps.get(&playlist.id).copied();
         }
 
         Ok(playlists)

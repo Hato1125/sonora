@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -13,7 +11,8 @@ use crate::spotify::pb::{Reader, Value, Writer, text};
 const PAGING: &str = "/collection/v2/paging";
 const WRITE: &str = "/collection/v2/write";
 const CONTENT: &str = "application/vnd.collection-v2.spotify.proto";
-const SET: &str = "collection";
+pub(crate) const COLLECTION: &str = "collection";
+pub(crate) const ARTISTS: &str = "artist";
 const PAGE: i32 = 300;
 
 static UPDATE: AtomicU64 = AtomicU64::new(0);
@@ -46,14 +45,36 @@ pub(crate) struct SavedItem {
 }
 
 pub async fn set_track_saved(session: &Session, track_id: &str, saved: bool) -> Result<()> {
-    set_saved(session, &format!("spotify:track:{track_id}"), saved).await
+    set_saved(
+        session,
+        COLLECTION,
+        &format!("spotify:track:{track_id}"),
+        saved,
+    )
+    .await
 }
 
 pub async fn set_album_saved(session: &Session, album_id: &str, saved: bool) -> Result<()> {
-    set_saved(session, &format!("spotify:album:{album_id}"), saved).await
+    set_saved(
+        session,
+        COLLECTION,
+        &format!("spotify:album:{album_id}"),
+        saved,
+    )
+    .await
 }
 
-async fn set_saved(session: &Session, uri: &str, saved: bool) -> Result<()> {
+pub async fn set_artist_saved(session: &Session, artist_id: &str, saved: bool) -> Result<()> {
+    set_saved(
+        session,
+        ARTISTS,
+        &format!("spotify:artist:{artist_id}"),
+        saved,
+    )
+    .await
+}
+
+async fn set_saved(session: &Session, set: &str, uri: &str, saved: bool) -> Result<()> {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .context("cannot read the current time")?;
@@ -79,7 +100,7 @@ async fn set_saved(session: &Session, uri: &str, saved: bool) -> Result<()> {
     );
     let mut request = Writer::default();
     request.string(WRITE_USERNAME, &session.username());
-    request.string(WRITE_SET, SET);
+    request.string(WRITE_SET, set);
     request.message(WRITE_ITEMS, &item.finish());
     request.string(WRITE_UPDATE_ID, &update_id);
     let body = request.finish();
@@ -92,16 +113,9 @@ async fn set_saved(session: &Session, uri: &str, saved: bool) -> Result<()> {
     Ok(())
 }
 
-pub async fn saved_uris(session: &Session, prefix: &str, limit: usize) -> Result<Vec<String>> {
-    Ok(saved_items(session, prefix, limit)
-        .await?
-        .into_iter()
-        .map(|item| item.uri)
-        .collect())
-}
-
 pub(crate) async fn saved_items(
     session: &Session,
+    set: &str,
     prefix: &str,
     limit: usize,
 ) -> Result<Vec<SavedItem>> {
@@ -110,7 +124,7 @@ pub(crate) async fn saved_items(
     let mut token = String::new();
 
     loop {
-        let body = request(&username, &token);
+        let body = request(&username, set, &token);
         let raw = session
             .spclient()
             .request(&Method::POST, PAGING, Some(headers()), Some(&body))
@@ -142,10 +156,10 @@ fn headers() -> HeaderMap {
     headers
 }
 
-fn request(username: &str, token: &str) -> Vec<u8> {
+fn request(username: &str, set: &str, token: &str) -> Vec<u8> {
     let mut writer = Writer::default();
     writer.string(REQUEST_USERNAME, username);
-    writer.string(REQUEST_SET, SET);
+    writer.string(REQUEST_SET, set);
     writer.string(REQUEST_TOKEN, token);
     writer.int32(REQUEST_LIMIT, PAGE);
     writer.finish()

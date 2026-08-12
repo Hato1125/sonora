@@ -1,9 +1,8 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use gpui::TextAlign;
+use ui::rank::{ESSENTIAL, HANDY, NICE, SPARE, USEFUL};
 use ui::{ColumnSpec, Width};
 
-use crate::shared::cells::{ALWAYS, DATE, NUMBER, ROOMY, SNUG, TRAILING, WIDE};
+use crate::shared::cells::{DATE, NUMBER, TRAILING};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TrackField {
@@ -25,7 +24,7 @@ const COLUMN: ColumnSpec<TrackField> = ColumnSpec {
     width: Width::Fill(1.),
     anchored: false,
     sortable: true,
-    hide_below: ALWAYS,
+    rank: ESSENTIAL,
 };
 
 const INDEX: ColumnSpec<TrackField> = ColumnSpec {
@@ -53,6 +52,7 @@ const TITLE: ColumnSpec<TrackField> = ColumnSpec {
     key: "title",
     header: "column-title",
     width: Width::Fill(0.42),
+    rank: ESSENTIAL,
     ..COLUMN
 };
 
@@ -61,7 +61,7 @@ const ARTISTS: ColumnSpec<TrackField> = ColumnSpec {
     key: "artists",
     header: "column-artist",
     width: Width::Fill(0.29),
-    hide_below: ROOMY,
+    rank: SPARE,
     ..COLUMN
 };
 
@@ -70,7 +70,7 @@ const ALBUM: ColumnSpec<TrackField> = ColumnSpec {
     key: "album",
     header: "column-album",
     width: Width::Fill(0.29),
-    hide_below: WIDE,
+    rank: HANDY,
     ..COLUMN
 };
 
@@ -79,7 +79,7 @@ const ADDED_AT: ColumnSpec<TrackField> = ColumnSpec {
     key: "added-at",
     header: "column-date-added",
     width: Width::Fixed(DATE),
-    hide_below: WIDE,
+    rank: NICE,
     ..COLUMN
 };
 
@@ -88,7 +88,7 @@ const PLAYS: ColumnSpec<TrackField> = ColumnSpec {
     key: "plays",
     header: "column-plays",
     width: Width::Fixed(DATE),
-    hide_below: WIDE,
+    rank: NICE,
     ..COLUMN
 };
 
@@ -98,7 +98,7 @@ const DURATION: ColumnSpec<TrackField> = ColumnSpec {
     header: "column-length",
     align: TextAlign::Right,
     width: Width::Fixed(TRAILING),
-    hide_below: SNUG,
+    rank: USEFUL,
     ..COLUMN
 };
 

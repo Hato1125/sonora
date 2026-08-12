@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -775,6 +773,19 @@ impl Playback {
             self.pause(cx);
         } else {
             self.resume(cx);
+        }
+    }
+
+    pub fn toggle_origin(&mut self, origin: &Origin, cx: &mut Context<Self>) {
+        match self.playing_from(origin) {
+            Some(PlaybackState::Playing) => self.pause(cx),
+            Some(PlaybackState::Paused) => self.resume(cx),
+            _ => match origin {
+                Origin::Album(id) => self.play_album(id, cx),
+                Origin::Playlist(id) => self.play_playlist(id, cx),
+                Origin::Artist(id) => self.play_artist(id, cx),
+                Origin::Radio(id) => self.play_track(id, cx),
+            },
         }
     }
 

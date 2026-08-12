@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use std::ops::Range;
 
 use gpui::{
@@ -468,7 +466,7 @@ impl EntityInputHandler for Input {
         self.splice(&range, text);
 
         let caret = range.start + text.len();
-        self.marked_range = (!text.is_empty()).then(|| range.start..caret);
+        self.marked_range = (!text.is_empty()).then_some(range.start..caret);
         let selected = selected
             .map(|utf16| {
                 range.start + offset_from_utf16(text, utf16.start)
@@ -534,6 +532,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::reversed_empty_ranges)]
     fn clamps_ranges_in_order() {
         assert_eq!(clamp_range("abc", &(9..12)), 3..3);
         assert_eq!(clamp_range("abc", &(2..1)), 2..2);

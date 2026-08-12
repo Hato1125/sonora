@@ -1,13 +1,14 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use gpui::{AnyView, Context, Entity, MouseButton, NavigationDirection, Render};
 use gpui::{Window, div};
 use gpui::{font, prelude::*};
-use input::{OpenFilter, OpenSearch, OpenSettings, ToggleFullscreen};
+use input::{
+    NavigateBack, NavigateForward, OpenFilter, OpenSearch, OpenSettings, ToggleFullscreen,
+    ToggleLyrics, ToggleQueue,
+};
 use router::{Destination, LibraryTab, NavigationEvent, SettingsTab, back, forward, navigate};
 use state::{
     ArtistDetail, Detail, Home, Io, Library, Playback, Queue, Search, Session, SessionState,
-    SongDetail, Sonora,
+    SideTab, SongDetail, Sonora,
 };
 use ui::ActiveTheme as _;
 
@@ -61,6 +62,7 @@ pub struct Root {
     title_bar: Entity<TitleBar>,
     shells: Shells,
     view: RootView,
+    signing_in: bool,
     toolbar: Option<Entity<Toolbar>>,
     pending: Option<Focus>,
     screens: Screens,
@@ -148,6 +150,7 @@ impl Root {
                 fullscreen,
             },
             view: RootView::Workspace,
+            signing_in: false,
             toolbar: None,
             pending: None,
             screens: Screens {
@@ -252,6 +255,12 @@ impl Root {
         toolbar.update(cx, |toolbar, cx| toolbar.focus(window, cx));
     }
 
+    fn show_side(&self, tab: SideTab, cx: &mut Context<Self>) {
+        self.shells
+            .workspace
+            .update(cx, |workspace, cx| workspace.show_side(tab, cx));
+    }
+
     fn toggle_fullscreen(&mut self, cx: &mut Context<Self>) {
         let entering = matches!(self.view, RootView::Workspace);
         self.view = match entering {
@@ -324,6 +333,7 @@ impl Root {
             Destination::Artist(id) => {
                 let (artist, detail) = self.artist(cx);
                 detail.update(cx, |artist, cx| artist.open(&id, cx));
+                toolbar = Some(artist.read(cx).toolbar());
                 artist.into()
             }
             Destination::Search => self.screens.search.clone().into(),
@@ -347,11 +357,11 @@ impl Root {
 impl Render for Root {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let show_sign_in = match self.session.read(cx).state() {
-            SessionState::SignedOut | SessionState::Failed(_) | SessionState::Authorizing(_) => {
-                true
-            }
+            SessionState::SignedOut | SessionState::Failed(_) => true,
             SessionState::Restoring | SessionState::SignedIn(_) => false,
+            SessionState::Authorizing(_) => self.signing_in,
         };
+        self.signing_in = show_sign_in;
 
         match self.pending.take() {
             Some(Focus::Search) => self
@@ -391,10 +401,18 @@ impl Render for Root {
                 MouseButton::Navigate(NavigationDirection::Forward),
                 |_, _, cx| forward(cx),
             )
+            .on_action(cx.listener(|_, _: &NavigateBack, _, cx| back(cx)))
+            .on_action(cx.listener(|_, _: &NavigateForward, _, cx| forward(cx)))
             .on_action(cx.listener(|this, _: &OpenFilter, window, cx| this.open_filter(window, cx)))
             .on_action(cx.listener(|this, _: &OpenSearch, _, cx| this.open_search(cx)))
             .on_action(cx.listener(|this, _: &OpenSettings, _, cx| this.open_settings(cx)))
             .on_action(cx.listener(|this, _: &ToggleFullscreen, _, cx| this.toggle_fullscreen(cx)))
+            .on_action(
+                cx.listener(|this, _: &ToggleQueue, _, cx| this.show_side(SideTab::Queue, cx)),
+            )
+            .on_action(
+                cx.listener(|this, _: &ToggleLyrics, _, cx| this.show_side(SideTab::Lyrics, cx)),
+            )
             .when_else(
                 show_sign_in,
                 |this| this.child(self.login.clone()),

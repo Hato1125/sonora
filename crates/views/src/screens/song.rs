@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use gpui::prelude::*;
 use gpui::{
     AnyElement, Context, Entity, FontWeight, Pixels, Render, SharedString, Window, div, px,
@@ -9,10 +7,11 @@ use music::{Credit, Track};
 use router::{Destination, Link as _};
 use state::{Playback, SongDetail};
 use ui::{
-    ActiveTheme as _, Artwork, Avatar, Button, Fact, InfoCard, Initials, Pin, PinKind, Scrollbar,
-    Skeleton, Text, clock, eyebrow, heading,
+    ActiveTheme as _, Avatar, Button, Fact, InfoCard, Initials, Pin, PinKind, Scrollbar, Skeleton,
+    Text, clock,
 };
 
+use crate::shared::about::{AboutArtist, about_modal};
 use crate::shared::cells;
 use crate::shared::hero::{HeroMetaStrip, HeroPlayButton, PageHero, release_date_label};
 
@@ -26,6 +25,8 @@ pub(crate) struct SongView {
     detail: Entity<SongDetail>,
     playback: Entity<Playback>,
     scrollbar: Entity<Scrollbar>,
+    about_bar: Entity<Scrollbar>,
+    about_open: bool,
 }
 
 impl SongView {
@@ -60,6 +61,7 @@ impl SongView {
                 .read(cx)
                 .scroll()
                 .set_offset(gpui::Point::default());
+            this.about_open = false;
             cx.notify();
         })
         .detach();
@@ -68,6 +70,8 @@ impl SongView {
             detail,
             playback,
             scrollbar: cx.new(|_| Scrollbar::new(gpui::ScrollHandle::new())),
+            about_bar: cx.new(|_| Scrollbar::new(gpui::ScrollHandle::new())),
+            about_open: false,
         }
     }
 
@@ -391,61 +395,53 @@ impl SongView {
             .into_any_element()
     }
 
-    fn artist_profile(&self, cx: &Context<Self>) -> Option<AnyElement> {
-        let theme = *cx.theme();
+    fn artist_profile(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         let detail = self.detail.read(cx);
         let artist = detail.artist()?;
-        let artist_id = detail.track()?.artist_refs.first()?.id.clone()?;
-        let bio = artist
-            .biography
-            .clone()
-            .unwrap_or_else(|| t!("song-artist-fallback").to_string());
-        let bio = if bio.chars().count() > 360 {
-            format!("{}…", bio.chars().take(360).collect::<String>())
-        } else {
-            bio
-        };
+
         Some(
-            div()
-                .id("song-artist-profile")
-                .flex()
-                .items_center()
-                .gap_5()
-                .p_5()
-                .rounded(theme.radius)
-                .border_1()
-                .border_color(theme.border)
-                .cursor_pointer()
-                .hover(|style| style.bg(theme.secondary))
-                .link(Destination::Artist(artist_id.into()))
-                .child(
-                    Artwork::new(artist.cover_large.clone())
-                        .size(px(88.))
-                        .circle(),
-                )
-                .child(
-                    div()
-                        .flex()
-                        .flex_col()
-                        .flex_1()
-                        .min_w_0()
-                        .gap_2()
-                        .child(eyebrow(t!("song-about-artist"), cx))
-                        .child(heading(artist.name.clone(), cx).min_w_0().truncate())
-                        .child(
-                            div()
-                                .min_w_0()
-                                .text_color(theme.muted_foreground)
-                                .child(bio),
-                        ),
-                )
-                .child(
-                    div()
-                        .flex_none()
-                        .text_size(theme.text(Text::Small))
-                        .font_weight(FontWeight::MEDIUM),
-                )
+            AboutArtist::new("song-artist-profile", artist.name.clone())
+                .cover(artist.cover_large.clone())
+                .biography(artist.biography.clone())
+                .on_open(cx.listener(|this, _, _, cx| {
+                    this.about_open = true;
+                    cx.notify();
+                }))
                 .into_any_element(),
+        )
+    }
+
+    fn about_dialog(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        if !self.about_open {
+            return None;
+        }
+
+        let detail = self.detail.read(cx);
+        let artist = detail.artist()?;
+        let artist_id = detail.track()?.artist_refs.first()?.id.clone();
+
+        Some(
+            about_modal(
+                artist.name.clone().into(),
+                artist.biography.clone(),
+                artist_id.map(Into::into),
+                &self.about_bar,
+                cx,
+            )
+            .action(
+                Button::new("song-about-close")
+                    .label(t!("common-dismiss"))
+                    .primary()
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.about_open = false;
+                        cx.notify();
+                    })),
+            )
+            .on_dismiss(cx.listener(|this, _, _, cx| {
+                this.about_open = false;
+                cx.notify();
+            }))
+            .into_any_element(),
         )
     }
 }
@@ -464,6 +460,7 @@ impl Render for SongView {
         };
 
         div()
+            .relative()
             .size_full()
             .child(
                 div()
@@ -531,5 +528,6 @@ impl Render for SongView {
                     }),
             )
             .child(self.scrollbar.clone())
+            .children(self.about_dialog(cx))
     }
 }

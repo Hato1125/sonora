@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use gpui::prelude::*;
 use gpui::{AnyElement, App, Div, ElementId, Entity, Interactivity, StyleRefinement, Window, div};
 

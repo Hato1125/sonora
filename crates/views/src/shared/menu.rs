@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use gpui::{App, ClipboardItem, Entity, Styled as _};
 use i18n::t;
 use music::{Album, MediaKind, Playlist, Track};

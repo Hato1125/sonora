@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use crate::theme::ActiveTheme as _;
 use gpui::prelude::*;
 use gpui::{App, IntoElement, RenderOnce, Window, div};
@@ -10,6 +8,12 @@ pub struct ExplicitBadge {}
 impl ExplicitBadge {
     pub fn new() -> Self {
         Self {}
+    }
+}
+
+impl Default for ExplicitBadge {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

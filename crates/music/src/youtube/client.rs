@@ -1,9 +1,7 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use anyhow::{Context as _, Result};
+use anyhow::{Context as _, Result, bail};
 use async_trait::async_trait;
 use tokio::task::JoinSet;
 use ytmusic::YtMusic;
@@ -11,7 +9,7 @@ use ytmusic::YtMusic;
 use crate::youtube::wire;
 use crate::{
     Album, AlbumDetail, Artist, ArtistProfile, MediaKind, MusicApi, Playlist, PlaylistDetail,
-    Track, UserProfile,
+    SavedArtist, Track, UserProfile,
 };
 
 const PORTRAIT_LIMIT: usize = 24;
@@ -262,6 +260,14 @@ impl MusicApi for YouTubeClient {
             .playlist_id
             .context("album has no audio playlist")?;
         self.api.rate_playlist(&playlist_id, saved).await
+    }
+
+    async fn saved_artists(&self, _limit: u32) -> Result<Vec<SavedArtist>> {
+        Ok(Vec::new())
+    }
+
+    async fn set_artist_saved(&self, _artist_id: &str, _saved: bool) -> Result<()> {
+        bail!("YouTube Music does not support following artists yet")
     }
 
     async fn album(&self, album_id: &str) -> Result<AlbumDetail> {

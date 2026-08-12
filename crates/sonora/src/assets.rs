@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use std::borrow::Cow;
 
 use anyhow::Result;
@@ -48,6 +46,7 @@ const ICONS: &[(&str, &[u8])] = icons![
     "columns-3",
     "disc-3",
     "ellipsis",
+    "firefoxbrowser",
     "funnel",
     "chevron-left",
     "chevron-right",
@@ -67,6 +66,7 @@ const ICONS: &[(&str, &[u8])] = icons![
     "link",
     "list",
     "list-end",
+    "list-music",
     "list-plus",
     "log-out",
     "maximize",

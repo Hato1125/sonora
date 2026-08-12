@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use std::time::Duration;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -53,9 +51,10 @@ pub struct Playlist {
     pub public: bool,
     pub cover: Option<String>,
     pub track_count: u32,
+    pub modified_at: Option<i64>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ReleaseType {
     Album,
     Single,
@@ -92,6 +91,7 @@ pub struct Album {
     pub release_date: String,
     pub label: String,
     pub copyrights: Vec<String>,
+    pub added_at: Option<i64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -111,6 +111,14 @@ pub struct ArtistProfile {
     pub name: String,
     pub cover_large: Option<String>,
     pub biography: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SavedArtist {
+    pub id: String,
+    pub name: String,
+    pub cover: Option<String>,
+    pub added_at: Option<i64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

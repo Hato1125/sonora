@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 mod artwork;
 mod button;
 mod card;
@@ -50,7 +48,7 @@ pub use form::{FORM_CONTEXT, Submit};
 pub use grid::{
     Cell, ColumnSpec, Deselect, GRID_CONTEXT, Grid, GridDelegate, GridEvent, GridSource, GridState,
     Layout, ROW_GROUP, SelectNext, SelectPrevious, Sort, Sorting, Table, Toggle, Viewport, Width,
-    grid,
+    grid, rank,
 };
 pub use info_card::{Fact, InfoCard};
 pub use inline_links::{InlineLink, InlineLinks};
@@ -69,7 +67,7 @@ pub use panel::{Panel, Side};
 pub use pin::{DraggedPin, Pin, PinKind, Pinnable, Spot};
 pub use popover::{Popover, Popovers};
 pub use popup::Popup;
-pub use scrollbar::{Scrollbar, scrolled};
+pub use scrollbar::{Scrollbar, quantize, scrolled};
 pub use scroller::Scroller;
 pub use scrubber::{Scrubber, ScrubberState};
 pub use separator::Separator;

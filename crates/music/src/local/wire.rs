@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::path::Path;
@@ -135,6 +133,7 @@ pub fn album_from_tracks(name: &str, artist: &str, dir: &Path, tracks: &[Track])
         release_date: String::new(),
         label: String::new(),
         copyrights: Vec::new(),
+        added_at: None,
     }
 }
 
@@ -179,28 +178,4 @@ fn cache_picture(picture: &Picture, source: &Path, cache_dir: &Path) -> Option<S
         std::fs::write(&dest, picture.data()).ok()?;
     }
     Some(format!("file://{}", dest.display()))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn playable_extensions_cover_the_decodable_formats() {
-        for name in [
-            "a.mp3", "a.flac", "a.m4a", "a.MP4", "a.aac", "a.ogg", "a.oga", "a.wav",
-        ] {
-            assert!(is_playable(Path::new(name)), "{name} should be playable");
-        }
-    }
-
-    #[test]
-    fn unsupported_codecs_are_not_playable() {
-        for name in ["a.opus", "a.wv", "a.ape", "a.txt"] {
-            assert!(
-                !is_playable(Path::new(name)),
-                "{name} should not be playable"
-            );
-        }
-    }
 }

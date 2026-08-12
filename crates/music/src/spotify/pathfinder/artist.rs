@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use std::collections::HashSet;
 
 use anyhow::{Context as _, Result};
@@ -258,6 +256,7 @@ fn album(release: Release, artist: &ArtistRef) -> Album {
             .into_iter()
             .map(|copyright| copyright.text)
             .collect(),
+        added_at: None,
     }
 }
 

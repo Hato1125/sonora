@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use gpui::prelude::*;
 use gpui::{
     App, ClickEvent, Div, ElementId, Hsla, Interactivity, MouseButton, SharedString, Stateful,
@@ -11,6 +9,8 @@ use crate::theme::ActiveTheme as _;
 use crate::tooltip::{Perch, Tooltip};
 
 const FADED: f32 = 0.55;
+
+type Click = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 
 enum Variant {
     Secondary,
@@ -25,6 +25,7 @@ pub struct Button {
     base: Stateful<Div>,
     label: Option<SharedString>,
     icon: Option<SharedString>,
+    trailing: Option<SharedString>,
     variant: Variant,
     small: bool,
     disabled: bool,
@@ -35,7 +36,7 @@ pub struct Button {
     pressed: Option<StyleRefinement>,
     tint: Option<Hsla>,
     tooltip: Option<(SharedString, Perch)>,
-    on_click: Option<Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>>,
+    on_click: Option<Click>,
 }
 
 impl Button {
@@ -45,6 +46,7 @@ impl Button {
             base: div().id(id),
             label: None,
             icon: None,
+            trailing: None,
             variant: Variant::Secondary,
             small: false,
             disabled: false,
@@ -66,6 +68,11 @@ impl Button {
 
     pub fn icon(mut self, path: impl Into<SharedString>) -> Self {
         self.icon = Some(path.into());
+        self
+    }
+
+    pub fn trailing(mut self, path: impl Into<SharedString>) -> Self {
+        self.trailing = Some(path.into());
         self
     }
 
@@ -176,6 +183,7 @@ impl RenderOnce for Button {
             mut base,
             label,
             icon,
+            trailing,
             variant,
             small,
             disabled,
@@ -288,7 +296,22 @@ impl RenderOnce for Button {
                 )
             })
             .when_some(label, |this, label| {
-                this.child(div().min_w_0().truncate().child(label))
+                this.child(
+                    div()
+                        .min_w_0()
+                        .truncate()
+                        .when(trailing.is_some(), |this| this.flex_1())
+                        .child(label),
+                )
+            })
+            .when_some(trailing, |this, path| {
+                this.child(
+                    svg()
+                        .path(path)
+                        .size(px(16.))
+                        .flex_none()
+                        .text_color(foreground),
+                )
             })
             .when(interactive, |this| {
                 this.when_some(on_click, |this, handler| {

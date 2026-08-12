@@ -1,9 +1,7 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use gpui::{App, Entity, Pixels, ScrollHandle, Window, px};
 
 use state::{AppSettings, Playback};
-use ui::{GridState, Table, Viewport, scrolled};
+use ui::{GridState, Table, Viewport, quantize, scrolled};
 
 use crate::shared::cells;
 use crate::shared::tracks::{self, TrackSource};
@@ -56,6 +54,7 @@ pub(crate) fn resize(
 }
 
 pub(crate) fn viewport(scroll: &ScrollHandle, inset: Pixels, window: &Window) -> Viewport {
+    quantize(scroll, window);
     let hero = scroll
         .bounds_for_item(0)
         .map(|bounds| bounds.size.height)

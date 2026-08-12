@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::path::PathBuf;
@@ -7,7 +5,7 @@ use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use gpui::{Context, Entity, Task};
-use music::{Album, MusicApi, Playlist, Track};
+use music::{Album, MusicApi, Playlist, SavedArtist, Track};
 
 use crate::{Io, Note, Session, SessionEvent, Toasts, join, mosaic};
 
@@ -17,12 +15,13 @@ type Loaded = (
     anyhow::Result<Vec<Track>>,
     anyhow::Result<Vec<Playlist>>,
     anyhow::Result<Vec<Album>>,
+    anyhow::Result<Vec<SavedArtist>>,
 );
 
 type LoadedLocal = (anyhow::Result<Vec<Track>>, anyhow::Result<Vec<Album>>);
 
 fn partial(loaded: Loaded) -> LibraryState {
-    let (tracks, playlists, albums) = loaded;
+    let (tracks, playlists, albums, artists) = loaded;
     if let (Err(tracks), Err(playlists), Err(albums)) = (&tracks, &playlists, &albums) {
         return LibraryState::Failed(format!("{tracks:#}\n{playlists:#}\n{albums:#}"));
     }
@@ -32,6 +31,7 @@ fn partial(loaded: Loaded) -> LibraryState {
         tracks: take("Songs", tracks, &mut problems),
         playlists: take("Playlists", playlists, &mut problems),
         albums: take("Albums", albums, &mut problems),
+        artists: take("Artists", artists, &mut problems),
         problems,
     }
 }
@@ -47,8 +47,16 @@ fn partial_local(loaded: LoadedLocal) -> LibraryState {
         tracks: take("Local songs", tracks, &mut problems),
         playlists: Vec::new(),
         albums: take("Local albums", albums, &mut problems),
+        artists: Vec::new(),
         problems,
     }
+}
+
+fn stamp() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64
 }
 
 fn take<T>(label: &str, result: anyhow::Result<Vec<T>>, problems: &mut Vec<String>) -> Vec<T> {
@@ -69,6 +77,7 @@ pub enum LibraryState {
         tracks: Vec<Track>,
         playlists: Vec<Playlist>,
         albums: Vec<Album>,
+        artists: Vec<SavedArtist>,
         problems: Vec<String>,
     },
     Failed(String),
@@ -86,6 +95,7 @@ pub struct Library {
     playlist_task: Option<Task<()>>,
     pending: HashMap<String, Task<()>>,
     pending_albums: HashMap<String, Task<()>>,
+    pending_artists: HashMap<String, Task<()>>,
     contents: HashMap<String, HashSet<String>>,
     reading: HashMap<String, Task<()>>,
     mosaics: HashMap<String, Task<()>>,
@@ -113,13 +123,19 @@ impl Library {
                 this.playlist_task = None;
                 this.pending.clear();
                 this.pending_albums.clear();
+                this.pending_artists.clear();
                 this.state = LibraryState::Empty;
                 cx.notify();
             }
             SessionEvent::LocalChanged => {
                 let client = session.read(cx).local_client();
-                if let Some(client) = client {
-                    this.load_local(client, cx);
+                match client {
+                    Some(client) => this.load_local(client, cx),
+                    None => {
+                        this.local_task = None;
+                        this.local = LibraryState::Empty;
+                        cx.notify();
+                    }
                 }
             }
         })
@@ -137,6 +153,7 @@ impl Library {
             playlist_task: None,
             pending: HashMap::new(),
             pending_albums: HashMap::new(),
+            pending_artists: HashMap::new(),
             contents: HashMap::new(),
             reading: HashMap::new(),
             mosaics: HashMap::new(),
@@ -158,6 +175,11 @@ impl Library {
     pub fn rescan_local(&mut self, path: PathBuf, cx: &mut Context<Self>) {
         self.session
             .update(cx, |session, cx| session.choose_local_folder(path, cx));
+    }
+
+    pub fn forget_local(&mut self, cx: &mut Context<Self>) {
+        self.session
+            .update(cx, |session, cx| session.clear_local_folder(cx));
     }
 
     pub fn is_loading(&self) -> bool {
@@ -200,12 +222,7 @@ impl Library {
             _ => None,
         };
         if saved {
-            track.added_at = Some(
-                SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_secs() as i64,
-            );
+            track.added_at = Some(stamp());
         }
         self.set_saved(track.clone(), saved);
 
@@ -290,6 +307,72 @@ impl Library {
         }
     }
 
+    pub fn saved_artist(&self, artist_id: &str) -> bool {
+        self.artist(artist_id).is_some()
+    }
+
+    pub fn pending_artist(&self, artist_id: &str) -> bool {
+        self.pending_artists.contains_key(artist_id)
+    }
+
+    pub fn artist(&self, id: &str) -> Option<&SavedArtist> {
+        let LibraryState::Ready { artists, .. } = &self.state else {
+            return None;
+        };
+        artists.iter().find(|artist| artist.id == id)
+    }
+
+    pub fn toggle_artist(&mut self, mut artist: SavedArtist, cx: &mut Context<Self>) {
+        let artist_id = artist.id.clone();
+        if self.pending_artist(&artist_id) {
+            return;
+        }
+        let Some(client) = self.session.read(cx).client() else {
+            return;
+        };
+        let saved = !self.saved_artist(&artist_id);
+        let previous = self.artist(&artist_id).cloned();
+        if saved {
+            artist.added_at = Some(stamp());
+        }
+        self.set_artist_saved(artist.clone(), saved);
+
+        let io = self.io.clone();
+        let request_id = artist_id.clone();
+        let pending_id = artist_id.clone();
+        let task = cx.spawn(async move |this, cx| {
+            let result =
+                join(io.spawn(async move { client.set_artist_saved(&request_id, saved).await }))
+                    .await;
+
+            this.update(cx, |this, cx| {
+                this.pending_artists.remove(&pending_id);
+                if let Err(error) = result {
+                    match previous {
+                        Some(previous) => this.set_artist_saved(previous, true),
+                        None => this.set_artist_saved(artist, false),
+                    }
+                    log::warn!("library: cannot update the followed artist: {error:#}");
+                }
+                cx.notify();
+            })
+            .ok();
+        });
+        self.pending_artists.insert(artist_id, task);
+        cx.notify();
+    }
+
+    fn set_artist_saved(&mut self, artist: SavedArtist, saved: bool) {
+        let LibraryState::Ready { artists, .. } = &mut self.state else {
+            return;
+        };
+        match saved {
+            true if !artists.iter().any(|known| known.id == artist.id) => artists.push(artist),
+            false => artists.retain(|known| known.id != artist.id),
+            _ => {}
+        }
+    }
+
     pub fn create_playlist(&mut self, name: String, track: Option<String>, cx: &mut Context<Self>) {
         self.mutate_playlist(
             "create playlist",
@@ -312,6 +395,7 @@ impl Library {
                         public: false,
                         cover: None,
                         track_count: 0,
+                        modified_at: None,
                     }
                 }))
             },
@@ -711,6 +795,7 @@ impl Library {
         self.playlist_task = None;
         self.pending.clear();
         self.pending_albums.clear();
+        self.pending_artists.clear();
         self.state = LibraryState::Loading;
         cx.notify();
 
@@ -720,7 +805,8 @@ impl Library {
                 anyhow::Ok(tokio::join!(
                     client.saved_tracks(PAGE_LIMIT),
                     client.playlists(PAGE_LIMIT),
-                    client.saved_albums(PAGE_LIMIT)
+                    client.saved_albums(PAGE_LIMIT),
+                    client.saved_artists(PAGE_LIMIT)
                 ))
             }))
             .await;

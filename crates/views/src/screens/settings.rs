@@ -1,8 +1,7 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use crate::shared::accounts::AccountPicker;
 use crate::shared::browsers::BrowserPicker;
 use gpui::{
     AnyElement, Context, Entity, FontWeight, PathPromptOptions, Pixels, Render, SharedString,
@@ -10,14 +9,14 @@ use gpui::{
 };
 use gpui::{ScrollHandle, prelude::*, svg};
 use i18n::{Language, t};
-use music::SignIn;
-use router::SettingsTab;
+use music::{AccountChoice, SignIn, SignInPrompt};
+use router::{Screen, SettingsTab};
 use state::{AppSettings, Playback, Session, SessionState, Sonora};
 use ui::{ActiveTheme as _, Scrollbar, Scroller};
 use ui::{
-    Avatar, Button, InfoCard, Initials, Look, MAX_FONT, MAX_TRANSPARENCY, MIN_FONT, Menu, MenuItem,
-    Popover, Popovers, Rounding, Scrubber, ScrubberState, Separator, Skeleton, Switch, Text, Theme,
-    ThemeKind,
+    Avatar, Button, InfoCard, Initials, Input, Look, MAX_FONT, MAX_TRANSPARENCY, MIN_FONT, Menu,
+    MenuItem, Modal, Popover, Popovers, Rounding, Scrubber, ScrubberState, Separator, Skeleton,
+    Switch, Text, Theme, ThemeKind,
 };
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -27,6 +26,7 @@ const SOURCE_URL: &str = "https://github.com/nolight132/sonora";
 const THEMES: &str = "themes";
 const CORNERS: &str = "corners";
 const LANGUAGES: &str = "languages";
+const STARTUP: &str = "startup";
 
 struct Account {
     slug: &'static str,
@@ -35,6 +35,8 @@ struct Account {
     stored: bool,
     active: bool,
     guest: bool,
+    cancel: bool,
+    error: Option<SharedString>,
 }
 
 fn offered(method: &SignIn, stored: bool, guest: bool) -> bool {
@@ -98,6 +100,7 @@ pub struct SettingsView {
     opacity: ScrubberState,
     popovers: Popovers,
     browsers: Option<(&'static str, Vec<SharedString>)>,
+    secret: Entity<Input>,
 }
 
 impl SettingsView {
@@ -118,6 +121,7 @@ impl SettingsView {
             opacity: ScrubberState::new("opacity"),
             popovers: Popovers::default(),
             browsers: None,
+            secret: cx.new(|cx| Input::new("login-cookie-hint", cx)),
         }
     }
 
@@ -130,14 +134,15 @@ impl SettingsView {
     fn panel(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let rows: Vec<AnyElement> = match self.tab {
             SettingsTab::General => vec![
+                self.startup_row(cx).into_any_element(),
                 self.language_row(cx).into_any_element(),
                 self.accounts_row(cx).into_any_element(),
                 self.local_folder_row(cx).into_any_element(),
             ],
             SettingsTab::Appearance => vec![
                 self.theme_row(cx).into_any_element(),
-                self.opacity_row(cx).into_any_element(),
                 self.adaptive_row(cx).into_any_element(),
+                self.opacity_row(cx).into_any_element(),
             ]
             .into_iter()
             .chain([
@@ -173,6 +178,47 @@ impl SettingsView {
             tint: cx.theme().tint,
             ..self.settings.read(cx).look()
         }
+    }
+
+    fn startup_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+        let muted = theme.muted_foreground;
+        let small = theme.text(Text::Small);
+        let chosen = Screen::from_id(self.settings.read(cx).startup()).unwrap_or(Screen::Home);
+        let current = i18n::lookup(chosen.key(), None);
+
+        let picker = Popover::new(STARTUP, self.popovers.clone())
+            .button(
+                Button::new("startup-picker")
+                    .label(format!("{current}  ▾"))
+                    .small()
+                    .outline(),
+            )
+            .menu(
+                Menu::new("startup-dropdown")
+                    .top(px(30.))
+                    .right_0()
+                    .w(px(170.))
+                    .items(Screen::ALL.map(|screen| {
+                        MenuItem::new(screen.id(), i18n::lookup(screen.key(), None))
+                            .selected(screen == chosen)
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                this.settings.update(cx, |settings, cx| {
+                                    settings.set_startup(screen.id(), cx)
+                                });
+                                this.popovers.close();
+                                cx.notify();
+                            }))
+                    })),
+            );
+
+        self.row(
+            t!("settings-startup"),
+            t!("settings-startup-detail"),
+            muted,
+            small,
+            picker.into_any_element(),
+        )
     }
 
     fn language_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -628,6 +674,14 @@ impl SettingsView {
                 .on_click(cx.listener(|this, _, _, cx| this.rescan_local_folder(cx)))
         });
 
+        let clear = path.is_some().then(|| {
+            Button::new("clear-local-folder")
+                .label(t!("settings-clear-folder"))
+                .small()
+                .ghost()
+                .on_click(cx.listener(|this, _, _, cx| this.clear_local_folder(cx)))
+        });
+
         self.row(
             t!("settings-local-folder"),
             detail,
@@ -638,6 +692,7 @@ impl SettingsView {
                 .gap_2()
                 .child(choose)
                 .children(rescan)
+                .children(clear)
                 .into_any_element(),
         )
     }
@@ -674,12 +729,26 @@ impl SettingsView {
             });
     }
 
+    fn clear_local_folder(&mut self, cx: &mut Context<Self>) {
+        Sonora::global(cx)
+            .library
+            .clone()
+            .update(cx, |library, cx| library.forget_local(cx));
+    }
+
     fn accounts_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
         let session = self.session.read(cx);
         let pending = session.is_pending();
         let signed_out = matches!(session.state(), SessionState::SignedOut);
         let guest = !session.authenticated();
+        let waiting = match session.state() {
+            SessionState::Authorizing(prompt) => !matches!(
+                prompt,
+                Some(SignInPrompt::Secret | SignInPrompt::Accounts(_))
+            ),
+            _ => false,
+        };
         let accounts: Vec<Account> = session
             .providers()
             .map(|info| Account {
@@ -689,6 +758,8 @@ impl SettingsView {
                 stored: info.stored,
                 active: info.active && !signed_out,
                 guest: info.active && !signed_out && guest,
+                cancel: waiting && info.pending,
+                error: info.error.map(SharedString::from),
             })
             .collect();
         let mut cards = Vec::new();
@@ -731,6 +802,8 @@ impl SettingsView {
             stored,
             active,
             guest,
+            cancel,
+            error,
         } = account;
         let status = match (active, guest, stored) {
             (true, true, _) => t!("settings-provider-guest"),
@@ -818,15 +891,93 @@ impl SettingsView {
                             }),
                     ),
             )
+            .when_some(error, |this, error| {
+                this.child(
+                    div()
+                        .text_color(theme.danger)
+                        .text_size(theme.text(Text::Small))
+                        .child(error),
+                )
+            })
             .when(!methods.is_empty(), |this| {
                 this.child(
-                    div().flex().flex_wrap().gap_2().children(
+                    div().flex().flex_wrap().items_start().gap_2().children(
                         methods
                             .into_iter()
-                            .map(|method| self.method_button(slug, name, method, pending, cx)),
+                            .map(|method| self.method(slug, name, method, pending, cx)),
                     ),
                 )
             })
+            .when(cancel, |this| {
+                this.child(
+                    div().child(
+                        Button::new(SharedString::from(format!("cancel-{slug}")))
+                            .label(t!("common-cancel"))
+                            .small()
+                            .outline()
+                            .on_click(cx.listener(|this, _, _, cx| this.abandon(cx))),
+                    ),
+                )
+            })
+    }
+
+    fn abandon(&mut self, cx: &mut Context<Self>) {
+        self.secret.update(cx, |input, cx| input.set_text("", cx));
+        self.session
+            .update(cx, |session, cx| session.cancel_sign_in(cx));
+    }
+
+    fn submit(&mut self, cx: &mut Context<Self>) {
+        let text = self.secret.read(cx).text().to_string();
+        if text.trim().is_empty() {
+            return;
+        }
+        self.secret.update(cx, |input, cx| input.set_text("", cx));
+        self.session
+            .update(cx, |session, cx| session.submit_input(text, cx));
+    }
+
+    fn secret_prompt(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        Modal::new("settings-cookie-prompt", t!("login-cookie-title"))
+            .width(px(560.))
+            .detail(t!("login-cookie-detail"))
+            .child(self.secret.clone())
+            .action(
+                Button::new("settings-cancel-cookies")
+                    .ghost()
+                    .label(t!("common-cancel"))
+                    .on_click(cx.listener(|this, _, _, cx| this.abandon(cx))),
+            )
+            .action(
+                Button::new("settings-submit-cookies")
+                    .label(t!("login-cookie-submit"))
+                    .primary()
+                    .on_click(cx.listener(|this, _, _, cx| this.submit(cx))),
+            )
+            .on_dismiss(cx.listener(|this, _, _, cx| this.abandon(cx)))
+    }
+
+    fn method(
+        &self,
+        slug: &'static str,
+        provider: &'static str,
+        method: SignIn,
+        pending: bool,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let browser = matches!(method, SignIn::Browser(_));
+        let button = self.method_button(slug, provider, method, pending, cx);
+        match browser {
+            true => div()
+                .flex()
+                .flex_col()
+                .items_start()
+                .gap_1()
+                .child(button)
+                .child(crate::shared::firefox_note(cx))
+                .into_any_element(),
+            false => button.into_any_element(),
+        }
     }
 
     fn method_button(
@@ -1062,6 +1213,23 @@ impl SettingsView {
             )
             .child(div().flex_none().child(action))
     }
+
+    fn account_modal(
+        &self,
+        accounts: Vec<AccountChoice>,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        AccountPicker::new(accounts)
+            .on_pick(cx.listener(|this, id: &SharedString, _, cx| {
+                let id = id.to_string();
+                this.session
+                    .update(cx, |session, cx| session.submit_input(id, cx));
+            }))
+            .on_cancel(cx.listener(|this, _, _, cx| {
+                this.session
+                    .update(cx, |session, cx| session.cancel_sign_in(cx));
+            }))
+    }
 }
 
 fn decorated() -> bool {
@@ -1087,6 +1255,16 @@ fn open_settings_file(path: &Path) -> std::io::Result<()> {
 impl Render for SettingsView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let browsers = self.browsers.clone();
+        let accounts = match self.session.read(cx).state() {
+            SessionState::Authorizing(Some(SignInPrompt::Accounts(accounts))) => {
+                Some(accounts.clone())
+            }
+            _ => None,
+        };
+        let secret = matches!(
+            self.session.read(cx).state(),
+            SessionState::Authorizing(Some(SignInPrompt::Secret))
+        );
 
         div()
             .relative()
@@ -1116,6 +1294,12 @@ impl Render for SettingsView {
             )
             .when_some(browsers, |this, (slug, names)| {
                 this.child(self.browser_modal(slug, names, cx).into_any_element())
+            })
+            .when_some(accounts, |this, accounts| {
+                this.child(self.account_modal(accounts, cx).into_any_element())
+            })
+            .when(secret, |this| {
+                this.child(self.secret_prompt(cx).into_any_element())
             })
     }
 }

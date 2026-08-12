@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use std::cell::Cell as Slot;
 use std::rc::Rc;
 use std::time::Duration;
@@ -94,6 +92,14 @@ impl Render for Grab {
 
 pub fn scrolled(scroll: &ScrollHandle) -> Pixels {
     (-scroll.offset().y).clamp(Pixels::ZERO, scroll.max_offset().y)
+}
+
+pub fn quantize(scroll: &ScrollHandle, window: &Window) {
+    let offset = scroll.offset();
+    let snapped = crate::metrics::snapped(offset.y, window);
+    if snapped != offset.y {
+        scroll.set_offset(point(offset.x, snapped));
+    }
 }
 
 pub struct Scrollbar {

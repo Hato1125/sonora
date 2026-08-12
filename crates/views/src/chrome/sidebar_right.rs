@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use std::ops::Range;
 
 use gpui::prelude::*;
@@ -11,7 +9,7 @@ use gpui::{
 };
 use i18n::t;
 use music::Track;
-use state::{AppSettings, Lyrics, LyricsState, Playback, Queue, SideTab, Sonora};
+use state::{AppSettings, Lyrics, LyricsState, Playback, PlaybackState, Queue, SideTab, Sonora};
 use ui::{
     ActiveTheme as _, Button, Card, DraggedPin, Edge, MIN_CONTENT, Panel, Pin, PinKind,
     Pinnable as _, Popup, Room, Scrollbar, Scroller, Side, Spot, Text, drop_gap, drop_marker,
@@ -272,6 +270,25 @@ impl SidebarRight {
         cx.notify();
     }
 
+    pub(crate) fn show(&mut self, tab: SideTab, cx: &mut Context<Self>) {
+        if self.open && self.tab == tab {
+            self.close(cx);
+            return;
+        }
+        if self.tab != tab {
+            self.tab = tab;
+            self.anchor_verse();
+            self.settings
+                .update(cx, |settings, cx| settings.set_sidebar_right_tab(tab, cx));
+        }
+        if !self.open {
+            self.open = true;
+            self.anchor = true;
+            self.remember(cx);
+        }
+        cx.notify();
+    }
+
     pub(crate) fn close(&mut self, cx: &mut Context<Self>) {
         self.track_menu.reset(cx);
         self.context_menu = None;
@@ -298,6 +315,7 @@ impl SidebarRight {
         position: QueuePosition,
         queue_revision: u64,
         drop_line: Option<Edge>,
+        playing: bool,
         cx: &Context<Self>,
     ) -> gpui::Stateful<gpui::Div> {
         let theme = *cx.theme();
@@ -332,6 +350,19 @@ impl SidebarRight {
         )
         .tint(title)
         .when(track.explicit, Card::explicit)
+        .play(
+            playing,
+            cx.listener(move |this, _, _, cx| {
+                let stale = this.queue.read(cx).revision() != queue_revision;
+                this.playback.update(cx, |playback, cx| match position {
+                    QueuePosition::Current => playback.toggle_play(cx),
+                    QueuePosition::Past(index) if !stale => playback.play_past(index, cx),
+                    QueuePosition::Upcoming(index) if !stale => playback.play_upcoming(index, cx),
+                    QueuePosition::Similar(index) if !stale => playback.play_similar(index, cx),
+                    _ => {}
+                });
+            }),
+        )
         .on_mouse_down(
             MouseButton::Right,
             cx.listener(move |this, event: &MouseDownEvent, window, cx| {
@@ -520,72 +551,37 @@ impl SidebarRight {
             })
     }
 
-    fn pills(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn follow(&self, cx: &mut Context<Self>) -> Option<impl IntoElement> {
         let theme = *cx.theme();
-        let pill = |tab: SideTab, icon: &'static str, tooltip: &'static str| {
-            Button::new(match tab {
-                SideTab::Queue => "pill-queue",
-                SideTab::Lyrics => "pill-lyrics",
-            })
-            .ghost()
-            .small()
-            .icon(icon)
-            .tooltip(tooltip)
-            .rounded_full()
-            .selected(self.tab == tab)
-            .tint(match self.tab == tab {
-                true => theme.foreground,
-                false => theme.muted_foreground,
-            })
-            .on_click(cx.listener(move |this, _, _, cx| {
-                this.tab = tab;
-                this.anchor_verse();
-                this.settings
-                    .update(cx, |settings, cx| settings.set_sidebar_right_tab(tab, cx));
-                cx.notify();
-            }))
-        };
+        if self.tab != SideTab::Lyrics || self.pinned {
+            return None;
+        }
 
-        let adrift = self.tab == SideTab::Lyrics && !self.pinned;
-
-        div()
-            .absolute()
-            .bottom_3()
-            .w_full()
-            .flex()
-            .flex_col()
-            .items_center()
-            .gap_2()
-            .child(div().flex().justify_center().when(adrift, |this| {
-                this.child(
-                    Button::new("resume-pin")
-                        .ghost()
-                        .small()
-                        .icon("icons/undo-2.svg")
-                        .tooltip("lyrics-follow")
-                        .rounded_full()
-                        .border_1()
-                        .border_color(theme.border)
-                        .bg(theme.popover)
-                        .on_click(cx.listener(|this, _, _, cx| {
-                            this.anchor_verse();
-                            cx.notify();
-                        })),
-                )
-            }))
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap_1()
-                    .p_1()
-                    .rounded_full()
-                    .border_1()
-                    .border_color(theme.border)
-                    .bg(theme.popover)
-                    .child(pill(SideTab::Lyrics, "icons/mic-vocal.svg", "lyrics-title"))
-                    .child(pill(SideTab::Queue, "icons/list.svg", "queue-title")),
-            )
+        Some(
+            div()
+                .absolute()
+                .bottom_3()
+                .w_full()
+                .flex()
+                .justify_center()
+                .child(
+                    div().flex().flex_none().block_mouse_except_scroll().child(
+                        Button::new("resume-pin")
+                            .ghost()
+                            .small()
+                            .icon("icons/undo-2.svg")
+                            .tooltip("lyrics-follow")
+                            .rounded_full()
+                            .border_1()
+                            .border_color(theme.border)
+                            .bg(theme.popover)
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.anchor_verse();
+                                cx.notify();
+                            })),
+                    ),
+                ),
+        )
     }
 
     fn verses(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -757,6 +753,7 @@ impl SidebarRight {
         let queue = self.queue.clone();
         let drop_gap = self.drop_gap;
         let upcoming = sections.upcoming;
+        let audible = matches!(self.playback.read(cx).state(), PlaybackState::Playing);
 
         uniform_list(
             "queue-rows",
@@ -792,7 +789,8 @@ impl SidebarRight {
                                 }
                                 _ => None,
                             };
-                            Self::row(found, index, position, revision, drop_line, cx)
+                            let playing = audible && position == QueuePosition::Current;
+                            Self::row(found, index, position, revision, drop_line, playing, cx)
                                 .into_any_element()
                         }
                         (Slot::Track(_), None) => div().into_any_element(),
@@ -868,14 +866,14 @@ impl Render for SidebarRight {
                                 .child(
                                     self.rows(sections, cx)
                                         .px_2()
-                                        .pb_12()
+                                        .pb_2()
                                         .track_scroll(&self.scroll)
                                         .size_full(),
                                 )
                                 .child(self.scrollbar.clone()),
                         )
                     })
-                    .child(self.pills(cx)),
+                    .children(self.follow(cx)),
             )
             .children(self.menu(cx))
             .into_any_element()
@@ -884,18 +882,10 @@ impl Render for SidebarRight {
 
 #[cfg(test)]
 mod tests {
-    use gpui::px;
-
-    use super::{QueuePosition, Sections, Slot, fills_content};
+    use super::{QueuePosition, Sections, Slot};
 
     fn slots(sections: Sections) -> Vec<Slot> {
         (0..sections.len()).map(|i| sections.slot(i)).collect()
-    }
-
-    #[test]
-    fn fills_narrow_content_area() {
-        assert!(fills_content(ui::WIDE - px(1.)));
-        assert!(!fills_content(ui::WIDE));
     }
 
     #[test]

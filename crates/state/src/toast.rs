@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use std::time::Duration;
 
 use gpui::{App, AppContext as _, Context, Entity, Global, SharedString};

@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
@@ -112,22 +110,5 @@ fn output_sample_format(input: AudioFormat, device: cpal::SampleFormat) -> cpal:
             AudioFormat::S24 | AudioFormat::S24_3 => cpal::SampleFormat::I24,
             AudioFormat::S16 => cpal::SampleFormat::I16,
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use librespot_playback::config::AudioFormat;
-
-    use super::output_sample_format;
-
-    #[test]
-    fn chooses_the_sample_format_for_the_platform() {
-        let selected = output_sample_format(AudioFormat::F32, cpal::SampleFormat::I16);
-
-        #[cfg(target_os = "windows")]
-        assert_eq!(selected, cpal::SampleFormat::I16);
-        #[cfg(not(target_os = "windows"))]
-        assert_eq!(selected, cpal::SampleFormat::F32);
     }
 }

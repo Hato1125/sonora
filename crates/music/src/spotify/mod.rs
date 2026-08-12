@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 pub mod auth;
 
 mod albums;
@@ -66,6 +64,10 @@ impl MusicProvider for SpotifyProvider {
 
     fn sign_in_options(&self) -> Vec<crate::SignIn> {
         vec![crate::SignIn::Default]
+    }
+
+    fn abandon(&self) {
+        auth::release(&self.config);
     }
 
     fn stored(&self) -> bool {

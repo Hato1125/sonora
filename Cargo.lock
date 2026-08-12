@@ -7842,6 +7842,7 @@ version = "0.10.0"
 dependencies = [
  "gpui",
  "i18n",
+ "image",
  "log",
  "serde",
 ]
@@ -9312,7 +9313,7 @@ dependencies = [
 [[package]]
 name = "ytmusic"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/ytmusic-rs?rev=0d5957187649039b4939533a9c08477723683936#0d5957187649039b4939533a9c08477723683936"
+source = "git+https://github.com/nolight132/ytmusic-rs?rev=ef40d9421c01c7ad675d3006fb3dfbfdb21c1aac#ef40d9421c01c7ad675d3006fb3dfbfdb21c1aac"
 dependencies = [
  "aes",
  "anyhow",

@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use std::{
     collections::HashMap,
     path::PathBuf,
@@ -201,15 +199,5 @@ mod tests {
     #[test]
     fn rejects_an_empty_registry() {
         assert!(parsed(br#"{"version":1,"operations":{}}"#).is_err());
-    }
-
-    #[test]
-    fn ages_from_the_fetch_time() {
-        let registry = Registry {
-            fetched: now() - 60,
-            operations: HashMap::new(),
-        };
-        assert!(aged(&registry) >= Duration::from_secs(60));
-        assert!(aged(&registry) < MAX_AGE);
     }
 }

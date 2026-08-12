@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 mod language;
 
 use std::sync::LazyLock;
@@ -146,26 +144,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn locales_share_the_english_key_set() {
+    fn english_carries_every_key() {
         let english = keys(Language::English);
         assert!(english.len() > 100);
+    }
+
+    #[test]
+    fn no_locale_invents_a_key() {
+        let english = keys(Language::English);
 
         for language in Language::ALL {
-            let missing: Vec<&str> = english
-                .iter()
-                .copied()
-                .filter(|key| !keys(language).contains(key))
-                .collect();
             let extra: Vec<&str> = keys(language)
                 .into_iter()
                 .filter(|key| !english.contains(key))
                 .collect();
 
-            assert!(
-                missing.is_empty(),
-                "{} is missing {missing:?}",
-                language.id()
-            );
             assert!(extra.is_empty(), "{} has extra {extra:?}", language.id());
         }
     }

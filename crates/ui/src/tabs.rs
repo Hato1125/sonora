@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use gpui::prelude::*;
 use gpui::{AnyElement, App, Div, StyleRefinement, Window, div, px};
 
@@ -12,6 +10,12 @@ const TICK: f32 = 6.;
 pub struct Tabs {
     base: Div,
     items: Vec<AnyElement>,
+}
+
+impl Default for Tabs {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Tabs {

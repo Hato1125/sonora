@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use gpui::prelude::*;
 use gpui::{
     Anchor, AnyView, App, Context, Pixels, Point, SharedString, Window, anchored, div, point, px,

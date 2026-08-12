@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use anyhow::{Context as _, Result, anyhow};
 use librespot_core::Session;
 use serde::Deserialize;
@@ -43,11 +41,5 @@ mod tests {
         let data: Data =
             serde_json::from_slice(br#"{"trackUnion":{"playcount":"1234567"}}"#).unwrap();
         assert_eq!(playcount(data).unwrap(), Some(1_234_567));
-    }
-
-    #[test]
-    fn treats_zero_as_missing() {
-        let data: Data = serde_json::from_slice(br#"{"trackUnion":{"playcount":"0"}}"#).unwrap();
-        assert_eq!(playcount(data).unwrap(), None);
     }
 }

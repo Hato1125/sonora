@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use gpui::prelude::*;
 use gpui::{Context, Entity, Render, Window, div};
 use state::{Note, Toasts};

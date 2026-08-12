@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -35,12 +33,17 @@ pub struct ProviderInfo {
     pub options: Vec<SignIn>,
     pub stored: bool,
     pub active: bool,
+    pub pending: bool,
+    pub error: Option<String>,
 }
 
 pub struct Session {
     state: SessionState,
     providers: Vec<Arc<dyn MusicProvider>>,
     active: Option<usize>,
+    awaiting: Option<usize>,
+    resume: Option<(usize, UserProfile)>,
+    error: Option<(usize, String)>,
     settings: Entity<AppSettings>,
     client: Option<Arc<dyn MusicApi>>,
     playback: Option<Arc<dyn PlaybackFactory>>,
@@ -74,6 +77,9 @@ impl Session {
             state: SessionState::SignedOut,
             providers,
             active,
+            awaiting: None,
+            resume: None,
+            error: None,
             settings,
             client: None,
             playback: None,
@@ -126,6 +132,11 @@ impl Session {
                 options: provider.sign_in_options(),
                 stored: provider.stored(),
                 active: self.active == Some(index),
+                pending: self.awaiting == Some(index),
+                error: match &self.error {
+                    Some((failed, message)) if *failed == index => Some(message.clone()),
+                    _ => None,
+                },
             })
     }
 
@@ -234,6 +245,12 @@ impl Session {
         else {
             return;
         };
+        self.resume = match &self.state {
+            SessionState::SignedIn(profile) => self.active.map(|active| (active, profile.clone())),
+            _ => None,
+        };
+        self.error = None;
+        self.awaiting = Some(index);
         self.state = SessionState::Authorizing(None);
         cx.notify();
 
@@ -265,6 +282,7 @@ impl Session {
             this.update(cx, |this, cx| {
                 this.prompt_task = None;
                 this.input = None;
+                this.awaiting = None;
                 match authorized {
                     Ok(session) => this.signed_in(session, index, cx),
                     Err(error) => this.failed(&error, cx),
@@ -278,27 +296,33 @@ impl Session {
         if !matches!(self.state, SessionState::Authorizing(_)) {
             return;
         }
+        if let Some(index) = self.awaiting {
+            let provider = self.providers[index].clone();
+            self.io.spawn(async move { provider.abandon() });
+        }
         self.task = None;
         self.prompt_task = None;
         self.input = None;
-        match self.remaining() {
-            Some(index) => {
-                self.active = Some(index);
-                self.state = SessionState::SignedOut;
-                self.restore(cx);
-            }
-            None => {
-                self.state = SessionState::SignedOut;
-                cx.notify();
-                cx.emit(SessionEvent::SignedOut);
-            }
+        self.awaiting = None;
+        self.error = None;
+        if let Some((index, profile)) = self.resume.take() {
+            self.active = Some(index);
+            self.state = SessionState::SignedIn(profile);
+            cx.notify();
+            return;
         }
+        self.state = SessionState::SignedOut;
+        cx.notify();
+        cx.emit(SessionEvent::SignedOut);
     }
 
     pub fn submit_input(&mut self, text: String, cx: &mut Context<Self>) {
         if let Some(input) = &self.input {
             input.send(text).ok();
-            if let SessionState::Authorizing(Some(SignInPrompt::Secret)) = &self.state {
+            if let SessionState::Authorizing(Some(
+                SignInPrompt::Secret | SignInPrompt::Accounts(_),
+            )) = &self.state
+            {
                 self.state = SessionState::Authorizing(None);
                 cx.notify();
             }
@@ -326,6 +350,8 @@ impl Session {
         self.task = None;
         self.prompt_task = None;
         self.input = None;
+        self.awaiting = None;
+        self.resume = None;
         self.client = None;
         self.playback = None;
         self.authenticated = false;
@@ -337,6 +363,9 @@ impl Session {
 
     fn signed_in(&mut self, session: ProviderSession, index: usize, cx: &mut Context<Self>) {
         self.active = Some(index);
+        self.awaiting = None;
+        self.resume = None;
+        self.error = None;
         let slug = self.providers[index].slug();
         self.settings.update(cx, |settings, cx| {
             settings.set_provider(slug, cx);
@@ -351,9 +380,20 @@ impl Session {
     }
 
     fn failed(&mut self, error: &Error, cx: &mut Context<Self>) {
+        let message = format!("{error:#}");
+        if let Some(failed) = self.awaiting.or(self.active) {
+            self.error = Some((failed, message.clone()));
+        }
+        self.awaiting = None;
+        if let Some((index, profile)) = self.resume.take() {
+            self.active = Some(index);
+            self.state = SessionState::SignedIn(profile);
+            cx.notify();
+            return;
+        }
         self.client = None;
         self.playback = None;
-        self.state = SessionState::Failed(format!("{error:#}"));
+        self.state = SessionState::Failed(message);
         cx.notify();
         cx.emit(SessionEvent::SignedOut);
     }
@@ -391,6 +431,15 @@ impl Session {
             })
             .ok();
         }));
+    }
+
+    pub fn clear_local_folder(&mut self, cx: &mut Context<Self>) {
+        self.local_provider.sign_out();
+        self.local_client = None;
+        self.local_playback = None;
+        self.local_task = None;
+        cx.notify();
+        cx.emit(SessionEvent::LocalChanged);
     }
 
     fn local_signed_in(&mut self, session: ProviderSession, cx: &mut Context<Self>) {

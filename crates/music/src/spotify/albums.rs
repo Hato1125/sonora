@@ -1,6 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use anyhow::{Context as _, Result};
 use librespot_core::Session;
@@ -18,15 +16,26 @@ const TRACK_PREFIX: &str = "spotify:track:";
 const UNKNOWN: &str = "Unknown";
 
 pub async fn saved_albums(session: &Session, limit: u32) -> Result<Vec<Album>> {
-    let uris = collection2::saved_uris(session, ALBUM_PREFIX, limit as usize).await?;
-    if uris.is_empty() {
+    let items = collection2::saved_items(
+        session,
+        collection2::COLLECTION,
+        ALBUM_PREFIX,
+        limit as usize,
+    )
+    .await?;
+    if items.is_empty() {
         return Ok(Vec::new());
     }
 
-    let known = metadata(session, &uris).await?;
-    Ok(uris
-        .iter()
-        .filter_map(|uri| known.get(uri).cloned())
+    let uris: Vec<String> = items.iter().map(|item| item.uri.clone()).collect();
+    let mut known = metadata(session, &uris).await?;
+    Ok(items
+        .into_iter()
+        .filter_map(|item| {
+            let mut album = known.remove(&item.uri)?;
+            album.added_at = item.added_at;
+            Some(album)
+        })
         .collect())
 }
 
@@ -129,6 +138,30 @@ pub(crate) async fn metadata(session: &Session, uris: &[String]) -> Result<HashM
     Ok(albums)
 }
 
+pub(crate) async fn track_uris(session: &Session, uris: &[String]) -> Result<Vec<String>> {
+    let response = session
+        .spclient()
+        .get_extended_metadata(batched(uris))
+        .await
+        .context("cannot read album metadata")?;
+
+    let mut seen = HashSet::new();
+    let mut tracks = Vec::new();
+    for array in response.extended_metadata {
+        for entity in array.extension_data {
+            let Ok(message) = AlbumMessage::parse_from_bytes(&entity.extension_data.value) else {
+                continue;
+            };
+            for id in track_ids(&message) {
+                if seen.insert(id.clone()) {
+                    tracks.push(format!("{TRACK_PREFIX}{id}"));
+                }
+            }
+        }
+    }
+    Ok(tracks)
+}
+
 fn album_from(uri: &str, album: &AlbumMessage) -> Album {
     let (artists, artist_refs) = collection::artists_from(&album.artist);
 
@@ -164,6 +197,7 @@ fn album_from(uri: &str, album: &AlbumMessage) -> Album {
             .iter()
             .filter_map(|copyright| non_empty(copyright.text.as_deref()).map(str::to_owned))
             .collect(),
+        added_at: None,
     }
 }
 

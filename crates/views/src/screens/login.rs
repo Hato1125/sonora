@@ -1,5 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
+use crate::shared::accounts::AccountPicker;
 use crate::shared::browsers::BrowserPicker;
 use gpui::prelude::*;
 use gpui::{
@@ -7,7 +6,7 @@ use gpui::{
     SharedString, Window, div, px, svg,
 };
 use i18n::t;
-use music::{SignIn, SignInPrompt};
+use music::{AccountChoice, SignIn, SignInPrompt};
 use state::{Session, SessionState};
 use ui::ActiveTheme as _;
 use ui::{Button, Input, Modal, Separator, Text};
@@ -21,6 +20,7 @@ struct Column {
     name: &'static str,
     options: Vec<SignIn>,
     disabled: bool,
+    cancel: bool,
 }
 
 pub struct LoginView {
@@ -106,6 +106,29 @@ impl LoginView {
         }
     }
 
+    fn option(
+        &self,
+        slug: &'static str,
+        provider: &str,
+        method: &SignIn,
+        disabled: bool,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let button = self.option_button(slug, provider, method, disabled, cx);
+        match method {
+            SignIn::Browser(_) => div()
+                .flex()
+                .flex_col()
+                .items_center()
+                .gap_1()
+                .w_full()
+                .child(button)
+                .child(crate::shared::firefox_note(cx))
+                .into_any_element(),
+            _ => button.into_any_element(),
+        }
+    }
+
     fn open_browsers(&mut self, slug: &'static str, cx: &mut Context<Self>) {
         let names = self
             .session
@@ -136,6 +159,7 @@ impl LoginView {
             name,
             options,
             disabled,
+            cancel,
         } = column;
         let mut seen_browser = false;
         let options: Vec<&SignIn> = options
@@ -167,11 +191,25 @@ impl LoginView {
                     .child(SharedString::from(name.to_string())),
             )
             .child(
-                div().flex().flex_col().gap_2().w_full().children(
-                    options
-                        .into_iter()
-                        .map(|method| self.option_button(slug, name, method, disabled, cx)),
-                ),
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap_2()
+                    .w_full()
+                    .children(
+                        options
+                            .into_iter()
+                            .map(|method| self.option(slug, name, method, disabled, cx)),
+                    )
+                    .when(cancel, |this| {
+                        this.child(
+                            Button::new("cancel-sign-in")
+                                .label(t!("common-cancel"))
+                                .outline()
+                                .w_full()
+                                .on_click(cx.listener(|this, _, _, cx| this.abandon(cx))),
+                        )
+                    }),
             )
     }
 
@@ -281,6 +319,20 @@ impl LoginView {
             .on_dismiss(cx.listener(|this, _, _, cx| this.abandon(cx)))
     }
 
+    fn account_modal(
+        &self,
+        accounts: Vec<AccountChoice>,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        AccountPicker::new(accounts)
+            .on_pick(cx.listener(|this, id: &SharedString, _, cx| {
+                let id = id.to_string();
+                this.session
+                    .update(cx, |session, cx| session.submit_input(id, cx));
+            }))
+            .on_cancel(cx.listener(|this, _, _, cx| this.abandon(cx)))
+    }
+
     fn browser_modal(
         &self,
         slug: &'static str,
@@ -313,6 +365,13 @@ impl Render for LoginView {
             })
             .map(|info| (info.slug, info.name))
             .collect();
+        let waiting = match &state {
+            SessionState::Authorizing(prompt) => !matches!(
+                prompt,
+                Some(SignInPrompt::Secret | SignInPrompt::Accounts(_))
+            ),
+            _ => false,
+        };
         let columns: Vec<Column> = providers
             .into_iter()
             .map(|info| Column {
@@ -320,13 +379,16 @@ impl Render for LoginView {
                 name: info.name,
                 options: info.options,
                 disabled: pending,
+                cancel: waiting && info.pending,
             })
             .collect();
 
         let status = match &state {
             SessionState::SignedOut => t!("login-signed-out"),
             SessionState::Restoring => t!("login-restoring"),
-            SessionState::Authorizing(Some(SignInPrompt::Secret)) => t!("login-signed-out"),
+            SessionState::Authorizing(Some(SignInPrompt::Secret | SignInPrompt::Accounts(_))) => {
+                t!("login-signed-out")
+            }
             SessionState::Authorizing(_) => t!("login-authorizing"),
             SessionState::SignedIn(profile) => t!("login-signed-in", name = &profile.display_name),
             SessionState::Failed(error) => SharedString::from(error.clone()),
@@ -337,6 +399,10 @@ impl Render for LoginView {
             _ => None,
         };
         let secret = matches!(prompt, Some(SignInPrompt::Secret));
+        let accounts = match &prompt {
+            Some(SignInPrompt::Accounts(accounts)) => Some(accounts.clone()),
+            _ => None,
+        };
         let code = match prompt {
             Some(SignInPrompt::Code { code, url }) => Some((code, url)),
             _ => None,
@@ -399,6 +465,9 @@ impl Render for LoginView {
             })
             .when_some(browsers, |this, (slug, names)| {
                 this.child(self.browser_modal(slug, names, cx).into_any_element())
+            })
+            .when_some(accounts, |this, accounts| {
+                this.child(self.account_modal(accounts, cx).into_any_element())
             })
     }
 }

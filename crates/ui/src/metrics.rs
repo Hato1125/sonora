@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use gpui::{Pixels, SharedString, TextRun, Window, px};
 use i18n::t;
 

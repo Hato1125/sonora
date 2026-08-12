@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use std::collections::HashMap;
 use std::time::Duration;
 
@@ -639,7 +637,8 @@ mod tests {
     #[test]
     fn saved_track_is_listed_once() {
         let saved = rhapsody();
-        let hits = rank(&[saved.clone()], &[], &[saved], "queen");
+        let library = [saved.clone()];
+        let hits = rank(&library, &[], &[saved], "queen");
         assert_eq!(titles(&hits), ["Bohemian Rhapsody"]);
     }
 

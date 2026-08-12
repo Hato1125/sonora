@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use std::rc::Rc;
 
 use gpui::prelude::*;
@@ -184,9 +182,10 @@ fn album_card(
         .into_any_element(),
     };
     let origin = Origin::Album(album.id.clone());
-    let state = playback.read(cx).playing_from(&origin);
-    let playing = matches!(state, Some(PlaybackState::Playing));
-    let played = album.id.clone();
+    let playing = matches!(
+        playback.read(cx).playing_from(&origin),
+        Some(PlaybackState::Playing)
+    );
     let pin = Pin::new(PinKind::Album, album.id.clone(), album.name.clone()).cover(cover.clone());
     let opened = SharedString::from(album.id);
 
@@ -198,11 +197,7 @@ fn album_card(
         .underline()
         .bare_meta(meta)
         .play(playing, move |_, _, cx| {
-            playback.update(cx, |playback, cx| match &state {
-                Some(PlaybackState::Playing) => playback.pause(cx),
-                Some(PlaybackState::Paused) => playback.resume(cx),
-                _ => playback.play_album(&played, cx),
-            });
+            playback.update(cx, |playback, cx| playback.toggle_origin(&origin, cx));
         })
         .press(move |_, _, cx| navigate(Destination::Album(opened.clone()), cx))
         .pin(pin)

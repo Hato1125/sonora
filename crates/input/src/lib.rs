@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use gpui::{KeyBinding, actions};
 use ui::{
     Backspace, BackspaceWord, Copy, Cut, Delete, DeleteWord, Deselect, Dismiss, End, FORM_CONTEXT,
@@ -15,10 +13,14 @@ actions!(
         SignOut,
         RefreshLibrary,
         TogglePlayback,
+        NavigateBack,
+        NavigateForward,
         OpenFilter,
         OpenSearch,
         OpenSettings,
-        ToggleFullscreen
+        ToggleFullscreen,
+        ToggleQueue,
+        ToggleLyrics
     ]
 );
 
@@ -33,6 +35,8 @@ pub fn bindings() -> Vec<KeyBinding> {
     vec![
         KeyBinding::new("down", SelectNext, table),
         KeyBinding::new("up", SelectPrevious, table),
+        KeyBinding::new("alt-left", NavigateBack, None),
+        KeyBinding::new("alt-right", NavigateForward, None),
         KeyBinding::new("escape", Deselect, table),
         KeyBinding::new("cmd-q", Quit, None),
         KeyBinding::new("ctrl-q", Quit, None),

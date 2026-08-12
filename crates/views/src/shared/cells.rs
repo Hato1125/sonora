@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
@@ -14,10 +12,12 @@ use music::ArtistRef;
 use router::{Destination, Link as _, navigate};
 use state::{Playback, PlaybackState};
 use ui::{
-    ActiveTheme as _, Artwork, Cell, ExplicitBadge, InlineLink, InlineLinks, ROW_GROUP, Theme,
+    ActiveTheme as _, Artwork, Avatar, Cell, ExplicitBadge, InlineLink, InlineLinks, ROW_GROUP,
+    Theme,
 };
 
 use crate::chrome::Chrome;
+use crate::shared::hero::release_date_label;
 
 const PLAY: &str = "icons/play.svg";
 const PLAYING: &str = "icons/music-2.svg";
@@ -25,13 +25,13 @@ const PAUSE: &str = "icons/pause.svg";
 const UNAVAILABLE: &str = "icons/play-off.svg";
 const HOVER_PRELOAD_DELAY: Duration = Duration::from_millis(200);
 
+pub(crate) type Tap = Box<dyn Fn(&mut App)>;
+
 pub(crate) const NUMBER: Pixels = px(44.);
 pub(crate) const TRAILING: Pixels = px(72.);
 pub(crate) const DATE: Pixels = px(112.);
 pub(crate) const YEAR: Pixels = px(64.);
 pub(crate) const HIT: Pixels = px(18.);
-
-pub(crate) use ui::{ALWAYS, ROOMY, SNUG, WIDE};
 
 pub(crate) fn glyph(theme: &Theme) -> Pixels {
     px((theme.metrics.row / px(1.) * 0.23).round())
@@ -65,12 +65,25 @@ impl RenderOnce for Thumb {
     }
 }
 
+#[derive(IntoElement)]
+struct Face {
+    url: Option<String>,
+}
+
+impl RenderOnce for Face {
+    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+        let theme = cx.theme();
+
+        Avatar::new(self.url).size(theme.metrics.thumb)
+    }
+}
+
 pub(crate) fn index<F>(
     cell: &Cell<F>,
     state: Option<PlaybackState>,
     playable: bool,
-    preload: Option<Box<dyn Fn(&mut App)>>,
-    press: Option<Box<dyn Fn(&mut App)>>,
+    preload: Option<Tap>,
+    press: Option<Tap>,
     cx: &App,
 ) -> AnyElement {
     let theme = *cx.theme();
@@ -122,7 +135,7 @@ pub(crate) fn toggle<F>(
     playback: &Entity<Playback>,
     state: Option<PlaybackState>,
     start: F,
-) -> Option<Box<dyn Fn(&mut App)>>
+) -> Option<Tap>
 where
     F: Fn(&mut Playback, &mut Context<Playback>) + 'static,
 {
@@ -140,8 +153,8 @@ where
 pub(crate) struct Transport {
     pub(crate) icon: &'static str,
     pub(crate) color: Hsla,
-    pub(crate) preload: Option<Box<dyn Fn(&mut App)>>,
-    pub(crate) press: Option<Box<dyn Fn(&mut App)>>,
+    pub(crate) preload: Option<Tap>,
+    pub(crate) press: Option<Tap>,
 }
 
 pub(crate) fn transport<F>(cell: &Cell<F>, resting: AnyElement, hover: Transport) -> AnyElement {
@@ -293,6 +306,13 @@ pub(crate) fn dim<F>(cell: &Cell<F>, value: impl Into<SharedString>, muted: Hsla
         .into_any_element()
 }
 
+pub(crate) fn stamp(seconds: Option<i64>) -> SharedString {
+    seconds
+        .and_then(|seconds| jiff::Timestamp::new(seconds, 0).ok())
+        .map(|stamp| release_date_label(&stamp.strftime("%Y-%m-%d").to_string()))
+        .unwrap_or_default()
+}
+
 pub(crate) fn count(value: u64) -> SharedString {
     let group = t!("number-group");
     let digits = value.to_string();
@@ -313,7 +333,7 @@ pub(crate) fn title<F>(
     value: impl Into<SharedString>,
     color: Option<Hsla>,
     explicit: bool,
-    press: Option<Box<dyn Fn(&mut App)>>,
+    press: Option<Tap>,
     is_liked: Option<AnyElement>,
 ) -> AnyElement {
     let text = div()
@@ -344,6 +364,10 @@ pub(crate) fn title<F>(
 
 pub(crate) fn artwork<F>(cell: &Cell<F>, url: Option<String>) -> AnyElement {
     cell.middle().child(Thumb { url }).into_any_element()
+}
+
+pub(crate) fn avatar<F>(cell: &Cell<F>, url: Option<String>) -> AnyElement {
+    cell.middle().child(Face { url }).into_any_element()
 }
 
 pub(crate) fn blank<F>(cell: &Cell<F>) -> AnyElement {

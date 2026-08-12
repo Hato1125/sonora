@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use ui::{
     ActiveTheme as _, Button, Card, DraggedPin, Edge, Panel, Pin, PinKind, Pinnable as _, Popup,
     SNUG, Scrollbar, Scroller, Shield, Side, Tabs, Text, drop_gap, drop_marker,
@@ -31,9 +29,10 @@ const NAV: [(&str, &str, Option<Destination>); 4] = [
     ),
 ];
 
-const LIBRARY_TABS: [(&str, LibraryTab); 4] = [
+const LIBRARY_TABS: [(&str, LibraryTab); 5] = [
     ("nav-songs", LibraryTab::Songs),
     ("nav-albums", LibraryTab::Albums),
+    ("nav-artists", LibraryTab::Artists),
     ("nav-playlists", LibraryTab::Playlists),
     ("nav-local", LibraryTab::Local),
 ];
@@ -53,6 +52,7 @@ pub(crate) struct SidebarLeft {
     settings: Entity<AppSettings>,
     session: Entity<Session>,
     trail: Entity<Navigation>,
+    at: Destination,
     width: Pixels,
     open: bool,
     cramped: bool,
@@ -85,26 +85,27 @@ impl SidebarLeft {
         cx.observe(&session, |_, _, cx| cx.notify()).detach();
         cx.observe(&settings, |_, _, cx| cx.notify()).detach();
         cx.observe(&trail, |_, _, cx| cx.notify()).detach();
-        cx.subscribe(&trail, |this, _, event, cx| {
-            let NavigationEvent::Moved(destination) = event;
-            if !matches!(destination, Destination::Settings(_)) {
-                this.settings_open = false;
-            }
+        cx.subscribe(&trail, |this, _, _: &NavigationEvent, cx| {
             this.dismiss(cx);
             cx.notify();
         })
         .detach();
 
+        let at = trail.read(cx).current();
+        let library_open = matches!(at, Destination::Library(_));
+        let settings_open = matches!(at, Destination::Settings(_));
+
         Self {
             settings,
             session,
             trail,
+            at,
             width,
             open,
             forced: None,
             cramped: false,
-            library_open: true,
-            settings_open: false,
+            library_open,
+            settings_open,
             dropping: false,
             drop_gap: None,
             playback,
@@ -112,6 +113,14 @@ impl SidebarLeft {
             context_menu: None,
             scrollbar,
         }
+    }
+
+    fn follow(&mut self, current: &Destination) {
+        if self.at == *current {
+            return;
+        }
+        self.at = current.clone();
+        (self.library_open, self.settings_open) = expanded(current);
     }
 
     fn dismiss_menu(&mut self, cx: &mut Context<Self>) {
@@ -219,9 +228,10 @@ impl SidebarLeft {
         };
 
         let origin = origin_of(&pin);
-        let state = self.playback.read(cx).playing_from(&origin);
-        let playing = matches!(state, Some(PlaybackState::Playing));
-        let played = pin.clone();
+        let playing = matches!(
+            self.playback.read(cx).playing_from(&origin),
+            Some(PlaybackState::Playing)
+        );
 
         let card = Card::new(("pinned", index), pin.label())
             .cover(pin.cover.clone())
@@ -230,11 +240,8 @@ impl SidebarLeft {
             .play(
                 playing,
                 cx.listener(move |this, _, _, cx| {
-                    this.playback.update(cx, |playback, cx| match &state {
-                        Some(PlaybackState::Playing) => playback.pause(cx),
-                        Some(PlaybackState::Paused) => playback.resume(cx),
-                        _ => start_pin(playback, &played, cx),
-                    });
+                    this.playback
+                        .update(cx, |playback, cx| playback.toggle_origin(&origin, cx));
                 }),
             )
             .tint(match active {
@@ -306,6 +313,7 @@ impl Render for SidebarLeft {
         let sidebar_border = theme.sidebar_border;
 
         let current = self.trail.read(cx).current();
+        self.follow(&current);
         let authenticated = self.session.read(cx).authenticated();
         let has_local = self.session.read(cx).local_client().is_some();
         self.adapt(window, cx);
@@ -335,6 +343,7 @@ impl Render for SidebarLeft {
                 rows.push(
                     nav_row(index, key, text, sidebar_accent)
                         .icon(icon)
+                        .trailing(chevron(self.library_open))
                         .on_click(cx.listener(move |this, _, _, cx| match inside {
                             true => {
                                 this.library_open = !this.library_open;
@@ -374,15 +383,13 @@ impl Render for SidebarLeft {
                 rows.push(
                     nav_row(index, key, text, sidebar_accent)
                         .icon(icon)
+                        .trailing(chevron(self.settings_open))
                         .on_click(cx.listener(move |this, _, _, cx| match inside {
                             true => {
                                 this.settings_open = !this.settings_open;
                                 cx.notify();
                             }
-                            false => {
-                                this.settings_open = true;
-                                navigate(target.clone(), cx);
-                            }
+                            false => navigate(target.clone(), cx),
                         }))
                         .into_any_element(),
                 );
@@ -502,15 +509,6 @@ fn origin_of(pin: &Pin) -> Origin {
     }
 }
 
-fn start_pin(playback: &mut Playback, pin: &Pin, cx: &mut Context<Playback>) {
-    match pin.kind {
-        PinKind::Album => playback.play_album(&pin.id, cx),
-        PinKind::Playlist => playback.play_playlist(&pin.id, cx),
-        PinKind::Artist => playback.play_artist(&pin.id, cx),
-        PinKind::Song => playback.play_track(&pin.id, cx),
-    }
-}
-
 fn hint(cx: &App) -> AnyElement {
     let theme = *cx.theme();
 
@@ -533,6 +531,20 @@ fn hint(cx: &App) -> AnyElement {
         .into_any_element()
 }
 
+fn expanded(current: &Destination) -> (bool, bool) {
+    (
+        matches!(current, Destination::Library(_)),
+        matches!(current, Destination::Settings(_)),
+    )
+}
+
+fn chevron(open: bool) -> &'static str {
+    match open {
+        true => "icons/chevron-down.svg",
+        false => "icons/chevron-right.svg",
+    }
+}
+
 fn nav_row(id: impl Into<ElementId>, key: &'static str, tint: Hsla, accent: Hsla) -> Button {
     Button::new(id)
         .ghost()
@@ -542,4 +554,39 @@ fn nav_row(id: impl Into<ElementId>, key: &'static str, tint: Hsla, accent: Hsla
         .justify_start()
         .hover(move |style| style.bg(accent))
         .active(move |style| style.bg(accent))
+}
+
+#[cfg(test)]
+mod tests {
+    use router::{Destination, LibraryTab, SettingsTab};
+
+    use super::expanded;
+
+    #[test]
+    fn a_section_expands_only_where_it_leads() {
+        assert_eq!(
+            expanded(&Destination::Library(LibraryTab::Albums)),
+            (true, false)
+        );
+        assert_eq!(
+            expanded(&Destination::Settings(SettingsTab::General)),
+            (false, true)
+        );
+    }
+
+    #[test]
+    fn leaving_through_content_collapses_both() {
+        let away = [
+            Destination::Home,
+            Destination::Search,
+            Destination::Album("id".into()),
+            Destination::Playlist("id".into()),
+            Destination::Artist("id".into()),
+            Destination::Song("id".into()),
+        ];
+
+        for destination in away {
+            assert_eq!(expanded(&destination), (false, false), "{destination:?}");
+        }
+    }
 }
