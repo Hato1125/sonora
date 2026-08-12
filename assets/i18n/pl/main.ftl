@@ -145,21 +145,21 @@ tool-filters = Filtry
 login-signed-out = Zaloguj się, aby wczytać bibliotekę
 login-restoring = Sprawdzanie zapisanej sesji…
 login-authorizing = Oczekiwanie na autoryzację w przeglądarce…
-login-browser-authorizing = 1. Znajdź YouTube Music w wyszukiwarce. 2. Otwórz stronę i zaloguj się na konto Google. 3. Po zalogowaniu ponownie otwórz YouTube Music. 4. Upewnij się, że wybrane jest właściwe konto. 5. Zamknij okno przeglądarki i poczekaj na wynik w Sonora.
 login-signed-in = Zalogowano jako { $name }
 login-sign-in = Zaloguj się przez { $provider }
 login-connect-cookies = Wklej pliki cookie ręcznie
-login-import-browser = Importuj z przeglądarki
+login-import-browser = Importuj z przeglądarki*
+login-browser-firefox = *Tylko przeglądarki oparte na Firefoksie
 login-browser-title = Wybierz przeglądarkę
-login-browser-detail = Sonora odczyta sesję YouTube Music z wybranej przeglądarki. Pozostanie ona na tym urządzeniu.
+login-browser-detail = Sonora odczyta sesję YouTube Music z wybranej przeglądarki. Sesja pozostanie na tym urządzeniu.
 login-use = Otwórz { $provider }
 login-guest-title = Tryb gościa
 login-guest-use = Otwórz tryb gościa
 login-guest-detail = Słuchaj bez konta. Biblioteka, polubienia i playlisty pozostaną niedostępne.
 login-device-code = Wpisz ten kod na stronie { $url }
 login-cookie-submit = Kontynuuj
-login-cookie-hint = Nagłówek Cookie z music.youtube.com
-login-cookie-detail = Otwórz music.youtube.com w przeglądarce, skopiuj nagłówek Cookie z DevTools (karta Network) i wklej go tutaj
+login-cookie-hint = Wklej tutaj nagłówek żądania Cookie
+login-cookie-detail = 1. Otwórz music.youtube.com i upewnij się, że jesteś zalogowany. 2. Naciśnij F12, otwórz kartę Sieć i odśwież stronę. 3. Wybierz dowolne żądanie o nazwie „browse” lub „next”. 4. Na karcie Nagłówki znajdź Cookie wśród nagłówków żądania, kliknij prawym przyciskiem i skopiuj wartość. Wklej całą wartość: panel Ciasteczka nie wystarczy, bo wartość musi zawierać SAPISID i __Secure-3PAPISID.
 login-cookie-title = Wklej pliki cookie YouTube Music, aby dokończyć logowanie
 
 # album and playlist pages

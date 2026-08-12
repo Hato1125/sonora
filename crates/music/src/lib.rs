@@ -148,7 +148,6 @@ pub enum SignIn {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SignInPrompt {
-    Browser,
     Code { code: String, url: String },
     Secret,
 }

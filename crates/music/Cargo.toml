@@ -24,8 +24,3 @@ serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
 ytmusic.workspace = true
-
-[target.'cfg(target_os = "windows")'.dependencies]
-futures.workspace = true
-tempfile.workspace = true
-tokio-tungstenite.workspace = true

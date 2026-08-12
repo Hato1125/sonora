@@ -145,21 +145,21 @@ tool-filters = Filters
 login-signed-out = Sign in to load your music library
 login-restoring = Checking your saved session…
 login-authorizing = Waiting for authorization in your browser…
-login-browser-authorizing = 1. Find YouTube Music using search. 2. Open the site and sign in to your Google account. 3. Open YouTube Music again after signing in. 4. Confirm the correct account is active. 5. Close the browser window and wait for the result in Sonora.
 login-signed-in = Signed in as { $name }
 login-sign-in = Sign in with { $provider }
 login-connect-cookies = Paste cookies manually
-login-import-browser = Import from browser
+login-import-browser = Import from browser*
+login-browser-firefox = *Firefox-based browsers only
 login-browser-title = Choose a browser
-login-browser-detail = Sonora reads your YouTube Music session from the browser you pick. It stays on this device.
+login-browser-detail = Sonora reads your YouTube Music session from the browser you pick. The session stays on this device.
 login-use = Use { $provider }
 login-guest-title = Guest mode
 login-guest-use = Use Guest mode
 login-guest-detail = Browse and play without an account. Your library, likes and playlists stay out of reach.
 login-device-code = Enter this code at { $url }
 login-cookie-submit = Continue
-login-cookie-hint = Cookie header from music.youtube.com
-login-cookie-detail = Open music.youtube.com in your browser, copy the Cookie request header from DevTools (Network tab), and paste it here
+login-cookie-hint = Paste the Cookie request header here
+login-cookie-detail = 1. Open music.youtube.com and make sure you are signed in. 2. Press F12, open the Network tab and reload the page. 3. Select any request named "browse" or "next". 4. In Headers, find Cookie under Request Headers, right-click it and copy its value. Paste the whole value below: the request Cookies panel is not enough, because the value has to carry SAPISID and __Secure-3PAPISID.
 login-cookie-title = Paste your YouTube Music cookies to finish signing in
 
 # album and playlist pages

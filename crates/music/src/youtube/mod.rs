@@ -65,10 +65,7 @@ impl YouTubeProvider {
     }
 
     async fn connect(&self, cookies: &str) -> Result<ProviderSession> {
-        let cookies = cookies.trim().to_string();
-        if cookies.is_empty() {
-            anyhow::bail!("cookie header is empty");
-        }
+        let cookies = auth::header(cookies)?;
         let api = self.cookie_client(&cookies);
         let profile = wire::profile(
             api.profile()
@@ -98,14 +95,9 @@ impl YouTubeProvider {
 
     fn browsers(&self) -> Vec<Browser> {
         let mut browsers = browser::detect();
+        browsers.retain(|browser| browser.family == Family::Firefox);
         #[cfg(target_os = "windows")]
-        {
-            browsers.retain(|browser| browser.family == Family::Firefox);
-            detect_windows_browsers(&mut browsers);
-            for browser in auth::windows_chromium_browsers() {
-                push_browser(&mut browsers, browser.name, browser.family, browser.root);
-            }
-        }
+        detect_windows_browsers(&mut browsers);
         browsers.sort_by_key(|browser| browser.name);
         browsers
     }
@@ -172,11 +164,10 @@ impl MusicProvider for YouTubeProvider {
     }
 
     fn sign_in_options(&self) -> Vec<SignIn> {
-        let mut options = vec![SignIn::Anonymous];
+        let mut options = vec![SignIn::Anonymous, SignIn::Secret];
         for browser in self.browsers() {
             options.push(SignIn::Browser(browser.name.to_string()));
         }
-        options.push(SignIn::Secret);
         options
     }
 
@@ -224,8 +215,8 @@ impl MusicProvider for YouTubeProvider {
                     .into_iter()
                     .find(|browser| browser.name == name)
                     .with_context(|| format!("{name} is no longer available"))?;
-                let session = auth::acquire(&browser, &prompt).await?;
-                self.connect(session.cookies()).await
+                let cookies = auth::cookies(&browser)?;
+                self.connect(&cookies).await
             }
             SignIn::Secret => {
                 prompt(SignInPrompt::Secret);

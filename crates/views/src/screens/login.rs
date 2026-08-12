@@ -104,6 +104,29 @@ impl LoginView {
         }
     }
 
+    fn option(
+        &self,
+        slug: &'static str,
+        provider: &str,
+        method: &SignIn,
+        disabled: bool,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let button = self.option_button(slug, provider, method, disabled, cx);
+        match method {
+            SignIn::Browser(_) => div()
+                .flex()
+                .flex_col()
+                .items_center()
+                .gap_1()
+                .w_full()
+                .child(button)
+                .child(crate::shared::firefox_note(cx))
+                .into_any_element(),
+            _ => button.into_any_element(),
+        }
+    }
+
     fn open_browsers(&mut self, slug: &'static str, cx: &mut Context<Self>) {
         let names = self
             .session
@@ -168,7 +191,7 @@ impl LoginView {
                 div().flex().flex_col().gap_2().w_full().children(
                     options
                         .into_iter()
-                        .map(|method| self.option_button(slug, name, method, disabled, cx)),
+                        .map(|method| self.option(slug, name, method, disabled, cx)),
                 ),
             )
     }
@@ -325,9 +348,6 @@ impl Render for LoginView {
             SessionState::SignedOut => t!("login-signed-out"),
             SessionState::Restoring => t!("login-restoring"),
             SessionState::Authorizing(Some(SignInPrompt::Secret)) => t!("login-signed-out"),
-            SessionState::Authorizing(Some(SignInPrompt::Browser)) => {
-                t!("login-browser-authorizing")
-            }
             SessionState::Authorizing(_) => t!("login-authorizing"),
             SessionState::SignedIn(profile) => t!("login-signed-in", name = &profile.display_name),
             SessionState::Failed(error) => SharedString::from(error.clone()),

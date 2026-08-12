@@ -4201,7 +4201,6 @@ dependencies = [
  "bytes",
  "cpal",
  "dirs",
- "futures",
  "http",
  "librespot-core",
  "librespot-oauth",
@@ -4214,9 +4213,7 @@ dependencies = [
  "rodio",
  "serde",
  "serde_json",
- "tempfile",
  "tokio",
- "tokio-tungstenite",
  "ytmusic",
 ]
 

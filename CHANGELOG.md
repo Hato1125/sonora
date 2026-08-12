@@ -7,6 +7,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- The "Paste cookies manually" dialog spells out where the value comes from — which request to open
+  in the developer tools, which header to copy, and which cookies the value has to carry.
+
+### Changed
+
+- Importing a browser session is limited to Firefox-based browsers, which the login screen now says
+  under the button. Chrome, Edge, Brave and the other Chromium browsers are no longer offered;
+  paste the cookies manually to sign in from one of those.
+
 ## [0.9.0] - 2026-08-11
 
 ### Added

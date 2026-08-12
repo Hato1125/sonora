@@ -145,21 +145,21 @@ tool-filters = Фильтры
 login-signed-out = Войдите, чтобы загрузить медиатеку
 login-restoring = Проверяем сохранённую сессию…
 login-authorizing = Ожидаем авторизацию в браузере…
-login-browser-authorizing = 1. Найдите YouTube Music через поиск. 2. Откройте сайт и войдите в аккаунт Google. 3. После входа снова откройте YouTube Music. 4. Убедитесь, что выбран нужный аккаунт. 5. Закройте окно браузера и дождитесь результата в Sonora.
 login-signed-in = Вы вошли как { $name }
 login-sign-in = Войти через { $provider }
 login-connect-cookies = Вставить cookie вручную
-login-import-browser = Импорт из браузера
+login-import-browser = Импорт из браузера*
+login-browser-firefox = *Только браузеры на основе Firefox
 login-browser-title = Выберите браузер
-login-browser-detail = Sonora прочитает сессию YouTube Music из выбранного браузера. Она останется на этом устройстве.
+login-browser-detail = Sonora прочитает сессию YouTube Music из выбранного браузера. Сессия останется на этом устройстве.
 login-use = Открыть { $provider }
 login-guest-title = Гостевой режим
 login-guest-use = Открыть гостевой режим
 login-guest-detail = Слушайте без аккаунта. Медиатека, лайки и плейлисты будут недоступны.
 login-device-code = Введите этот код на { $url }
 login-cookie-submit = Продолжить
-login-cookie-hint = Заголовок Cookie с music.youtube.com
-login-cookie-detail = Откройте music.youtube.com в браузере, скопируйте заголовок Cookie из DevTools (вкладка Network) и вставьте его сюда
+login-cookie-hint = Вставьте сюда заголовок запроса Cookie
+login-cookie-detail = 1. Откройте music.youtube.com и убедитесь, что вы вошли в аккаунт. 2. Нажмите F12, откройте вкладку «Сеть» и перезагрузите страницу. 3. Выберите любой запрос с именем «browse» или «next». 4. На вкладке «Заголовки» найдите Cookie в заголовках запроса, щёлкните правой кнопкой и скопируйте значение. Вставьте значение целиком: панели «Куки» недостаточно, потому что значение должно содержать SAPISID и __Secure-3PAPISID.
 login-cookie-title = Вставьте cookie YouTube Music, чтобы завершить вход
 
 # album and playlist pages

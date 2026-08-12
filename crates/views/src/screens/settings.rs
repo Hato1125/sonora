@@ -877,13 +877,36 @@ impl SettingsView {
             )
             .when(!methods.is_empty(), |this| {
                 this.child(
-                    div().flex().flex_wrap().gap_2().children(
+                    div().flex().flex_wrap().items_start().gap_2().children(
                         methods
                             .into_iter()
-                            .map(|method| self.method_button(slug, name, method, pending, cx)),
+                            .map(|method| self.method(slug, name, method, pending, cx)),
                     ),
                 )
             })
+    }
+
+    fn method(
+        &self,
+        slug: &'static str,
+        provider: &'static str,
+        method: SignIn,
+        pending: bool,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let browser = matches!(method, SignIn::Browser(_));
+        let button = self.method_button(slug, provider, method, pending, cx);
+        match browser {
+            true => div()
+                .flex()
+                .flex_col()
+                .items_start()
+                .gap_1()
+                .child(button)
+                .child(crate::shared::firefox_note(cx))
+                .into_any_element(),
+            false => button.into_any_element(),
+        }
     }
 
     fn method_button(
