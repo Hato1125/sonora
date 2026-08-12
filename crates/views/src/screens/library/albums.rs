@@ -8,7 +8,7 @@ use router::Destination;
 use state::{Library, LibraryState, Origin, Playback};
 use ui::{Cell, ColumnSpec, GridSource, Menu, Pin, PinKind, Width};
 
-use crate::shared::cells::{self, ALWAYS, NUMBER, ROOMY, TRAILING, WIDE, YEAR};
+use crate::shared::cells::{self, ALWAYS, DATE, NUMBER, ROOMY, TRAILING, WIDE, YEAR};
 use crate::shared::menu::album_menu;
 use crate::shared::tracks::initial;
 
@@ -20,6 +20,7 @@ pub(super) enum AlbumField {
     Artists,
     Year,
     TrackCount,
+    AddedAt,
 }
 
 const COLUMN: ColumnSpec<AlbumField> = ColumnSpec {
@@ -89,8 +90,24 @@ const TRACK_COUNT: ColumnSpec<AlbumField> = ColumnSpec {
     ..COLUMN
 };
 
-pub(super) const COLUMNS: &[ColumnSpec<AlbumField>] =
-    &[INDEX, COVER, NAME, ARTISTS, RELEASE_YEAR, TRACK_COUNT];
+const ADDED_AT: ColumnSpec<AlbumField> = ColumnSpec {
+    field: AlbumField::AddedAt,
+    key: "added-at",
+    header: "column-date-added",
+    width: Width::Fixed(DATE),
+    hide_below: ROOMY,
+    ..COLUMN
+};
+
+pub(super) const COLUMNS: &[ColumnSpec<AlbumField>] = &[
+    INDEX,
+    COVER,
+    NAME,
+    ARTISTS,
+    RELEASE_YEAR,
+    ADDED_AT,
+    TRACK_COUNT,
+];
 
 pub(super) struct AlbumSource {
     library: Entity<Library>,
@@ -251,6 +268,7 @@ impl GridSource for AlbumSource {
             ),
             AlbumField::Year => cells::dim(&cell, year(album), muted),
             AlbumField::TrackCount => cells::dim(&cell, format!("{}", album.track_count), muted),
+            AlbumField::AddedAt => cells::dim(&cell, cells::stamp(album.added_at), muted),
             AlbumField::Index => cells::blank(&cell),
         }
     }
@@ -277,6 +295,10 @@ impl GridSource for AlbumSource {
                 .get(a)
                 .map(|album| album.track_count)
                 .cmp(&albums.get(b).map(|album| album.track_count)),
+            AlbumField::AddedAt => albums
+                .get(a)
+                .map(|album| album.added_at)
+                .cmp(&albums.get(b).map(|album| album.added_at)),
             AlbumField::Index | AlbumField::Cover => a.cmp(&b),
         }
     }

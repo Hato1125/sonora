@@ -7,7 +7,7 @@ use router::Destination;
 use state::{Library, LibraryState, Origin, Playback};
 use ui::{Cell, ColumnSpec, GridSource, Menu, Pin, PinKind, Width};
 
-use crate::shared::cells::{self, ALWAYS, NUMBER, ROOMY, SNUG, TRAILING};
+use crate::shared::cells::{self, ALWAYS, DATE, NUMBER, ROOMY, SNUG, TRAILING};
 use crate::shared::menu::playlist_menu;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -17,6 +17,7 @@ pub(super) enum PlaylistField {
     Name,
     Owner,
     TrackCount,
+    Modified,
 }
 
 const COLUMN: ColumnSpec<PlaylistField> = ColumnSpec {
@@ -77,7 +78,17 @@ const TRACK_COUNT: ColumnSpec<PlaylistField> = ColumnSpec {
     ..COLUMN
 };
 
-pub(super) const COLUMNS: &[ColumnSpec<PlaylistField>] = &[INDEX, COVER, NAME, OWNER, TRACK_COUNT];
+const MODIFIED: ColumnSpec<PlaylistField> = ColumnSpec {
+    field: PlaylistField::Modified,
+    key: "modified",
+    header: "column-modified",
+    width: Width::Fixed(DATE),
+    hide_below: ROOMY,
+    ..COLUMN
+};
+
+pub(super) const COLUMNS: &[ColumnSpec<PlaylistField>] =
+    &[INDEX, COVER, NAME, OWNER, MODIFIED, TRACK_COUNT];
 
 pub(super) struct PlaylistSource {
     library: Entity<Library>,
@@ -181,6 +192,7 @@ impl GridSource for PlaylistSource {
             PlaylistField::TrackCount => {
                 cells::dim(&cell, format!("{}", playlist.track_count), muted)
             }
+            PlaylistField::Modified => cells::dim(&cell, cells::stamp(playlist.modified_at), muted),
             PlaylistField::Index => cells::blank(&cell),
         }
     }
@@ -205,6 +217,10 @@ impl GridSource for PlaylistSource {
                 .get(a)
                 .map(|playlist| playlist.track_count)
                 .cmp(&playlists.get(b).map(|playlist| playlist.track_count)),
+            PlaylistField::Modified => playlists
+                .get(a)
+                .map(|playlist| playlist.modified_at)
+                .cmp(&playlists.get(b).map(|playlist| playlist.modified_at)),
             PlaylistField::Index | PlaylistField::Cover => a.cmp(&b),
         }
     }

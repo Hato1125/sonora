@@ -17,6 +17,7 @@ use ui::{
 };
 
 use crate::chrome::Chrome;
+use crate::shared::hero::release_date_label;
 
 const PLAY: &str = "icons/play.svg";
 const PLAYING: &str = "icons/music-2.svg";
@@ -305,6 +306,13 @@ pub(crate) fn dim<F>(cell: &Cell<F>, value: impl Into<SharedString>, muted: Hsla
     line(cell, Some(muted))
         .child(value.into())
         .into_any_element()
+}
+
+pub(crate) fn stamp(seconds: Option<i64>) -> SharedString {
+    seconds
+        .and_then(|seconds| jiff::Timestamp::new(seconds, 0).ok())
+        .map(|stamp| release_date_label(&stamp.strftime("%Y-%m-%d").to_string()))
+        .unwrap_or_default()
 }
 
 pub(crate) fn count(value: u64) -> SharedString {

@@ -8,7 +8,6 @@ use state::{Library, LibraryState, Origin, Playback};
 use ui::{Cell, ColumnSpec, GridSource, Menu, Pin, PinKind, Width};
 
 use crate::shared::cells::{self, ALWAYS, DATE, NUMBER, ROOMY};
-use crate::shared::hero::release_date_label;
 use crate::shared::menu::artist_menu;
 use crate::shared::tracks::initial;
 
@@ -160,7 +159,7 @@ impl GridSource for ArtistSource {
                 theme.foreground,
                 Destination::Artist(artist.id.clone().into()),
             ),
-            ArtistField::AddedAt => cells::dim(&cell, added(artist), muted),
+            ArtistField::AddedAt => cells::dim(&cell, cells::stamp(artist.added_at), muted),
             ArtistField::Index => cells::blank(&cell),
         }
     }
@@ -188,12 +187,4 @@ impl GridSource for ArtistSource {
             _ => None,
         }
     }
-}
-
-fn added(artist: &SavedArtist) -> SharedString {
-    artist
-        .added_at
-        .and_then(|seconds| jiff::Timestamp::new(seconds, 0).ok())
-        .map(|stamp| release_date_label(&stamp.strftime("%Y-%m-%d").to_string()))
-        .unwrap_or_default()
 }

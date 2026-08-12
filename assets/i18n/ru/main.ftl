@@ -55,6 +55,7 @@ column-title = Название
 column-artist = Исполнитель
 column-album = Альбом
 column-date-added = Дата добавления
+column-modified = Изменён
 column-length = Длительность
 column-plays = Прослушивания
 column-name = Название

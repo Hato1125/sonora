@@ -55,6 +55,7 @@ column-title = Title
 column-artist = Artist
 column-album = Album
 column-date-added = Date added
+column-modified = Modified
 column-length = Length
 column-plays = Plays
 column-name = Name

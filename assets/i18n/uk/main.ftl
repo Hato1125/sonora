@@ -55,6 +55,7 @@ column-title = Назва
 column-artist = Виконавець
 column-album = Альбом
 column-date-added = Дата додавання
+column-modified = Змінено
 column-length = Тривалість
 column-plays = Прослуховування
 column-name = Назва
