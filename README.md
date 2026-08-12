@@ -5,8 +5,8 @@
 [![Build](https://img.shields.io/github/actions/workflow/status/nolight132/sonora/release.yml)](https://github.com/nolight132/sonora/actions/workflows/release.yml)
 [![License](https://img.shields.io/github/license/nolight132/sonora)](./COPYING)
 
-### A native music streaming client for Spotify, YouTube, and local music, built with Rust and GPUI.
-This project would not be possible without [librespot](https://github.com/librespot-org/librespot).
+### A native music streaming client, built with Rust and GPUI.
+Stream Spotify, YouTube Music, and local files all in one **native** app.
 </div>
 
 <div align="center">
