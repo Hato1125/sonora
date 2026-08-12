@@ -13,6 +13,8 @@ actions!(
         SignOut,
         RefreshLibrary,
         TogglePlayback,
+        NavigateBack,
+        NavigateForward,
         OpenFilter,
         OpenSearch,
         OpenSettings,
@@ -33,6 +35,8 @@ pub fn bindings() -> Vec<KeyBinding> {
     vec![
         KeyBinding::new("down", SelectNext, table),
         KeyBinding::new("up", SelectPrevious, table),
+        KeyBinding::new("alt-left", NavigateBack, None),
+        KeyBinding::new("alt-right", NavigateForward, None),
         KeyBinding::new("escape", Deselect, table),
         KeyBinding::new("cmd-q", Quit, None),
         KeyBinding::new("ctrl-q", Quit, None),

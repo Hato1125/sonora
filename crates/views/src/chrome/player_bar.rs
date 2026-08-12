@@ -296,16 +296,16 @@ impl PlayerBar {
             .items_center()
             .gap_1()
             .child(button(
-                "player-queue",
-                "icons/list.svg",
-                "queue-title",
-                SideTab::Queue,
-            ))
-            .child(button(
                 "player-lyrics",
                 "icons/mic-vocal.svg",
                 "lyrics-title",
                 SideTab::Lyrics,
+            ))
+            .child(button(
+                "player-queue",
+                "icons/list-music.svg",
+                "queue-title",
+                SideTab::Queue,
             ))
             .into_any_element()
     }

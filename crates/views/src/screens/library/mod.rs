@@ -24,8 +24,8 @@ use state::{AppSettings, Library, LibraryState, Origin, Playback, PlaybackState,
 use ui::{
     ActiveTheme as _, Button, Card, Deck, FlagAxis, GridDelegate, GridEvent, GridSource, GridState,
     LEADING, Menu, MenuItem, Mode, Pin, PinKind, Pinnable, Popovers, Popup, RangeAxis, Scrollbar,
-    Scroller, Sort, SortAxis, Text, Toggle, Unit, Viewport, clock, grid, heading, scrolled,
-    snapped, vacant,
+    Scroller, Sort, SortAxis, Text, Toggle, Unit, Viewport, clock, grid, heading, quantize,
+    scrolled, snapped, vacant,
 };
 
 use crate::shared::album_grid::{AlbumGrid, CardGrid};
@@ -35,9 +35,9 @@ use crate::shared::tracks::{
     playback_status,
 };
 use crate::shared::{cells, page};
-use albums::AlbumSource;
-use artists::ArtistSource;
-use playlists::PlaylistSource;
+use albums::{AlbumField, AlbumSource};
+use artists::{ArtistField, ArtistSource};
+use playlists::{PlaylistField, PlaylistSource};
 
 impl From<LibraryTab> for Section {
     fn from(tab: LibraryTab) -> Self {
@@ -71,6 +71,8 @@ pub enum Section {
 }
 
 const PINNED: [&str; 3] = ["cover", "title", "name"];
+const RECENT: Sort = Sort::Descending;
+
 #[derive(Clone)]
 enum LibraryMenu {
     Background,
@@ -212,26 +214,35 @@ impl LibraryView {
         });
         let albums = cx.new(|cx| {
             let source = AlbumSource::new(library.clone(), playback.clone());
-            let mut delegate = GridDelegate::new(source, width, cx);
+            let mut delegate =
+                GridDelegate::new(source, width, cx).with_sort(AlbumField::AddedAt, RECENT, cx);
             let (layout, sorting) = stored(Section::Albums, cx);
             delegate.set_layout(layout, cx);
-            delegate.set_sorting(sorting.flatten(), cx);
+            if let Some(sorting) = sorting {
+                delegate.set_sorting(sorting, cx);
+            }
             GridState::new(delegate, cx).follow(scroll.clone())
         });
         let playlists = cx.new(|cx| {
             let source = PlaylistSource::new(library.clone(), playback.clone());
-            let mut delegate = GridDelegate::new(source, width, cx);
+            let mut delegate =
+                GridDelegate::new(source, width, cx).with_sort(PlaylistField::Modified, RECENT, cx);
             let (layout, sorting) = stored(Section::Playlists, cx);
             delegate.set_layout(layout, cx);
-            delegate.set_sorting(sorting.flatten(), cx);
+            if let Some(sorting) = sorting {
+                delegate.set_sorting(sorting, cx);
+            }
             GridState::new(delegate, cx).follow(scroll.clone())
         });
         let artists = cx.new(|cx| {
             let source = ArtistSource::new(library.clone(), playback.clone());
-            let mut delegate = GridDelegate::new(source, width, cx);
+            let mut delegate =
+                GridDelegate::new(source, width, cx).with_sort(ArtistField::AddedAt, RECENT, cx);
             let (layout, sorting) = stored(Section::Artists, cx);
             delegate.set_layout(layout, cx);
-            delegate.set_sorting(sorting.flatten(), cx);
+            if let Some(sorting) = sorting {
+                delegate.set_sorting(sorting, cx);
+            }
             GridState::new(delegate, cx).follow(scroll)
         });
 
@@ -420,6 +431,7 @@ impl LibraryView {
     }
 
     fn viewport(scroll: &ScrollHandle, window: &Window) -> Viewport {
+        quantize(scroll, window);
         let visible = scroll.bounds().size.height;
 
         Viewport {

@@ -1,9 +1,10 @@
+use std::cell::Cell;
 use std::rc::Rc;
 
 use gpui::prelude::*;
 use gpui::{
     AnyElement, App, Context, Entity, FontWeight, Pixels, Point, Render, ScrollHandle,
-    SharedString, Window, div, px,
+    SharedString, WeakEntity, Window, div, px,
 };
 
 use crate::chrome::Chrome;
@@ -12,20 +13,26 @@ use i18n::t;
 use music::{Album, ReleaseType, SavedArtist, Track};
 use state::{AppSettings, ArtistDetail, Playback, Sonora};
 use ui::ActiveTheme as _;
+use ui::Table as _;
 use ui::{
-    Button, Card, Deck, GridDelegate, GridEvent, GridState, MIN_CONTENT, Pin, PinKind, Popover,
-    Popovers, Popup, Scrollbar, Scroller, Skeleton, Text, Viewport, grid, scrolled, snapped,
+    Button, Card, GridDelegate, GridEvent, GridState, MIN_CONTENT, Mode, Pin, PinKind, Popover,
+    Popovers, Popup, Scrollbar, Scroller, Skeleton, Text, grid, snapped,
 };
 
+use crate::chrome::tools;
+use crate::chrome::{Toolbar, Tooled};
+use crate::shared::about::{AboutArtist, about_modal};
 use crate::shared::album_grid::{AlbumGrid, CardGrid};
 use crate::shared::hero::{HeroMetaStrip, HeroPlayButton, PageHero};
-use crate::shared::menu::{album_menu, artist_menu};
+use crate::shared::menu::{ItemMenu, album_menu, artist_menu};
 use crate::shared::page;
-use crate::shared::tracks::{self, PlaybackStatus, TrackSource, Tracks, playback_status};
+use crate::shared::picks::{Picks, Shape};
+use crate::shared::tracks::{PlaybackStatus, TrackSource, Tracks, playback_status};
 
 const SECTION: &str = "artist";
-const END_WIDTH: Pixels = px(72.);
-const END_HEIGHT: Pixels = px(1.);
+const RELEASE_ROWS: usize = 2;
+const LISTED: usize = 5;
+const LISTED_MAX: usize = 10;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ReleaseFilter {
@@ -67,15 +74,19 @@ impl ReleaseFilter {
     }
 }
 
-struct ArtistTracks(Entity<ArtistDetail>);
+struct ArtistTracks {
+    detail: Entity<ArtistDetail>,
+    shown: Rc<Cell<usize>>,
+}
 
 impl Tracks for ArtistTracks {
     fn tracks<'a>(&self, cx: &'a App) -> &'a [Track] {
-        self.0.read(cx).tracks()
+        let tracks = self.detail.read(cx).tracks();
+        &tracks[..self.shown.get().min(tracks.len())]
     }
 
     fn is_loading(&self, cx: &App) -> bool {
-        self.0.read(cx).is_loading()
+        self.detail.read(cx).is_loading()
     }
 }
 
@@ -85,168 +96,24 @@ pub(crate) struct ArtistView {
     playback_status: PlaybackStatus,
     artist_id: Option<String>,
     release_filter: ReleaseFilter,
+    releases_expanded: bool,
     width: Pixels,
-    release_top: Pixels,
-    release_end: Entity<ReleaseEnd>,
     scrollbar: Entity<Scrollbar>,
+    about_bar: Entity<Scrollbar>,
+    about_open: bool,
     table: Entity<GridState<TrackSource>>,
+    shown: Rc<Cell<usize>>,
+    mode: Mode,
+    popular: Rc<Vec<Track>>,
+    popular_page: usize,
+    popular_columns: usize,
+    track_menu: ItemMenu,
+    track_context: Option<(usize, Point<Pixels>)>,
     settings: Entity<AppSettings>,
+    toolbar: Entity<Toolbar>,
+    me: WeakEntity<Self>,
     popovers: Popovers,
     release_menu: Option<(Album, Point<Pixels>)>,
-}
-
-#[derive(Clone, Copy)]
-struct ReleaseMetrics {
-    columns: usize,
-    card: Pixels,
-    gap: Pixels,
-}
-
-impl ReleaseMetrics {
-    fn height(self, count: usize) -> Pixels {
-        if count == 0 {
-            return Pixels::ZERO;
-        }
-        let rows = count.div_ceil(self.columns) as f32;
-        self.card * rows + self.gap * (rows - 1.)
-    }
-}
-
-struct ReleaseEnd {
-    hold: Pixels,
-    natural: Pixels,
-    count: usize,
-    metrics: Option<ReleaseMetrics>,
-    frame: Option<ReleaseFrame>,
-    ready: bool,
-}
-
-#[derive(Clone, Copy, PartialEq)]
-struct ReleaseFrame {
-    count: usize,
-    columns: usize,
-    height: Pixels,
-    hold: Pixels,
-}
-
-struct ReleaseUpdate {
-    next: bool,
-    settle: bool,
-}
-
-impl ReleaseEnd {
-    fn new() -> Self {
-        Self {
-            hold: Pixels::ZERO,
-            natural: Pixels::ZERO,
-            count: 0,
-            metrics: None,
-            frame: None,
-            ready: false,
-        }
-    }
-
-    fn reset(&mut self, cx: &mut Context<Self>) {
-        *self = Self::new();
-        cx.notify();
-    }
-
-    fn select(&mut self, count: usize, depth: Pixels, viewport: Pixels) -> bool {
-        let hold = match (self.metrics, self.ready) {
-            (Some(metrics), true) => {
-                self.natural += metrics.height(count) - metrics.height(self.count);
-                (depth - self.natural).max(Pixels::ZERO)
-            }
-            _ if depth > Pixels::ZERO => {
-                self.ready = false;
-                depth + viewport
-            }
-            _ => {
-                self.ready = false;
-                Pixels::ZERO
-            }
-        };
-        self.count = count;
-        let changed = self.hold != hold;
-        self.hold = hold;
-        changed
-    }
-
-    fn resize(&mut self, depth: Pixels, viewport: Pixels) -> bool {
-        self.metrics = None;
-        self.frame = None;
-        self.ready = false;
-        let hold = match depth > Pixels::ZERO {
-            true => depth + viewport,
-            false => Pixels::ZERO,
-        };
-        let changed = self.hold != hold;
-        self.hold = hold;
-        changed
-    }
-
-    fn retreat(&mut self, depth: Pixels) -> bool {
-        if !self.ready {
-            return false;
-        }
-        let hold = match depth > Pixels::ZERO {
-            true => (depth - self.natural).max(Pixels::ZERO).min(self.hold),
-            false => Pixels::ZERO,
-        };
-        let changed = self.hold != hold;
-        self.hold = hold;
-        changed
-    }
-
-    fn maximum(&self) -> Option<Pixels> {
-        self.ready
-            .then(|| (self.natural + self.hold).max(Pixels::ZERO))
-    }
-
-    fn observe(&mut self, metrics: ReleaseMetrics, maximum: Pixels, count: usize) -> ReleaseUpdate {
-        let frame = ReleaseFrame {
-            count,
-            columns: metrics.columns,
-            height: metrics.height(count),
-            hold: self.hold,
-        };
-        let stable = self.frame == Some(frame);
-        let changed = self.frame != Some(frame);
-        self.frame = Some(frame);
-        self.count = count;
-        self.metrics = Some(metrics);
-        if !stable {
-            return ReleaseUpdate {
-                next: changed,
-                settle: false,
-            };
-        }
-
-        self.natural = maximum - self.hold;
-        self.ready = true;
-        ReleaseUpdate {
-            next: false,
-            settle: true,
-        }
-    }
-}
-
-impl Render for ReleaseEnd {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = *cx.theme();
-
-        div()
-            .flex()
-            .flex_col()
-            .child(div().flex_none().h(self.hold))
-            .child(
-                div()
-                    .flex()
-                    .justify_center()
-                    .py_6()
-                    .child(div().w(END_WIDTH).h(END_HEIGHT).bg(theme.border)),
-            )
-    }
 }
 
 impl ArtistView {
@@ -256,36 +123,34 @@ impl ArtistView {
         cx: &mut Context<Self>,
     ) -> Self {
         let width = MIN_CONTENT;
-        let columns =
-            crate::shared::tracks::artist_columns(Sonora::global(cx).session.read(cx).playcounts());
+        let scrollbar = cx.new(|_| Scrollbar::new(ScrollHandle::new()));
+        let playlist_scrollbar = cx.new(|_| {
+            Scrollbar::new(ScrollHandle::new())
+                .always_visible()
+                .track_inset(px(4.))
+        });
         let settings = Sonora::global(cx).settings.clone();
         let saved = settings.read(cx).table(SECTION);
         let sorting = settings.read(cx).sorting(SECTION);
-        let release_end = cx.new(|_| ReleaseEnd::new());
-        let release_scroll = release_end.clone();
-        let scrollbar = cx.new(|_| {
-            Scrollbar::new(ScrollHandle::new()).on_scroll(move |depth, cx| {
-                release_scroll.update(cx, |end, cx| {
-                    if !end.retreat(depth) {
-                        return None;
-                    }
-                    cx.notify();
-                    end.maximum()
-                })
-            })
-        });
+        let mode = settings.read(cx).view_or(SECTION, Mode::Cards);
+        let columns =
+            crate::shared::tracks::artist_columns(Sonora::global(cx).session.read(cx).playcounts());
         let scroll = scrollbar.read(cx).scroll().clone();
+        let shown = Rc::new(Cell::new(LISTED));
         let table = cx.new(|cx| {
-            let playlist_scrollbar = cx.new(|_| {
+            let menu_scrollbar = cx.new(|_| {
                 Scrollbar::new(ScrollHandle::new())
                     .always_visible()
                     .track_inset(px(4.))
             });
             let source = TrackSource::new(
                 columns,
-                ArtistTracks(detail.clone()),
+                ArtistTracks {
+                    detail: detail.clone(),
+                    shown: shown.clone(),
+                },
                 playback.clone(),
-                playlist_scrollbar,
+                menu_scrollbar,
             )
             .with_liked(Sonora::global(cx).library.clone());
             let source = source.table(cx.weak_entity());
@@ -300,12 +165,18 @@ impl ArtistView {
             if this.artist_id != artist_id {
                 this.artist_id = artist_id;
                 this.release_filter = ReleaseFilter::All;
-                this.release_end.update(cx, |end, cx| end.reset(cx));
+                this.releases_expanded = false;
+                this.about_open = false;
+                this.shown.set(LISTED);
                 this.scrollbar.update(cx, |bar, cx| {
                     bar.set_max_offset(None, cx);
                     bar.scroll().set_offset(gpui::Point::default());
                 });
             }
+            this.popular = Rc::new(detail.read(cx).tracks().to_vec());
+            this.popular_page = 0;
+            this.track_menu.reset(cx);
+            this.track_context = None;
             this.rebuild(cx);
             cx.notify();
         })
@@ -339,18 +210,35 @@ impl ArtistView {
         })
         .detach();
 
+        let me = cx.entity();
+        let toolbar = cx.new(|cx| {
+            let mut toolbar = Toolbar::new(cx);
+            toolbar.wire(&me, cx);
+            toolbar
+        });
+
         Self {
+            popular: Rc::new(detail.read(cx).tracks().to_vec()),
             detail,
             playback,
             playback_status: current_playback,
             artist_id,
             release_filter: ReleaseFilter::All,
+            releases_expanded: false,
             width,
-            release_top: Pixels::ZERO,
-            release_end,
             scrollbar,
+            about_bar: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
+            about_open: false,
             table,
+            shown,
+            mode,
+            popular_page: 0,
+            popular_columns: 0,
+            track_menu: ItemMenu::new(playlist_scrollbar),
+            track_context: None,
             settings,
+            toolbar,
+            me: me.downgrade(),
             popovers: Popovers::default(),
             release_menu: None,
         }
@@ -370,6 +258,17 @@ impl ArtistView {
         self.table.update(cx, |table, cx| {
             table.rebuild(cx);
         });
+    }
+
+    fn set_mode(&mut self, mode: Mode, cx: &mut Context<Self>) {
+        self.mode = mode;
+        if mode == Mode::List {
+            self.table.clone().set_width(self.width, cx);
+        }
+        self.track_context = None;
+        self.settings
+            .update(cx, |settings, cx| settings.set_view(SECTION, mode, cx));
+        cx.notify();
     }
 
     fn header(&self, cx: &Context<Self>) -> AnyElement {
@@ -405,7 +304,7 @@ impl ArtistView {
             .child(HeroPlayButton::new(
                 "play-artist",
                 t!("artist-play"),
-                tracks::ordered(&self.table, cx),
+                self.popular.as_ref().clone(),
                 self.playback.clone(),
             ))
             .children(self.follow_button(cx))
@@ -470,61 +369,7 @@ impl ArtistView {
         )
     }
 
-    fn release_row(&self, window: &Window, cx: &App) -> Pixels {
-        Card::tile_height(CardGrid::layout(self.width).card, window, cx)
-    }
-
-    fn release_count(&self, cx: &App) -> usize {
-        self.detail
-            .read(cx)
-            .albums()
-            .iter()
-            .filter(|album| self.release_filter.matches(album.release_type))
-            .count()
-    }
-
-    fn release_metrics(&self, window: &Window, cx: &App) -> ReleaseMetrics {
-        ReleaseMetrics {
-            columns: CardGrid::layout(self.width).columns,
-            card: self.release_row(window, cx),
-            gap: release_gap(window),
-        }
-    }
-
-    fn release_viewport(&self, scroll: &ScrollHandle, window: &Window) -> Viewport {
-        let visible = scroll.bounds().size.height;
-
-        Viewport {
-            top: (scrolled(scroll) - self.release_top).max(Pixels::ZERO),
-            height: match visible > Pixels::ZERO {
-                true => visible,
-                false => window.viewport_size().height,
-            },
-        }
-    }
-
-    fn settle(&mut self, scroll: &ScrollHandle, window: &Window, cx: &mut Context<Self>) {
-        if self.detail.read(cx).is_loading() {
-            return;
-        }
-
-        let metrics = self.release_metrics(window, cx);
-        let count = self.release_count(cx);
-        let update = self.release_end.update(cx, |end, _| {
-            end.observe(metrics, scroll.max_offset().y, count)
-        });
-
-        if update.next {
-            self.scrollbar.update(cx, |_, cx| cx.notify());
-            cx.notify();
-        }
-        if update.settle {
-            self.scrollbar
-                .update(cx, |bar, cx| bar.set_max_offset(None, cx));
-        }
-    }
-
-    fn releases(&self, window: &Window, cx: &Context<Self>) -> Option<AnyElement> {
+    fn releases(&self, window: &Window, cx: &mut Context<Self>) -> Option<AnyElement> {
         let theme = *cx.theme();
         let detail = self.detail.read(cx);
         let loading = detail.is_loading();
@@ -534,12 +379,13 @@ impl ArtistView {
         }
 
         let grid = CardGrid::layout(self.width);
+        let gap = release_gap(window);
         let releases = match loading {
             true => div()
                 .flex()
                 .flex_col()
-                .gap_6()
-                .children((0..2).map(|row| {
+                .gap(gap)
+                .children((0..RELEASE_ROWS).map(|row| {
                     CardGrid::new(self.width).children((0..grid.columns).map(move |column| {
                         let index = row * grid.columns + column;
                         Card::new(("artist-release-skeleton", index), "")
@@ -550,37 +396,33 @@ impl ArtistView {
                 }))
                 .into_any_element(),
             false => {
-                let scroll = self.scrollbar.read(cx).scroll().clone();
-                let albums: Rc<Vec<(usize, Album)>> = Rc::new(
-                    albums
-                        .iter()
-                        .filter(|album| self.release_filter.matches(album.release_type))
-                        .cloned()
-                        .enumerate()
-                        .collect(),
-                );
-                let count = albums.len();
-                let columns = grid.columns;
-                let width = self.width;
-                let height = self.release_row(window, cx);
-                let playback = self.playback.clone();
+                let matching: Vec<&Album> = albums
+                    .iter()
+                    .filter(|album| self.release_filter.matches(album.release_type))
+                    .collect();
+                let shown: Vec<(usize, Album)> = matching
+                    .iter()
+                    .take(match self.releases_expanded {
+                        true => matching.len(),
+                        false => grid.columns * RELEASE_ROWS,
+                    })
+                    .map(|album| (*album).clone())
+                    .enumerate()
+                    .collect();
                 let opened = cx.entity().downgrade();
-                let measured = opened.clone();
 
-                Deck::new("artist-release")
-                    .viewport(self.release_viewport(&scroll, window))
-                    .rows((0..count.div_ceil(columns.max(1))).map(move |_| height))
-                    .gap(release_gap(window))
-                    .draw(move |row, _, _| {
-                        let start = row * columns;
-                        let end = (start + columns).min(count);
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap(gap)
+                    .children(shown.chunks(grid.columns.max(1)).map(|row| {
                         let opened = opened.clone();
 
                         AlbumGrid::new(
                             "artist-release",
-                            width,
-                            albums[start..end].to_vec(),
-                            playback.clone(),
+                            self.width,
+                            row.to_vec(),
+                            self.playback.clone(),
                         )
                         .years()
                         .on_context(move |album, position, cx| {
@@ -593,19 +435,7 @@ impl ArtistView {
                             });
                         })
                         .into_any_element()
-                    })
-                    .on_measure(move |top, _, cx| {
-                        let content = top - scroll.bounds().origin.y + scrolled(&scroll);
-                        measured
-                            .update(cx, |this, cx| {
-                                if (this.release_top - content).abs() < px(0.5) {
-                                    return;
-                                }
-                                this.release_top = content;
-                                cx.notify();
-                            })
-                            .ok();
-                    })
+                    }))
                     .into_any_element()
             }
         };
@@ -636,33 +466,44 @@ impl ArtistView {
                                     if this.release_filter == filter {
                                         return;
                                     }
-                                    let count = this
-                                        .detail
-                                        .read(cx)
-                                        .albums()
-                                        .iter()
-                                        .filter(|album| filter.matches(album.release_type))
-                                        .count();
-                                    let scroll = this.scrollbar.read(cx).scroll().clone();
-                                    let depth = (-scroll.offset().y).max(Pixels::ZERO);
-                                    let viewport = scroll.bounds().size.height;
-                                    let maximum = this.release_end.update(cx, |end, cx| {
-                                        if end.select(count, depth, viewport) {
-                                            cx.notify();
-                                        }
-                                        end.maximum()
-                                    });
-                                    this.scrollbar.update(cx, |bar, cx| {
-                                        bar.set_max_offset(maximum, cx);
-                                    });
                                     this.release_filter = filter;
+                                    this.releases_expanded = false;
                                     cx.notify();
                                 }))
                         })),
                 )
                 .child(releases)
-                .child(self.release_end.clone())
+                .children(self.release_toggle(grid.columns, cx))
                 .into_any_element(),
+        )
+    }
+
+    fn release_toggle(&self, columns: usize, cx: &mut Context<Self>) -> Option<Button> {
+        let count = self
+            .detail
+            .read(cx)
+            .albums()
+            .iter()
+            .filter(|album| self.release_filter.matches(album.release_type))
+            .count();
+        if count <= columns * RELEASE_ROWS {
+            return None;
+        }
+        let expanded = self.releases_expanded;
+
+        Some(
+            Button::new("artist-releases-more")
+                .label(match expanded {
+                    true => t!("artist-releases-less"),
+                    false => t!("artist-releases-more"),
+                })
+                .trailing(chevron(expanded))
+                .small()
+                .ghost()
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.releases_expanded = !expanded;
+                    cx.notify();
+                })),
         )
     }
 
@@ -698,6 +539,136 @@ impl ArtistView {
             .into_any_element()
     }
 
+    fn listed(&self, cx: &mut Context<Self>) -> AnyElement {
+        let theme = *cx.theme();
+        let expanded = self.shown.get() > LISTED;
+        let more = (self.popular.len() > LISTED).then(|| {
+            Button::new("artist-popular-more")
+                .label(match expanded {
+                    true => t!("artist-popular-less"),
+                    false => t!("artist-popular-more"),
+                })
+                .trailing(chevron(expanded))
+                .small()
+                .ghost()
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.shown.set(match expanded {
+                        true => LISTED,
+                        false => LISTED_MAX,
+                    });
+                    this.rebuild(cx);
+                    cx.notify();
+                }))
+        });
+
+        div()
+            .flex()
+            .flex_col()
+            .gap_2()
+            .child(match self.detail.read(cx).is_loading() {
+                true => self.tracks_loading(cx),
+                false => grid(&self.table)
+                    .rounded(theme.radius)
+                    .border_1()
+                    .border_color(theme.border)
+                    .into_any_element(),
+            })
+            .children(more)
+            .into_any_element()
+    }
+
+    fn popular(&self, cx: &mut Context<Self>) -> AnyElement {
+        let tracks = self.popular.clone();
+        let pages = Shape::new(self.width, tracks.len()).pages;
+        let queued = tracks.clone();
+        let playback = self.playback.clone();
+        let opened = cx.entity().downgrade();
+
+        Picks::new(
+            "artist-popular",
+            tracks,
+            self.playback.clone(),
+            self.playback_status.0.clone(),
+            self.width,
+            self.popular_page,
+        )
+        .title("artist-popular")
+        .eyebrow("artist-popular-eyebrow")
+        .vacancy("artist-popular-empty")
+        .detailed()
+        .loading(self.detail.read(cx).is_loading())
+        .on_previous(cx.listener(|this, _, _, cx| {
+            this.popular_page = this.popular_page.saturating_sub(1);
+            this.track_context = None;
+            cx.notify();
+        }))
+        .on_next(cx.listener(move |this, _, _, cx| {
+            this.popular_page = (this.popular_page + 1).min(pages.saturating_sub(1));
+            this.track_context = None;
+            cx.notify();
+        }))
+        .on_context_menu(move |place, event, _, cx| {
+            let Some(view) = opened.upgrade() else {
+                return;
+            };
+            view.update(cx, |this, cx| {
+                this.track_menu.reset(cx);
+                this.track_context = Some((place, event.position));
+                cx.notify();
+            });
+        })
+        .on_start(move |place, cx| {
+            playback.update(cx, |playback, cx| {
+                playback.start(queued.as_ref().clone(), place, cx)
+            });
+        })
+        .into_any_element()
+    }
+
+    fn about(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let artist = self.detail.read(cx).artist()?;
+        let card = AboutArtist::new("artist-about", artist.name.clone())
+            .cover(artist.cover_large.clone())
+            .biography(artist.biography.clone())
+            .on_open(cx.listener(|this, _, _, cx| {
+                this.about_open = true;
+                cx.notify();
+            }));
+
+        Some(div().pt_6().child(card).into_any_element())
+    }
+
+    fn about_dialog(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        if !self.about_open {
+            return None;
+        }
+        let artist = self.detail.read(cx).artist()?;
+
+        Some(
+            about_modal(
+                artist.name.clone().into(),
+                artist.biography.clone(),
+                None,
+                &self.about_bar,
+                cx,
+            )
+            .action(
+                Button::new("artist-about-close")
+                    .label(t!("common-dismiss"))
+                    .primary()
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.about_open = false;
+                        cx.notify();
+                    })),
+            )
+            .on_dismiss(cx.listener(|this, _, _, cx| {
+                this.about_open = false;
+                cx.notify();
+            }))
+            .into_any_element(),
+        )
+    }
+
     fn failure(&self, cx: &Context<Self>) -> Option<AnyElement> {
         let error = self.detail.read(cx).error()?.to_owned();
         Some(
@@ -710,6 +681,20 @@ impl ArtistView {
     }
 }
 
+impl Tooled for ArtistView {
+    fn toolbar(&self) -> Entity<Toolbar> {
+        self.toolbar.clone()
+    }
+
+    fn tools(&self, _cx: &App) -> Vec<AnyElement> {
+        let viewed = self.me.clone();
+
+        vec![tools::views(&self.popovers, self.mode, move |mode, cx| {
+            viewed.update(cx, |view, cx| view.set_mode(mode, cx)).ok();
+        })]
+    }
+}
+
 impl Render for ArtistView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
@@ -719,20 +704,19 @@ impl Render for ArtistView {
 
         let scroll = self.scrollbar.read(cx).scroll().clone();
         if self.width != previous {
-            let depth = (-scroll.offset().y).max(Pixels::ZERO);
-            let viewport = scroll.bounds().size.height;
-            self.release_end.update(cx, |end, cx| {
-                if end.resize(depth, viewport) {
-                    cx.notify();
-                }
-            });
             self.scrollbar
                 .update(cx, |bar, cx| bar.set_max_offset(None, cx));
         }
-        let viewport = page::viewport(&scroll, inset, window);
-        self.table
-            .update(cx, |table, _| table.set_viewport(viewport));
-        self.settle(&scroll, window, cx);
+        let columns = Shape::new(self.width, self.popular.len()).columns;
+        if self.popular_columns != columns {
+            self.popular_columns = columns;
+            self.popular_page = 0;
+        }
+        if self.mode == Mode::List {
+            let viewport = page::viewport(&scroll, inset, window);
+            self.table
+                .update(cx, |table, _| table.set_viewport(viewport));
+        }
 
         let release_menu = self.release_menu.clone().map(|(album, position)| {
             let menu = album_menu(album, self.playback.clone(), false, cx);
@@ -741,61 +725,54 @@ impl Render for ArtistView {
                 cx.notify();
             }))
         });
+        let picked = self.track_context.and_then(|(place, position)| {
+            self.popular
+                .get(place)
+                .cloned()
+                .map(|track| (track, position))
+        });
+        let track_menu = picked.map(|(track, position)| {
+            Popup::new(position, self.track_menu.for_track(&track, cx)).on_close(cx.listener(
+                |this, _, _, cx| {
+                    this.track_context = None;
+                    cx.notify();
+                },
+            ))
+        });
 
-        let release_end = self.release_end.clone();
-        let scrollbar = self.scrollbar.clone();
-        let wheel = scroll.clone();
+        let listed = self.mode == Mode::List;
         let page = Scroller::new("artist-page", &self.scrollbar)
             .px(inset)
             .pt(inset)
             .pb(inset)
-            .on_scroll_wheel(move |_, window, _| {
-                let release_end = release_end.clone();
-                let scrollbar = scrollbar.clone();
-                let scroll = wheel.clone();
-                window.on_next_frame(move |_, cx| {
-                    let depth = (-scroll.offset().y).max(Pixels::ZERO);
-                    let maximum = release_end.update(cx, |end, cx| {
-                        if !end.retreat(depth) {
-                            return None;
-                        }
-                        cx.notify();
-                        end.maximum()
-                    });
-                    if let Some(maximum) = maximum {
-                        scrollbar.update(cx, |bar, cx| {
-                            bar.set_max_offset(Some(maximum), cx);
-                        });
-                    }
-                });
-            })
             .child(
                 div()
                     .child(self.header(cx))
                     .children(self.failure(cx))
-                    .child(
-                        div()
-                            .pb_3()
-                            .text_size(theme.text(Text::Title))
-                            .font_weight(FontWeight::BOLD)
-                            .child(t!("artist-popular")),
-                    ),
+                    .when(listed, |this| {
+                        this.child(
+                            div()
+                                .pb_3()
+                                .text_size(theme.text(Text::Title))
+                                .font_weight(FontWeight::BOLD)
+                                .child(t!("artist-popular")),
+                        )
+                    }),
             )
-            .child(match self.detail.read(cx).is_loading() {
-                true => self.tracks_loading(cx),
-                false => grid(&self.table)
-                    .rounded(theme.radius)
-                    .border_1()
-                    .border_color(theme.border)
-                    .into_any_element(),
+            .child(match self.mode {
+                Mode::Cards => self.popular(cx),
+                Mode::List => self.listed(cx),
             })
-            .children(self.releases(window, cx));
+            .children(self.releases(window, cx))
+            .children(self.about(cx));
 
         div()
             .relative()
             .size_full()
             .child(page)
             .when_some(release_menu, |this, menu| this.child(menu))
+            .when_some(track_menu, |this, menu| this.child(menu))
+            .children(self.about_dialog(cx))
     }
 }
 
@@ -803,119 +780,9 @@ fn release_gap(window: &Window) -> Pixels {
     snapped(window.rem_size() * 1.5, window)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_short_filter_is_sized_before_rendering() {
-        let metrics = ReleaseMetrics {
-            columns: 5,
-            card: px(170.),
-            gap: px(24.),
-        };
-        let mut end = ReleaseEnd {
-            hold: Pixels::ZERO,
-            natural: px(1800.),
-            count: 50,
-            metrics: Some(metrics),
-            frame: None,
-            ready: true,
-        };
-
-        assert!(end.select(5, px(1500.), px(800.)));
-        let natural = px(1800.) + metrics.height(5) - metrics.height(50);
-        assert_eq!(end.natural, natural);
-        assert_eq!(end.natural + end.hold, px(1500.));
-        assert_eq!(end.maximum(), Some(px(1500.)));
-    }
-
-    #[test]
-    fn scrolling_up_retires_the_empty_space() {
-        let metrics = ReleaseMetrics {
-            columns: 5,
-            card: px(170.),
-            gap: px(24.),
-        };
-        let mut end = ReleaseEnd {
-            hold: px(600.),
-            natural: px(300.),
-            count: 5,
-            metrics: Some(metrics),
-            frame: None,
-            ready: true,
-        };
-
-        assert!(end.retreat(px(700.)));
-        assert_eq!(end.hold, px(400.));
-        assert_eq!(end.maximum(), Some(px(700.)));
-    }
-
-    #[test]
-    fn reaching_the_top_removes_the_empty_space() {
-        let metrics = ReleaseMetrics {
-            columns: 5,
-            card: px(170.),
-            gap: px(24.),
-        };
-        let mut end = ReleaseEnd {
-            hold: px(1200.),
-            natural: px(-300.),
-            count: 5,
-            metrics: Some(metrics),
-            frame: None,
-            ready: true,
-        };
-
-        assert!(end.retreat(Pixels::ZERO));
-        assert_eq!(end.hold, Pixels::ZERO);
-        assert_eq!(end.maximum(), Some(Pixels::ZERO));
-    }
-
-    #[test]
-    fn a_settled_frame_calibrates_the_extent() {
-        let metrics = ReleaseMetrics {
-            columns: 5,
-            card: px(170.),
-            gap: px(24.),
-        };
-        let frame = ReleaseFrame {
-            count: 5,
-            columns: 5,
-            height: metrics.height(5),
-            hold: px(600.),
-        };
-        let mut end = ReleaseEnd {
-            hold: px(600.),
-            natural: Pixels::ZERO,
-            count: 5,
-            metrics: Some(metrics),
-            frame: Some(frame),
-            ready: true,
-        };
-
-        let update = end.observe(metrics, px(900.), 5);
-        assert!(update.settle);
-        assert_eq!(end.natural, px(300.));
-        assert_eq!(end.hold, px(600.));
-    }
-
-    #[test]
-    fn an_unseen_frame_waits_before_calibrating() {
-        let metrics = ReleaseMetrics {
-            columns: 5,
-            card: px(170.),
-            gap: px(24.),
-        };
-        let mut end = ReleaseEnd::new();
-
-        let update = end.observe(metrics, px(900.), 5);
-        assert!(!update.settle);
-        assert!(update.next);
-        assert_eq!(end.natural, Pixels::ZERO);
-
-        let update = end.observe(metrics, px(900.), 5);
-        assert!(update.settle);
-        assert_eq!(end.natural, px(900.));
+fn chevron(expanded: bool) -> &'static str {
+    match expanded {
+        true => "icons/chevron-up.svg",
+        false => "icons/chevron-down.svg",
     }
 }

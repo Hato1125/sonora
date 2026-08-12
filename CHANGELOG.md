@@ -22,6 +22,27 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Connecting a service from the settings now happens there: the cookie dialog, the browser and
   account pickers and a cancel button all appear in Manage accounts, and a failed attempt reports
   the reason on that service's card.
+- The queue and the lyrics are opened from a pair of buttons in the player bar instead of the
+  floating pills inside the sidebar, and pressing the button of the panel already on screen closes
+  the sidebar again.
+- An artist page opens with the same card deck the home screen uses for quick picks: 30 popular
+  songs across paged columns of five, each card playing the artist's popular list from that song and
+  showing the track length. Names below a title appear only where the song is shared with someone
+  else. A button in the toolbar switches the section back to the old table, and the choice is
+  remembered.
+- The card deck keeps one height whatever it holds — a short last page leaves empty rows instead of
+  shrinking — and quick picks on the home screen now mixes 30 songs to fill it.
+- The artist page reads as an overview: the table view lists five songs and expands to ten, releases
+  show two rows and expand to the whole discography, and the artist's biography closes the page in
+  the same card the song page uses.
+- The "About the artist" card clamps the biography to three lines and opens the full text in a
+  dialog; from a song page that dialog also offers a jump to the artist.
+- The library lists what changed last first: saved albums carry the date they were saved, playlists
+  the date they were last edited, and albums, playlists and followed artists all open sorted by that
+  date until a different sort is chosen. Both dates are new sortable columns.
+- A narrowing table now gives up one column at a time, in order of how much each column matters,
+  instead of dropping three of them at one width and squeezing the rest. The artist of a song is the
+  first to go, since the album column carries the same information.
 
 ### Fixed
 
@@ -31,6 +52,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   restarted, and cancelling now shuts the callback server down. Signing in again used to fail with
   "Address already in use" until Sonora was restarted.
 - Cancelling a sign-in no longer flashes the empty library behind the login screen.
+- Artwork that does not arrive square — an artist portrait, a cover embedded in a local file — is
+  cropped to its middle instead of spilling out of its frame, so a round portrait is round again.
+- A pinned table header no longer trembles by a pixel while the page scrolls, and the wheel now
+  works over the header and over a column edge instead of stopping there.
+- An artist page lists the whole discography — every album, single, compilation and alternate
+  edition such as a deluxe or anniversary release — instead of only the most recent releases.
 
 ## [0.9.0] - 2026-08-11
 

@@ -6,7 +6,7 @@ use music::Track;
 
 use crate::{Library, LibraryState};
 
-const GROUP_SIZE: usize = 12;
+const GROUP_SIZE: usize = 10;
 const LIMIT: usize = GROUP_SIZE * 3;
 
 pub struct Home {

@@ -34,8 +34,8 @@ impl Screen {
         Self::Search,
         Self::Songs,
         Self::Albums,
-        Self::Playlists,
         Self::Artists,
+        Self::Playlists,
         Self::Imported,
     ];
 

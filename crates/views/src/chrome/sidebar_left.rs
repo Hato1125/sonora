@@ -32,8 +32,8 @@ const NAV: [(&str, &str, Option<Destination>); 4] = [
 const LIBRARY_TABS: [(&str, LibraryTab); 5] = [
     ("nav-songs", LibraryTab::Songs),
     ("nav-albums", LibraryTab::Albums),
-    ("nav-playlists", LibraryTab::Playlists),
     ("nav-artists", LibraryTab::Artists),
+    ("nav-playlists", LibraryTab::Playlists),
     ("nav-local", LibraryTab::Local),
 ];
 

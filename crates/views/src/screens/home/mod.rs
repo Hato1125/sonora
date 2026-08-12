@@ -1,5 +1,3 @@
-mod quick_picks;
-
 use crate::chrome::Chrome;
 use crate::shared::menu::ItemMenu;
 use gpui::prelude::*;
@@ -8,8 +6,8 @@ use state::{Home, Playback};
 use ui::{ActiveTheme as _, Popup, Scrollbar, Scroller};
 
 use crate::shared::cells;
+use crate::shared::picks::{Picks, Shape};
 use crate::shared::tracks::{PlaybackStatus, playback_status};
-use quick_picks::{QuickPicks, column_count, page_count};
 
 pub(crate) struct HomeView {
     home: Entity<Home>,
@@ -72,14 +70,14 @@ impl Render for HomeView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
         let available = cells::content_width(window, theme.metrics.inset * 2., cx);
-        let columns = column_count(available);
-        if self.quick_picks_columns != columns {
-            self.quick_picks_columns = columns;
+        let tracks = self.home.read(cx).quick_picks();
+        let shape = Shape::new(available, tracks.len());
+        if self.quick_picks_columns != shape.columns {
+            self.quick_picks_columns = shape.columns;
             self.quick_picks_page = 0;
         }
 
-        let tracks = self.home.read(cx).quick_picks();
-        let pages = page_count(tracks.len(), available);
+        let pages = shape.pages;
         self.quick_picks_page = self.quick_picks_page.min(pages.saturating_sub(1));
         let page = self.quick_picks_page;
         let home = cx.entity().downgrade();
@@ -99,13 +97,17 @@ impl Render for HomeView {
             .p(theme.metrics.inset)
             .child(
                 div().flex().flex_col().gap_6().child(
-                    QuickPicks::new(
+                    Picks::new(
+                        "quick-pick",
                         tracks,
                         self.playback.clone(),
                         self.playback_status.0.clone(),
                         available,
                         page,
                     )
+                    .title("home-quick-picks")
+                    .eyebrow("home-quick-picks-eyebrow")
+                    .vacancy("home-quick-picks-empty")
                     .loading(self.home.read(cx).is_loading(cx))
                     .on_previous(cx.listener(|this, _, _, cx| {
                         this.quick_picks_page = this.quick_picks_page.saturating_sub(1);

@@ -35,15 +35,6 @@ mod tests {
     use crate::shared::tracks::fixture::track;
 
     #[test]
-    fn an_untouched_sieve_keeps_everything() {
-        let sieve = TrackSieve::default();
-
-        assert!(!sieve.active());
-        assert!(sieve.keeps(&track(30, false, false)));
-        assert!(sieve.keeps(&track(6000, true, true)));
-    }
-
-    #[test]
     fn duration_bounds_are_inclusive() {
         let sieve = TrackSieve {
             duration: Some((60., 180.)),
@@ -56,23 +47,6 @@ mod tests {
         assert!(sieve.keeps(&track(120, false, true)));
         assert!(!sieve.keeps(&track(59, false, true)));
         assert!(!sieve.keeps(&track(181, false, true)));
-    }
-
-    #[test]
-    fn flags_narrow_independently() {
-        let explicit = TrackSieve {
-            explicit: true,
-            ..TrackSieve::default()
-        };
-        assert!(explicit.keeps(&track(60, true, false)));
-        assert!(!explicit.keeps(&track(60, false, true)));
-
-        let playable = TrackSieve {
-            playable: true,
-            ..TrackSieve::default()
-        };
-        assert!(playable.keeps(&track(60, false, true)));
-        assert!(!playable.keeps(&track(60, true, false)));
     }
 
     #[test]

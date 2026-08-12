@@ -5,9 +5,10 @@ use gpui::{AnyElement, App, Entity, TextAlign};
 use music::Playlist;
 use router::Destination;
 use state::{Library, LibraryState, Origin, Playback};
+use ui::rank::{ESSENTIAL, HANDY, NICE, SPARE};
 use ui::{Cell, ColumnSpec, GridSource, Menu, Pin, PinKind, Width};
 
-use crate::shared::cells::{self, ALWAYS, NUMBER, ROOMY, SNUG, TRAILING};
+use crate::shared::cells::{self, DATE, NUMBER, TRAILING};
 use crate::shared::menu::playlist_menu;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -17,6 +18,7 @@ pub(super) enum PlaylistField {
     Name,
     Owner,
     TrackCount,
+    Modified,
 }
 
 const COLUMN: ColumnSpec<PlaylistField> = ColumnSpec {
@@ -27,7 +29,7 @@ const COLUMN: ColumnSpec<PlaylistField> = ColumnSpec {
     width: Width::Fill(1.),
     anchored: false,
     sortable: true,
-    hide_below: ALWAYS,
+    rank: ESSENTIAL,
 };
 
 const INDEX: ColumnSpec<PlaylistField> = ColumnSpec {
@@ -55,6 +57,7 @@ const NAME: ColumnSpec<PlaylistField> = ColumnSpec {
     key: "name",
     header: "column-name",
     width: Width::Fill(0.55),
+    rank: ESSENTIAL,
     ..COLUMN
 };
 
@@ -63,7 +66,7 @@ const OWNER: ColumnSpec<PlaylistField> = ColumnSpec {
     key: "owner",
     header: "column-owner",
     width: Width::Fill(0.45),
-    hide_below: ROOMY,
+    rank: NICE,
     ..COLUMN
 };
 
@@ -73,11 +76,21 @@ const TRACK_COUNT: ColumnSpec<PlaylistField> = ColumnSpec {
     header: "column-tracks",
     align: TextAlign::Right,
     width: Width::Fixed(TRAILING),
-    hide_below: SNUG,
+    rank: SPARE,
     ..COLUMN
 };
 
-pub(super) const COLUMNS: &[ColumnSpec<PlaylistField>] = &[INDEX, COVER, NAME, OWNER, TRACK_COUNT];
+const MODIFIED: ColumnSpec<PlaylistField> = ColumnSpec {
+    field: PlaylistField::Modified,
+    key: "modified",
+    header: "column-modified",
+    width: Width::Fixed(DATE),
+    rank: HANDY,
+    ..COLUMN
+};
+
+pub(super) const COLUMNS: &[ColumnSpec<PlaylistField>] =
+    &[INDEX, COVER, NAME, OWNER, MODIFIED, TRACK_COUNT];
 
 pub(super) struct PlaylistSource {
     library: Entity<Library>,
@@ -181,6 +194,7 @@ impl GridSource for PlaylistSource {
             PlaylistField::TrackCount => {
                 cells::dim(&cell, format!("{}", playlist.track_count), muted)
             }
+            PlaylistField::Modified => cells::dim(&cell, cells::stamp(playlist.modified_at), muted),
             PlaylistField::Index => cells::blank(&cell),
         }
     }
@@ -205,6 +219,10 @@ impl GridSource for PlaylistSource {
                 .get(a)
                 .map(|playlist| playlist.track_count)
                 .cmp(&playlists.get(b).map(|playlist| playlist.track_count)),
+            PlaylistField::Modified => playlists
+                .get(a)
+                .map(|playlist| playlist.modified_at)
+                .cmp(&playlists.get(b).map(|playlist| playlist.modified_at)),
             PlaylistField::Index | PlaylistField::Cover => a.cmp(&b),
         }
     }

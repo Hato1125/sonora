@@ -51,9 +51,10 @@ pub struct Playlist {
     pub public: bool,
     pub cover: Option<String>,
     pub track_count: u32,
+    pub modified_at: Option<i64>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ReleaseType {
     Album,
     Single,
@@ -90,6 +91,7 @@ pub struct Album {
     pub release_date: String,
     pub label: String,
     pub copyrights: Vec<String>,
+    pub added_at: Option<i64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

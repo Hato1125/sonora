@@ -5,10 +5,10 @@ use gpui::{AnyElement, App, Entity, SharedString, TextAlign};
 use music::SavedArtist;
 use router::Destination;
 use state::{Library, LibraryState, Origin, Playback};
+use ui::rank::{ESSENTIAL, HANDY};
 use ui::{Cell, ColumnSpec, GridSource, Menu, Pin, PinKind, Width};
 
-use crate::shared::cells::{self, ALWAYS, DATE, NUMBER, ROOMY};
-use crate::shared::hero::release_date_label;
+use crate::shared::cells::{self, DATE, NUMBER};
 use crate::shared::menu::artist_menu;
 use crate::shared::tracks::initial;
 
@@ -28,7 +28,7 @@ const COLUMN: ColumnSpec<ArtistField> = ColumnSpec {
     width: Width::Fill(1.),
     anchored: false,
     sortable: true,
-    hide_below: ALWAYS,
+    rank: ESSENTIAL,
 };
 
 const INDEX: ColumnSpec<ArtistField> = ColumnSpec {
@@ -55,6 +55,7 @@ const NAME: ColumnSpec<ArtistField> = ColumnSpec {
     field: ArtistField::Name,
     key: "name",
     header: "column-name",
+    rank: ESSENTIAL,
     ..COLUMN
 };
 
@@ -63,7 +64,7 @@ const ADDED_AT: ColumnSpec<ArtistField> = ColumnSpec {
     key: "added-at",
     header: "column-date-added",
     width: Width::Fixed(DATE),
-    hide_below: ROOMY,
+    rank: HANDY,
     ..COLUMN
 };
 
@@ -160,7 +161,7 @@ impl GridSource for ArtistSource {
                 theme.foreground,
                 Destination::Artist(artist.id.clone().into()),
             ),
-            ArtistField::AddedAt => cells::dim(&cell, added(artist), muted),
+            ArtistField::AddedAt => cells::dim(&cell, cells::stamp(artist.added_at), muted),
             ArtistField::Index => cells::blank(&cell),
         }
     }
@@ -188,12 +189,4 @@ impl GridSource for ArtistSource {
             _ => None,
         }
     }
-}
-
-fn added(artist: &SavedArtist) -> SharedString {
-    artist
-        .added_at
-        .and_then(|seconds| jiff::Timestamp::new(seconds, 0).ok())
-        .map(|stamp| release_date_label(&stamp.strftime("%Y-%m-%d").to_string()))
-        .unwrap_or_default()
 }

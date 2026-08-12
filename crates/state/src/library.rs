@@ -395,6 +395,7 @@ impl Library {
                         public: false,
                         cover: None,
                         track_count: 0,
+                        modified_at: None,
                     }
                 }))
             },
