@@ -5,7 +5,7 @@
 [![Build](https://img.shields.io/github/actions/workflow/status/nolight132/sonora/release.yml)](https://github.com/nolight132/sonora/actions/workflows/release.yml)
 [![License](https://img.shields.io/github/license/nolight132/sonora)](./COPYING)
 
-### A native streaming client built with Rust and GPUI.
+### A native music streaming client for Spotify, YouTube, and local music, built with Rust and GPUI.
 This project would not be possible without [librespot](https://github.com/librespot-org/librespot).
 </div>
 
@@ -13,15 +13,15 @@ This project would not be possible without [librespot](https://github.com/libres
     <table>
       <tr>
         <td colspan="2">
-          <img width="1499" height="935" alt="image" src="https://github.com/user-attachments/assets/30202af9-5612-4107-8ef5-679b2b9c16e8" />
+          <img width="1613" height="976" alt="image" src="https://github.com/user-attachments/assets/55204aaa-bf53-434b-a713-39c5ef3436e1" />
         </td>
       </tr>
       <tr>
         <td width="50%">
-          <img width="1499" height="935" alt="image" src="https://github.com/user-attachments/assets/7f6cddb1-90ab-4f0a-a7f4-a7ba0081119f" />
+          <img width="1618" height="976" alt="image" src="https://github.com/user-attachments/assets/51ff66c7-8a20-4e0f-9ebe-8ed4865c88a6" />
         </td>
         <td width="50%">
-          <img width="1499" height="935" alt="image" src="https://github.com/user-attachments/assets/76a73338-8cbf-4cb6-8c05-decc6a481671" />
+          <img width="1618" height="976" alt="image" src="https://github.com/user-attachments/assets/06729fc8-6281-4cb0-a85c-f8c22921b4bd" />
         </td>
       </tr>
     </table>
@@ -72,6 +72,14 @@ inputs.sonora.packages.${system}.sonora-bin
 
 ### Windows
 Download the latest `.exe` for your architecture from [Releases](https://github.com/nolight132/sonora/releases/latest). There isn't a proper Windows installer yet.
+
+## Credits
+
+Sonora is built with the help of some incredible open-source projects, including:
+
+- [Zed](https://github.com/zed-industries/zed) — a wonderful editor (~~ab~~)used by all core team members. Conveniently provides `gpui` — their native Rust rendering stack.
+- [librespot](https://github.com/librespot-org/librespot) — Spotify playback and library integration.
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) — certain YouTube ideas implemented in [ytmusic-rs](https://github.com/nolight132/ytmusic-rs). :)
 
 ## License
 
