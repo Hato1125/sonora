@@ -220,6 +220,7 @@ fn album_from(album: &PathAlbum) -> Album {
             .iter()
             .filter_map(|copyright| non_empty(&copyright.text).map(str::to_owned))
             .collect(),
+        added_at: None,
     }
 }
 
@@ -368,6 +369,7 @@ mod tests {
             release_date: String::new(),
             label: String::new(),
             copyrights: Vec::new(),
+            added_at: None,
         };
         let track = track_from(track, &album).unwrap();
         assert_eq!(track.id.as_deref(), Some("base62id"));

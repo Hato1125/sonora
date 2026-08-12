@@ -73,6 +73,7 @@ pub fn album(source: ytmusic::Album) -> Album {
         release_date: source.year.map(|year| year.to_string()).unwrap_or_default(),
         label: String::new(),
         copyrights: Vec::new(),
+        added_at: None,
     }
 }
 
@@ -99,6 +100,7 @@ pub fn playlist(source: ytmusic::Playlist, owned: bool, public: bool) -> Playlis
         public: source.public.unwrap_or(public),
         cover: cover(&source.thumbnails),
         track_count: source.track_count.unwrap_or(0),
+        modified_at: None,
     }
 }
 

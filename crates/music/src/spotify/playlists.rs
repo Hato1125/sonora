@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use anyhow::{Context as _, Result, anyhow};
 use http::Method;
 use librespot_core::{Session, SpotifyId};
@@ -7,6 +9,7 @@ use librespot_protocol::playlist4_external::{
     SourceInfo, UpdateItemAttributes, UpdateListAttributes, op::Kind, source_info::Client,
 };
 use protobuf::{Message as _, MessageField};
+use tokio::task::JoinSet;
 
 use crate::spotify::{collection, wire};
 use crate::{PlaylistDetail, Track};
@@ -15,6 +18,7 @@ const TRACK_PREFIX: &str = "spotify:track:";
 const PLAYLIST_PREFIX: &str = "spotify:playlist:";
 const ROOTLIST_LIMIT: usize = 10000;
 const COVER_SLACK: usize = 4;
+const MODIFIED_LIMIT: usize = 300;
 
 pub async fn create(session: &Session, name: &str) -> Result<String> {
     let body = changes(None, rename_op(name));
@@ -177,6 +181,48 @@ async fn tracks_from(session: &Session, content: &SelectedListContent) -> Result
         .iter()
         .filter_map(|uri| known.get(uri).cloned())
         .collect())
+}
+
+pub async fn modified(session: &Session, ids: Vec<String>) -> HashMap<String, i64> {
+    let wanted = ids.len().min(MODIFIED_LIMIT);
+    if wanted < ids.len() {
+        log::debug!(
+            "playlists: reading the modification date of {wanted} of {} playlists",
+            ids.len()
+        );
+    }
+
+    let mut pending = JoinSet::new();
+    for id in ids.into_iter().take(wanted) {
+        let session = session.clone();
+        pending.spawn(async move {
+            let stamp = stamp(&session, &id).await;
+            (id, stamp)
+        });
+    }
+
+    let mut stamps = HashMap::new();
+    while let Some(joined) = pending.join_next().await {
+        if let Ok((id, Some(stamp))) = joined {
+            stamps.insert(id, stamp);
+        }
+    }
+    stamps
+}
+
+async fn stamp(session: &Session, playlist_id: &str) -> Option<i64> {
+    let endpoint = format!("/playlist/v2/playlist/{playlist_id}?from=0&length=0");
+    let body = session
+        .spclient()
+        .request(&Method::GET, &endpoint, None, None)
+        .await
+        .inspect_err(|error| {
+            log::debug!("playlists: cannot read the metadata of {playlist_id}: {error}")
+        })
+        .ok()?;
+
+    let content = SelectedListContent::parse_from_bytes(&body).ok()?;
+    wire::seconds(content.timestamp())
 }
 
 async fn snapshot(session: &Session, playlist_id: &str) -> Result<SelectedListContent> {

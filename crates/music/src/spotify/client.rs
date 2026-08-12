@@ -185,13 +185,21 @@ impl MusicApi for LibrespotClient {
             .map(|playlist| playlist.owner.clone())
             .filter(|owner| owner != wire::UNKNOWN)
             .collect();
-        let names = profiles::display_names(&self.session, owners).await;
+        let ids = playlists
+            .iter()
+            .map(|playlist| playlist.id.clone())
+            .collect();
+        let (names, stamps) = tokio::join!(
+            profiles::display_names(&self.session, owners),
+            playlists::modified(&self.session, ids)
+        );
 
         for playlist in &mut playlists {
             playlist.owned = playlist.owner == self.session.username();
             if let Some(name) = names.get(&playlist.owner) {
                 playlist.owner = name.clone();
             }
+            playlist.modified_at = stamps.get(&playlist.id).copied();
         }
 
         Ok(playlists)

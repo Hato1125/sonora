@@ -133,6 +133,7 @@ pub fn album_from_tracks(name: &str, artist: &str, dir: &Path, tracks: &[Track])
         release_date: String::new(),
         label: String::new(),
         copyrights: Vec::new(),
+        added_at: None,
     }
 }
 

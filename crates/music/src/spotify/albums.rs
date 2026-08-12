@@ -16,15 +16,26 @@ const TRACK_PREFIX: &str = "spotify:track:";
 const UNKNOWN: &str = "Unknown";
 
 pub async fn saved_albums(session: &Session, limit: u32) -> Result<Vec<Album>> {
-    let uris = collection2::saved_uris(session, ALBUM_PREFIX, limit as usize).await?;
-    if uris.is_empty() {
+    let items = collection2::saved_items(
+        session,
+        collection2::COLLECTION,
+        ALBUM_PREFIX,
+        limit as usize,
+    )
+    .await?;
+    if items.is_empty() {
         return Ok(Vec::new());
     }
 
-    let known = metadata(session, &uris).await?;
-    Ok(uris
-        .iter()
-        .filter_map(|uri| known.get(uri).cloned())
+    let uris: Vec<String> = items.iter().map(|item| item.uri.clone()).collect();
+    let mut known = metadata(session, &uris).await?;
+    Ok(items
+        .into_iter()
+        .filter_map(|item| {
+            let mut album = known.remove(&item.uri)?;
+            album.added_at = item.added_at;
+            Some(album)
+        })
         .collect())
 }
 
@@ -162,6 +173,7 @@ fn album_from(uri: &str, album: &AlbumMessage) -> Album {
             .iter()
             .filter_map(|copyright| non_empty(copyright.text.as_deref()).map(str::to_owned))
             .collect(),
+        added_at: None,
     }
 }
 

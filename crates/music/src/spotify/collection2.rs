@@ -113,14 +113,6 @@ async fn set_saved(session: &Session, set: &str, uri: &str, saved: bool) -> Resu
     Ok(())
 }
 
-pub async fn saved_uris(session: &Session, prefix: &str, limit: usize) -> Result<Vec<String>> {
-    Ok(saved_items(session, COLLECTION, prefix, limit)
-        .await?
-        .into_iter()
-        .map(|item| item.uri)
-        .collect())
-}
-
 pub(crate) async fn saved_items(
     session: &Session,
     set: &str,
