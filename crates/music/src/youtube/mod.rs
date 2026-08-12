@@ -8,7 +8,7 @@ use std::sync::Arc;
 use anyhow::{Context as _, Result};
 use async_trait::async_trait;
 use ytmusic::YtMusic;
-use ytmusic::browser;
+use ytmusic::browser::{self, Browser, Family};
 
 use crate::youtube::client::YouTubeClient;
 use crate::youtube::playback::Factory;
@@ -94,6 +94,61 @@ impl YouTubeProvider {
         }
         let _ = std::fs::write(&self.guest, b"");
     }
+
+    fn browsers(&self) -> Vec<Browser> {
+        let mut browsers = browser::detect();
+        #[cfg(target_os = "windows")]
+        {
+            browsers.retain(|browser| browser.family == Family::Firefox);
+            detect_windows_browsers(&mut browsers);
+        }
+        browsers.sort_by_key(|browser| browser.name);
+        browsers
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn detect_windows_browsers(found: &mut Vec<Browser>) {
+    const FIREFOX: &[(&str, &str)] = &[
+        ("Firefox", "Mozilla/Firefox/Profiles"),
+        ("Zen", "zen/Profiles"),
+        ("LibreWolf", "librewolf/Profiles"),
+        ("Floorp", "Floorp/Profiles"),
+        ("Waterfox", "Waterfox/Profiles"),
+        ("Mullvad Browser", "Mullvad/MullvadBrowser/Profiles"),
+        ("Pale Moon", "Moonchild Productions/Pale Moon/Profiles"),
+        ("SeaMonkey", "Mozilla/SeaMonkey/Profiles"),
+    ];
+    let home = dirs::home_dir();
+    let roaming = std::env::var_os("APPDATA")
+        .map(PathBuf::from)
+        .filter(|path| path.is_absolute())
+        .or_else(|| home.as_ref().map(|home| home.join("AppData/Roaming")));
+
+    if let Some(root) = roaming {
+        for &(name, relative) in FIREFOX {
+            let root = root.join(relative);
+            if has_firefox_cookies(&root) {
+                push_browser(found, name, Family::Firefox, root);
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn push_browser(found: &mut Vec<Browser>, name: &'static str, family: Family, root: PathBuf) {
+    if !found.iter().any(|browser| browser.name == name) {
+        found.push(Browser { name, family, root });
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn has_firefox_cookies(root: &std::path::Path) -> bool {
+    std::fs::read_dir(root).is_ok_and(|profiles| {
+        profiles
+            .flatten()
+            .any(|profile| profile.path().join("cookies.sqlite").exists())
+    })
 }
 
 impl Default for YouTubeProvider {
@@ -114,7 +169,7 @@ impl MusicProvider for YouTubeProvider {
 
     fn sign_in_options(&self) -> Vec<SignIn> {
         let mut options = vec![SignIn::Anonymous];
-        for browser in browser::detect() {
+        for browser in self.browsers() {
             options.push(SignIn::Browser(browser.name.to_string()));
         }
         options.push(SignIn::Secret);
@@ -160,7 +215,8 @@ impl MusicProvider for YouTubeProvider {
                 Ok(self.guest_session(Arc::new(YtMusic::anonymous())))
             }
             SignIn::Browser(name) => {
-                let browser = browser::detect()
+                let browser = self
+                    .browsers()
                     .into_iter()
                     .find(|browser| browser.name == name)
                     .with_context(|| format!("{name} is no longer available"))?;
