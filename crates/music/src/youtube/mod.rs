@@ -1,3 +1,4 @@
+mod auth;
 mod client;
 mod playback;
 mod wire;
@@ -101,6 +102,9 @@ impl YouTubeProvider {
         {
             browsers.retain(|browser| browser.family == Family::Firefox);
             detect_windows_browsers(&mut browsers);
+            for browser in auth::windows_chromium_browsers() {
+                push_browser(&mut browsers, browser.name, browser.family, browser.root);
+            }
         }
         browsers.sort_by_key(|browser| browser.name);
         browsers
@@ -220,9 +224,8 @@ impl MusicProvider for YouTubeProvider {
                     .into_iter()
                     .find(|browser| browser.name == name)
                     .with_context(|| format!("{name} is no longer available"))?;
-                let cookies = browser::cookies(&browser)
-                    .with_context(|| format!("cannot read cookies from {name}"))?;
-                self.connect(&cookies).await
+                let session = auth::acquire(&browser, &prompt).await?;
+                self.connect(session.cookies()).await
             }
             SignIn::Secret => {
                 prompt(SignInPrompt::Secret);

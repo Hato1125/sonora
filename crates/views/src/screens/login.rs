@@ -325,6 +325,9 @@ impl Render for LoginView {
             SessionState::SignedOut => t!("login-signed-out"),
             SessionState::Restoring => t!("login-restoring"),
             SessionState::Authorizing(Some(SignInPrompt::Secret)) => t!("login-signed-out"),
+            SessionState::Authorizing(Some(SignInPrompt::Browser)) => {
+                t!("login-browser-authorizing")
+            }
             SessionState::Authorizing(_) => t!("login-authorizing"),
             SessionState::SignedIn(profile) => t!("login-signed-in", name = &profile.display_name),
             SessionState::Failed(error) => SharedString::from(error.clone()),

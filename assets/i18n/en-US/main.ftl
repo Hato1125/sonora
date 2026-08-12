@@ -145,6 +145,7 @@ tool-filters = Filters
 login-signed-out = Sign in to load your music library
 login-restoring = Checking your saved session…
 login-authorizing = Waiting for authorization in your browser…
+login-browser-authorizing = 1. Find YouTube Music using search. 2. Open the site and sign in to your Google account. 3. Open YouTube Music again after signing in. 4. Confirm the correct account is active. 5. Close the browser window and wait for the result in Sonora.
 login-signed-in = Signed in as { $name }
 login-sign-in = Sign in with { $provider }
 login-connect-cookies = Paste cookies manually

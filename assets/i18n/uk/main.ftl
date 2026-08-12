@@ -145,6 +145,7 @@ tool-filters = Фільтри
 login-signed-out = Увійдіть, щоб завантажити медіатеку
 login-restoring = Перевіряємо збережений сеанс…
 login-authorizing = Очікуємо авторизацію у браузері…
+login-browser-authorizing = 1. Знайдіть YouTube Music через пошук. 2. Відкрийте сайт і увійдіть у свій Google-акаунт. 3. Після входу ще раз відкрийте YouTube Music. 4. Переконайтеся, що відкрито потрібний акаунт. 5. Закрийте вікно браузера та дочекайтеся результату в Sonora.
 login-signed-in = Ви увійшли як { $name }
 login-sign-in = Увійти через { $provider }
 login-connect-cookies = Вставити cookie вручну
