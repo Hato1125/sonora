@@ -16,7 +16,7 @@ use gpui::{
     WindowBounds, WindowOptions, point, px, size,
 };
 use music::LyricsProvider;
-use router::Destination;
+use router::Screen;
 use state::{Library, Playback, Queue, Session, Sonora};
 use ui::ActiveTheme as _;
 use views::Root;
@@ -29,10 +29,7 @@ fn main() {
     if let single::Instance::Running = single::claim(opened.as_deref(), sender.clone()) {
         return;
     }
-    let start = opened
-        .as_deref()
-        .and_then(router::destination)
-        .unwrap_or(Destination::Home);
+    let opened_start = opened.as_deref().and_then(router::destination);
 
     let io = match state::Io::new() {
         Ok(io) => io,
@@ -68,6 +65,12 @@ fn main() {
             ));
         let lyrics: Vec<Arc<dyn LyricsProvider>> = vec![Arc::new(music::lrclib::LrcLib::new())];
         state::init(cx, io, providers, local_provider, lyrics);
+        let start = opened_start.unwrap_or_else(|| {
+            let startup = Sonora::global(cx).settings.read(cx).startup().to_owned();
+            Screen::from_id(&startup)
+                .unwrap_or(Screen::Home)
+                .destination()
+        });
         router::init(start, cx);
         let (look, overrides, language) = {
             let settings = Sonora::global(cx).settings.read(cx);
