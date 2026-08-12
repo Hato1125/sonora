@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use anyhow::{Context as _, Result};
 use librespot_core::Session;
@@ -136,6 +136,30 @@ pub(crate) async fn metadata(session: &Session, uris: &[String]) -> Result<HashM
         }
     }
     Ok(albums)
+}
+
+pub(crate) async fn track_uris(session: &Session, uris: &[String]) -> Result<Vec<String>> {
+    let response = session
+        .spclient()
+        .get_extended_metadata(batched(uris))
+        .await
+        .context("cannot read album metadata")?;
+
+    let mut seen = HashSet::new();
+    let mut tracks = Vec::new();
+    for array in response.extended_metadata {
+        for entity in array.extension_data {
+            let Ok(message) = AlbumMessage::parse_from_bytes(&entity.extension_data.value) else {
+                continue;
+            };
+            for id in track_ids(&message) {
+                if seen.insert(id.clone()) {
+                    tracks.push(format!("{TRACK_PREFIX}{id}"));
+                }
+            }
+        }
+    }
+    Ok(tracks)
 }
 
 fn album_from(uri: &str, album: &AlbumMessage) -> Album {
