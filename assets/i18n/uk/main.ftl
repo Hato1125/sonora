@@ -161,6 +161,8 @@ login-cookie-submit = Продовжити
 login-cookie-hint = Вставте сюди заголовок запиту Cookie
 login-cookie-detail = 1. Відкрийте music.youtube.com і переконайтеся, що ви увійшли в акаунт. 2. Натисніть F12, відкрийте вкладку «Мережа» та перезавантажте сторінку. 3. Виберіть будь-який запит з назвою «browse» або «next». 4. На вкладці «Заголовки» знайдіть Cookie серед заголовків запиту, клацніть правою кнопкою та скопіюйте значення. Вставте значення повністю: панелі «Куки» недостатньо, бо значення має містити SAPISID і __Secure-3PAPISID.
 login-cookie-title = Вставте cookie YouTube Music, щоб завершити вхід
+login-account-title = Виберіть акаунт
+login-account-detail = У цій сесії виконано вхід у кілька акаунтів Google. Виберіть той, який має використовувати Sonora.
 
 # album and playlist pages
 detail-album = Альбом

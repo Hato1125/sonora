@@ -1,3 +1,4 @@
+use crate::shared::accounts::AccountPicker;
 use crate::shared::browsers::BrowserPicker;
 use gpui::prelude::*;
 use gpui::{
@@ -5,7 +6,7 @@ use gpui::{
     SharedString, Window, div, px, svg,
 };
 use i18n::t;
-use music::{SignIn, SignInPrompt};
+use music::{AccountChoice, SignIn, SignInPrompt};
 use state::{Session, SessionState};
 use ui::ActiveTheme as _;
 use ui::{Button, Input, Modal, Separator, Text};
@@ -302,6 +303,20 @@ impl LoginView {
             .on_dismiss(cx.listener(|this, _, _, cx| this.abandon(cx)))
     }
 
+    fn account_modal(
+        &self,
+        accounts: Vec<AccountChoice>,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        AccountPicker::new(accounts)
+            .on_pick(cx.listener(|this, id: &SharedString, _, cx| {
+                let id = id.to_string();
+                this.session
+                    .update(cx, |session, cx| session.submit_input(id, cx));
+            }))
+            .on_cancel(cx.listener(|this, _, _, cx| this.abandon(cx)))
+    }
+
     fn browser_modal(
         &self,
         slug: &'static str,
@@ -347,7 +362,9 @@ impl Render for LoginView {
         let status = match &state {
             SessionState::SignedOut => t!("login-signed-out"),
             SessionState::Restoring => t!("login-restoring"),
-            SessionState::Authorizing(Some(SignInPrompt::Secret)) => t!("login-signed-out"),
+            SessionState::Authorizing(Some(SignInPrompt::Secret | SignInPrompt::Accounts(_))) => {
+                t!("login-signed-out")
+            }
             SessionState::Authorizing(_) => t!("login-authorizing"),
             SessionState::SignedIn(profile) => t!("login-signed-in", name = &profile.display_name),
             SessionState::Failed(error) => SharedString::from(error.clone()),
@@ -358,6 +375,10 @@ impl Render for LoginView {
             _ => None,
         };
         let secret = matches!(prompt, Some(SignInPrompt::Secret));
+        let accounts = match &prompt {
+            Some(SignInPrompt::Accounts(accounts)) => Some(accounts.clone()),
+            _ => None,
+        };
         let code = match prompt {
             Some(SignInPrompt::Code { code, url }) => Some((code, url)),
             _ => None,
@@ -420,6 +441,9 @@ impl Render for LoginView {
             })
             .when_some(browsers, |this, (slug, names)| {
                 this.child(self.browser_modal(slug, names, cx).into_any_element())
+            })
+            .when_some(accounts, |this, accounts| {
+                this.child(self.account_modal(accounts, cx).into_any_element())
             })
     }
 }

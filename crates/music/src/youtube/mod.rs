@@ -1,3 +1,4 @@
+mod accounts;
 mod auth;
 mod client;
 mod playback;
@@ -13,12 +14,15 @@ use ytmusic::browser::{self, Browser, Family};
 
 use crate::youtube::client::YouTubeClient;
 use crate::youtube::playback::Factory;
-use crate::{InputSource, MusicProvider, ProviderSession, SignIn, SignInPrompt, UserProfile};
+use crate::{
+    InputSource, MusicProvider, PromptSink, ProviderSession, SignIn, SignInPrompt, UserProfile,
+};
 
 const GUEST_ID: &str = "youtube-guest";
 
 pub struct YouTubeProvider {
     cookies: PathBuf,
+    authuser: PathBuf,
     guest: PathBuf,
     resolved: PathBuf,
 }
@@ -31,13 +35,18 @@ impl YouTubeProvider {
             .join("youtube");
         Self {
             cookies: cache.join("cookies.txt"),
+            authuser: cache.join("authuser.txt"),
             guest: cache.join("guest"),
             resolved: cache.join("resolved.json"),
         }
     }
 
-    fn cookie_client(&self, cookies: &str) -> Arc<YtMusic> {
-        Arc::new(YtMusic::with_cookies(cookies).cache_resolutions(self.resolved.clone()))
+    fn cookie_client(&self, cookies: &str, authuser: usize) -> Arc<YtMusic> {
+        Arc::new(
+            YtMusic::with_cookies(cookies)
+                .as_user(authuser)
+                .cache_resolutions(self.resolved.clone()),
+        )
     }
 
     fn authenticated_session(&self, api: Arc<YtMusic>, profile: UserProfile) -> ProviderSession {
@@ -64,26 +73,47 @@ impl YouTubeProvider {
         }
     }
 
-    async fn connect(&self, cookies: &str) -> Result<ProviderSession> {
+    async fn connect(
+        &self,
+        cookies: &str,
+        prompt: &PromptSink,
+        input: &mut InputSource,
+    ) -> Result<ProviderSession> {
         let cookies = auth::header(cookies)?;
-        let api = self.cookie_client(&cookies);
-        let profile = wire::profile(
-            api.profile()
-                .await
-                .context("cookies were not accepted; sign in to the browser first")?,
+
+        let found = accounts::list(&cookies).await;
+        let account = match found.len() {
+            0 => anyhow::bail!("cookies were not accepted; sign in to the browser first"),
+            1 => &found[0],
+            _ => pick(&found, prompt, input).await?,
+        };
+
+        let profile = wire::profile(account.profile.clone());
+        let api = self.cookie_client(&cookies, account.index);
+        self.store_cookies(&cookies, account.index)?;
+        log::debug!(
+            "youtube: cookie sign-in succeeded for authuser {}",
+            account.index
         );
-        self.store_cookies(&cookies)?;
-        log::debug!("youtube: cookie sign-in succeeded");
         Ok(self.authenticated_session(api, profile))
     }
 
-    fn store_cookies(&self, cookies: &str) -> Result<()> {
+    fn store_cookies(&self, cookies: &str, authuser: usize) -> Result<()> {
         if let Some(parent) = self.cookies.parent() {
             std::fs::create_dir_all(parent).context("cannot create youtube cache dir")?;
         }
         std::fs::write(&self.cookies, cookies).context("cannot store youtube cookies")?;
+        std::fs::write(&self.authuser, authuser.to_string())
+            .context("cannot store the youtube account")?;
         let _ = std::fs::remove_file(&self.guest);
         Ok(())
+    }
+
+    fn stored_authuser(&self) -> usize {
+        std::fs::read_to_string(&self.authuser)
+            .ok()
+            .and_then(|stored| stored.trim().parse().ok())
+            .unwrap_or(0)
     }
 
     fn store_guest(&self) {
@@ -101,6 +131,21 @@ impl YouTubeProvider {
         browsers.sort_by_key(|browser| browser.name);
         browsers
     }
+}
+
+async fn pick<'a>(
+    found: &'a [accounts::Account],
+    prompt: &PromptSink,
+    input: &mut InputSource,
+) -> Result<&'a accounts::Account> {
+    prompt(SignInPrompt::Accounts(
+        found.iter().map(accounts::Account::choice).collect(),
+    ));
+    let picked = input.recv().await.context("sign-in was cancelled")?;
+    found
+        .iter()
+        .find(|account| account.index.to_string() == picked.trim())
+        .context("that account is no longer signed in")
 }
 
 #[cfg(target_os = "windows")]
@@ -178,7 +223,7 @@ impl MusicProvider for YouTubeProvider {
     async fn restore(&self) -> Result<Option<ProviderSession>> {
         if let Ok(cookies) = std::fs::read_to_string(&self.cookies) {
             log::debug!("youtube: restoring authenticated session from cached cookies");
-            let api = self.cookie_client(cookies.trim());
+            let api = self.cookie_client(cookies.trim(), self.stored_authuser());
             let profile = api.profile().await;
             match profile {
                 Ok(profile) => {
@@ -216,12 +261,12 @@ impl MusicProvider for YouTubeProvider {
                     .find(|browser| browser.name == name)
                     .with_context(|| format!("{name} is no longer available"))?;
                 let cookies = auth::cookies(&browser)?;
-                self.connect(&cookies).await
+                self.connect(&cookies, &prompt, &mut input).await
             }
             SignIn::Secret => {
                 prompt(SignInPrompt::Secret);
                 let cookies = input.recv().await.context("sign-in was cancelled")?;
-                self.connect(&cookies).await
+                self.connect(&cookies, &prompt, &mut input).await
             }
             SignIn::Path(_) => Err(anyhow::anyhow!(
                 "youtube does not sign in with a folder path"
@@ -230,7 +275,7 @@ impl MusicProvider for YouTubeProvider {
     }
 
     fn sign_out(&self) {
-        for path in [&self.cookies, &self.guest] {
+        for path in [&self.cookies, &self.authuser, &self.guest] {
             if let Err(error) = std::fs::remove_file(path)
                 && error.kind() != std::io::ErrorKind::NotFound
             {

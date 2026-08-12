@@ -9,6 +9,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Importing a YouTube Music session, or pasting cookies, now asks which Google account to use when
+  the session is signed in to more than one, and Sonora stays on the account that was picked.
 - The "Paste cookies manually" dialog spells out where the value comes from — which request to open
   in the developer tools, which header to copy, and which cookies the value has to carry.
 

@@ -161,6 +161,8 @@ login-cookie-submit = Kontynuuj
 login-cookie-hint = Wklej tutaj nagłówek żądania Cookie
 login-cookie-detail = 1. Otwórz music.youtube.com i upewnij się, że jesteś zalogowany. 2. Naciśnij F12, otwórz kartę Sieć i odśwież stronę. 3. Wybierz dowolne żądanie o nazwie „browse” lub „next”. 4. Na karcie Nagłówki znajdź Cookie wśród nagłówków żądania, kliknij prawym przyciskiem i skopiuj wartość. Wklej całą wartość: panel Ciasteczka nie wystarczy, bo wartość musi zawierać SAPISID i __Secure-3PAPISID.
 login-cookie-title = Wklej pliki cookie YouTube Music, aby dokończyć logowanie
+login-account-title = Wybierz konto
+login-account-detail = W tej sesji zalogowano więcej niż jedno konto Google. Wybierz to, którego ma używać Sonora.
 
 # album and playlist pages
 detail-album = Album

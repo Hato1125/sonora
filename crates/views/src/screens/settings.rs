@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use crate::shared::accounts::AccountPicker;
 use crate::shared::browsers::BrowserPicker;
 use gpui::{
     AnyElement, Context, Entity, FontWeight, PathPromptOptions, Pixels, Render, SharedString,
@@ -8,7 +9,7 @@ use gpui::{
 };
 use gpui::{ScrollHandle, prelude::*, svg};
 use i18n::{Language, t};
-use music::SignIn;
+use music::{AccountChoice, SignIn, SignInPrompt};
 use router::{Screen, SettingsTab};
 use state::{AppSettings, Playback, Session, SessionState, Sonora};
 use ui::{ActiveTheme as _, Scrollbar, Scroller};
@@ -1142,6 +1143,23 @@ impl SettingsView {
             )
             .child(div().flex_none().child(action))
     }
+
+    fn account_modal(
+        &self,
+        accounts: Vec<AccountChoice>,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        AccountPicker::new(accounts)
+            .on_pick(cx.listener(|this, id: &SharedString, _, cx| {
+                let id = id.to_string();
+                this.session
+                    .update(cx, |session, cx| session.submit_input(id, cx));
+            }))
+            .on_cancel(cx.listener(|this, _, _, cx| {
+                this.session
+                    .update(cx, |session, cx| session.cancel_sign_in(cx));
+            }))
+    }
 }
 
 fn decorated() -> bool {
@@ -1167,6 +1185,12 @@ fn open_settings_file(path: &Path) -> std::io::Result<()> {
 impl Render for SettingsView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let browsers = self.browsers.clone();
+        let accounts = match self.session.read(cx).state() {
+            SessionState::Authorizing(Some(SignInPrompt::Accounts(accounts))) => {
+                Some(accounts.clone())
+            }
+            _ => None,
+        };
 
         div()
             .relative()
@@ -1196,6 +1220,9 @@ impl Render for SettingsView {
             )
             .when_some(browsers, |this, (slug, names)| {
                 this.child(self.browser_modal(slug, names, cx).into_any_element())
+            })
+            .when_some(accounts, |this, accounts| {
+                this.child(self.account_modal(accounts, cx).into_any_element())
             })
     }
 }

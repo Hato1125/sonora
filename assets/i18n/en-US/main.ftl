@@ -161,6 +161,8 @@ login-cookie-submit = Continue
 login-cookie-hint = Paste the Cookie request header here
 login-cookie-detail = 1. Open music.youtube.com and make sure you are signed in. 2. Press F12, open the Network tab and reload the page. 3. Select any request named "browse" or "next". 4. In Headers, find Cookie under Request Headers, right-click it and copy its value. Paste the whole value below: the request Cookies panel is not enough, because the value has to carry SAPISID and __Secure-3PAPISID.
 login-cookie-title = Paste your YouTube Music cookies to finish signing in
+login-account-title = Choose an account
+login-account-detail = This session is signed in to more than one Google account. Pick the one Sonora should use.
 
 # album and playlist pages
 detail-album = Album

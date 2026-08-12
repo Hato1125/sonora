@@ -147,7 +147,15 @@ pub enum SignIn {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AccountChoice {
+    pub id: String,
+    pub name: String,
+    pub detail: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SignInPrompt {
+    Accounts(Vec<AccountChoice>),
     Code { code: String, url: String },
     Secret,
 }
