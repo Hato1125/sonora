@@ -20,6 +20,7 @@ struct Column {
     name: &'static str,
     options: Vec<SignIn>,
     disabled: bool,
+    cancel: bool,
 }
 
 pub struct LoginView {
@@ -158,6 +159,7 @@ impl LoginView {
             name,
             options,
             disabled,
+            cancel,
         } = column;
         let mut seen_browser = false;
         let options: Vec<&SignIn> = options
@@ -189,11 +191,25 @@ impl LoginView {
                     .child(SharedString::from(name.to_string())),
             )
             .child(
-                div().flex().flex_col().gap_2().w_full().children(
-                    options
-                        .into_iter()
-                        .map(|method| self.option(slug, name, method, disabled, cx)),
-                ),
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap_2()
+                    .w_full()
+                    .children(
+                        options
+                            .into_iter()
+                            .map(|method| self.option(slug, name, method, disabled, cx)),
+                    )
+                    .when(cancel, |this| {
+                        this.child(
+                            Button::new("cancel-sign-in")
+                                .label(t!("common-cancel"))
+                                .outline()
+                                .w_full()
+                                .on_click(cx.listener(|this, _, _, cx| this.abandon(cx))),
+                        )
+                    }),
             )
     }
 
@@ -349,6 +365,13 @@ impl Render for LoginView {
             })
             .map(|info| (info.slug, info.name))
             .collect();
+        let waiting = match &state {
+            SessionState::Authorizing(prompt) => !matches!(
+                prompt,
+                Some(SignInPrompt::Secret | SignInPrompt::Accounts(_))
+            ),
+            _ => false,
+        };
         let columns: Vec<Column> = providers
             .into_iter()
             .map(|info| Column {
@@ -356,6 +379,7 @@ impl Render for LoginView {
                 name: info.name,
                 options: info.options,
                 disabled: pending,
+                cancel: waiting && info.pending,
             })
             .collect();
 

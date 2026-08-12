@@ -19,6 +19,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Importing a browser session is limited to Firefox-based browsers, which the login screen now says
   under the button. Chrome, Edge, Brave and the other Chromium browsers are no longer offered;
   paste the cookies manually to sign in from one of those.
+- Connecting a service from the settings now happens there: the cookie dialog, the browser and
+  account pickers and a cancel button all appear in Manage accounts, and a failed attempt reports
+  the reason on that service's card.
+
+### Fixed
+
+- Connecting a service from the settings no longer throws you onto the login screen, and a failure
+  no longer signs you out of the service you were already using.
+- Waiting for a browser authorization can be cancelled instead of leaving the app stuck until it is
+  restarted.
+- Cancelling a sign-in no longer flashes the empty library behind the login screen.
 
 ## [0.9.0] - 2026-08-11
 

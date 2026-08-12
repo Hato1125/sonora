@@ -14,9 +14,9 @@ use router::{Screen, SettingsTab};
 use state::{AppSettings, Playback, Session, SessionState, Sonora};
 use ui::{ActiveTheme as _, Scrollbar, Scroller};
 use ui::{
-    Avatar, Button, InfoCard, Initials, Look, MAX_FONT, MAX_TRANSPARENCY, MIN_FONT, Menu, MenuItem,
-    Popover, Popovers, Rounding, Scrubber, ScrubberState, Separator, Skeleton, Switch, Text, Theme,
-    ThemeKind,
+    Avatar, Button, InfoCard, Initials, Input, Look, MAX_FONT, MAX_TRANSPARENCY, MIN_FONT, Menu,
+    MenuItem, Modal, Popover, Popovers, Rounding, Scrubber, ScrubberState, Separator, Skeleton,
+    Switch, Text, Theme, ThemeKind,
 };
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -35,6 +35,8 @@ struct Account {
     stored: bool,
     active: bool,
     guest: bool,
+    cancel: bool,
+    error: Option<SharedString>,
 }
 
 fn offered(method: &SignIn, stored: bool, guest: bool) -> bool {
@@ -98,6 +100,7 @@ pub struct SettingsView {
     opacity: ScrubberState,
     popovers: Popovers,
     browsers: Option<(&'static str, Vec<SharedString>)>,
+    secret: Entity<Input>,
 }
 
 impl SettingsView {
@@ -118,6 +121,7 @@ impl SettingsView {
             opacity: ScrubberState::new("opacity"),
             popovers: Popovers::default(),
             browsers: None,
+            secret: cx.new(|cx| Input::new("login-cookie-hint", cx)),
         }
     }
 
@@ -738,6 +742,13 @@ impl SettingsView {
         let pending = session.is_pending();
         let signed_out = matches!(session.state(), SessionState::SignedOut);
         let guest = !session.authenticated();
+        let waiting = match session.state() {
+            SessionState::Authorizing(prompt) => !matches!(
+                prompt,
+                Some(SignInPrompt::Secret | SignInPrompt::Accounts(_))
+            ),
+            _ => false,
+        };
         let accounts: Vec<Account> = session
             .providers()
             .map(|info| Account {
@@ -747,6 +758,8 @@ impl SettingsView {
                 stored: info.stored,
                 active: info.active && !signed_out,
                 guest: info.active && !signed_out && guest,
+                cancel: waiting && info.pending,
+                error: info.error.map(SharedString::from),
             })
             .collect();
         let mut cards = Vec::new();
@@ -789,6 +802,8 @@ impl SettingsView {
             stored,
             active,
             guest,
+            cancel,
+            error,
         } = account;
         let status = match (active, guest, stored) {
             (true, true, _) => t!("settings-provider-guest"),
@@ -876,6 +891,14 @@ impl SettingsView {
                             }),
                     ),
             )
+            .when_some(error, |this, error| {
+                this.child(
+                    div()
+                        .text_color(theme.danger)
+                        .text_size(theme.text(Text::Small))
+                        .child(error),
+                )
+            })
             .when(!methods.is_empty(), |this| {
                 this.child(
                     div().flex().flex_wrap().items_start().gap_2().children(
@@ -885,6 +908,53 @@ impl SettingsView {
                     ),
                 )
             })
+            .when(cancel, |this| {
+                this.child(
+                    div().child(
+                        Button::new(SharedString::from(format!("cancel-{slug}")))
+                            .label(t!("common-cancel"))
+                            .small()
+                            .outline()
+                            .on_click(cx.listener(|this, _, _, cx| this.abandon(cx))),
+                    ),
+                )
+            })
+    }
+
+    fn abandon(&mut self, cx: &mut Context<Self>) {
+        self.secret.update(cx, |input, cx| input.set_text("", cx));
+        self.session
+            .update(cx, |session, cx| session.cancel_sign_in(cx));
+    }
+
+    fn submit(&mut self, cx: &mut Context<Self>) {
+        let text = self.secret.read(cx).text().to_string();
+        if text.trim().is_empty() {
+            return;
+        }
+        self.secret.update(cx, |input, cx| input.set_text("", cx));
+        self.session
+            .update(cx, |session, cx| session.submit_input(text, cx));
+    }
+
+    fn secret_prompt(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        Modal::new("settings-cookie-prompt", t!("login-cookie-title"))
+            .width(px(560.))
+            .detail(t!("login-cookie-detail"))
+            .child(self.secret.clone())
+            .action(
+                Button::new("settings-cancel-cookies")
+                    .ghost()
+                    .label(t!("common-cancel"))
+                    .on_click(cx.listener(|this, _, _, cx| this.abandon(cx))),
+            )
+            .action(
+                Button::new("settings-submit-cookies")
+                    .label(t!("login-cookie-submit"))
+                    .primary()
+                    .on_click(cx.listener(|this, _, _, cx| this.submit(cx))),
+            )
+            .on_dismiss(cx.listener(|this, _, _, cx| this.abandon(cx)))
     }
 
     fn method(
@@ -1191,6 +1261,10 @@ impl Render for SettingsView {
             }
             _ => None,
         };
+        let secret = matches!(
+            self.session.read(cx).state(),
+            SessionState::Authorizing(Some(SignInPrompt::Secret))
+        );
 
         div()
             .relative()
@@ -1223,6 +1297,9 @@ impl Render for SettingsView {
             })
             .when_some(accounts, |this, accounts| {
                 this.child(self.account_modal(accounts, cx).into_any_element())
+            })
+            .when(secret, |this| {
+                this.child(self.secret_prompt(cx).into_any_element())
             })
     }
 }
