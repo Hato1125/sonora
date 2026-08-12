@@ -136,8 +136,8 @@ impl SettingsView {
             ],
             SettingsTab::Appearance => vec![
                 self.theme_row(cx).into_any_element(),
-                self.opacity_row(cx).into_any_element(),
                 self.adaptive_row(cx).into_any_element(),
+                self.opacity_row(cx).into_any_element(),
             ]
             .into_iter()
             .chain([
