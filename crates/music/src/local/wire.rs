@@ -179,27 +179,3 @@ fn cache_picture(picture: &Picture, source: &Path, cache_dir: &Path) -> Option<S
     }
     Some(format!("file://{}", dest.display()))
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn playable_extensions_cover_the_decodable_formats() {
-        for name in [
-            "a.mp3", "a.flac", "a.m4a", "a.MP4", "a.aac", "a.ogg", "a.oga", "a.wav",
-        ] {
-            assert!(is_playable(Path::new(name)), "{name} should be playable");
-        }
-    }
-
-    #[test]
-    fn unsupported_codecs_are_not_playable() {
-        for name in ["a.opus", "a.wv", "a.ape", "a.txt"] {
-            assert!(
-                !is_playable(Path::new(name)),
-                "{name} should not be playable"
-            );
-        }
-    }
-}

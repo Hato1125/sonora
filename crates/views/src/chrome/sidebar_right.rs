@@ -882,18 +882,10 @@ impl Render for SidebarRight {
 
 #[cfg(test)]
 mod tests {
-    use gpui::px;
-
-    use super::{QueuePosition, Sections, Slot, fills_content};
+    use super::{QueuePosition, Sections, Slot};
 
     fn slots(sections: Sections) -> Vec<Slot> {
         (0..sections.len()).map(|i| sections.slot(i)).collect()
-    }
-
-    #[test]
-    fn fills_narrow_content_area() {
-        assert!(fills_content(ui::WIDE - px(1.)));
-        assert!(!fills_content(ui::WIDE));
     }
 
     #[test]

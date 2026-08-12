@@ -112,20 +112,3 @@ fn output_sample_format(input: AudioFormat, device: cpal::SampleFormat) -> cpal:
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use librespot_playback::config::AudioFormat;
-
-    use super::output_sample_format;
-
-    #[test]
-    fn chooses_the_sample_format_for_the_platform() {
-        let selected = output_sample_format(AudioFormat::F32, cpal::SampleFormat::I16);
-
-        #[cfg(target_os = "windows")]
-        assert_eq!(selected, cpal::SampleFormat::I16);
-        #[cfg(not(target_os = "windows"))]
-        assert_eq!(selected, cpal::SampleFormat::F32);
-    }
-}

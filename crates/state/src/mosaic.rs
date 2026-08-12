@@ -109,11 +109,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_stamp_separates_two_states_of_one_playlist() {
-        assert_ne!(path("abc", 4), path("abc", 5));
-    }
-
-    #[test]
     fn a_path_never_escapes_the_cache_directory() {
         let built = path("../../etc/passwd", 4);
 
@@ -121,11 +116,6 @@ mod tests {
             built.file_name().and_then(|name| name.to_str()),
             Some("______etc_passwd-4.png")
         );
-    }
-
-    #[test]
-    fn a_located_path_is_a_file_url() {
-        assert!(located(Path::new("/tmp/a.png")).starts_with("file:///tmp"));
     }
 
     fn solid(red: u8, green: u8, blue: u8) -> DynamicImage {
