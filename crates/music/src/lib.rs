@@ -179,5 +179,6 @@ pub trait MusicProvider: Send + Sync {
         prompt: PromptSink,
         input: InputSource,
     ) -> Result<ProviderSession>;
+    fn abandon(&self) {}
     fn sign_out(&self);
 }

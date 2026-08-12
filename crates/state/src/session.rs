@@ -296,6 +296,10 @@ impl Session {
         if !matches!(self.state, SessionState::Authorizing(_)) {
             return;
         }
+        if let Some(index) = self.awaiting {
+            let provider = self.providers[index].clone();
+            self.io.spawn(async move { provider.abandon() });
+        }
         self.task = None;
         self.prompt_task = None;
         self.input = None;

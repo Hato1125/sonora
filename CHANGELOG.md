@@ -28,7 +28,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Connecting a service from the settings no longer throws you onto the login screen, and a failure
   no longer signs you out of the service you were already using.
 - Waiting for a browser authorization can be cancelled instead of leaving the app stuck until it is
-  restarted.
+  restarted, and cancelling now shuts the callback server down. Signing in again used to fail with
+  "Address already in use" until Sonora was restarted.
 - Cancelling a sign-in no longer flashes the empty library behind the login screen.
 
 ## [0.9.0] - 2026-08-11

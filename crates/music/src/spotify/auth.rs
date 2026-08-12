@@ -55,6 +55,33 @@ pub(crate) fn default_cache_dir() -> PathBuf {
         .join("sonora")
 }
 
+pub fn release(config: &AuthConfig) {
+    let Some(address) = socket_address(&config.redirect_uri) else {
+        log::warn!(
+            "auth: cannot read a socket address from {}",
+            config.redirect_uri
+        );
+        return;
+    };
+    let Ok(mut stream) = std::net::TcpStream::connect(address) else {
+        return;
+    };
+    let _ = std::io::Write::write_all(&mut stream, b"GET / HTTP/1.1\r\nHost: localhost\r\n\r\n");
+}
+
+fn socket_address(uri: &str) -> Option<String> {
+    let rest = uri
+        .strip_prefix("http://")
+        .or_else(|| uri.strip_prefix("https://"))?;
+    let authority = rest.split('/').next().filter(|host| !host.is_empty())?;
+    match authority.rsplit_once(':') {
+        Some((_, port)) if port.chars().all(|digit| digit.is_ascii_digit()) => {
+            Some(authority.to_owned())
+        }
+        _ => Some(format!("{authority}:80")),
+    }
+}
+
 pub async fn restore(config: &AuthConfig) -> Result<Option<Session>> {
     let session = session(config)?;
     let Some(credentials) = session.cache().and_then(|cache| cache.credentials()) else {
@@ -123,4 +150,30 @@ fn session(config: &AuthConfig) -> Result<Session> {
     };
 
     Ok(Session::new(session_config, Some(cache)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::socket_address;
+
+    #[test]
+    fn reads_host_and_port() {
+        assert_eq!(
+            socket_address("http://127.0.0.1:8989/login").as_deref(),
+            Some("127.0.0.1:8989")
+        );
+    }
+
+    #[test]
+    fn defaults_a_missing_port() {
+        assert_eq!(
+            socket_address("http://localhost/login").as_deref(),
+            Some("localhost:80")
+        );
+    }
+
+    #[test]
+    fn rejects_a_uri_without_a_scheme() {
+        assert!(socket_address("127.0.0.1:8989/login").is_none());
+    }
 }
