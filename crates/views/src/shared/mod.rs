@@ -1,3 +1,4 @@
+pub(crate) mod about;
 pub(crate) mod adaptive;
 pub(crate) mod album_grid;
 pub(crate) mod browsers;

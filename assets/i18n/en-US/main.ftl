@@ -245,8 +245,9 @@ song-language = Language
 song-content = Content
 song-explicit = Explicit
 song-clean = Clean
-song-about-artist = About the artist
-song-artist-fallback = Explore the artist's popular songs and releases.
+artist-about = About the artist
+artist-about-fallback = Explore the artist's popular songs and releases.
+artist-about-open = Go to artist
 song-copyright = © { $notice }
 
 # song languages

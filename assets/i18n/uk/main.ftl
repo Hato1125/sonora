@@ -247,8 +247,9 @@ song-language = Мова
 song-content = Контент
 song-explicit = Ненормативна лексика
 song-clean = Без обмежень
-song-about-artist = Про виконавця
-song-artist-fallback = Послухайте популярні треки та релізи виконавця.
+artist-about = Про виконавця
+artist-about-fallback = Послухайте популярні треки та релізи виконавця.
+artist-about-open = Перейти до виконавця
 song-copyright = © { $notice }
 
 # song languages

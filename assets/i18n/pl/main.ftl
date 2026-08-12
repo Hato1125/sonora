@@ -247,8 +247,9 @@ song-language = Język
 song-content = Treść
 song-explicit = Wulgaryzmy
 song-clean = Bez wulgaryzmów
-song-about-artist = O wykonawcy
-song-artist-fallback = Poznaj popularne utwory i wydawnictwa tego wykonawcy.
+artist-about = O wykonawcy
+artist-about-fallback = Poznaj popularne utwory i wydawnictwa tego wykonawcy.
+artist-about-open = Przejdź do wykonawcy
 song-copyright = © { $notice }
 
 # song languages
