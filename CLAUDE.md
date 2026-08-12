@@ -251,8 +251,16 @@ theme.metrics.row / .header / .pad / .inset / .control / .field
 ## Localization
 
 Every user-facing string comes from Fluent. **Never render a bare English literal**; add a key to
-`assets/i18n/en-US/main.ftl` and translate it in `ru`, `uk` and `pl` — a test in `crates/i18n`
-fails if the key sets diverge.
+`assets/i18n/en-US/main.ftl`, which is the source of truth, and translate it in `ru`, `uk` and `pl`
+where you can.
+
+**A locale is allowed to lag.** `lookup` falls back to English for a key the active language lacks
+(and to the key itself if even English lacks it), logging `i18n: … is missing from <id>`. The tests
+in `crates/i18n` enforce only that English carries every key and that no locale invents one — a
+missing translation is a gap to fill, not a build failure. Machine-translating four languages to
+satisfy a test was the old cost; leave the gap and let a speaker fill it. `scripts/i18n-coverage.py`
+regenerates the coverage table in `README.md` between the `i18n:start` / `i18n:end` markers; re-run
+it when you add keys or a language.
 
 ```rust
 use i18n::t;

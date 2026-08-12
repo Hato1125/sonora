@@ -73,6 +73,26 @@ inputs.sonora.packages.${system}.sonora-bin
 ### Windows
 Download the latest `.exe` for your architecture from [Releases](https://github.com/nolight132/sonora/releases/latest). There isn't a proper Windows installer yet.
 
+## Translations
+
+Sonora ships these locales. Anything a locale is missing falls back to English at runtime, so a
+partial translation is welcome — pick a language below and fill in what it lacks. Strings live in
+`assets/i18n/<locale>/main.ftl`; `en-US` is the source of truth.
+
+<!-- i18n:start -->
+
+| Language | Translated | Coverage |
+| --- | --- | --- |
+| English (`en-US`) | 328/328 | 100% |
+| Русский (`ru`) | 328/328 | 100% |
+| Українська (`uk`) | 328/328 | 100% |
+| Polski (`pl`) | 328/328 | 100% |
+
+<!-- i18n:end -->
+
+To add a language, create `assets/i18n/<locale>/main.ftl` and register it in
+`crates/i18n/src/language.rs`. Regenerate the table with `scripts/i18n-coverage.py`.
+
 ## License
 
 Copyright (C) 2026 Sonora Contributors.

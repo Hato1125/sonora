@@ -132,9 +132,8 @@ theme.text(Text::Small)
 ```
 
 **Never render a bare English literal.** Add the key to `assets/i18n/en-US/main.ftl` and translate it
-in as many languages as possible — a test in `crates/i18n` fails if the key sets diverge. Resolve keys in
-`render`, never in a constructor, or the string freezes in whatever language was active at
-construction:
+in as many languages as you can. Resolve keys in `render`, never in a constructor, or the string
+freezes in whatever language was active at construction:
 
 ```rust
 t!("artist-follow")
@@ -142,6 +141,24 @@ t!("song-disc-track", disc = disc, track = number)
 ```
 
 Developer-facing text — `.context("cannot …")`, `log::warn!`, wire values — stays in English.
+
+## Translations
+
+English is the source of truth and must carry every key. Other locales may lag: a missing key falls
+back to English at runtime, so a partial translation is a fine contribution — don't machine-translate
+a language you don't speak just to fill the table. The tests only check that English is complete and
+that no locale invents a key.
+
+```sh
+$EDITOR assets/i18n/uk/main.ftl        # fill in what it lacks
+scripts/i18n-coverage.py              # refresh the table in README.md
+cargo test -p i18n
+```
+
+A new language needs `assets/i18n/<locale>/main.ftl` plus a `Language` variant in
+`crates/i18n/src/language.rs` (`id`, `label`, `tag`, `source`, `ALL`). Plural rules come from Fluent
+selectors, so check `count-songs` against your language's categories rather than concatenating
+strings.
 
 **Register new assets.** SVGs go in `assets/icons/` and their stem goes in the `ICONS` list in
 `crates/sonora/src/assets.rs`, otherwise loading logs `assets: … is not registered` and renders
@@ -166,6 +183,7 @@ Never `.detach()` a data load. New network-backed features belong in a `state` e
 Don't hand-edit these, re-run the generator:
 
 - `THIRD-PARTY.md` — `scripts/generate-notices.py` (a new dependency means re-running it)
+- the translation table in `README.md` — `scripts/i18n-coverage.py`
 - `assets/linux/`, `assets/macos/sonora.icns`, `assets/windows/sonora.ico` —
   `scripts/generate-icons.py` from the master `assets/icon.svg`
 - `cargoHash` in `flake.nix` goes stale when `Cargo.lock` changes: build once, take the `got:` hash
