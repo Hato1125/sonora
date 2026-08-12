@@ -15,7 +15,71 @@ pub enum LibraryTab {
     Songs,
     Albums,
     Playlists,
+    Artists,
     Local,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Screen {
+    Home,
+    Search,
+    Songs,
+    Albums,
+    Playlists,
+    Artists,
+    Imported,
+}
+
+impl Screen {
+    pub const ALL: [Self; 7] = [
+        Self::Home,
+        Self::Search,
+        Self::Songs,
+        Self::Albums,
+        Self::Playlists,
+        Self::Artists,
+        Self::Imported,
+    ];
+
+    pub fn id(self) -> &'static str {
+        match self {
+            Self::Home => "home",
+            Self::Search => "search",
+            Self::Songs => "songs",
+            Self::Albums => "albums",
+            Self::Playlists => "playlists",
+            Self::Artists => "artists",
+            Self::Imported => "imported",
+        }
+    }
+
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::Home => "nav-home",
+            Self::Search => "nav-search",
+            Self::Songs => "nav-songs",
+            Self::Albums => "nav-albums",
+            Self::Playlists => "nav-playlists",
+            Self::Artists => "nav-artists",
+            Self::Imported => "nav-local",
+        }
+    }
+
+    pub fn from_id(id: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|screen| screen.id() == id)
+    }
+
+    pub fn destination(self) -> Destination {
+        match self {
+            Self::Home => Destination::Home,
+            Self::Search => Destination::Search,
+            Self::Songs => Destination::Library(LibraryTab::Songs),
+            Self::Albums => Destination::Library(LibraryTab::Albums),
+            Self::Playlists => Destination::Library(LibraryTab::Playlists),
+            Self::Artists => Destination::Library(LibraryTab::Artists),
+            Self::Imported => Destination::Library(LibraryTab::Local),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

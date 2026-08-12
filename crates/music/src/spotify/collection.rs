@@ -20,7 +20,13 @@ const TRACK_PREFIX: &str = "spotify:track:";
 const UNKNOWN: &str = "Unknown";
 
 pub async fn saved_tracks(session: &Session, limit: u32) -> Result<Vec<Track>> {
-    let items = collection2::saved_items(session, TRACK_PREFIX, limit as usize).await?;
+    let items = collection2::saved_items(
+        session,
+        collection2::COLLECTION,
+        TRACK_PREFIX,
+        limit as usize,
+    )
+    .await?;
     if items.is_empty() {
         return Ok(Vec::new());
     }

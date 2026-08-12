@@ -8,7 +8,7 @@ use async_trait::async_trait;
 
 use crate::{
     Album, AlbumDetail, Artist, ArtistProfile, MediaKind, MusicApi, Playlist, PlaylistDetail,
-    Track, UserProfile,
+    SavedArtist, Track, UserProfile,
 };
 
 use super::scan::Scanned;
@@ -159,6 +159,14 @@ impl MusicApi for LocalClient {
     }
 
     async fn set_album_saved(&self, _album_id: &str, _saved: bool) -> Result<()> {
+        Ok(())
+    }
+
+    async fn saved_artists(&self, _limit: u32) -> Result<Vec<SavedArtist>> {
+        Ok(Vec::new())
+    }
+
+    async fn set_artist_saved(&self, _artist_id: &str, _saved: bool) -> Result<()> {
         Ok(())
     }
 

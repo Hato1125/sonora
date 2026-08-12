@@ -13,7 +13,8 @@ use crate::spotify::{
     albums, artists, collection, collection2, pathfinder, playlists, profiles, radio, search, wire,
 };
 use crate::{
-    Album, AlbumDetail, Artist, ArtistProfile, Playlist, PlaylistDetail, Track, UserProfile,
+    Album, AlbumDetail, Artist, ArtistProfile, Playlist, PlaylistDetail, SavedArtist, Track,
+    UserProfile,
 };
 
 pub struct LibrespotClient {
@@ -91,6 +92,14 @@ impl MusicApi for LibrespotClient {
 
     async fn set_album_saved(&self, album_id: &str, saved: bool) -> Result<()> {
         collection2::set_album_saved(&self.session, album_id, saved).await
+    }
+
+    async fn saved_artists(&self, limit: u32) -> Result<Vec<SavedArtist>> {
+        artists::saved_artists(&self.session, limit).await
+    }
+
+    async fn set_artist_saved(&self, artist_id: &str, saved: bool) -> Result<()> {
+        collection2::set_artist_saved(&self.session, artist_id, saved).await
     }
 
     async fn album(&self, album_id: &str) -> Result<AlbumDetail> {

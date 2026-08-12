@@ -114,6 +114,14 @@ pub struct ArtistProfile {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SavedArtist {
+    pub id: String,
+    pub name: String,
+    pub cover: Option<String>,
+    pub added_at: Option<i64>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Artist {
     pub name: String,
     pub cover_large: Option<String>,

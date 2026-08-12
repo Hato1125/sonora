@@ -14,7 +14,8 @@ use music::ArtistRef;
 use router::{Destination, Link as _, navigate};
 use state::{Playback, PlaybackState};
 use ui::{
-    ActiveTheme as _, Artwork, Cell, ExplicitBadge, InlineLink, InlineLinks, ROW_GROUP, Theme,
+    ActiveTheme as _, Artwork, Avatar, Cell, ExplicitBadge, InlineLink, InlineLinks, ROW_GROUP,
+    Theme,
 };
 
 use crate::chrome::Chrome;
@@ -62,6 +63,19 @@ impl RenderOnce for Thumb {
         let theme = cx.theme();
 
         Artwork::new(self.url).size(theme.metrics.thumb)
+    }
+}
+
+#[derive(IntoElement)]
+struct Face {
+    url: Option<String>,
+}
+
+impl RenderOnce for Face {
+    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+        let theme = cx.theme();
+
+        Avatar::new(self.url).size(theme.metrics.thumb)
     }
 }
 
@@ -344,6 +358,10 @@ pub(crate) fn title<F>(
 
 pub(crate) fn artwork<F>(cell: &Cell<F>, url: Option<String>) -> AnyElement {
     cell.middle().child(Thumb { url }).into_any_element()
+}
+
+pub(crate) fn avatar<F>(cell: &Cell<F>, url: Option<String>) -> AnyElement {
+    cell.middle().child(Face { url }).into_any_element()
 }
 
 pub(crate) fn blank<F>(cell: &Cell<F>) -> AnyElement {
