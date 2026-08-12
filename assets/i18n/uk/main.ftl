@@ -149,18 +149,21 @@ login-authorizing = Очікуємо авторизацію у браузері�
 login-signed-in = Ви увійшли як { $name }
 login-sign-in = Увійти через { $provider }
 login-connect-cookies = Вставити cookie вручну
-login-import-browser = Імпорт із браузера
+login-import-browser = Імпорт із браузера*
+login-browser-firefox = *Лише браузери на основі Firefox
 login-browser-title = Виберіть браузер
-login-browser-detail = Sonora прочитає сесію YouTube Music з обраного браузера. Вона залишиться на цьому пристрої.
+login-browser-detail = Sonora прочитає сесію YouTube Music з обраного браузера. Сесія залишиться на цьому пристрої.
 login-use = Відкрити { $provider }
 login-guest-title = Гостьовий режим
 login-guest-use = Відкрити гостьовий режим
 login-guest-detail = Слухайте без акаунта. Медіатека, вподобання та плейлисти будуть недоступні.
 login-device-code = Введіть цей код на { $url }
 login-cookie-submit = Продовжити
-login-cookie-hint = Заголовок Cookie з music.youtube.com
-login-cookie-detail = Відкрийте music.youtube.com у браузері, скопіюйте заголовок Cookie з DevTools (вкладка Network) і вставте його сюди
+login-cookie-hint = Вставте сюди заголовок запиту Cookie
+login-cookie-detail = 1. Відкрийте music.youtube.com і переконайтеся, що ви увійшли в акаунт. 2. Натисніть F12, відкрийте вкладку «Мережа» та перезавантажте сторінку. 3. Виберіть будь-який запит з назвою «browse» або «next». 4. На вкладці «Заголовки» знайдіть Cookie серед заголовків запиту, клацніть правою кнопкою та скопіюйте значення. Вставте значення повністю: панелі «Куки» недостатньо, бо значення має містити SAPISID і __Secure-3PAPISID.
 login-cookie-title = Вставте cookie YouTube Music, щоб завершити вхід
+login-account-title = Виберіть акаунт
+login-account-detail = У цій сесії виконано вхід у кілька акаунтів Google. Виберіть той, який має використовувати Sonora.
 
 # album and playlist pages
 detail-album = Альбом

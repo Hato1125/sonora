@@ -83,10 +83,10 @@ partial translation is welcome — pick a language below and fill in what it lac
 
 | Language | Translated | Coverage |
 | --- | --- | --- |
-| English (`en-US`) | 336/336 | 100% |
-| Русский (`ru`) | 336/336 | 100% |
-| Українська (`uk`) | 336/336 | 100% |
-| Polski (`pl`) | 336/336 | 100% |
+| English (`en-US`) | 339/339 | 100% |
+| Русский (`ru`) | 339/339 | 100% |
+| Українська (`uk`) | 339/339 | 100% |
+| Polski (`pl`) | 339/339 | 100% |
 
 <!-- i18n:end -->
 

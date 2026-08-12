@@ -66,6 +66,10 @@ impl MusicProvider for SpotifyProvider {
         vec![crate::SignIn::Default]
     }
 
+    fn abandon(&self) {
+        auth::release(&self.config);
+    }
+
     fn stored(&self) -> bool {
         self.config.cache_dir.join("credentials.json").exists()
     }

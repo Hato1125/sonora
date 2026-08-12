@@ -149,18 +149,21 @@ login-authorizing = Waiting for authorization in your browser…
 login-signed-in = Signed in as { $name }
 login-sign-in = Sign in with { $provider }
 login-connect-cookies = Paste cookies manually
-login-import-browser = Import from browser
+login-import-browser = Import from browser*
+login-browser-firefox = *Firefox-based browsers only
 login-browser-title = Choose a browser
-login-browser-detail = Sonora reads your YouTube Music session from the browser you pick. It stays on this device.
+login-browser-detail = Sonora reads your YouTube Music session from the browser you pick. The session stays on this device.
 login-use = Use { $provider }
 login-guest-title = Guest mode
 login-guest-use = Use Guest mode
 login-guest-detail = Browse and play without an account. Your library, likes and playlists stay out of reach.
 login-device-code = Enter this code at { $url }
 login-cookie-submit = Continue
-login-cookie-hint = Cookie header from music.youtube.com
-login-cookie-detail = Open music.youtube.com in your browser, copy the Cookie request header from DevTools (Network tab), and paste it here
+login-cookie-hint = Paste the Cookie request header here
+login-cookie-detail = 1. Open music.youtube.com and make sure you are signed in. 2. Press F12, open the Network tab and reload the page. 3. Select any request named "browse" or "next". 4. In Headers, find Cookie under Request Headers, right-click it and copy its value. Paste the whole value below: the request Cookies panel is not enough, because the value has to carry SAPISID and __Secure-3PAPISID.
 login-cookie-title = Paste your YouTube Music cookies to finish signing in
+login-account-title = Choose an account
+login-account-detail = This session is signed in to more than one Google account. Pick the one Sonora should use.
 
 # album and playlist pages
 detail-album = Album
