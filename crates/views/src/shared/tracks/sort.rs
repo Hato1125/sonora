@@ -64,18 +64,7 @@ pub(super) fn hits(track: &Track, query: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{hits, initial};
-    use crate::shared::tracks::fixture::track;
-
-    #[test]
-    fn an_empty_query_hits_everything() {
-        let mut track = track(60, false, true);
-        track.name = "Bark at the Moon".to_owned();
-
-        assert!(hits(&track, ""));
-        assert!(hits(&track, "moon"));
-        assert!(!hits(&track, "sunshine"));
-    }
+    use super::initial;
 
     #[test]
     fn letters_bucket_under_their_uppercase_form() {

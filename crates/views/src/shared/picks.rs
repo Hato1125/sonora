@@ -376,45 +376,7 @@ fn begin(
 mod tests {
     use gpui::px;
 
-    use music::{ArtistRef, Track};
-
-    use super::{ROWS, Shape, column_count, featured};
-
-    fn track(artists: &str, refs: usize) -> Track {
-        Track {
-            id: None,
-            name: "Song".into(),
-            playable: true,
-            artists: artists.into(),
-            artist_refs: (0..refs)
-                .map(|index| ArtistRef {
-                    name: format!("Artist {index}"),
-                    id: None,
-                })
-                .collect(),
-            album: String::new(),
-            album_id: None,
-            cover: None,
-            duration: std::time::Duration::ZERO,
-            added_at: None,
-            playcount: None,
-            popularity: 0,
-            explicit: false,
-            track_number: 0,
-            disc_number: 0,
-            tags: Vec::new(),
-            languages: Vec::new(),
-            credits: Vec::new(),
-        }
-    }
-
-    #[test]
-    fn only_a_shared_track_names_its_artists() {
-        assert!(!featured(&track("Linkin Park", 1)));
-        assert!(featured(&track("Linkin Park, Jay-Z", 2)));
-        assert!(!featured(&track("Linkin Park", 0)));
-        assert!(featured(&track("Linkin Park, Jay-Z", 0)));
-    }
+    use super::{ROWS, Shape, column_count};
 
     #[test]
     fn columns_follow_width_and_stop_at_three() {

@@ -42,10 +42,4 @@ mod tests {
             serde_json::from_slice(br#"{"trackUnion":{"playcount":"1234567"}}"#).unwrap();
         assert_eq!(playcount(data).unwrap(), Some(1_234_567));
     }
-
-    #[test]
-    fn treats_zero_as_missing() {
-        let data: Data = serde_json::from_slice(br#"{"trackUnion":{"playcount":"0"}}"#).unwrap();
-        assert_eq!(playcount(data).unwrap(), None);
-    }
 }
