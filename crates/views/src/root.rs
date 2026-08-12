@@ -1,7 +1,10 @@
 use gpui::{AnyView, Context, Entity, MouseButton, NavigationDirection, Render};
 use gpui::{Window, div};
 use gpui::{font, prelude::*};
-use input::{OpenFilter, OpenSearch, OpenSettings, ToggleFullscreen, ToggleLyrics, ToggleQueue};
+use input::{
+    NavigateBack, NavigateForward, OpenFilter, OpenSearch, OpenSettings, ToggleFullscreen,
+    ToggleLyrics, ToggleQueue,
+};
 use router::{Destination, LibraryTab, NavigationEvent, SettingsTab, back, forward, navigate};
 use state::{
     ArtistDetail, Detail, Home, Io, Library, Playback, Queue, Search, Session, SessionState,
@@ -395,6 +398,8 @@ impl Render for Root {
                 MouseButton::Navigate(NavigationDirection::Forward),
                 |_, _, cx| forward(cx),
             )
+            .on_action(cx.listener(|_, _: &NavigateBack, _, cx| back(cx)))
+            .on_action(cx.listener(|_, _: &NavigateForward, _, cx| forward(cx)))
             .on_action(cx.listener(|this, _: &OpenFilter, window, cx| this.open_filter(window, cx)))
             .on_action(cx.listener(|this, _: &OpenSearch, _, cx| this.open_search(cx)))
             .on_action(cx.listener(|this, _: &OpenSettings, _, cx| this.open_settings(cx)))
