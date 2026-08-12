@@ -4,7 +4,7 @@ use gpui::prelude::*;
 use gpui::{AnyView, App, Context, Entity, FocusHandle, Render};
 use gpui::{Window, div};
 use input::WORKSPACE_CONTEXT;
-use state::{Playback, Queue};
+use state::{Playback, Queue, SideTab};
 use ui::Dismiss;
 
 use crate::chrome::{Chrome, PlayerBar, SidebarLeft, SidebarRight, TitleBarOptions, ToastStack};
@@ -53,6 +53,11 @@ impl Workspace {
 
     pub fn toggle_sidebar_right(&self, cx: &mut Context<Self>) {
         self.sidebar_right.update(cx, |panel, cx| panel.toggle(cx));
+    }
+
+    pub fn show_side(&self, tab: SideTab, cx: &mut Context<Self>) {
+        self.sidebar_right
+            .update(cx, |panel, cx| panel.show(tab, cx));
     }
 
     #[allow(dead_code)]

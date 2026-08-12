@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 mod albums;
+mod artists;
 mod local;
 mod playlists;
 
@@ -10,7 +11,7 @@ use std::rc::Rc;
 
 use crate::chrome::tools::{self, Sift, Sliders};
 use crate::chrome::{Chrome, Searchable, Toolbar, Tooled};
-use crate::shared::menu::{album_menu, playlist_menu};
+use crate::shared::menu::{album_menu, artist_menu, playlist_menu};
 use crate::shared::playlist_editor::{Edit, PlaylistEditor};
 
 use gpui::prelude::*;
@@ -37,6 +38,7 @@ use crate::shared::tracks::{
 };
 use crate::shared::{cells, page};
 use albums::AlbumSource;
+use artists::ArtistSource;
 use playlists::PlaylistSource;
 
 impl From<LibraryTab> for Section {
@@ -45,6 +47,7 @@ impl From<LibraryTab> for Section {
             LibraryTab::Songs => Section::Tracks,
             LibraryTab::Albums => Section::Albums,
             LibraryTab::Playlists => Section::Playlists,
+            LibraryTab::Artists => Section::Artists,
             LibraryTab::Local => Section::Tracks,
         }
     }
@@ -56,6 +59,7 @@ impl From<Section> for LibraryTab {
             Section::Tracks => LibraryTab::Songs,
             Section::Albums => LibraryTab::Albums,
             Section::Playlists => LibraryTab::Playlists,
+            Section::Artists => LibraryTab::Artists,
         }
     }
 }
@@ -65,6 +69,7 @@ pub enum Section {
     Tracks,
     Albums,
     Playlists,
+    Artists,
 }
 
 const PINNED: [&str; 3] = ["cover", "title", "name"];
@@ -73,6 +78,7 @@ enum LibraryMenu {
     Background,
     Album(Album),
     Playlist(Playlist),
+    Artist(String),
 }
 
 #[derive(Clone)]
@@ -88,13 +94,14 @@ enum DeckKey {
 }
 
 impl Section {
-    const ALL: [Self; 3] = [Self::Tracks, Self::Albums, Self::Playlists];
+    const ALL: [Self; 4] = [Self::Tracks, Self::Albums, Self::Playlists, Self::Artists];
 
     fn key(self) -> &'static str {
         match self {
             Section::Tracks => "songs",
             Section::Albums => "albums",
             Section::Playlists => "playlists",
+            Section::Artists => "artists",
         }
     }
 
@@ -103,6 +110,7 @@ impl Section {
             Section::Tracks => 0,
             Section::Albums => 1,
             Section::Playlists => 2,
+            Section::Artists => 3,
         }
     }
 
@@ -111,6 +119,7 @@ impl Section {
             Section::Tracks => "library-no-songs",
             Section::Albums => "library-no-albums",
             Section::Playlists => "library-no-playlists",
+            Section::Artists => "library-no-artists",
         }
     }
 }
@@ -136,7 +145,7 @@ pub struct LibraryView {
     playback: Entity<Playback>,
     playback_status: PlaybackStatus,
     section: Section,
-    views: [Mode; 3],
+    views: [Mode; 4],
     width: Pixels,
     card_columns: usize,
     card_tile: Pixels,
@@ -148,10 +157,11 @@ pub struct LibraryView {
     tracks: Entity<GridState<TrackSource>>,
     albums: Entity<GridState<AlbumSource>>,
     playlists: Entity<GridState<PlaylistSource>>,
+    artists: Entity<GridState<ArtistSource>>,
     context_menu: Option<(LibraryMenu, Point<Pixels>)>,
     toolbar: Entity<Toolbar>,
     popovers: Popovers,
-    sliders: [Sliders; 3],
+    sliders: [Sliders; 4],
     me: WeakEntity<Self>,
 }
 
@@ -216,6 +226,14 @@ impl LibraryView {
             let (layout, sorting) = stored(Section::Playlists, cx);
             delegate.set_layout(layout, cx);
             delegate.set_sorting(sorting.flatten(), cx);
+            GridState::new(delegate, cx).follow(scroll.clone())
+        });
+        let artists = cx.new(|cx| {
+            let source = ArtistSource::new(library.clone(), playback.clone());
+            let mut delegate = GridDelegate::new(source, width, cx);
+            let (layout, sorting) = stored(Section::Artists, cx);
+            delegate.set_layout(layout, cx);
+            delegate.set_sorting(sorting.flatten(), cx);
             GridState::new(delegate, cx).follow(scroll)
         });
 
@@ -265,6 +283,15 @@ impl LibraryView {
         })
         .detach();
 
+        cx.subscribe(&artists, |this, _, event, cx| match event {
+            GridEvent::DoubleClicked(display) => this.open_artist(*display, cx),
+            _ => {
+                this.cards_dirty = true;
+                this.persist(Section::Artists, cx);
+            }
+        })
+        .detach();
+
         let me = cx.entity();
         let toolbar = cx.new(|cx| {
             let mut toolbar = Toolbar::new(cx);
@@ -293,6 +320,7 @@ impl LibraryView {
             tracks,
             albums,
             playlists,
+            artists,
             context_menu: None,
             toolbar,
             popovers: Popovers::default(),
@@ -316,11 +344,12 @@ impl LibraryView {
             Section::Tracks => &self.tracks,
             Section::Albums => &self.albums,
             Section::Playlists => &self.playlists,
+            Section::Artists => &self.artists,
         }
     }
 
-    fn tables(&self) -> [&dyn ui::Table; 3] {
-        [&self.tracks, &self.albums, &self.playlists]
+    fn tables(&self) -> [&dyn ui::Table; 4] {
+        [&self.tracks, &self.albums, &self.playlists, &self.artists]
     }
 
     fn column_toggles(&self, cx: &App) -> Vec<Toggle> {
@@ -463,6 +492,18 @@ impl LibraryView {
         navigate(Destination::Playlist(playlist.id.into()), cx);
     }
 
+    fn open_artist(&mut self, display: usize, cx: &mut Context<Self>) {
+        let artist = {
+            let state = self.artists.read(cx);
+            let row = state.delegate().row(display);
+            state.delegate().source().at(row, cx)
+        };
+        let Some(artist) = artist else {
+            return;
+        };
+        navigate(Destination::Artist(artist.id.into()), cx);
+    }
+
     fn resize(&mut self, window: &Window, cx: &mut Context<Self>) {
         let width = cells::content_width(window, Pixels::ZERO, cx);
         if (width - self.width).abs() < px(0.5) {
@@ -520,6 +561,7 @@ impl LibraryView {
                 Section::Tracks => deck(&self.tracks, columns, cx),
                 Section::Albums => deck(&self.albums, columns, cx),
                 Section::Playlists => deck(&self.playlists, columns, cx),
+                Section::Artists => deck(&self.artists, columns, cx),
             }
             .into();
             self.cards_dirty = false;
@@ -579,6 +621,9 @@ impl LibraryView {
                                     Section::Playlists => {
                                         view.playlists.read(cx).delegate().group(*display, cx)
                                     }
+                                    Section::Artists => {
+                                        view.artists.read(cx).delegate().group(*display, cx)
+                                    }
                                 };
 
                                 div()
@@ -599,6 +644,11 @@ impl LibraryView {
                                     Section::Playlists => CardGrid::new(room)
                                         .children(cards.iter().filter_map(|&(display, row)| {
                                             view.playlist_card(display, row, card, cx)
+                                        }))
+                                        .into_any_element(),
+                                    Section::Artists => CardGrid::new(room)
+                                        .children(cards.iter().filter_map(|&(display, row)| {
+                                            view.artist_card(display, row, card, cx)
                                         }))
                                         .into_any_element(),
                                 };
@@ -697,9 +747,10 @@ impl LibraryView {
         let playlist = self.playlists.read(cx).delegate().source().at(row, cx)?;
         let playback = self.playback.clone();
         let origin = Origin::Playlist(playlist.id.clone());
-        let state = self.playback.read(cx).playing_from(&origin);
-        let playing = matches!(state, Some(PlaybackState::Playing));
-        let played = playlist.id.clone();
+        let playing = matches!(
+            self.playback.read(cx).playing_from(&origin),
+            Some(PlaybackState::Playing)
+        );
         let opened = SharedString::from(playlist.id.clone());
         let context = playlist.clone();
         let view = self.me.clone();
@@ -722,11 +773,7 @@ impl LibraryView {
             .underline()
             .meta(SharedString::from(playlist.owner))
             .play(playing, move |_, _, cx| {
-                playback.update(cx, |playback, cx| match &state {
-                    Some(PlaybackState::Playing) => playback.pause(cx),
-                    Some(PlaybackState::Paused) => playback.resume(cx),
-                    _ => playback.play_playlist(&played, cx),
-                });
+                playback.update(cx, |playback, cx| playback.toggle_origin(&origin, cx));
             })
             .press(move |_, _, cx| navigate(Destination::Playlist(opened.clone()), cx))
             .pin(pin)
@@ -743,6 +790,47 @@ impl LibraryView {
                 });
             })
             .into_any_element(),
+        )
+    }
+
+    fn artist_card(
+        &self,
+        display: usize,
+        row: usize,
+        card: Pixels,
+        cx: &App,
+    ) -> Option<AnyElement> {
+        let artist = self.artists.read(cx).delegate().source().at(row, cx)?;
+        let opened = SharedString::from(artist.id.clone());
+        let context = artist.id.clone();
+        let view = self.me.clone();
+        let pin =
+            Pin::new(PinKind::Artist, artist.id, artist.name.clone()).cover(artist.cover.clone());
+
+        Some(
+            Card::new(("library-artist", display), SharedString::from(artist.name))
+                .tile(card)
+                .circle()
+                .cover(artist.cover)
+                .weight(FontWeight::SEMIBOLD)
+                .flat()
+                .underline()
+                .meta(i18n::lookup("artist-eyebrow", None))
+                .press(move |_, _, cx| navigate(Destination::Artist(opened.clone()), cx))
+                .pin(pin)
+                .on_mouse_down(MouseButton::Right, move |event, window, cx| {
+                    window.prevent_default();
+                    cx.stop_propagation();
+                    let Some(view) = view.upgrade() else {
+                        return;
+                    };
+                    view.update(cx, |this, cx| {
+                        this.context_menu =
+                            Some((LibraryMenu::Artist(context.clone()), event.position));
+                        cx.notify();
+                    });
+                })
+                .into_any_element(),
         )
     }
 }
@@ -769,6 +857,7 @@ impl Render for LibraryView {
                 LibraryMenu::Playlist(playlist) => {
                     playlist_menu(playlist, self.playback.clone(), false, cx)
                 }
+                LibraryMenu::Artist(id) => artist_menu(id),
                 LibraryMenu::Background => Menu::new("playlist-background-menu").item(
                     MenuItem::new("create-playlist", t!("menu-new-playlist"))
                         .icon("icons/plus.svg")
@@ -1012,7 +1101,7 @@ impl LibraryView {
                     .clamped(),
                 ]
             }
-            Section::Playlists => Vec::new(),
+            Section::Playlists | Section::Artists => Vec::new(),
         }
     }
 

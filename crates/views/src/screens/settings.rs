@@ -11,7 +11,7 @@ use gpui::{
 use gpui::{ScrollHandle, prelude::*, svg};
 use i18n::{Language, t};
 use music::SignIn;
-use router::SettingsTab;
+use router::{Screen, SettingsTab};
 use state::{AppSettings, Playback, Session, SessionState, Sonora};
 use ui::{ActiveTheme as _, Scrollbar, Scroller};
 use ui::{
@@ -27,6 +27,7 @@ const SOURCE_URL: &str = "https://github.com/nolight132/sonora";
 const THEMES: &str = "themes";
 const CORNERS: &str = "corners";
 const LANGUAGES: &str = "languages";
+const STARTUP: &str = "startup";
 
 struct Account {
     slug: &'static str,
@@ -130,6 +131,7 @@ impl SettingsView {
     fn panel(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let rows: Vec<AnyElement> = match self.tab {
             SettingsTab::General => vec![
+                self.startup_row(cx).into_any_element(),
                 self.language_row(cx).into_any_element(),
                 self.accounts_row(cx).into_any_element(),
                 self.local_folder_row(cx).into_any_element(),
@@ -173,6 +175,47 @@ impl SettingsView {
             tint: cx.theme().tint,
             ..self.settings.read(cx).look()
         }
+    }
+
+    fn startup_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+        let muted = theme.muted_foreground;
+        let small = theme.text(Text::Small);
+        let chosen = Screen::from_id(self.settings.read(cx).startup()).unwrap_or(Screen::Home);
+        let current = i18n::lookup(chosen.key(), None);
+
+        let picker = Popover::new(STARTUP, self.popovers.clone())
+            .button(
+                Button::new("startup-picker")
+                    .label(format!("{current}  ▾"))
+                    .small()
+                    .outline(),
+            )
+            .menu(
+                Menu::new("startup-dropdown")
+                    .top(px(30.))
+                    .right_0()
+                    .w(px(170.))
+                    .items(Screen::ALL.map(|screen| {
+                        MenuItem::new(screen.id(), i18n::lookup(screen.key(), None))
+                            .selected(screen == chosen)
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                this.settings.update(cx, |settings, cx| {
+                                    settings.set_startup(screen.id(), cx)
+                                });
+                                this.popovers.close();
+                                cx.notify();
+                            }))
+                    })),
+            );
+
+        self.row(
+            t!("settings-startup"),
+            t!("settings-startup-detail"),
+            muted,
+            small,
+            picker.into_any_element(),
+        )
     }
 
     fn language_row(&self, cx: &mut Context<Self>) -> impl IntoElement {

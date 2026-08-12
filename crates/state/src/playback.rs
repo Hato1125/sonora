@@ -778,6 +778,19 @@ impl Playback {
         }
     }
 
+    pub fn toggle_origin(&mut self, origin: &Origin, cx: &mut Context<Self>) {
+        match self.playing_from(origin) {
+            Some(PlaybackState::Playing) => self.pause(cx),
+            Some(PlaybackState::Paused) => self.resume(cx),
+            _ => match origin {
+                Origin::Album(id) => self.play_album(id, cx),
+                Origin::Playlist(id) => self.play_playlist(id, cx),
+                Origin::Artist(id) => self.play_artist(id, cx),
+                Origin::Radio(id) => self.play_track(id, cx),
+            },
+        }
+    }
+
     pub fn seek(&mut self, position: Duration, cx: &mut Context<Self>) {
         if let Some(engine) = self.active_engine() {
             engine.seek(position);

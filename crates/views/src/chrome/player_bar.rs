@@ -6,18 +6,19 @@ use ui::ActiveTheme as _;
 
 use gpui::prelude::*;
 use gpui::{
-    Context, Entity, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, Point,
-    Render, ScrollHandle, ScrollWheelEvent, SharedString,
+    AnyElement, Context, Entity, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels,
+    Point, Render, ScrollHandle, ScrollWheelEvent, SharedString,
 };
 use gpui::{Window, div, px};
 use i18n::t;
-use input::ToggleFullscreen;
-use state::{Library, Playback, PlaybackState, Queue, Repeat, Sonora};
+use input::{ToggleFullscreen, ToggleLyrics, ToggleQueue};
+use state::{AppSettings, Library, Playback, PlaybackState, Queue, Repeat, SideTab, Sonora};
 use ui::{
     Artwork, Button, InlineLink, InlineLinks, Popup, Room, Scrollbar, Scrubber, ScrubberState,
     clock,
 };
 
+use crate::chrome::SidebarRight;
 use crate::shared::menu::ItemMenu;
 
 const SEEK_MAX: f32 = 560.;
@@ -32,6 +33,7 @@ pub(crate) struct PlayerBar {
     playback: Entity<Playback>,
     queue: Entity<Queue>,
     library: Entity<Library>,
+    settings: Entity<AppSettings>,
     track_menu: ItemMenu,
     context_menu: Option<(music::Track, Point<Pixels>)>,
     seek: ScrubberState,
@@ -45,9 +47,11 @@ pub(crate) struct PlayerBar {
 impl PlayerBar {
     pub fn new(playback: Entity<Playback>, queue: Entity<Queue>, cx: &mut Context<Self>) -> Self {
         let library = Sonora::global(cx).library.clone();
+        let settings = Sonora::global(cx).settings.clone();
         cx.observe(&playback, |_, _, cx| cx.notify()).detach();
         cx.observe(&queue, |_, _, cx| cx.notify()).detach();
         cx.observe(&library, |_, _, cx| cx.notify()).detach();
+        cx.observe(&settings, |_, _, cx| cx.notify()).detach();
 
         let playlist_scrollbar = cx.new(|_| {
             Scrollbar::new(ScrollHandle::new())
@@ -59,6 +63,7 @@ impl PlayerBar {
             playback,
             queue,
             library,
+            settings,
             track_menu: ItemMenu::new(playlist_scrollbar),
             context_menu: None,
             seek: ScrubberState::new("seek"),
@@ -259,6 +264,54 @@ impl PlayerBar {
             }))
     }
 
+    fn side_buttons(&self, cx: &mut Context<Self>) -> AnyElement {
+        let theme = *cx.theme();
+        let settings = self.settings.read(cx);
+        let open = settings.sidebar_right_open();
+        let tab = settings.sidebar_right_tab();
+
+        let button = move |id: &'static str, icon: &'static str, hint: &'static str, side| {
+            let showing = open && tab == side;
+
+            Button::new(id)
+                .ghost()
+                .small()
+                .icon(icon)
+                .tooltip_above(hint)
+                .selected(showing)
+                .tint(match showing {
+                    true => theme.foreground,
+                    false => theme.muted_foreground,
+                })
+                .on_click(move |_, window, cx| {
+                    let action: Box<dyn gpui::Action> = match side {
+                        SideTab::Queue => Box::new(ToggleQueue),
+                        SideTab::Lyrics => Box::new(ToggleLyrics),
+                    };
+                    window.dispatch_action(action, cx);
+                })
+        };
+
+        div()
+            .flex()
+            .flex_none()
+            .items_center()
+            .gap_1()
+            .child(button(
+                "player-queue",
+                "icons/list.svg",
+                "queue-title",
+                SideTab::Queue,
+            ))
+            .child(button(
+                "player-lyrics",
+                "icons/mic-vocal.svg",
+                "lyrics-title",
+                SideTab::Lyrics,
+            ))
+            .into_any_element()
+    }
+
     fn fullscreen_button(&self) -> Button {
         Button::new("toggle-fullscreen")
             .ghost()
@@ -449,6 +502,10 @@ impl Render for PlayerBar {
         let clock_text = theme.text(ui::Text::Tiny);
 
         let show_track = span.fits(Room::Snug);
+        let sides = match SidebarRight::available(window) {
+            true => Some(self.side_buttons(cx)),
+            false => None,
+        };
 
         let playback = self.playback.read(cx);
         let seekable = playback.track().is_some();
@@ -546,6 +603,7 @@ impl Render for PlayerBar {
                         .gap_3()
                         .w_full()
                         .child(div().flex_1().min_w_0().child(seek))
+                        .children(sides)
                         .child(self.sound(px(VOLUME_TIGHT), cx))
                         .child(self.fullscreen_button()),
                 ),
@@ -573,6 +631,7 @@ impl Render for PlayerBar {
                         .gap_2()
                         .flex_1()
                         .min_w_0()
+                        .children(sides)
                         .child(self.sound(px(VOLUME_WIDTH), cx))
                         .child(self.fullscreen_button()),
                 ),

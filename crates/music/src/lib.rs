@@ -18,7 +18,8 @@ use async_trait::async_trait;
 
 pub use models::{
     Album, AlbumDetail, Artist, ArtistProfile, ArtistRef, Credit, Lyrics, LyricsHit, LyricsLine,
-    LyricsQuery, LyricsWord, Playlist, PlaylistDetail, ReleaseType, Track, UserProfile,
+    LyricsQuery, LyricsWord, Playlist, PlaylistDetail, ReleaseType, SavedArtist, Track,
+    UserProfile,
 };
 
 pub const LOCAL_TRACK_PREFIX: &str = "local:";
@@ -75,6 +76,8 @@ pub trait MusicApi: Send + Sync {
     async fn remove_track_from_playlist(&self, playlist_id: &str, track_id: &str) -> Result<()>;
     async fn saved_albums(&self, limit: u32) -> Result<Vec<Album>>;
     async fn set_album_saved(&self, album_id: &str, saved: bool) -> Result<()>;
+    async fn saved_artists(&self, limit: u32) -> Result<Vec<SavedArtist>>;
+    async fn set_artist_saved(&self, artist_id: &str, saved: bool) -> Result<()>;
     async fn album(&self, album_id: &str) -> Result<AlbumDetail>;
     async fn album_tracks(&self, album_id: &str) -> Result<Vec<Track>>;
     async fn playlist(&self, playlist_id: &str) -> Result<PlaylistDetail>;

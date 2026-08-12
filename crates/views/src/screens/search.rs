@@ -192,23 +192,20 @@ impl SearchView {
             }
             Hit::Artist(artist) => {
                 let origin = artist.id.clone().map(state::Origin::Artist);
-                let state = origin
-                    .as_ref()
-                    .and_then(|origin| self.playback.read(cx).playing_from(origin));
-                let playing = matches!(state, Some(state::PlaybackState::Playing));
+                let playing = origin.as_ref().is_some_and(|origin| {
+                    self.playback.read(cx).playing_from(origin)
+                        == Some(state::PlaybackState::Playing)
+                });
                 let card = Card::new(("artist", place), artist.name.clone())
                     .cover(artist.cover.clone())
                     .circle()
                     .meta(meta)
-                    .when_some(artist.id.clone(), |card, id| {
+                    .when_some(origin, |card, origin| {
                         card.play(
                             playing,
                             cx.listener(move |this, _, _, cx| {
-                                this.playback.update(cx, |playback, cx| match &state {
-                                    Some(state::PlaybackState::Playing) => playback.pause(cx),
-                                    Some(state::PlaybackState::Paused) => playback.resume(cx),
-                                    _ => playback.play_artist(&id, cx),
-                                });
+                                this.playback
+                                    .update(cx, |playback, cx| playback.toggle_origin(&origin, cx));
                             }),
                         )
                     })
@@ -220,23 +217,17 @@ impl SearchView {
                 .into_any_element()
             }
             Hit::Album(album) => {
-                let played = album.id.clone();
-                let state = self
-                    .playback
-                    .read(cx)
-                    .playing_from(&state::Origin::Album(album.id.clone()));
-                let playing = matches!(state, Some(state::PlaybackState::Playing));
+                let origin = state::Origin::Album(album.id.clone());
+                let playing = self.playback.read(cx).playing_from(&origin)
+                    == Some(state::PlaybackState::Playing);
                 Card::new(ElementId::Name(album.id.clone().into()), album.name.clone())
                     .cover(album.cover.clone())
                     .meta(meta)
                     .play(
                         playing,
                         cx.listener(move |this, _, _, cx| {
-                            this.playback.update(cx, |playback, cx| match &state {
-                                Some(state::PlaybackState::Playing) => playback.pause(cx),
-                                Some(state::PlaybackState::Paused) => playback.resume(cx),
-                                _ => playback.play_album(&played, cx),
-                            });
+                            this.playback
+                                .update(cx, |playback, cx| playback.toggle_origin(&origin, cx));
                         }),
                     )
                     .press(self.pressed(Press::Album(album.id.clone()), cx))

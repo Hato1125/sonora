@@ -25,6 +25,7 @@ const DEFAULT_VOLUME: f32 = 0.7;
 const DEFAULT_SIDEBAR_WIDTH: f32 = 220.;
 const DEFAULT_SIDEBAR_RIGHT_WIDTH: f32 = 380.;
 const DEFAULT_FONT_SIZE: f32 = 14.;
+const DEFAULT_STARTUP: &str = "home";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
@@ -42,6 +43,7 @@ struct Values {
     repeat: Repeat,
     language: String,
     provider: String,
+    startup: String,
     #[serde(skip_serializing_if = "HashMap::is_empty")]
     hidden_columns: HashMap<String, Vec<String>>,
     tables: HashMap<String, Layout>,
@@ -81,6 +83,7 @@ impl Default for Values {
             repeat: Repeat::Off,
             language: i18n::AUTO.to_owned(),
             provider: "spotify".to_owned(),
+            startup: DEFAULT_STARTUP.to_owned(),
             hidden_columns: HashMap::new(),
             tables: HashMap::new(),
             sorting: HashMap::new(),
@@ -193,6 +196,10 @@ impl AppSettings {
 
     pub fn provider(&self) -> &str {
         &self.values.provider
+    }
+
+    pub fn startup(&self) -> &str {
+        &self.values.startup
     }
 
     pub fn theme(&self) -> &str {
@@ -363,6 +370,15 @@ impl AppSettings {
         self.values.language = language.into();
         i18n::set(i18n::resolve(&self.values.language));
         cx.refresh_windows();
+        self.schedule_save(cx);
+    }
+
+    pub fn set_startup(&mut self, screen: impl Into<String>, cx: &mut Context<Self>) {
+        let screen = screen.into();
+        if self.values.startup == screen {
+            return;
+        }
+        self.values.startup = screen;
         self.schedule_save(cx);
     }
 

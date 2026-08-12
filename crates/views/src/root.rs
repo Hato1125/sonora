@@ -3,11 +3,11 @@
 use gpui::{AnyView, Context, Entity, MouseButton, NavigationDirection, Render};
 use gpui::{Window, div};
 use gpui::{font, prelude::*};
-use input::{OpenFilter, OpenSearch, OpenSettings, ToggleFullscreen};
+use input::{OpenFilter, OpenSearch, OpenSettings, ToggleFullscreen, ToggleLyrics, ToggleQueue};
 use router::{Destination, LibraryTab, NavigationEvent, SettingsTab, back, forward, navigate};
 use state::{
     ArtistDetail, Detail, Home, Io, Library, Playback, Queue, Search, Session, SessionState,
-    SongDetail, Sonora,
+    SideTab, SongDetail, Sonora,
 };
 use ui::ActiveTheme as _;
 
@@ -252,6 +252,12 @@ impl Root {
         toolbar.update(cx, |toolbar, cx| toolbar.focus(window, cx));
     }
 
+    fn show_side(&self, tab: SideTab, cx: &mut Context<Self>) {
+        self.shells
+            .workspace
+            .update(cx, |workspace, cx| workspace.show_side(tab, cx));
+    }
+
     fn toggle_fullscreen(&mut self, cx: &mut Context<Self>) {
         let entering = matches!(self.view, RootView::Workspace);
         self.view = match entering {
@@ -395,6 +401,12 @@ impl Render for Root {
             .on_action(cx.listener(|this, _: &OpenSearch, _, cx| this.open_search(cx)))
             .on_action(cx.listener(|this, _: &OpenSettings, _, cx| this.open_settings(cx)))
             .on_action(cx.listener(|this, _: &ToggleFullscreen, _, cx| this.toggle_fullscreen(cx)))
+            .on_action(
+                cx.listener(|this, _: &ToggleQueue, _, cx| this.show_side(SideTab::Queue, cx)),
+            )
+            .on_action(
+                cx.listener(|this, _: &ToggleLyrics, _, cx| this.show_side(SideTab::Lyrics, cx)),
+            )
             .when_else(
                 show_sign_in,
                 |this| this.child(self.login.clone()),

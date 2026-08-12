@@ -10,13 +10,15 @@ use librespot_protocol::metadata::image::Size as ImageSize;
 use librespot_protocol::metadata::{Artist as ArtistMessage, Image};
 use protobuf::{EnumOrUnknown, Message as _};
 
-use crate::spotify::{albums, collection, pathfinder, wire};
-use crate::{Album, Artist, ArtistProfile, Track};
+use crate::spotify::collection2::SavedItem;
+use crate::spotify::{albums, collection, collection2, pathfinder, wire};
+use crate::{Album, Artist, ArtistProfile, SavedArtist, Track};
 
 const ARTIST_PREFIX: &str = "spotify:artist:";
 const ALBUM_PREFIX: &str = "spotify:album:";
 const TRACK_PREFIX: &str = "spotify:track:";
 const LARGE_PORTRAIT: i32 = 300;
+const UNKNOWN: &str = "Unknown";
 
 pub async fn artist(session: &Session, artist_id: &str) -> Result<Artist> {
     match pathfinder::artist(session, artist_id).await {
@@ -103,7 +105,47 @@ async fn metadata(session: &Session, artist_id: &str) -> Result<ArtistMessage> {
     ArtistMessage::parse_from_bytes(&body).context("cannot decode artist metadata protobuf")
 }
 
+pub async fn saved_artists(session: &Session, limit: u32) -> Result<Vec<SavedArtist>> {
+    let items = followed(session, limit as usize).await?;
+    if items.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let ids: Vec<String> = items
+        .iter()
+        .filter_map(|item| item.uri.strip_prefix(ARTIST_PREFIX).map(str::to_owned))
+        .collect();
+    let mut known = cards(session, &ids).await?;
+
+    Ok(items
+        .into_iter()
+        .filter_map(|item| {
+            let mut artist = known.remove(item.uri.strip_prefix(ARTIST_PREFIX)?)?;
+            artist.added_at = item.added_at;
+            Some(artist)
+        })
+        .collect())
+}
+
+async fn followed(session: &Session, limit: usize) -> Result<Vec<SavedItem>> {
+    match collection2::saved_items(session, collection2::ARTISTS, ARTIST_PREFIX, limit).await {
+        Ok(items) if !items.is_empty() => return Ok(items),
+        Ok(_) => log::debug!("artists: the followed set is empty, reading the collection set"),
+        Err(error) => log::warn!("artists: cannot read the followed set: {error:#}"),
+    }
+
+    collection2::saved_items(session, collection2::COLLECTION, ARTIST_PREFIX, limit).await
+}
+
 pub async fn images(session: &Session, ids: &[String]) -> Result<HashMap<String, String>> {
+    Ok(cards(session, ids)
+        .await?
+        .into_iter()
+        .filter_map(|(id, artist)| artist.cover.map(|url| (id, url)))
+        .collect())
+}
+
+async fn cards(session: &Session, ids: &[String]) -> Result<HashMap<String, SavedArtist>> {
     if ids.is_empty() {
         return Ok(HashMap::new());
     }
@@ -141,9 +183,19 @@ pub async fn images(session: &Session, ids: &[String]) -> Result<HashMap<String,
             let smallest = portraits(&message)
                 .into_iter()
                 .min_by_key(|image| image_width(image));
-            if let Some(url) = smallest.and_then(|image| wire::image_url(image.file_id())) {
-                found.insert(id.to_owned(), url);
-            }
+
+            found.insert(
+                id.to_owned(),
+                SavedArtist {
+                    id: id.to_owned(),
+                    name: match message.name() {
+                        "" => UNKNOWN.to_owned(),
+                        name => name.to_owned(),
+                    },
+                    cover: smallest.and_then(|image| wire::image_url(image.file_id())),
+                    added_at: None,
+                },
+            );
         }
     }
 

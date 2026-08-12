@@ -11,7 +11,7 @@ use gpui::{
 use crate::chrome::Chrome;
 use crate::shared::cells;
 use i18n::t;
-use music::{Album, ReleaseType, Track};
+use music::{Album, ReleaseType, SavedArtist, Track};
 use state::{AppSettings, ArtistDetail, Playback, Sonora};
 use ui::ActiveTheme as _;
 use ui::{
@@ -318,6 +318,7 @@ impl ArtistView {
         let library = Sonora::global(cx).library.clone();
         cx.observe(&library, |this, _, cx| {
             this.table.update(cx, |table, cx| table.refresh(cx));
+            cx.notify();
         })
         .detach();
         let current_playback = playback_status(&playback, cx);
@@ -409,6 +410,7 @@ impl ArtistView {
                 tracks::ordered(&self.table, cx),
                 self.playback.clone(),
             ))
+            .children(self.follow_button(cx))
             .children(overflow);
 
         let cover = artist.and_then(|artist| artist.cover_large.clone());
@@ -428,6 +430,46 @@ impl ArtistView {
             .actions(actions)
             .circle()
             .into_any_element()
+    }
+
+    fn follow_button(&self, cx: &App) -> Option<Button> {
+        let theme = *cx.theme();
+        let library = Sonora::global(cx).library.clone();
+        let detail = self.detail.read(cx);
+        let id = detail.id()?.to_owned();
+        if music::is_local_id(&id) {
+            return None;
+        }
+        let artist = detail.artist()?;
+        let followed = library.read(cx).saved_artist(&id);
+        let target = SavedArtist {
+            id,
+            name: artist.name.clone(),
+            cover: artist.cover_large.clone(),
+            added_at: None,
+        };
+
+        let heart = Button::new("artist-toggle-library")
+            .outline()
+            .icon(match followed {
+                true => "icons/heart-filled.svg",
+                false => "icons/heart.svg",
+            })
+            .tooltip(match followed {
+                true => "artist-unfollow",
+                false => "artist-follow",
+            })
+            .disabled(library.read(cx).pending_artist(&target.id));
+
+        Some(
+            match followed {
+                true => heart.tint(theme.primary),
+                false => heart,
+            }
+            .on_click(move |_, _, cx| {
+                library.update(cx, |library, cx| library.toggle_artist(target.clone(), cx));
+            }),
+        )
     }
 
     fn release_row(&self, window: &Window, cx: &App) -> Pixels {
