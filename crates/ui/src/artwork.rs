@@ -7,6 +7,7 @@ use gpui::{
     ImgResourceLoader, Interactivity, ObjectFit, Pixels, RenderImage, Resource, SharedString,
     SharedUri, StyleRefinement, Styled, Task, Window, div, img, px, svg,
 };
+use image::{Frame, RgbaImage, imageops};
 use std::path::Path;
 use std::time::{Duration, Instant};
 use std::{collections::HashMap, sync::Arc};
@@ -203,9 +204,50 @@ impl ImageCache for ArtworkCache {
         };
 
         self.pending.remove(resource);
+        let value = match value {
+            Ok(image) => Ok(match squared(&image) {
+                Some(square) => {
+                    cx.remove_asset::<ImgResourceLoader>(resource);
+                    square
+                }
+                None => image,
+            }),
+            Err(error) => Err(error),
+        };
         self.insert(resource.clone(), value.clone(), window, cx);
         Some(value)
     }
+}
+
+fn squared(image: &RenderImage) -> Option<Arc<RenderImage>> {
+    let widest = (0..image.frame_count())
+        .map(|frame| image.size(frame))
+        .max_by_key(|size| (size.width.0 - size.height.0).abs())?;
+    if widest.width == widest.height {
+        return None;
+    }
+
+    let frames: Vec<Frame> = (0..image.frame_count())
+        .filter_map(|index| {
+            let size = image.size(index);
+            let width = size.width.0.max(0) as u32;
+            let height = size.height.0.max(0) as u32;
+            let side = width.min(height);
+            let bytes = image.as_bytes(index)?.to_vec();
+            let whole = RgbaImage::from_raw(width, height, bytes)?;
+            let cropped =
+                imageops::crop_imm(&whole, (width - side) / 2, (height - side) / 2, side, side)
+                    .to_image();
+
+            Some(Frame::from_parts(cropped, 0, 0, image.delay(index)))
+        })
+        .collect();
+    if frames.len() != image.frame_count() {
+        log::warn!("artwork: cannot crop an image to a square");
+        return None;
+    }
+
+    Some(Arc::new(RenderImage::new(frames)))
 }
 
 pub fn artwork_usage(cx: &App) -> Option<(usize, usize)> {
@@ -385,4 +427,58 @@ fn blank(size: Pixels, rounded: Pixels, muted: Hsla, glyph: Hsla, fallback: Shar
         .items_center()
         .justify_center()
         .child(svg().path(fallback).size(size * 0.46).text_color(glyph))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::squared;
+    use gpui::RenderImage;
+    use image::{Frame, Rgba, RgbaImage};
+
+    fn image(width: u32, height: u32) -> RenderImage {
+        let mut buffer = RgbaImage::new(width, height);
+        for (x, y, pixel) in buffer.enumerate_pixels_mut() {
+            *pixel = Rgba([x as u8, y as u8, 0, 255]);
+        }
+
+        RenderImage::new(vec![Frame::new(buffer)])
+    }
+
+    #[test]
+    fn a_square_image_is_left_alone() {
+        assert!(squared(&image(64, 64)).is_none());
+    }
+
+    #[test]
+    fn a_wide_image_keeps_its_middle() {
+        let cropped = squared(&image(10, 4)).expect("cropped");
+        let size = cropped.size(0);
+        let bytes = cropped.as_bytes(0).expect("pixels");
+
+        assert_eq!((size.width.0, size.height.0), (4, 4));
+        assert_eq!(bytes[0], 3);
+        assert_eq!(bytes[(3 * 4 + 3) * 4], 6);
+    }
+
+    #[test]
+    fn a_tall_image_keeps_its_middle() {
+        let cropped = squared(&image(4, 10)).expect("cropped");
+        let size = cropped.size(0);
+        let bytes = cropped.as_bytes(0).expect("pixels");
+
+        assert_eq!((size.width.0, size.height.0), (4, 4));
+        assert_eq!(bytes[1], 3);
+    }
+
+    #[test]
+    fn every_frame_of_a_moving_image_is_cropped() {
+        let frames: Vec<Frame> = (0..3).map(|_| Frame::new(RgbaImage::new(8, 4))).collect();
+        let cropped = squared(&RenderImage::new(frames)).expect("cropped");
+
+        assert_eq!(cropped.frame_count(), 3);
+        for frame in 0..cropped.frame_count() {
+            let size = cropped.size(frame);
+            assert_eq!((size.width.0, size.height.0), (4, 4));
+        }
+    }
 }

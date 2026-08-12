@@ -35,6 +35,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Artwork that does not arrive square — an artist portrait, a cover embedded in a local file — is
+  cropped to its middle instead of spilling out of its frame, so a round portrait is round again.
 - A pinned table header no longer trembles by a pixel while the page scrolls, and the wheel now
   works over the header and over a column edge instead of stopping there.
 - An artist page lists the whole discography — every album, single, compilation and alternate

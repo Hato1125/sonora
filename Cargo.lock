@@ -7842,6 +7842,7 @@ version = "0.9.0"
 dependencies = [
  "gpui",
  "i18n",
+ "image",
  "log",
  "serde",
 ]
