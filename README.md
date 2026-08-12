@@ -75,7 +75,7 @@ Download the latest `.exe` for your architecture from [Releases](https://github.
 
 ## License
 
-Copyright (C) 2026 nolight132.
+Copyright (C) 2026 Sonora Contributors.
 
 Sonora is free software, released under the [GNU General Public License version
 3 or later](COPYING).

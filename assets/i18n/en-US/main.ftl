@@ -344,7 +344,7 @@ settings-team-github = GitHub
 settings-role-lead-maintainer = Lead Maintainer
 settings-role-maintainer = Maintainer
 settings-role-contributor = Contributor
-settings-notice = Copyright © 2026 nolight132. Sonora comes with absolutely no warranty. It is free software, and you are welcome to redistribute it under the terms of the GNU General Public License version 3 or later. Sonora is unofficial and is not affiliated with Spotify AB.
+settings-notice = Copyright © 2026 Sonora Contributors. Sonora comes with absolutely no warranty. It is free software, and you are welcome to redistribute it under the terms of the GNU General Public License version 3 or later. Sonora is unofficial and is not affiliated with Spotify AB.
 
 # themes
 theme-dark = Dark
