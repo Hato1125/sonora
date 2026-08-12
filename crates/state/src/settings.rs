@@ -291,6 +291,10 @@ impl AppSettings {
         self.values.views.get(table).copied().unwrap_or_default()
     }
 
+    pub fn view_or(&self, table: &str, fallback: Mode) -> Mode {
+        self.values.views.get(table).copied().unwrap_or(fallback)
+    }
+
     pub fn set_view(&mut self, table: &str, mode: Mode, cx: &mut Context<Self>) {
         if self.values.views.get(table) == Some(&mode) {
             return;
