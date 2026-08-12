@@ -118,8 +118,13 @@ impl Library {
             }
             SessionEvent::LocalChanged => {
                 let client = session.read(cx).local_client();
-                if let Some(client) = client {
-                    this.load_local(client, cx);
+                match client {
+                    Some(client) => this.load_local(client, cx),
+                    None => {
+                        this.local_task = None;
+                        this.local = LibraryState::Empty;
+                        cx.notify();
+                    }
                 }
             }
         })
@@ -158,6 +163,11 @@ impl Library {
     pub fn rescan_local(&mut self, path: PathBuf, cx: &mut Context<Self>) {
         self.session
             .update(cx, |session, cx| session.choose_local_folder(path, cx));
+    }
+
+    pub fn forget_local(&mut self, cx: &mut Context<Self>) {
+        self.session
+            .update(cx, |session, cx| session.clear_local_folder(cx));
     }
 
     pub fn is_loading(&self) -> bool {

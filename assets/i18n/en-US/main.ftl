@@ -323,6 +323,7 @@ settings-local-folder = Local music folder
 settings-local-folder-empty = Not configured
 settings-choose-folder = Choose folder…
 settings-rescan = Rescan
+settings-clear-folder = Clear
 settings-tab-about = About
 settings-version = Version
 settings-version-detail = The build of sonora you are running

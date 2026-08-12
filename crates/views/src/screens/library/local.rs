@@ -10,7 +10,7 @@ use music::{Album, Track};
 use state::{AppSettings, Library, LibraryState, Playback, Sonora};
 use ui::{
     ActiveTheme as _, Button, FlagAxis, GridDelegate, GridEvent, GridState, Popovers, Popup,
-    RangeAxis, Scrollbar, Scroller, SortAxis, Unit, grid, vacant,
+    RangeAxis, Scrollbar, Scroller, SortAxis, Table as _, Unit, grid, vacant,
 };
 
 use crate::chrome::Chrome;
@@ -284,7 +284,9 @@ impl LocalView {
         })
     }
 
-    fn albums(&self, cx: &App) -> AnyElement {
+    fn albums(&self, window: &Window, cx: &App) -> AnyElement {
+        let inset = cx.theme().metrics.inset;
+        let room = cells::content_width(window, page::reserved(inset), cx);
         let state = self.albums.read(cx);
         let delegate = state.delegate();
         let albums: Vec<(usize, Album)> = (0..delegate.row_count())
@@ -295,7 +297,7 @@ impl LocalView {
             .collect();
         let view = self.me.clone();
 
-        AlbumGrid::new("local-album", self.width, albums, self.playback.clone())
+        AlbumGrid::new("local-album", room, albums, self.playback.clone())
             .years()
             .on_context(move |album, position, cx| {
                 let Some(view) = view.upgrade() else {
@@ -337,7 +339,11 @@ impl Render for LocalView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
         let inset = theme.metrics.inset;
-        page::resize(&self.tracks, &mut self.width, inset, window, cx);
+        let width = cells::content_width(window, Pixels::ZERO, cx);
+        if (width - self.width).abs() >= px(0.5) {
+            self.width = width;
+            self.tracks.set_width(width, cx);
+        }
 
         let scroll = self.scrollbar.read(cx).scroll().clone();
         if self.section == Section::Tracks {
@@ -349,7 +355,10 @@ impl Render for LocalView {
         let note = self.note(cx);
         let content = match self.section {
             Section::Tracks => grid(&self.tracks).into_any_element(),
-            Section::Albums => self.albums(cx),
+            Section::Albums => div()
+                .px(inset)
+                .child(self.albums(window, cx))
+                .into_any_element(),
         };
         let context_menu = self.context_menu.clone().map(|(album, position)| {
             let menu = album_menu(album, self.playback.clone(), false, cx);
@@ -362,8 +371,7 @@ impl Render for LocalView {
         let page = Scroller::new("local-page", &self.scrollbar)
             .pt(inset)
             .pb(inset)
-            .px(inset)
-            .child(div().pb_3().child(self.toggle(cx)))
+            .child(div().px(inset).pb_3().child(self.toggle(cx)))
             .child(content)
             .when_some(note, |this, note| this.child(vacant(note, cx)));
 

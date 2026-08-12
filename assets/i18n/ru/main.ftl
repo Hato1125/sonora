@@ -326,6 +326,7 @@ settings-local-folder = Папка с локальной музыкой
 settings-local-folder-empty = Не настроено
 settings-choose-folder = Выбрать папку…
 settings-rescan = Пересканировать
+settings-clear-folder = Очистить
 settings-tab-about = О программе
 settings-version = Версия
 settings-version-detail = Сборка Sonora, которая сейчас запущена
@@ -337,9 +338,9 @@ settings-source-detail = Исходный код, соответствующий
 settings-source-view = Открыть репозиторий
 settings-team = Команда
 settings-team-github = GitHub
-settings-role-lead-maintainer = Ведущий сопровождающий
-settings-role-maintainer = Сопровождающий
-settings-role-contributor = Участник
+settings-role-lead-maintainer = Ведущий разработчик
+settings-role-maintainer = Разработчик
+settings-role-contributor = Контрибьютор
 settings-notice = Copyright © 2026 nolight132. Sonora поставляется без каких-либо гарантий. Это свободное программное обеспечение, и вы можете распространять его на условиях GNU General Public License версии 3 или новее. Sonora — неофициальный клиент и не связан со Spotify AB.
 
 # themes

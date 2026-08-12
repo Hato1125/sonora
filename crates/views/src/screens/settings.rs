@@ -628,6 +628,14 @@ impl SettingsView {
                 .on_click(cx.listener(|this, _, _, cx| this.rescan_local_folder(cx)))
         });
 
+        let clear = path.is_some().then(|| {
+            Button::new("clear-local-folder")
+                .label(t!("settings-clear-folder"))
+                .small()
+                .ghost()
+                .on_click(cx.listener(|this, _, _, cx| this.clear_local_folder(cx)))
+        });
+
         self.row(
             t!("settings-local-folder"),
             detail,
@@ -638,6 +646,7 @@ impl SettingsView {
                 .gap_2()
                 .child(choose)
                 .children(rescan)
+                .children(clear)
                 .into_any_element(),
         )
     }
@@ -672,6 +681,13 @@ impl SettingsView {
             .update(cx, |library, cx| {
                 library.rescan_local(PathBuf::from(path), cx)
             });
+    }
+
+    fn clear_local_folder(&mut self, cx: &mut Context<Self>) {
+        Sonora::global(cx)
+            .library
+            .clone()
+            .update(cx, |library, cx| library.forget_local(cx));
     }
 
     fn accounts_row(&self, cx: &mut Context<Self>) -> impl IntoElement {

@@ -393,6 +393,15 @@ impl Session {
         }));
     }
 
+    pub fn clear_local_folder(&mut self, cx: &mut Context<Self>) {
+        self.local_provider.sign_out();
+        self.local_client = None;
+        self.local_playback = None;
+        self.local_task = None;
+        cx.notify();
+        cx.emit(SessionEvent::LocalChanged);
+    }
+
     fn local_signed_in(&mut self, session: ProviderSession, cx: &mut Context<Self>) {
         self.local_client = Some(session.api);
         self.local_playback = Some(session.playback);
