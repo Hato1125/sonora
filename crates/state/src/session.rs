@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use std::path::PathBuf;
 use std::sync::Arc;
 

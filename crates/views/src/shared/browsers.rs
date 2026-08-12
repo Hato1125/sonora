@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use std::rc::Rc;
 
 use gpui::prelude::*;

@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use std::time::Duration;
 
 #[derive(Clone, Debug, PartialEq, Eq)]

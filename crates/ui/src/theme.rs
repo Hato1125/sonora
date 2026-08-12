@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use std::time::{Duration, Instant};
 
 use gpui::{App, Global, Hsla, Pixels, Rgba, SharedString, Task, px, rgb, rgba};

@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use crate::metrics::Text;
 use crate::theme::ActiveTheme as _;
 use std::cell::Cell;

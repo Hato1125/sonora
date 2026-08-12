@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use gpui::{App, Entity, Pixels, ScrollHandle, Window, px};
 
 use state::{AppSettings, Playback};

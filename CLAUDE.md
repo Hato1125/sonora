@@ -523,8 +523,8 @@ distributing unlicensed code.
 
 - **Comments: essentially none.** The codebase has almost zero. Name things so they don't need one.
   If a comment is unavoidable it is at most three lowercase words, no trailing period.
-- Every `.rs` file opens with `// SPDX-License-Identifier: GPL-3.0-or-later`; that line is the one
-  comment exempt from the rule above.
+- Source files carry no license header. The licence is stated once, in `COPYING`, the `license`
+  field of the root `Cargo.toml` and `README.md`; do not add `SPDX-License-Identifier` lines back.
 - Names are short and domain-flavored: `Look`, `Metrics`, `Grab`, `Scored`, `wire`, `pb`, `clock`,
   `snapped`. Prefer a noun that reads at the call site over a descriptive compound.
 - `use gpui::prelude::*;` then explicit imports; traits imported anonymously (`use ui::ActiveTheme as _;`).

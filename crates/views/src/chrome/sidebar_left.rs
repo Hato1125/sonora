@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use ui::{
     ActiveTheme as _, Button, Card, DraggedPin, Edge, Panel, Pin, PinKind, Pinnable as _, Popup,
     SNUG, Scrollbar, Scroller, Shield, Side, Tabs, Text, drop_gap, drop_marker,

@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use crate::theme::ActiveTheme as _;
 use gpui::prelude::*;
 use gpui::{App, IntoElement, RenderOnce, Window, div};

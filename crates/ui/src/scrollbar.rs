@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use std::cell::Cell as Slot;
 use std::rc::Rc;
 use std::time::Duration;

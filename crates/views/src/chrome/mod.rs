@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 mod player_bar;
 mod sidebar_left;
 mod sidebar_right;

@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use gpui::prelude::*;
 use gpui::{App, MouseButton, Pixels, Window, WindowControlArea, div, px, svg};
 

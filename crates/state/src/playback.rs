@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;

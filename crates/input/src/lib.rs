@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use gpui::{KeyBinding, actions};
 use ui::{
     Backspace, BackspaceWord, Copy, Cut, Delete, DeleteWord, Deselect, Dismiss, End, FORM_CONTEXT,

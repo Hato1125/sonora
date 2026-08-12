@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use gpui::{Pixels, px};
 
 pub const ALWAYS: Pixels = Pixels::ZERO;

@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 pub(crate) mod adaptive;
 pub(crate) mod album_grid;
 pub(crate) mod browsers;

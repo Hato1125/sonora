@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 mod layout;
 
 use std::cell::Cell as StdCell;
