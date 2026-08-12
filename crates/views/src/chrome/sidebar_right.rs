@@ -551,72 +551,37 @@ impl SidebarRight {
             })
     }
 
-    fn pills(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn follow(&self, cx: &mut Context<Self>) -> Option<impl IntoElement> {
         let theme = *cx.theme();
-        let pill = |tab: SideTab, icon: &'static str, tooltip: &'static str| {
-            Button::new(match tab {
-                SideTab::Queue => "pill-queue",
-                SideTab::Lyrics => "pill-lyrics",
-            })
-            .ghost()
-            .small()
-            .icon(icon)
-            .tooltip(tooltip)
-            .rounded_full()
-            .selected(self.tab == tab)
-            .tint(match self.tab == tab {
-                true => theme.foreground,
-                false => theme.muted_foreground,
-            })
-            .on_click(cx.listener(move |this, _, _, cx| {
-                this.tab = tab;
-                this.anchor_verse();
-                this.settings
-                    .update(cx, |settings, cx| settings.set_sidebar_right_tab(tab, cx));
-                cx.notify();
-            }))
-        };
+        if self.tab != SideTab::Lyrics || self.pinned {
+            return None;
+        }
 
-        let adrift = self.tab == SideTab::Lyrics && !self.pinned;
-
-        div()
-            .absolute()
-            .bottom_3()
-            .w_full()
-            .flex()
-            .flex_col()
-            .items_center()
-            .gap_2()
-            .child(div().flex().justify_center().when(adrift, |this| {
-                this.child(
-                    Button::new("resume-pin")
-                        .ghost()
-                        .small()
-                        .icon("icons/undo-2.svg")
-                        .tooltip("lyrics-follow")
-                        .rounded_full()
-                        .border_1()
-                        .border_color(theme.border)
-                        .bg(theme.popover)
-                        .on_click(cx.listener(|this, _, _, cx| {
-                            this.anchor_verse();
-                            cx.notify();
-                        })),
-                )
-            }))
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap_1()
-                    .p_1()
-                    .rounded_full()
-                    .border_1()
-                    .border_color(theme.border)
-                    .bg(theme.popover)
-                    .child(pill(SideTab::Lyrics, "icons/mic-vocal.svg", "lyrics-title"))
-                    .child(pill(SideTab::Queue, "icons/list.svg", "queue-title")),
-            )
+        Some(
+            div()
+                .absolute()
+                .bottom_3()
+                .w_full()
+                .flex()
+                .justify_center()
+                .child(
+                    div().flex().flex_none().block_mouse_except_scroll().child(
+                        Button::new("resume-pin")
+                            .ghost()
+                            .small()
+                            .icon("icons/undo-2.svg")
+                            .tooltip("lyrics-follow")
+                            .rounded_full()
+                            .border_1()
+                            .border_color(theme.border)
+                            .bg(theme.popover)
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.anchor_verse();
+                                cx.notify();
+                            })),
+                    ),
+                ),
+        )
     }
 
     fn verses(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -901,14 +866,14 @@ impl Render for SidebarRight {
                                 .child(
                                     self.rows(sections, cx)
                                         .px_2()
-                                        .pb_12()
+                                        .pb_2()
                                         .track_scroll(&self.scroll)
                                         .size_full(),
                                 )
                                 .child(self.scrollbar.clone()),
                         )
                     })
-                    .child(self.pills(cx)),
+                    .children(self.follow(cx)),
             )
             .children(self.menu(cx))
             .into_any_element()
