@@ -18,7 +18,9 @@ actions!(
         OpenFilter,
         OpenSearch,
         OpenSettings,
-        ToggleFullscreen
+        ToggleFullscreen,
+        ToggleQueue,
+        ToggleLyrics
     ]
 );
 

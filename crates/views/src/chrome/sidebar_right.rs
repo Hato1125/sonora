@@ -11,7 +11,7 @@ use gpui::{
 };
 use i18n::t;
 use music::Track;
-use state::{AppSettings, Lyrics, LyricsState, Playback, Queue, SideTab, Sonora};
+use state::{AppSettings, Lyrics, LyricsState, Playback, PlaybackState, Queue, SideTab, Sonora};
 use ui::{
     ActiveTheme as _, Button, Card, DraggedPin, Edge, MIN_CONTENT, Panel, Pin, PinKind,
     Pinnable as _, Popup, Room, Scrollbar, Scroller, Side, Spot, Text, drop_gap, drop_marker,
@@ -272,6 +272,25 @@ impl SidebarRight {
         cx.notify();
     }
 
+    pub(crate) fn show(&mut self, tab: SideTab, cx: &mut Context<Self>) {
+        if self.open && self.tab == tab {
+            self.close(cx);
+            return;
+        }
+        if self.tab != tab {
+            self.tab = tab;
+            self.anchor_verse();
+            self.settings
+                .update(cx, |settings, cx| settings.set_sidebar_right_tab(tab, cx));
+        }
+        if !self.open {
+            self.open = true;
+            self.anchor = true;
+            self.remember(cx);
+        }
+        cx.notify();
+    }
+
     pub(crate) fn close(&mut self, cx: &mut Context<Self>) {
         self.track_menu.reset(cx);
         self.context_menu = None;
@@ -298,6 +317,7 @@ impl SidebarRight {
         position: QueuePosition,
         queue_revision: u64,
         drop_line: Option<Edge>,
+        playing: bool,
         cx: &Context<Self>,
     ) -> gpui::Stateful<gpui::Div> {
         let theme = *cx.theme();
@@ -332,6 +352,19 @@ impl SidebarRight {
         )
         .tint(title)
         .when(track.explicit, Card::explicit)
+        .play(
+            playing,
+            cx.listener(move |this, _, _, cx| {
+                let stale = this.queue.read(cx).revision() != queue_revision;
+                this.playback.update(cx, |playback, cx| match position {
+                    QueuePosition::Current => playback.toggle_play(cx),
+                    QueuePosition::Past(index) if !stale => playback.play_past(index, cx),
+                    QueuePosition::Upcoming(index) if !stale => playback.play_upcoming(index, cx),
+                    QueuePosition::Similar(index) if !stale => playback.play_similar(index, cx),
+                    _ => {}
+                });
+            }),
+        )
         .on_mouse_down(
             MouseButton::Right,
             cx.listener(move |this, event: &MouseDownEvent, window, cx| {
@@ -757,6 +790,7 @@ impl SidebarRight {
         let queue = self.queue.clone();
         let drop_gap = self.drop_gap;
         let upcoming = sections.upcoming;
+        let audible = matches!(self.playback.read(cx).state(), PlaybackState::Playing);
 
         uniform_list(
             "queue-rows",
@@ -792,7 +826,8 @@ impl SidebarRight {
                                 }
                                 _ => None,
                             };
-                            Self::row(found, index, position, revision, drop_line, cx)
+                            let playing = audible && position == QueuePosition::Current;
+                            Self::row(found, index, position, revision, drop_line, playing, cx)
                                 .into_any_element()
                         }
                         (Slot::Track(_), None) => div().into_any_element(),
