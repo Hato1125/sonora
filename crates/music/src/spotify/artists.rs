@@ -274,21 +274,6 @@ fn plain_text(html: &str) -> String {
     decoded.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-#[cfg(test)]
-mod tests {
-    use super::plain_text;
-
-    #[test]
-    fn biography_html_becomes_readable_text() {
-        assert_eq!(
-            plain_text(
-                "Formed by <a href=\"spotify:artist:abc\">Alice &amp; Bob</a>.<br>Based in Paris."
-            ),
-            "Formed by Alice & Bob. Based in Paris."
-        );
-    }
-}
-
 fn top_track_uris(artist: &ArtistMessage, country: &str) -> Vec<String> {
     artist
         .top_track
@@ -343,5 +328,20 @@ fn image_width(image: &Image) -> i32 {
         ImageSize::DEFAULT => 300,
         ImageSize::LARGE => 640,
         ImageSize::XLARGE => 1_000,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::plain_text;
+
+    #[test]
+    fn biography_html_becomes_readable_text() {
+        assert_eq!(
+            plain_text(
+                "Formed by <a href=\"spotify:artist:abc\">Alice &amp; Bob</a>.<br>Based in Paris."
+            ),
+            "Formed by Alice & Bob. Based in Paris."
+        );
     }
 }

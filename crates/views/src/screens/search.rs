@@ -21,7 +21,7 @@ use crate::shared::cells;
 use crate::shared::tracks::{PlaybackStatus, playback_status};
 
 enum Press {
-    Song(Track),
+    Song(Box<Track>),
     Artist(String),
     Album(String),
 }
@@ -173,7 +173,7 @@ impl SearchView {
                             .text_color(theme.muted_foreground)
                             .child(clock(track.duration)),
                     )
-                    .press(self.pressed(Press::Song(track.clone()), cx))
+                    .press(self.pressed(Press::Song(Box::new(track.clone())), cx))
                     .when_some(pin(hit), Pinnable::pin)
                     .on_mouse_down(MouseButton::Right, move |event, window, cx| {
                         window.prevent_default();
@@ -243,7 +243,7 @@ impl SearchView {
                 Kind::Song,
                 track.name.clone(),
                 track.artist_refs.clone(),
-                Some(Press::Song(track.clone())),
+                Some(Press::Song(Box::new(track.clone()))),
             ),
             Hit::Artist(artist) => (
                 Kind::Artist,

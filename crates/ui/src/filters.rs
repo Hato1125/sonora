@@ -15,6 +15,8 @@ const TRACK: f32 = 0.5;
 const THUMB: f32 = 1.5;
 const HIT: f32 = 2.;
 
+type Change = Box<dyn Fn(&(f32, f32), &mut Window, &mut App) + 'static>;
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Unit {
     Clock,
@@ -172,7 +174,7 @@ pub struct RangeScrubber {
     filled: Hsla,
     empty: Hsla,
     thumb: Hsla,
-    on_change: Option<Box<dyn Fn(&(f32, f32), &mut Window, &mut App) + 'static>>,
+    on_change: Option<Change>,
 }
 
 impl RangeScrubber {

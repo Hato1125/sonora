@@ -12,6 +12,12 @@ pub struct Tabs {
     items: Vec<AnyElement>,
 }
 
+impl Default for Tabs {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Tabs {
     pub fn new() -> Self {
         Self {

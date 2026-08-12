@@ -11,6 +11,12 @@ impl ExplicitBadge {
     }
 }
 
+impl Default for ExplicitBadge {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RenderOnce for ExplicitBadge {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = *cx.theme();

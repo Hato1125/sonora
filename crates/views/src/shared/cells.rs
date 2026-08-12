@@ -24,6 +24,8 @@ const PAUSE: &str = "icons/pause.svg";
 const UNAVAILABLE: &str = "icons/play-off.svg";
 const HOVER_PRELOAD_DELAY: Duration = Duration::from_millis(200);
 
+pub(crate) type Tap = Box<dyn Fn(&mut App)>;
+
 pub(crate) const NUMBER: Pixels = px(44.);
 pub(crate) const TRAILING: Pixels = px(72.);
 pub(crate) const DATE: Pixels = px(112.);
@@ -81,8 +83,8 @@ pub(crate) fn index<F>(
     cell: &Cell<F>,
     state: Option<PlaybackState>,
     playable: bool,
-    preload: Option<Box<dyn Fn(&mut App)>>,
-    press: Option<Box<dyn Fn(&mut App)>>,
+    preload: Option<Tap>,
+    press: Option<Tap>,
     cx: &App,
 ) -> AnyElement {
     let theme = *cx.theme();
@@ -134,7 +136,7 @@ pub(crate) fn toggle<F>(
     playback: &Entity<Playback>,
     state: Option<PlaybackState>,
     start: F,
-) -> Option<Box<dyn Fn(&mut App)>>
+) -> Option<Tap>
 where
     F: Fn(&mut Playback, &mut Context<Playback>) + 'static,
 {
@@ -152,8 +154,8 @@ where
 pub(crate) struct Transport {
     pub(crate) icon: &'static str,
     pub(crate) color: Hsla,
-    pub(crate) preload: Option<Box<dyn Fn(&mut App)>>,
-    pub(crate) press: Option<Box<dyn Fn(&mut App)>>,
+    pub(crate) preload: Option<Tap>,
+    pub(crate) press: Option<Tap>,
 }
 
 pub(crate) fn transport<F>(cell: &Cell<F>, resting: AnyElement, hover: Transport) -> AnyElement {
@@ -325,7 +327,7 @@ pub(crate) fn title<F>(
     value: impl Into<SharedString>,
     color: Option<Hsla>,
     explicit: bool,
-    press: Option<Box<dyn Fn(&mut App)>>,
+    press: Option<Tap>,
     is_liked: Option<AnyElement>,
 ) -> AnyElement {
     let text = div()

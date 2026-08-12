@@ -9,12 +9,14 @@ const SCALE: f32 = 0.85;
 const INSET: f32 = 2.;
 const WIDTH: f32 = 1.75;
 
+type Click = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
+
 #[derive(IntoElement)]
 pub struct Switch {
     base: Stateful<Div>,
     checked: bool,
     disabled: bool,
-    on_click: Option<Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>>,
+    on_click: Option<Click>,
 }
 
 impl Switch {

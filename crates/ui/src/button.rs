@@ -10,6 +10,8 @@ use crate::tooltip::{Perch, Tooltip};
 
 const FADED: f32 = 0.55;
 
+type Click = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
+
 enum Variant {
     Secondary,
     Ghost,
@@ -34,7 +36,7 @@ pub struct Button {
     pressed: Option<StyleRefinement>,
     tint: Option<Hsla>,
     tooltip: Option<(SharedString, Perch)>,
-    on_click: Option<Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>>,
+    on_click: Option<Click>,
 }
 
 impl Button {

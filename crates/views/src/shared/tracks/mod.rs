@@ -159,7 +159,7 @@ impl TrackSource {
             true => {
                 let playback = self.playback.clone();
                 let preload_track = track.clone();
-                let preload: Option<Box<dyn Fn(&mut App)>> = Some(Box::new(move |cx| {
+                let preload: Option<cells::Tap> = Some(Box::new(move |cx| {
                     playback.update(cx, |playback, _| playback.preload(&preload_track));
                 }));
                 let provider = self.provider.clone();
@@ -189,7 +189,7 @@ impl TrackSource {
         color: Option<Hsla>,
         cx: &App,
     ) -> AnyElement {
-        let press: Option<Box<dyn Fn(&mut App)>> = match track.playable {
+        let press: Option<cells::Tap> = match track.playable {
             true => {
                 let playback = self.playback.clone();
                 let provider = self.provider.clone();
