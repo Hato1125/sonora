@@ -1,12 +1,11 @@
 # sonora
 
 A native Spotify client in Rust on [GPUI](https://github.com/zed-industries/zed) (Zed's UI
-framework), streaming through [librespot](https://github.com/librespot-org/librespot).
-Linux-only today. Cargo workspace, edition 2024, resolver 3.
+framework), streaming through [librespot](https://github.com/librespot-org/librespot) and [ytmusic-rs](https://github.com/noligh132/ytmusic-rs). Cargo workspace, edition 2024, resolver 3.
 
 ## Read this before writing code
 
-1. **A component probably already exists.** Check `crates/ui/src/lib.rs`, `crates/views/src/cells.rs`
+1. **A component probably already exists.** Check `crates/ui/src/lib.rs`, `crates/views/src/shared/cells.rs`
    and the tables below before writing a new element. See [Before you build a component](#before-you-build-a-component).
 2. **Never call the Spotify Web API.** There is no `reqwest` call to `api.spotify.com` anywhere and
    there must not be one. All data comes from librespot's `spclient`. See [Backend](#backend-how-data-actually-arrives).
@@ -41,9 +40,9 @@ sonora → views → state → music
 ```
 
 - `music` holds the provider abstraction (`MusicApi`, `MusicProvider`, `Player`, `PlaybackFactory`)
-  and the models in its root; each provider lives in a submodule (`music::spotify`, later
-  `music::youtube`). `state` and `views` see only the root traits and models — never a provider
-  module. Only `sonora/src/main.rs` names a concrete provider.
+  and the models in its root; each provider lives in a submodule (`music::spotify`,
+  `music::youtube`, `music::local`). `state` and `views` see only the root traits and models — never
+  a provider module. Only `sonora/src/main.rs` names a concrete provider.
 - `ui` depends only on `gpui`, `serde` and `i18n`. It must never know about `music`, `state`, or
   playback.
 - `music` must never depend on `gpui`. It is plain async Rust.
@@ -132,32 +131,33 @@ Windows embeds `assets/windows/sonora.ico` through `crates/sonora/build.rs` and 
 cargo fmt                      # rustfmt.toml: edition 2024, style_edition 2024
 cargo check --workspace
 cargo test --workspace
-cargo clippy --workspace       # lib targets
+cargo clippy --workspace --all-targets
 ```
 
 The first build compiles GPUI from source; expect several minutes.
 
-`cargo clippy --workspace --all-targets` currently **fails**, on a deny-level
-`reversed_empty_ranges` from a deliberate `clamp_range("abc", &(2..1))` case in
-`crates/input/src/text.rs`. That failure predates your change; don't "fix" the test to silence it.
-The workspace also carries a handful of clippy warnings (complex types, a missing `Default`). Leave
-them unless the task is about them.
+Clippy is **clean** — `--all-targets` included — and stays that way. Boxed callback fields get a
+module-local `type` alias (`Click`, `Change`, `Slide`, `Release` in `ui`, `cells::Tap` in `views`)
+rather than a `type_complexity` warning. The one lint that cannot be satisfied on its merits is
+`reversed_empty_ranges` on the deliberate `clamp_range("abc", &(2..1))` case in
+`crates/ui/src/input/mod.rs`; it carries a targeted `#[allow]` on that test. Don't rewrite the case
+to please the lint.
 
 ### Runtime environment
 
-|                   |                                                                    |
-| ----------------- | ------------------------------------------------------------------ |
-| Settings          | `$XDG_CONFIG_HOME/sonora/settings.json`                            |
-| Credentials cache | `$XDG_CACHE_HOME/sonora/credentials.json`                          |
-| OAuth redirect    | `http://127.0.0.1:8989/login`, override with `SONORA_REDIRECT_URI` |
+|                   |                                                                                                                                   |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Settings          | `$XDG_CONFIG_HOME/sonora/settings.json`                                                                                           |
+| Credentials cache | `$XDG_CACHE_HOME/sonora/credentials.json`                                                                                         |
+| OAuth redirect    | `http://127.0.0.1:8989/login`, override with `SONORA_REDIRECT_URI`                                                                |
 | Instance socket   | `sonora.sock`, `sonora-dev.sock` in debug builds, so `cargo run` starts beside an installed Sonora rather than handing over to it |
-| Log file          | `$XDG_STATE_HOME/sonora/sonora.log`, rotated to `.1` past 8 MiB    |
-| Console logging   | `RUST_LOG`; default filter `warn,symphonia=error,lofty=error`      |
-| File logging      | `SONORA_LOG`; default adds `sonora=debug,ui=debug`                 |
+| Log file          | `$XDG_STATE_HOME/sonora/sonora.log`, rotated to `.1` past 8 MiB                                                                   |
+| Console logging   | `RUST_LOG`; default filter `warn,symphonia=error,lofty=error`                                                                     |
+| File logging      | `SONORA_LOG`; default adds `sonora=debug,ui=debug`                                                                                |
 
 ## Before you build a component
 
-Grep first. In order: `crates/ui/src/lib.rs` (exports), `crates/views/src/cells.rs` (grid cell
+Grep first. In order: `crates/ui/src/lib.rs` (exports), `crates/views/src/shared/cells.rs` (grid cell
 renderers), `crates/views/src/chrome/` (chrome). Extend what's there — add a builder method to
 `Button` rather than writing `IconButton`.
 
@@ -165,7 +165,7 @@ renderers), `crates/views/src/chrome/` (chrome). Extend what's there — add a b
 
 | Item                                                                    | Use for                                                                                                                                |
 | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `Button`                                                                | every button. Variants `.ghost() .outline() .primary() .danger()`, plus `.small() .icon() .label() .tint() .selected() .disabled()`    |
+| `Button`                                                                | every button. Variants `.ghost() .outline() .primary() .danger()`, plus `.small() .icon() .trailing() .label() .tint() .selected() .disabled()`    |
 | `Card`                                                                  | artwork + title + eyebrow + meta row/tile. `.art()` for tile mode, `.circle()`, `.loading()`, `.trailing()`, `.explicit()`, `.press()` |
 | `Artwork`                                                               | cover images with skeleton loading and a music-note fallback                                                                           |
 | `Skeleton`, `Initials`                                                  | pulsing loading placeholder; avatar initials                                                                                           |
@@ -184,10 +184,10 @@ renderers), `crates/views/src/chrome/` (chrome). Extend what's there — add a b
 Also available: `Input` (`input` crate — full text editing, IME, selection, clipboard) and
 `Link` (`router` — makes a `Stateful<Div>` navigate on click).
 
-### `views/src/cells.rs` — grid cell renderers
+### `views/src/shared/cells.rs` — grid cell renderers
 
 `index` (play/pause/now-playing transport with hover preload), `artists`, `link`, `text`, `dim`,
-`title`, `artwork`, `blank`, `transport`, `toggle`, `artist_links`. Reuse these in any new
+`title`, `artwork`, `avatar`, `blank`, `transport`, `toggle`, `artist_links`. Reuse these in any new
 `GridSource::cell`.
 
 ### Element conventions
@@ -240,7 +240,7 @@ theme.metrics.row / .header / .pad / .inset / .control / .field
 - Every metric scales off the user's font size (`Metrics::new(base)`), so **never** hardcode a
   height for a row, control, or bar — read it from `theme.metrics`.
 - A literal `px(…)` is acceptable only for a local, non-scaling detail, declared as a `const` at
-  module top (see `NUMBER`, `DATE` in `views/src/cells.rs`). Responsive thresholds are **not** a
+  module top (see `NUMBER`, `DATE` in `views/src/shared/cells.rs`). Responsive thresholds are **not** a
   local detail — see [Breakpoints and content width](#breakpoints-and-content-width).
 - Adding a color token means adding it to `Theme`, to every `Theme::*()` constructor, to
   `ThemeOverrides`, and to the `apply_color!` list — all four, or overrides break.
@@ -322,13 +322,13 @@ Rules:
 - **Measure against `Chrome::content`, never `window.viewport_size().width`.** A raw viewport width
   ignores both side panels, so tables overflow under the right sidebar and grids pick a column count
   that does not fit. Raw viewport width is legitimate in exactly two places: chrome that spans the
-  whole window (`PlayerBar`, `TitleBar`, and `Menu`'s submenu flip), and a side panel deciding *its
-  own* size. `Chrome::content` would be circular for a panel, because the panel is a term in it.
+  whole window (`PlayerBar`, `TitleBar`, and `Menu`'s submenu flip), and a side panel deciding _its
+  own_ size. `Chrome::content` would be circular for a panel, because the panel is a term in it.
 - **One panel never sets another's width.** Each clamps itself against the viewport through
   `chrome::cap`, so neither can squeeze content below `ui::MIN_CONTENT` on its own, and neither
   panel's size is ever a function of the other's.
 - **Hiding is a different question from sizing, and it does look at both panels.** `SidebarLeft`
-  auto-hides once the room left for content — viewport minus its own width *and*
+  auto-hides once the room left for content — viewport minus its own width _and_
   `Chrome::sidebar_right` — drops below `Room::Wide`, so opening the queue pushes it out of the way
   without resizing it. It reads last frame's publish, which cannot loop: the decision changes
   visibility, never width. `SidebarRight` decides its own takeover from the viewport alone.
@@ -336,11 +336,11 @@ Rules:
   the user last chose, so its drag ceiling then comes from the viewport alone — an overlay takes no
   content space, so capping it against content room would only disable resizing.
 - **A panel's width changes only when the user drags it.** `chrome::cap` feeds `Panel::reach`, which
-  bounds the *drag*, not the render — narrowing the window must never silently shrink a panel the
+  bounds the _drag_, not the render — narrowing the window must never silently shrink a panel the
   user sized. `Panel::limits` stays the static floor and ceiling.
 - `Workspace::render` publishes the widths every frame via `Chrome::publish`; it notifies only when
   a width actually changed, so it cannot loop.
-- **`Chrome` is only current after that publish.** `Workspace` renders *before* it and owns both
+- **`Chrome` is only current after that publish.** `Workspace` renders _before_ it and owns both
   panels, so it reads them directly; everything it renders into — content views and both panels —
   sees this frame's values.
 - **A view whose layout depends on width must observe the chrome**, or it will not repaint when a
@@ -402,24 +402,24 @@ returning protobuf or JSON. Consequences:
 
 `crates/music/src/lib.rs` holds the provider traits (`MusicApi`, `MusicProvider`, `Player`,
 `PlaybackFactory`, `PlaybackEvents`) and `models.rs` the shared models (`Track`, `Album`,
-`AlbumDetail`, `Artist`, `ArtistRef`, `Playlist`, `UserProfile`, …). Under `src/spotify/`:
+`AlbumDetail`, `Artist`, `ArtistRef`, `SavedArtist`, `Playlist`, `UserProfile`, …). Under `src/spotify/`:
 
-| Module                    | Endpoint / mechanism                                                              |
-| ------------------------- | --------------------------------------------------------------------------------- |
-| `mod.rs`                  | `SpotifyProvider`: implements `MusicProvider`, wires client + playback factory    |
-| `auth.rs`                 | OAuth login, credential cache, `restore` / `login` / `forget`                     |
-| `client.rs`               | `LibrespotClient`, the `MusicApi` implementation                                  |
-| `collection.rs`           | saved tracks; `metadata()` — batched `get_extended_metadata` (TRACK_V4)           |
-| `collection2.rs`          | `/collection/v2/paging` — hand-rolled protobuf, paged, honors tombstones          |
-| `albums.rs`, `artists.rs` | extended metadata for albums/artists, artist portraits                            |
-| `pathfinder.rs`, `pathfinder/` | GraphQL `api-partner…/pathfinder/v2/query`: album, artist overview, playcounts |
-| `playlists.rs`            | `get_playlist` → `SelectedListContent` → uri list → `collection::metadata`        |
-| `search.rs`               | `get_context("spotify:search:…")` → track uris → `collection::metadata`           |
-| `radio.rs`                | `get_radio_for_track` → a generated playlist id → `playlist_tracks`               |
-| `profiles.rs`             | display-name lookups, fanned out over a `JoinSet`                                 |
-| `wire.rs`                 | protobuf → `models` conversion, `image_url` (file id → `i.scdn.co/image/<hex>`)   |
-| `pb.rs`                   | minimal protobuf `Reader`/`Writer` for endpoints with no generated schema         |
-| `playback.rs`, `sink.rs`  | librespot playback engine + custom rodio sink (see [Audio](#audio))               |
+| Module                         | Endpoint / mechanism                                                            |
+| ------------------------------ | ------------------------------------------------------------------------------- |
+| `mod.rs`                       | `SpotifyProvider`: implements `MusicProvider`, wires client + playback factory  |
+| `auth.rs`                      | OAuth login, credential cache, `restore` / `login` / `forget`                   |
+| `client.rs`                    | `LibrespotClient`, the `MusicApi` implementation                                |
+| `collection.rs`                | saved tracks; `metadata()` — batched `get_extended_metadata` (TRACK_V4)         |
+| `collection2.rs`               | `/collection/v2/paging` — hand-rolled protobuf, paged, honors tombstones        |
+| `albums.rs`, `artists.rs`      | extended metadata for albums/artists, artist portraits                          |
+| `pathfinder.rs`, `pathfinder/` | GraphQL `api-partner…/pathfinder/v2/query`: album, artist overview, playcounts  |
+| `playlists.rs`                 | `get_playlist` → `SelectedListContent` → uri list → `collection::metadata`      |
+| `search.rs`                    | `get_context("spotify:search:…")` → track uris → `collection::metadata`         |
+| `radio.rs`                     | `get_radio_for_track` → a generated playlist id → `playlist_tracks`             |
+| `profiles.rs`                  | display-name lookups, fanned out over a `JoinSet`                               |
+| `wire.rs`                      | protobuf → `models` conversion, `image_url` (file id → `i.scdn.co/image/<hex>`) |
+| `pb.rs`                        | minimal protobuf `Reader`/`Writer` for endpoints with no generated schema       |
+| `playback.rs`, `sink.rs`       | librespot playback engine + custom rodio sink (see [Audio](#audio))             |
 
 Working notes:
 
@@ -433,6 +433,12 @@ Working notes:
   `LibrespotClient` by delegating to a focused module. The trait exists so `state` depends on an
   interface, not on librespot directly — a second provider (`music::youtube`) implements the same
   trait.
+- **The collection has more than one set.** `collection2::saved_items`/`set_saved` take the set name:
+  `COLLECTION` holds saved tracks and albums, `ARTISTS` ("artist") holds followed artists. Reading the
+  artist set is confirmed against the live API; if it ever comes back empty, `artists::followed`
+  falls back to scanning `COLLECTION` for `spotify:artist:` uris. The follow *write* path shares the
+  same set name but has not been exercised against a live account — a failure surfaces as
+  `library: cannot update the followed artist`.
 - Errors use `anyhow` with `.context("cannot …")` in lowercase.
 
 ### Audio
@@ -454,8 +460,8 @@ an `Unavailable` track.
 | Entity                                     | Responsibility                                                                                                                                          |
 | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Session`                                  | auth lifecycle; emits `SessionEvent::{SignedIn, SignedOut}`; hands out `Arc<dyn MusicApi>` and `Arc<dyn PlaybackFactory>`                               |
-| `Library`                                  | saved tracks / playlists / albums; `LibraryState` is `Empty \| Loading \| Ready{..,problems} \| Failed` — partial failure is normal, surface `problems` |
-| `Playback`                                 | engine ownership, transport, shuffle/repeat, volume, `Origin` tracking                                                                                  |
+| `Library`                                  | saved tracks / playlists / albums / followed artists; `LibraryState` is `Empty \| Loading \| Ready{..,problems} \| Failed` — partial failure is normal, surface `problems` |
+| `Playback`                                 | engine ownership, transport, shuffle/repeat, volume, `Origin` tracking, `toggle_origin`                                                                                  |
 | `Queue`                                    | past / current / upcoming; `start`, `next`, `next_random`, `previous`, `rewind`                                                                         |
 | `Home`, `Detail`, `ArtistDetail`, `Search` | per-screen loaders, each owning its `Task`                                                                                                              |
 | `AppSettings`                              | debounced JSON persistence                                                                                                                              |
@@ -470,6 +476,20 @@ caches Spotify data, subscribe to `Session` and clear on `SignedOut`.
 clickable region, use the `Link` trait (`div().id(..).link(Destination::Album(id))`) instead of a
 manual click handler.
 
+`router::Screen` is the separate, user-pickable list of launch screens (home, search and every
+library tab); it maps to a `Destination` through `Screen::destination` and is stored by id in
+`settings.json` as `startup`. `sonora/src/main.rs` resolves it at boot, and a link on the command
+line still wins over it.
+
+**Sidebar sections are derived, not remembered.** `SidebarLeft` expands Your Library or Settings from
+the current route (`expanded(&Destination)` in `sidebar_left.rs`), so every way of leaving — sidebar,
+a card, back/forward, an external `spotify:` link — collapses the group. A manual chevron toggle only
+survives until the next route change. Don't reintroduce per-event bookkeeping for this.
+
+**`LibraryTab::Local` is labelled "Imported".** The enum variant, the `local-songs`/`local-albums`
+settings keys and the `nav-local` i18n key all keep the old name so stored layouts survive; only the
+translations say Imported. Rename the value, not the key.
+
 **Shells.** `crates/views/src/shells/` holds the two top-level layouts, `Workspace` and
 `FullscreenView`; `Root` swaps between them. A shell owns its own chrome — `Workspace` builds both
 sidebars and the player bar — and answers for its title bar through the `shells::Shell` trait
@@ -479,6 +499,12 @@ asks the active shell; it never reaches into a panel.
 **New screen checklist:** add a `Destination` variant → add a state entity if it loads data → add
 the view under `crates/views/src/` → construct it in `Root::new` and wire it in `Root::show` →
 add a sidebar entry in `views/src/chrome/sidebar_left.rs` if it's top-level.
+
+**New library section checklist:** `LibraryView` keeps one `GridState` per `Section`, and the
+fixed-size arrays (`views`, `sliders`, `Section::ALL`, `tables()`) are all indexed by
+`Section::slot()` — a new section means bumping every one of them, plus a `LibraryTab` variant, a
+`key()` for settings persistence, a `vacancy()` i18n key, a card renderer, a `deck` arm and a
+`LIBRARY_TABS` entry. `library/artists.rs` is the smallest complete example.
 
 **Tables.** Implement `GridSource` (`columns`, `rows`, `cell`, and optionally `compare`, `matches`,
 `playing`, `is_loading`), define a `&'static [ColumnSpec<Field>]`, hold a
@@ -537,7 +563,7 @@ distributing unlicensed code.
 - `anyhow::Result` at boundaries, `.context("cannot …")` lowercase; log with `log::warn!`/`error!`
   prefixed by subsystem (`"playback: …"`, `"settings: …"`, `"assets: …"`).
 - Tests are `#[cfg(test)] mod tests` at the bottom of the file they cover — see
-  `music/src/spotify/{collection2,radio,search}.rs` and `input/src/text.rs`. They're pure-function tests;
+  `music/src/spotify/{collection2,radio,search}.rs` and `ui/src/input/mod.rs`. They're pure-function tests;
   there is no UI or network test harness.
 - Dependencies go in the root `[workspace.dependencies]`, then `dep.workspace = true` in the crate.
   `gpui`/`gpui_platform` are pinned to one git rev — bump both together or the build breaks.
@@ -545,7 +571,8 @@ distributing unlicensed code.
 ## Commits
 
 Conventional Commits: `type(scope): description`, imperative, lowercase, no trailing period, no body.
-Scopes in use: `player`, `playback`, `views`, `ui`. Never add a `Co-Authored-By` trailer or any
+Scopes in use: `views`, `ui`, `music`, `state`, `playback`, `player`, `settings`, `router`, `local`,
+`sonora`, `nix`. Never add a `Co-Authored-By` trailer or any
 assistant attribution.
 
 ## Pull requests
