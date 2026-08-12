@@ -24,8 +24,8 @@ use state::{AppSettings, Library, LibraryState, Origin, Playback, PlaybackState,
 use ui::{
     ActiveTheme as _, Button, Card, Deck, FlagAxis, GridDelegate, GridEvent, GridSource, GridState,
     LEADING, Menu, MenuItem, Mode, Pin, PinKind, Pinnable, Popovers, Popup, RangeAxis, Scrollbar,
-    Scroller, Sort, SortAxis, Text, Toggle, Unit, Viewport, clock, grid, heading, scrolled,
-    snapped, vacant,
+    Scroller, Sort, SortAxis, Text, Toggle, Unit, Viewport, clock, grid, heading, quantize,
+    scrolled, snapped, vacant,
 };
 
 use crate::shared::album_grid::{AlbumGrid, CardGrid};
@@ -431,6 +431,7 @@ impl LibraryView {
     }
 
     fn viewport(scroll: &ScrollHandle, window: &Window) -> Viewport {
+        quantize(scroll, window);
         let visible = scroll.bounds().size.height;
 
         Viewport {

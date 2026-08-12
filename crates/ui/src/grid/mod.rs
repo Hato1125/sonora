@@ -846,7 +846,7 @@ impl<S: GridSource> GridState<S> {
 fn grip<S: GridSource>(ix: usize, edge: Pixels, cx: &mut Context<GridState<S>>) -> Stateful<Div> {
     div()
         .id(("grip", ix))
-        .occlude()
+        .block_mouse_except_scroll()
         .absolute()
         .top_0()
         .bottom_0()
@@ -915,7 +915,7 @@ impl<S: GridSource> Render for GridState<S> {
         let row = snapped(metrics.row, window);
         let head = snapped(metrics.header, window);
         let height = self.height(head, row);
-        let pinned = self.viewport.top.clamp(Pixels::ZERO, height - head);
+        let pinned = snapped(self.viewport.top.clamp(Pixels::ZERO, height - head), window);
         let top = unpinned(self.corners, pinned);
         let context_menu = self.context_menu.and_then(|(row, position)| {
             let visible = self.delegate.visible();
@@ -949,7 +949,7 @@ impl<S: GridSource> Render for GridState<S> {
             .children(self.rows(head, row, cx))
             .child(
                 div()
-                    .occlude()
+                    .block_mouse_except_scroll()
                     .absolute()
                     .top(pinned)
                     .left_0()

@@ -67,7 +67,7 @@ pub use panel::{Panel, Side};
 pub use pin::{DraggedPin, Pin, PinKind, Pinnable, Spot};
 pub use popover::{Popover, Popovers};
 pub use popup::Popup;
-pub use scrollbar::{Scrollbar, scrolled};
+pub use scrollbar::{Scrollbar, quantize, scrolled};
 pub use scroller::Scroller;
 pub use scrubber::{Scrubber, ScrubberState};
 pub use separator::Separator;
