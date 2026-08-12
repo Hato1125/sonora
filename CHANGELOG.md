@@ -7,6 +7,31 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Importing a YouTube Music session, or pasting cookies, now asks which Google account to use when
+  the session is signed in to more than one, and Sonora stays on the account that was picked.
+- The "Paste cookies manually" dialog spells out where the value comes from — which request to open
+  in the developer tools, which header to copy, and which cookies the value has to carry.
+
+### Changed
+
+- Importing a browser session is limited to Firefox-based browsers, which the login screen now says
+  under the button. Chrome, Edge, Brave and the other Chromium browsers are no longer offered;
+  paste the cookies manually to sign in from one of those.
+- Connecting a service from the settings now happens there: the cookie dialog, the browser and
+  account pickers and a cancel button all appear in Manage accounts, and a failed attempt reports
+  the reason on that service's card.
+
+### Fixed
+
+- Connecting a service from the settings no longer throws you onto the login screen, and a failure
+  no longer signs you out of the service you were already using.
+- Waiting for a browser authorization can be cancelled instead of leaving the app stuck until it is
+  restarted, and cancelling now shuts the callback server down. Signing in again used to fail with
+  "Address already in use" until Sonora was restarted.
+- Cancelling a sign-in no longer flashes the empty library behind the login screen.
+
 ## [0.9.0] - 2026-08-11
 
 ### Added

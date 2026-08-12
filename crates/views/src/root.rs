@@ -59,6 +59,7 @@ pub struct Root {
     title_bar: Entity<TitleBar>,
     shells: Shells,
     view: RootView,
+    signing_in: bool,
     toolbar: Option<Entity<Toolbar>>,
     pending: Option<Focus>,
     screens: Screens,
@@ -146,6 +147,7 @@ impl Root {
                 fullscreen,
             },
             view: RootView::Workspace,
+            signing_in: false,
             toolbar: None,
             pending: None,
             screens: Screens {
@@ -351,11 +353,11 @@ impl Root {
 impl Render for Root {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let show_sign_in = match self.session.read(cx).state() {
-            SessionState::SignedOut | SessionState::Failed(_) | SessionState::Authorizing(_) => {
-                true
-            }
+            SessionState::SignedOut | SessionState::Failed(_) => true,
             SessionState::Restoring | SessionState::SignedIn(_) => false,
+            SessionState::Authorizing(_) => self.signing_in,
         };
+        self.signing_in = show_sign_in;
 
         match self.pending.take() {
             Some(Focus::Search) => self
