@@ -146,9 +146,11 @@ jobs:
           mkdir -p dist staging
           cp -R Sonora.app staging/
           ln -s /Applications staging/Applications
+          megabytes=$(du -ms staging | cut -f1)
           hdiutil create \
             -volname Sonora \
             -srcfolder staging \
+            -size "$((megabytes + 128))m" \
             -ov -format UDZO \
             "dist/sonora-$VERSION-macos.dmg"
 
