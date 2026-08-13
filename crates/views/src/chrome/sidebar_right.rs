@@ -4,8 +4,8 @@ use gpui::prelude::*;
 
 use gpui::{
     Context, DragMoveEvent, Entity, FontWeight, MouseButton, MouseDownEvent, Pixels, Point, Render,
-    ScrollHandle, ScrollStrategy, SharedString, UniformListScrollHandle, Window, div, px,
-    uniform_list,
+    ScrollHandle, ScrollStrategy, ScrollWheelEvent, SharedString, UniformListScrollHandle, Window,
+    div, px, uniform_list,
 };
 use i18n::t;
 use music::Track;
@@ -808,6 +808,7 @@ impl Render for SidebarRight {
         }
 
         let theme = *cx.theme();
+        self.scrollbar.read(cx).sync();
         let queue = self.queue.read(cx);
         let sections = Sections {
             past: queue.past().len(),
@@ -858,6 +859,8 @@ impl Render for SidebarRight {
                         this.child(vacant(t!("queue-empty"), cx).flex_1())
                     })
                     .when(self.tab == SideTab::Queue && !empty, |this| {
+                        let gliding = self.scrollbar.clone();
+
                         this.child(
                             div()
                                 .relative()
@@ -868,7 +871,15 @@ impl Render for SidebarRight {
                                         .px_2()
                                         .pb_2()
                                         .track_scroll(&self.scroll)
-                                        .size_full(),
+                                        .size_full()
+                                        .on_scroll_wheel(
+                                            move |event: &ScrollWheelEvent, window, cx| {
+                                                if event.delta.precise() {
+                                                    return;
+                                                }
+                                                gliding.update(cx, |bar, _| bar.nudge(window));
+                                            },
+                                        ),
                                 )
                                 .child(self.scrollbar.clone()),
                         )
