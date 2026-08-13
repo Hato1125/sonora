@@ -9,6 +9,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Switching music service, or signing out, now clears the queue, the history and the current track,
+  so nothing from one service is left sitting in the player when you move to another. Music from
+  your imported folder keeps playing.
 - YouTube tracks that refused to play now do. When YouTube turns down the quick route, Sonora
   works out the stream signature itself and plays the track anyway, often at a higher bitrate.
 

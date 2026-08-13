@@ -3,9 +3,34 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use gpui::{Context, Entity};
 use music::Track;
 
-use crate::AppSettings;
+use crate::{AppSettings, Session, SessionEvent};
 
 const PAST_LIMIT: usize = 500;
+
+fn local(track: &Track) -> bool {
+    track.id.as_deref().is_some_and(music::is_local_id)
+}
+
+fn sift<T>(
+    past: &mut Vec<T>,
+    current: &mut Option<T>,
+    upcoming: &mut VecDeque<T>,
+    source: &mut Vec<T>,
+    keep: impl Fn(&T) -> bool,
+) -> bool {
+    let tally = |past: &Vec<T>, current: &Option<T>, upcoming: &VecDeque<T>, source: &Vec<T>| {
+        past.len() + usize::from(current.is_some()) + upcoming.len() + source.len()
+    };
+
+    let before = tally(past, current, upcoming, source);
+    past.retain(&keep);
+    if current.as_ref().is_some_and(|item| !keep(item)) {
+        *current = None;
+    }
+    upcoming.retain(&keep);
+    source.retain(&keep);
+    before != tally(past, current, upcoming, source)
+}
 
 fn scramble(upcoming: &mut VecDeque<Track>) {
     let mut tracks: Vec<Track> = upcoming.drain(..).collect();
@@ -112,7 +137,17 @@ pub struct Queue {
 }
 
 impl Queue {
-    pub fn new(settings: Entity<AppSettings>, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        session: Entity<Session>,
+        settings: Entity<AppSettings>,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        cx.subscribe(&session, |this, _, event, cx| match event {
+            SessionEvent::SignedOut => this.purge(cx),
+            SessionEvent::SignedIn | SessionEvent::LocalChanged => {}
+        })
+        .detach();
+
         let shuffle = settings.read(cx).shuffle();
 
         Self {
@@ -155,6 +190,22 @@ impl Queue {
         trim(&mut self.past, PAST_LIMIT);
         self.revision = self.revision.wrapping_add(1);
         cx.notify();
+    }
+
+    fn purge(&mut self, cx: &mut Context<Self>) {
+        let suggested = self.similar > 0;
+        self.upcoming.truncate(self.queued());
+        self.similar = 0;
+        let sifted = sift(
+            &mut self.past,
+            &mut self.current,
+            &mut self.upcoming,
+            &mut self.source,
+            local,
+        );
+        if suggested || sifted {
+            self.changed(cx);
+        }
     }
 
     pub fn revision(&self) -> u64 {
@@ -409,7 +460,8 @@ mod tests {
     use music::Track;
 
     use super::{
-        gap_target, in_order, move_item, restore, scramble, select_past, select_upcoming, trim,
+        gap_target, in_order, local, move_item, restore, scramble, select_past, select_upcoming,
+        sift, trim,
     };
 
     fn track(id: &str) -> Track {
@@ -600,6 +652,85 @@ mod tests {
         let to = gap_target(1, 2, items.len());
         assert!(!move_item(&mut items, 1, to));
         assert_eq!(items, [4, 2, 3, 1]);
+    }
+
+    #[test]
+    fn sifting_keeps_only_what_is_wanted() {
+        let mut past = vec![1, 2, 3];
+        let mut current = Some(4);
+        let mut upcoming = VecDeque::from([5, 6]);
+        let mut source = vec![1, 2, 3, 4, 5, 6];
+
+        assert!(sift(
+            &mut past,
+            &mut current,
+            &mut upcoming,
+            &mut source,
+            |item| item % 2 == 0
+        ));
+        assert_eq!(past, [2]);
+        assert_eq!(current, Some(4));
+        assert_eq!(upcoming, [6]);
+        assert_eq!(source, [2, 4, 6]);
+    }
+
+    #[test]
+    fn sifting_reports_an_untouched_queue() {
+        let mut past = vec![1];
+        let mut current = Some(2);
+        let mut upcoming = VecDeque::from([3]);
+        let mut source = vec![1, 2, 3];
+
+        assert!(!sift(
+            &mut past,
+            &mut current,
+            &mut upcoming,
+            &mut source,
+            |_| true
+        ));
+        assert_eq!(past, [1]);
+        assert_eq!(current, Some(2));
+        assert_eq!(upcoming, [3]);
+    }
+
+    #[test]
+    fn signing_out_leaves_only_imported_tracks() {
+        let imported = format!("{}song.flac", music::LOCAL_TRACK_PREFIX);
+        let mut past = vec![track("streamed"), track(&imported)];
+        let mut current = Some(track("playing"));
+        let mut upcoming = VecDeque::from([track("next"), track(&imported)]);
+        let mut source = vec![track("streamed"), track(&imported)];
+
+        assert!(sift(
+            &mut past,
+            &mut current,
+            &mut upcoming,
+            &mut source,
+            local
+        ));
+        assert_eq!(past.len(), 1);
+        assert!(current.is_none());
+        assert_eq!(upcoming.len(), 1);
+        assert_eq!(source.len(), 1);
+        assert!(past.iter().chain(&source).all(local));
+    }
+
+    #[test]
+    fn an_imported_track_outlives_the_session() {
+        let imported = format!("{}song.flac", music::LOCAL_TRACK_PREFIX);
+        let mut past = Vec::new();
+        let mut current = Some(track(&imported));
+        let mut upcoming = VecDeque::new();
+        let mut source = Vec::new();
+
+        assert!(!sift(
+            &mut past,
+            &mut current,
+            &mut upcoming,
+            &mut source,
+            local
+        ));
+        assert!(current.is_some());
     }
 
     #[test]

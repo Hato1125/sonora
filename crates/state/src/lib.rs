@@ -99,7 +99,7 @@ pub fn init(
     let session =
         cx.new(|cx| Session::new(providers, local_provider, settings.clone(), io.clone(), cx));
     let library = cx.new(|cx| Library::new(session.clone(), io.clone(), cx));
-    let queue = cx.new(|cx| Queue::new(settings.clone(), cx));
+    let queue = cx.new(|cx| Queue::new(session.clone(), settings.clone(), cx));
     let playback = cx.new(|cx| Playback::new(session.clone(), queue.clone(), settings.clone(), cx));
     let lyrics = cx.new(|cx| Lyrics::new(playback.clone(), lyrics_providers, io, cx));
 
