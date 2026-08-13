@@ -15,12 +15,29 @@ const BAR: Pixels = px(2.);
 const GRAPH: Pixels = px(40.);
 const FLOOR: f32 = 0.05;
 
+#[derive(Clone, Copy, Default, PartialEq)]
+enum Corner {
+    #[default]
+    Right,
+    Left,
+}
+
+impl Corner {
+    fn other(self) -> Self {
+        match self {
+            Self::Right => Self::Left,
+            Self::Left => Self::Right,
+        }
+    }
+}
+
 #[derive(Default)]
 struct Frames {
     opened: Option<Instant>,
     closed: Option<Instant>,
     costs: VecDeque<(Instant, f32)>,
     gaps: VecDeque<f32>,
+    corner: Corner,
 }
 
 #[derive(Clone, Default)]
@@ -63,6 +80,15 @@ impl FrameStats {
         while frames.costs.len() > SAMPLES {
             frames.costs.pop_front();
         }
+    }
+
+    fn dodge(&self) {
+        let mut frames = self.0.borrow_mut();
+        frames.corner = frames.corner.other();
+    }
+
+    fn corner(&self) -> Corner {
+        self.0.borrow().corner
     }
 
     fn read(&self) -> Reading {
@@ -119,11 +145,24 @@ impl RenderOnce for Stats {
             false => reading.worst.max(1.),
         };
         let over = |cost: f32| reading.budget > 0. && cost > reading.budget;
+        let corner = self.stats.corner();
+        let dodge = self.stats.clone();
 
         div()
+            .id("frame-stats")
             .absolute()
             .top(theme.metrics.pad)
-            .right(theme.metrics.pad)
+            .when_else(
+                corner == Corner::Right,
+                |this| this.right(theme.metrics.pad),
+                |this| this.left(theme.metrics.pad),
+            )
+            .on_hover(move |hovered, window, _| {
+                if *hovered {
+                    dodge.dodge();
+                    window.refresh();
+                }
+            })
             .flex()
             .flex_col()
             .gap_1()
