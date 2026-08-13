@@ -7,6 +7,7 @@ mod shells;
 pub use root::Root;
 use screens::artist::ArtistView;
 use screens::detail::DetailView;
+use screens::genre::GenreView;
 use screens::home::HomeView;
 pub use screens::library::LibraryView;
 use screens::library::LocalView;

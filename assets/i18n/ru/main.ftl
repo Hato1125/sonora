@@ -215,6 +215,9 @@ home-quick-picks-empty = Добавьте несколько треков, и о
 
 # search page
 search-placeholder = Что хотите послушать?
+search-browse = Всё подряд
+genre-eyebrow = Жанр
+genre-empty = Здесь пока пусто
 search-best-match = Лучшее совпадение
 search-no-matches = Ничего не найдено
 search-results = Результаты

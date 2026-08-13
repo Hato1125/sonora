@@ -101,6 +101,35 @@ pub struct AlbumDetail {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Genre {
+    pub id: String,
+    pub name: String,
+    pub cover: Option<String>,
+    pub color: Option<u32>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum GenreItem {
+    Playlist(Playlist),
+    Album(Album),
+    Genre(Genre),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GenreSection {
+    pub title: String,
+    pub items: Vec<GenreItem>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct GenreDetail {
+    pub name: String,
+    pub cover: Option<String>,
+    pub color: Option<u32>,
+    pub sections: Vec<GenreSection>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PlaylistDetail {
     pub playlist: Playlist,
     pub tracks: Vec<Track>,

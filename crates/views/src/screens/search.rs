@@ -10,13 +10,15 @@ use ui::Input;
 
 use crate::chrome::Chrome;
 use crate::shared::menu::ItemMenu;
-use state::{Hit, Kind, Playback, Search};
+use state::{Genres, Hit, Kind, Playback, Search};
 use ui::ActiveTheme as _;
 use ui::{
     Card, Pin, PinKind, Pinnable, Popup, Room, Scrollbar, Scroller, Separator, Text, Theme, VAST,
     clock, eyebrow, vacant,
 };
 
+use crate::screens::genre;
+use crate::shared::album_grid::CardGrid;
 use crate::shared::cells;
 use crate::shared::tracks::{PlaybackStatus, playback_status};
 
@@ -29,12 +31,14 @@ enum Press {
 pub(crate) struct SearchView {
     input: Entity<Input>,
     search: Entity<Search>,
+    genres: Entity<Genres>,
     playback: Entity<Playback>,
     playback_status: PlaybackStatus,
     songs: Entity<Scrollbar>,
     artists: Entity<Scrollbar>,
     albums: Entity<Scrollbar>,
     mixed: Entity<Scrollbar>,
+    browsing: Entity<Scrollbar>,
     track_menu: ItemMenu,
     context_menu: Option<(Track, Point<Pixels>)>,
 }
@@ -42,9 +46,12 @@ pub(crate) struct SearchView {
 impl SearchView {
     pub(crate) fn new(
         search: Entity<Search>,
+        genres: Entity<Genres>,
         playback: Entity<Playback>,
         cx: &mut Context<Self>,
     ) -> Self {
+        cx.observe(&genres, |_, _, cx| cx.notify()).detach();
+        genres.update(cx, |genres, cx| genres.load(cx));
         let input = cx.new(|cx| Input::new("search-placeholder", cx).icon("icons/search.svg"));
 
         cx.observe(&input, |this, input, cx| {
@@ -83,12 +90,14 @@ impl SearchView {
         Self {
             input,
             search,
+            genres,
             playback,
             playback_status: current_playback,
             songs: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
             artists: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
             albums: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
             mixed: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
+            browsing: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
             track_menu: ItemMenu::new(playlist_scrollbar),
             context_menu: None,
         }
@@ -396,6 +405,39 @@ impl SearchView {
         self.section(id, bar, title, rows, cx)
     }
 
+    fn browse(&self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+        let genres = self.genres.read(cx);
+        let error = genres.error().map(str::to_owned);
+        let theme = *cx.theme();
+        let pad = theme.metrics.inset;
+        let width = cells::content_width(window, pad * 2., cx);
+        let layout = CardGrid::layout(width);
+        let tiles: Vec<AnyElement> = genres
+            .genres()
+            .iter()
+            .map(|genre| genre::tile(genre.clone(), layout.card, window, cx))
+            .collect();
+
+        div()
+            .flex()
+            .flex_col()
+            .flex_1()
+            .min_h_0()
+            .gap_3()
+            .child(eyebrow(t!("search-browse"), cx))
+            .children(error.map(|error| {
+                div()
+                    .flex_none()
+                    .text_color(theme.danger)
+                    .child(SharedString::from(error))
+            }))
+            .child(
+                Scroller::new("search-browse", &self.browsing)
+                    .child(div().flex().flex_wrap().w_full().gap_4().children(tiles)),
+            )
+            .into_any_element()
+    }
+
     fn everything(&self, cx: &Context<Self>) -> AnyElement {
         let mut places = [0; 3];
         let rows = self
@@ -488,9 +530,10 @@ impl Render for SearchView {
             ))
         });
 
-        let results = match stacked {
-            true => self.everything(cx),
-            false => div()
+        let results = match (asked, stacked) {
+            (false, _) => self.browse(window, cx),
+            (true, true) => self.everything(cx),
+            (true, false) => div()
                 .flex()
                 .flex_1()
                 .min_h_0()
@@ -509,10 +552,11 @@ impl Render for SearchView {
             .gap_6()
             .px(pad + inset)
             .pt(pad)
+            .pb(pad)
             .child(div().flex().flex_none().child(self.input.clone()))
             .children(self.failure(cx))
             .children(self.best(cx))
-            .when(asked, |this| this.child(results))
+            .child(results)
             .when_some(context_menu, |this, menu| this.child(menu))
     }
 }

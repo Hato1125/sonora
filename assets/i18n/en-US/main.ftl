@@ -214,6 +214,9 @@ home-quick-picks-empty = Like a few songs and they will show up here
 
 # search page
 search-placeholder = What do you want to listen to?
+search-browse = Browse all
+genre-eyebrow = Genre
+genre-empty = Nothing to show here yet
 search-best-match = Best match
 search-no-matches = No matches
 search-results = Results
