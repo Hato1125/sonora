@@ -7,8 +7,8 @@ use music::{Credit, Track};
 use router::{Destination, Link as _};
 use state::{Playback, SongDetail};
 use ui::{
-    ActiveTheme as _, Avatar, Button, Fact, InfoCard, Initials, Pin, PinKind, Scrollbar, Skeleton,
-    Text, clock,
+    ActiveTheme as _, Avatar, Button, Fact, InfoCard, Initials, Pin, PinKind, Scrollbar, Scroller,
+    Skeleton, Text, clock,
 };
 
 use crate::shared::about::{AboutArtist, about_modal};
@@ -449,7 +449,6 @@ impl SongView {
 impl Render for SongView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
-        let scroll = self.scrollbar.read(cx).scroll().clone();
         let (track, error, loading) = {
             let detail = self.detail.read(cx);
             (
@@ -463,11 +462,7 @@ impl Render for SongView {
             .relative()
             .size_full()
             .child(
-                div()
-                    .id("song-page")
-                    .size_full()
-                    .overflow_y_scroll()
-                    .track_scroll(&scroll)
+                Scroller::new("song-page", &self.scrollbar)
                     .px(theme.metrics.inset)
                     .py(theme.metrics.inset)
                     .when(loading && track.is_none(), |this| {
@@ -527,7 +522,6 @@ impl Render for SongView {
                             )
                     }),
             )
-            .child(self.scrollbar.clone())
             .children(self.about_dialog(cx))
     }
 }
