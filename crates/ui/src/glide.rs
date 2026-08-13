@@ -1,9 +1,12 @@
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::time::{Duration, Instant};
 
 use gpui::{Pixels, Point, ScrollHandle, Window, point, px};
 
 const EASE: f32 = 0.12;
+const HERTZ: f32 = 180.;
+const STALL: Duration = Duration::from_millis(64);
 const REST: Pixels = px(0.5);
 
 #[derive(Default)]
@@ -12,6 +15,7 @@ struct Drift {
     target: Point<Pixels>,
     gliding: bool,
     armed: bool,
+    beat: Option<Instant>,
 }
 
 #[derive(Clone, Default)]
@@ -82,16 +86,25 @@ impl Glide {
                 return;
             }
 
+            let now = Instant::now();
+            let elapsed = drift
+                .beat
+                .replace(now)
+                .map(|beat| now.duration_since(beat).min(STALL))
+                .unwrap_or(Duration::from_secs_f32(1. / HERTZ));
+            let ease = 1. - (1. - EASE).powf(elapsed.as_secs_f32() * HERTZ);
+
             let target = held(drift.target, scroll);
             let step = target - drift.shown;
             match step.x.abs() < REST && step.y.abs() < REST {
                 true => {
                     drift.shown = target;
                     drift.gliding = false;
+                    drift.beat = None;
                     target
                 }
                 false => {
-                    drift.shown += point(step.x * EASE, step.y * EASE);
+                    drift.shown += point(step.x * ease, step.y * ease);
                     drift.shown
                 }
             }
