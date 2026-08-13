@@ -69,7 +69,11 @@ impl SearchView {
     ) -> Self {
         cx.observe(&genres, |_, _, cx| cx.notify()).detach();
         genres.update(cx, |genres, cx| genres.load(cx));
-        let input = cx.new(|cx| Input::new("search-placeholder", cx).icon("icons/search.svg"));
+        let input = cx.new(|cx| {
+            Input::new("search-placeholder", cx)
+                .icon("icons/search.svg")
+                .clearable()
+        });
 
         cx.observe(&input, |this, input, cx| {
             let query = input.read(cx).text().to_owned();

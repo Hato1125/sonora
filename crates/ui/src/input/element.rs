@@ -5,6 +5,9 @@ use gpui::{
     UnderlineStyle, Window, div, fill, point, px, relative, size, svg,
 };
 
+use i18n::t;
+
+use crate::button::Button;
 use crate::input::{CARET, CARET_LINES, INPUT_CONTEXT, Input, clamp_offset, clamp_range};
 use crate::theme::ActiveTheme as _;
 
@@ -270,6 +273,18 @@ impl Render for Input {
             })
             .child(Text {
                 input: cx.entity().clone(),
+            })
+            .when(self.clearable && !self.content.is_empty(), |this| {
+                this.child(
+                    Button::new("input-clear")
+                        .icon("icons/x.svg")
+                        .tooltip("common-clear")
+                        .aria_label(t!("common-clear"))
+                        .small()
+                        .ghost()
+                        .px_1()
+                        .on_click(cx.listener(|this, _, window, cx| this.clear(window, cx))),
+                )
             })
     }
 }

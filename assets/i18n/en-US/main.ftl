@@ -15,6 +15,7 @@ common-more = More
 common-previous = Previous
 common-next = Next
 common-dismiss = Dismiss
+common-clear = Clear
 number-group = { "," }
 
 # navigation
