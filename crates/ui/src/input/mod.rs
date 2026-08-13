@@ -156,6 +156,7 @@ pub struct Input {
     hint: SharedString,
     icon: Option<SharedString>,
     compact: bool,
+    clearable: bool,
     content: SharedString,
     selected_range: Range<usize>,
     selection_reversed: bool,
@@ -172,6 +173,7 @@ impl Input {
             hint: hint.into(),
             icon: None,
             compact: false,
+            clearable: false,
             content: SharedString::default(),
             selected_range: 0..0,
             selection_reversed: false,
@@ -189,6 +191,11 @@ impl Input {
 
     pub fn compact(mut self) -> Self {
         self.compact = true;
+        self
+    }
+
+    pub fn clearable(mut self) -> Self {
+        self.clearable = true;
         self
     }
 
@@ -218,6 +225,11 @@ impl Input {
 
     pub fn focus(&self, window: &mut Window, cx: &mut App) {
         window.focus(&self.focus_handle, cx);
+    }
+
+    fn clear(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.set_text("", cx);
+        self.focus(window, cx);
     }
 
     fn cursor(&self) -> usize {

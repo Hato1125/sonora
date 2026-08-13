@@ -40,6 +40,7 @@ impl Toolbar {
             Input::new("common-search", cx)
                 .icon("icons/search.svg")
                 .compact()
+                .clearable()
         });
 
         cx.observe(&input, |this, input, cx| {
