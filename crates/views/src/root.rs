@@ -35,6 +35,7 @@ struct Screens {
     playlist: Option<Entity<DetailView>>,
     playlist_detail: Option<Entity<Detail>>,
     search: Entity<SearchView>,
+    genres: Entity<Genres>,
     genre: Option<Entity<GenreView>>,
     genre_detail: Option<Entity<GenreDetails>>,
     settings: Entity<SettingsView>,
@@ -115,7 +116,7 @@ impl Root {
 
         let queries = cx.new(|cx| Search::new(session.clone(), search_library, io.clone(), cx));
         let genres = cx.new(|cx| Genres::new(session.clone(), io.clone(), cx));
-        let search = cx.new(|cx| SearchView::new(queries, genres, playback.clone(), cx));
+        let search = cx.new(|cx| SearchView::new(queries, genres.clone(), playback.clone(), cx));
 
         let settings = cx.new(|cx| SettingsView::new(session.clone(), playback.clone(), cx));
 
@@ -169,6 +170,7 @@ impl Root {
                 playlist: None,
                 playlist_detail: None,
                 search,
+                genres,
                 genre: None,
                 genre_detail: None,
                 settings,
@@ -196,7 +198,9 @@ impl Root {
             return (view.clone(), detail.clone());
         }
 
-        let detail = cx.new(|cx| GenreDetails::new(self.session.clone(), self.io.clone(), cx));
+        let genres = self.screens.genres.clone();
+        let detail =
+            cx.new(|cx| GenreDetails::new(self.session.clone(), genres, self.io.clone(), cx));
         let view = cx.new(|cx| GenreView::new(detail.clone(), self.playback.clone(), cx));
         self.screens.genre = Some(view.clone());
         self.screens.genre_detail = Some(detail.clone());

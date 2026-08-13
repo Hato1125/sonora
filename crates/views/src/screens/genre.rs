@@ -1,6 +1,6 @@
 use gpui::prelude::*;
 use gpui::{
-    AnyElement, App, Context, Entity, FontWeight, Pixels, Render, ScrollHandle, SharedString,
+    AnyElement, App, Context, Entity, FontWeight, Hsla, Pixels, Render, ScrollHandle, SharedString,
     Window, div,
 };
 use i18n::t;
@@ -15,12 +15,14 @@ use ui::{
 use crate::chrome::Chrome;
 use crate::shared::album_grid::CardGrid;
 use crate::shared::cells;
+use crate::shared::tints::Tints;
 
 const TILE: Pixels = gpui::px(220.);
 
 pub(crate) struct GenreView {
     detail: Entity<GenreDetails>,
     playback: Entity<Playback>,
+    tints: Entity<Tints>,
     scrollbar: Entity<Scrollbar>,
 }
 
@@ -34,10 +36,13 @@ impl GenreView {
         cx.observe(&playback, |_, _, cx| cx.notify()).detach();
         let chrome = Chrome::entity(cx);
         cx.observe(&chrome, |_, _, cx| cx.notify()).detach();
+        let tints = cx.new(|_| Tints::default());
+        cx.observe(&tints, |_, _, cx| cx.notify()).detach();
 
         Self {
             detail,
             playback,
+            tints,
             scrollbar: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
         }
     }
@@ -107,33 +112,36 @@ impl GenreView {
             .into_any_element()
     }
 
-    fn sections(
-        &self,
-        width: Pixels,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Vec<AnyElement> {
+    fn sections(&self, width: Pixels, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let layout = CardGrid::layout(width);
-        let detail = self.detail.read(cx);
+        let tiles = CardGrid::tiles(width);
+        let sections = self.detail.read(cx).sections().to_vec();
 
-        detail
-            .sections()
-            .iter()
+        sections
+            .into_iter()
             .enumerate()
             .map(|(place, section)| {
-                let cards = section
+                let genres = section
                     .items
                     .iter()
-                    .take(layout.columns)
+                    .all(|item| matches!(item, GenreItem::Genre(_)));
+                let shape = match genres {
+                    true => tiles,
+                    false => layout,
+                };
+                let cards = section
+                    .items
+                    .into_iter()
+                    .take(shape.columns)
                     .enumerate()
                     .map(|(index, item)| {
                         let id = place * 100 + index;
-                        match item.clone() {
+                        match item {
                             GenreItem::Playlist(playlist) => {
-                                self.playlist_card(id, playlist, layout.card, cx)
+                                self.playlist_card(id, playlist, shape.card, cx)
                             }
-                            GenreItem::Album(album) => self.album_card(id, album, layout.card, cx),
-                            GenreItem::Genre(genre) => tile(genre, layout.card, window, cx),
+                            GenreItem::Album(album) => self.album_card(id, album, shape.card, cx),
+                            GenreItem::Genre(genre) => self.tile(genre, shape.card, cx),
                         }
                     })
                     .collect::<Vec<_>>();
@@ -142,11 +150,31 @@ impl GenreView {
                     .flex()
                     .flex_col()
                     .gap_3()
-                    .child(heading(SharedString::from(section.title.clone()), cx))
-                    .child(CardGrid::new(width).children(cards))
+                    .child(heading(SharedString::from(section.title), cx))
+                    .child(CardGrid::of(shape).children(cards))
                     .into_any_element()
             })
             .collect()
+    }
+
+    pub(crate) fn tile(
+        &self,
+        genre: music::Genre,
+        width: Pixels,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let wash = wash(&self.tints, &genre, cx);
+        let opened = SharedString::from(genre.id);
+
+        Tile::new(
+            SharedString::from(format!("genre-tile-{opened}")),
+            genre.name,
+            width,
+        )
+        .wash(wash)
+        .cover(genre.cover)
+        .press(move |_, _, cx| navigate(Destination::Genre(opened.clone()), cx))
+        .into_any_element()
     }
 }
 
@@ -158,10 +186,9 @@ impl Render for GenreView {
         let detail = self.detail.read(cx);
         let loading = detail.is_loading();
         let title = detail.name().unwrap_or_default().to_owned();
-        let color = detail.color();
         let error = detail.error().map(str::to_owned);
         let empty = !loading && detail.sections().is_empty();
-        let sections = self.sections(width, window, cx);
+        let sections = self.sections(width, cx);
 
         div().flex().flex_col().size_full().child(
             Scroller::new("genre", &self.scrollbar).child(
@@ -180,7 +207,6 @@ impl Render for GenreView {
                                 div()
                                     .text_size(theme.text(Text::Display))
                                     .font_weight(FontWeight::BOLD)
-                                    .when_some(color, |this, color| this.text_color(paint(color)))
                                     .child(SharedString::from(title)),
                             ),
                     )
@@ -197,21 +223,13 @@ impl Render for GenreView {
     }
 }
 
-pub(crate) fn tile(
-    genre: music::Genre,
-    width: Pixels,
-    _window: &mut Window,
-    _cx: &App,
-) -> AnyElement {
-    let opened = SharedString::from(genre.id);
-
-    Tile::new(
-        SharedString::from(format!("genre-tile-{opened}")),
-        genre.name,
-        width,
-    )
-    .wash(genre.color.map(paint))
-    .cover(genre.cover)
-    .press(move |_, _, cx| navigate(Destination::Genre(opened.clone()), cx))
-    .into_any_element()
+pub(crate) fn wash<V: 'static>(
+    tints: &Entity<Tints>,
+    genre: &music::Genre,
+    cx: &mut Context<V>,
+) -> Option<Hsla> {
+    match genre.cover.as_deref() {
+        Some(cover) => tints.update(cx, |tints, cx| tints.of(cover, cx)),
+        None => genre.color.map(paint),
+    }
 }

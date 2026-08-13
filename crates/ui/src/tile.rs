@@ -8,11 +8,12 @@ use crate::artwork::Artwork;
 use crate::metrics::{Text, snapped};
 use crate::theme::ActiveTheme as _;
 
-const RATIO: f32 = 0.56;
-const ART: f32 = 0.42;
-const INSET: Pixels = px(10.);
-const LIFT: Pixels = px(6.);
-const DIM: f32 = 0.7;
+const RATIO: f32 = 0.5;
+const ART: f32 = 0.38;
+const INSET: Pixels = px(14.);
+const LIFT: Pixels = px(8.);
+const DIM: f32 = 0.62;
+const HOVER: f32 = 0.86;
 
 type Press = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 
@@ -99,12 +100,12 @@ impl RenderOnce for Tile {
             .rounded(theme.radius)
             .bg(wash)
             .cursor_pointer()
-            .hover(|style| style.opacity(1.))
+            .hover(|style| style.opacity(HOVER))
             .p(INSET)
             .text_color(ink(wash))
-            .text_size(theme.text(Text::Large))
+            .text_size(theme.text(Text::Body))
             .font_weight(FontWeight::BOLD)
-            .child(div().line_clamp(2).child(title))
+            .child(div().max_w(width - art - INSET).line_clamp(2).child(title))
             .child(
                 div()
                     .absolute()
@@ -112,6 +113,7 @@ impl RenderOnce for Tile {
                     .right(-LIFT)
                     .w(art)
                     .h(art)
+                    .shadow_md()
                     .child(Artwork::new(cover).size(art)),
             )
             .when_some(press, |this, press| {

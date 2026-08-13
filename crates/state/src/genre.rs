@@ -1,5 +1,5 @@
 use gpui::{Context, Entity, Task};
-use music::{Genre, GenreDetail, GenreSection};
+use music::{Genre, GenreDetail, GenreItem, GenreSection};
 use tokio::task::AbortHandle;
 
 use crate::{Io, Session, SessionEvent, join};
@@ -40,6 +40,30 @@ impl Genres {
 
     pub fn genres(&self) -> &[Genre] {
         &self.genres
+    }
+
+    pub fn adopt(&mut self, id: &str, cover: Option<String>, cx: &mut Context<Self>) {
+        let Some(cover) = cover else {
+            return;
+        };
+        let Some(genre) = self
+            .genres
+            .iter_mut()
+            .find(|genre| genre.id == id && genre.cover.is_none())
+        else {
+            return;
+        };
+
+        genre.cover = Some(cover);
+        cx.notify();
+    }
+
+    pub fn forget(&mut self, id: &str, cx: &mut Context<Self>) {
+        let kept = self.genres.len();
+        self.genres.retain(|genre| genre.id != id);
+        if self.genres.len() != kept {
+            cx.notify();
+        }
     }
 
     pub fn is_loading(&self) -> bool {
@@ -85,13 +109,19 @@ pub struct GenreDetails {
     loading: bool,
     error: Option<String>,
     session: Entity<Session>,
+    genres: Entity<Genres>,
     io: Io,
     task: Option<Task<()>>,
     request: Option<AbortHandle>,
 }
 
 impl GenreDetails {
-    pub fn new(session: Entity<Session>, io: Io, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        session: Entity<Session>,
+        genres: Entity<Genres>,
+        io: Io,
+        cx: &mut Context<Self>,
+    ) -> Self {
         cx.subscribe(&session, |this, _, event, cx| match event {
             SessionEvent::SignedIn => {
                 if let Some(id) = this.id.clone() {
@@ -112,6 +142,7 @@ impl GenreDetails {
             loading: false,
             error: None,
             session,
+            genres,
             io,
             task: None,
             request: None,
@@ -120,16 +151,6 @@ impl GenreDetails {
 
     pub fn name(&self) -> Option<&str> {
         self.detail.as_ref().map(|detail| detail.name.as_str())
-    }
-
-    pub fn cover(&self) -> Option<&str> {
-        self.detail
-            .as_ref()
-            .and_then(|detail| detail.cover.as_deref())
-    }
-
-    pub fn color(&self) -> Option<u32> {
-        self.detail.as_ref().and_then(|detail| detail.color)
     }
 
     pub fn sections(&self) -> &[GenreSection] {
@@ -180,7 +201,16 @@ impl GenreDetails {
                 this.loading = false;
                 this.request = None;
                 match loaded {
-                    Ok(detail) => this.detail = Some(detail),
+                    Ok(detail) => {
+                        let cover = pictured(&detail);
+                        let known = id.clone();
+                        this.genres
+                            .update(cx, |genres, cx| match detail.sections.is_empty() {
+                                true => genres.forget(&known, cx),
+                                false => genres.adopt(&known, cover, cx),
+                            });
+                        this.detail = Some(detail);
+                    }
                     Err(error) => this.error = Some(format!("{error:#}")),
                 }
                 cx.notify();
@@ -199,4 +229,19 @@ impl GenreDetails {
         self.loading = false;
         self.error = None;
     }
+}
+
+fn pictured(detail: &GenreDetail) -> Option<String> {
+    let items = || detail.sections.iter().flat_map(|section| &section.items);
+    let album = items().find_map(|item| match item {
+        GenreItem::Album(album) => album.cover.clone(),
+        _ => None,
+    });
+
+    album.or_else(|| {
+        items().find_map(|item| match item {
+            GenreItem::Playlist(playlist) => playlist.cover.clone(),
+            _ => None,
+        })
+    })
 }

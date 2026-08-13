@@ -1,6 +1,6 @@
 use anyhow::{Context as _, Result};
 use librespot_core::Session;
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 
 use super::query;
 use crate::{Album, ArtistRef, Genre, GenreDetail, GenreItem, GenreSection, Playlist, ReleaseType};
@@ -9,6 +9,7 @@ const PAGE_PREFIX: &str = "spotify:page:";
 const PLAYLIST_PREFIX: &str = "spotify:playlist:";
 const ALBUM_PREFIX: &str = "spotify:album:";
 const ARTIST_PREFIX: &str = "spotify:artist:";
+const SHOW_ART: &str = "ab676563";
 const INTEGRATION: &str = "INTEGRATION_WEB_PLAYER";
 const SECTIONS: u32 = 20;
 const ITEMS: u32 = 10;
@@ -28,29 +29,26 @@ struct Page {
 #[derive(Deserialize)]
 struct Container {
     header: Option<Header>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nullable")]
     sections: Sections,
 }
 
 #[derive(Deserialize)]
 struct Header {
     title: Option<Label>,
-    color: Option<Hex>,
-    #[serde(rename = "backgroundImage")]
-    background: Option<Artwork>,
 }
 
 #[derive(Default, Deserialize)]
 struct Sections {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nullable")]
     items: Vec<Section>,
 }
 
 #[derive(Deserialize)]
 struct Section {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nullable")]
     data: SectionData,
-    #[serde(rename = "sectionItems", default)]
+    #[serde(rename = "sectionItems", default, deserialize_with = "nullable")]
     items: Items,
 }
 
@@ -61,13 +59,13 @@ struct SectionData {
 
 #[derive(Default, Deserialize)]
 struct Items {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nullable")]
     items: Vec<Item>,
 }
 
 #[derive(Deserialize)]
 struct Item {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nullable")]
     uri: String,
     content: Option<Content>,
 }
@@ -89,9 +87,9 @@ enum Entity {
 
 #[derive(Deserialize)]
 struct WirePlaylist {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nullable")]
     name: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nullable")]
     images: Images,
     #[serde(rename = "ownerV2")]
     owner: Option<Owner>,
@@ -99,11 +97,11 @@ struct WirePlaylist {
 
 #[derive(Deserialize)]
 struct WireAlbum {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nullable")]
     name: String,
-    #[serde(rename = "coverArt", default)]
+    #[serde(rename = "coverArt", default, deserialize_with = "nullable")]
     cover: Artwork,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nullable")]
     artists: Artists,
 }
 
@@ -121,7 +119,7 @@ struct CardData {
 #[derive(Deserialize)]
 struct Representation {
     title: Option<Label>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nullable")]
     artwork: Artwork,
     #[serde(rename = "backgroundColor")]
     background: Option<Hex>,
@@ -134,38 +132,38 @@ struct Owner {
 
 #[derive(Deserialize)]
 struct OwnerData {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nullable")]
     name: String,
 }
 
 #[derive(Default, Deserialize)]
 struct Artists {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nullable")]
     items: Vec<Artist>,
 }
 
 #[derive(Deserialize)]
 struct Artist {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nullable")]
     uri: String,
     profile: Option<Profile>,
 }
 
 #[derive(Deserialize)]
 struct Profile {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nullable")]
     name: String,
 }
 
 #[derive(Default, Deserialize)]
 struct Images {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nullable")]
     items: Vec<Artwork>,
 }
 
 #[derive(Default, Deserialize)]
 struct Artwork {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nullable")]
     sources: Vec<Source>,
 }
 
@@ -176,14 +174,22 @@ struct Source {
 
 #[derive(Deserialize)]
 struct Label {
-    #[serde(rename = "transformedLabel", default)]
+    #[serde(rename = "transformedLabel", default, deserialize_with = "nullable")]
     label: String,
 }
 
 #[derive(Deserialize)]
 struct Hex {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nullable")]
     hex: String,
+}
+
+fn nullable<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Default + Deserialize<'de>,
+{
+    Ok(Option::deserialize(deserializer)?.unwrap_or_default())
 }
 
 pub(crate) async fn all(session: &Session) -> Result<Vec<Genre>> {
@@ -231,18 +237,9 @@ fn detail(data: Page) -> Result<GenreDetail> {
 
     Ok(GenreDetail {
         name: header
-            .as_ref()
-            .and_then(|header| header.title.as_ref())
-            .map(|title| title.label.clone())
+            .and_then(|header| header.title)
+            .map(|title| title.label)
             .unwrap_or_default(),
-        cover: header
-            .as_ref()
-            .and_then(|header| header.background.as_ref())
-            .and_then(image),
-        color: header
-            .as_ref()
-            .and_then(|header| header.color.as_ref())
-            .and_then(|color| tint(&color.hex)),
         sections: browse
             .sections
             .items
@@ -318,12 +315,21 @@ fn genre(uri: &str, container: WireCard) -> Option<Genre> {
     let id = trimmed(uri, PAGE_PREFIX)?;
     let card = container.data?.card?;
 
+    let cover = image(&card.artwork).filter(|url| !shows(url))?;
+
     Some(Genre {
         id,
         name: card.title.map(|title| title.label).unwrap_or_default(),
-        cover: image(&card.artwork),
+        cover: Some(cover),
         color: card.background.and_then(|color| tint(&color.hex)),
     })
+}
+
+fn shows(cover: &str) -> bool {
+    cover
+        .rsplit('/')
+        .next()
+        .is_some_and(|file| file.starts_with(SHOW_ART))
 }
 
 fn image(artwork: &Artwork) -> Option<String> {

@@ -124,8 +124,6 @@ pub struct GenreSection {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct GenreDetail {
     pub name: String,
-    pub cover: Option<String>,
-    pub color: Option<u32>,
     pub sections: Vec<GenreSection>,
 }
 

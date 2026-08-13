@@ -12,6 +12,8 @@ use ui::{ActiveTheme as _, Card, Pin, PinKind, Pinnable as _, Text};
 
 pub(crate) const CARD_MIN: Pixels = px(130.);
 pub(crate) const CARD_MAX: Pixels = px(190.);
+const TILE_MIN: Pixels = px(210.);
+const TILE_MAX: Pixels = px(310.);
 const CARD_GAP: Pixels = px(32.);
 
 type ContextMenu = Rc<dyn Fn(Album, Point<Pixels>, &mut App)>;
@@ -25,13 +27,15 @@ pub(crate) struct CardLayout {
 
 impl CardLayout {
     fn new(available: Pixels) -> Self {
-        let available = available.max(CARD_MIN);
-        let columns = (((available + CARD_GAP) / (CARD_MIN + CARD_GAP))
-            .floor()
-            .max(1.)) as usize;
+        Self::sized(available, CARD_MIN, CARD_MAX)
+    }
+
+    fn sized(available: Pixels, min: Pixels, max: Pixels) -> Self {
+        let available = available.max(min);
+        let columns = (((available + CARD_GAP) / (min + CARD_GAP)).floor().max(1.)) as usize;
         let count = columns as f32;
         let spread = available - CARD_GAP * (count - 1.);
-        let card = (spread / count).min(CARD_MAX).floor();
+        let card = (spread / count).min(max).floor();
         let gap = match columns > 1 {
             true => ((available - card * count) / (count - 1.)).floor(),
             false => Pixels::ZERO,
@@ -49,14 +53,22 @@ pub(crate) struct CardGrid {
 
 impl CardGrid {
     pub(crate) fn new(available: Pixels) -> Self {
+        Self::of(CardLayout::new(available))
+    }
+
+    pub(crate) fn of(layout: CardLayout) -> Self {
         Self {
-            layout: CardLayout::new(available),
+            layout,
             cards: Vec::new(),
         }
     }
 
     pub(crate) fn layout(available: Pixels) -> CardLayout {
         CardLayout::new(available)
+    }
+
+    pub(crate) fn tiles(available: Pixels) -> CardLayout {
+        CardLayout::sized(available, TILE_MIN, TILE_MAX)
     }
 
     pub(crate) fn children(mut self, cards: impl IntoIterator<Item = AnyElement>) -> Self {
@@ -69,8 +81,10 @@ impl RenderOnce for CardGrid {
     fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
         div()
             .flex()
+            .flex_wrap()
             .w_full()
             .gap_x(self.layout.gap)
+            .gap_y_6()
             .children(self.cards)
     }
 }

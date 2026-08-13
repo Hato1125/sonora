@@ -35,8 +35,6 @@ pub(crate) async fn genre(api: &YtMusic, params: &str) -> Result<GenreDetail> {
         name: answer
             .run_text(&["header", "musicHeaderRenderer", "title"])
             .unwrap_or_default(),
-        cover: None,
-        color: None,
         sections: parse::find_renderers(&answer, "musicCarouselShelfRenderer")
             .into_iter()
             .filter_map(section)

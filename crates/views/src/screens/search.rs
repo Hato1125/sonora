@@ -13,13 +13,14 @@ use crate::shared::menu::ItemMenu;
 use state::{Genres, Hit, Kind, Playback, Search};
 use ui::ActiveTheme as _;
 use ui::{
-    Card, Pin, PinKind, Pinnable, Popup, Room, Scrollbar, Scroller, Separator, Text, Theme, VAST,
-    clock, eyebrow, vacant,
+    Card, Pin, PinKind, Pinnable, Popup, Room, Scrollbar, Scroller, Separator, Text, Theme, Tile,
+    VAST, clock, eyebrow, vacant,
 };
 
 use crate::screens::genre;
 use crate::shared::album_grid::CardGrid;
 use crate::shared::cells;
+use crate::shared::tints::Tints;
 use crate::shared::tracks::{PlaybackStatus, playback_status};
 
 enum Press {
@@ -39,6 +40,7 @@ pub(crate) struct SearchView {
     albums: Entity<Scrollbar>,
     mixed: Entity<Scrollbar>,
     browsing: Entity<Scrollbar>,
+    tints: Entity<Tints>,
     track_menu: ItemMenu,
     context_menu: Option<(Track, Point<Pixels>)>,
 }
@@ -52,6 +54,8 @@ impl SearchView {
     ) -> Self {
         cx.observe(&genres, |_, _, cx| cx.notify()).detach();
         genres.update(cx, |genres, cx| genres.load(cx));
+        let tints = cx.new(|_| Tints::default());
+        cx.observe(&tints, |_, _, cx| cx.notify()).detach();
         let input = cx.new(|cx| Input::new("search-placeholder", cx).icon("icons/search.svg"));
 
         cx.observe(&input, |this, input, cx| {
@@ -98,6 +102,7 @@ impl SearchView {
             albums: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
             mixed: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
             browsing: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
+            tints,
             track_menu: ItemMenu::new(playlist_scrollbar),
             context_menu: None,
         }
@@ -406,16 +411,28 @@ impl SearchView {
     }
 
     fn browse(&self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
-        let genres = self.genres.read(cx);
-        let error = genres.error().map(str::to_owned);
+        let error = self.genres.read(cx).error().map(str::to_owned);
+        let found = self.genres.read(cx).genres().to_vec();
         let theme = *cx.theme();
         let pad = theme.metrics.inset;
         let width = cells::content_width(window, pad * 2., cx);
-        let layout = CardGrid::layout(width);
-        let tiles: Vec<AnyElement> = genres
-            .genres()
-            .iter()
-            .map(|genre| genre::tile(genre.clone(), layout.card, window, cx))
+        let layout = CardGrid::tiles(width);
+        let tiles: Vec<AnyElement> = found
+            .into_iter()
+            .map(|genre| {
+                let wash = genre::wash(&self.tints, &genre, cx);
+                let opened = SharedString::from(genre.id);
+
+                Tile::new(
+                    SharedString::from(format!("genre-{opened}")),
+                    genre.name,
+                    layout.card,
+                )
+                .wash(wash)
+                .cover(genre.cover)
+                .press(move |_, _, cx| navigate(Destination::Genre(opened.clone()), cx))
+                .into_any_element()
+            })
             .collect();
 
         div()
@@ -433,7 +450,7 @@ impl SearchView {
             }))
             .child(
                 Scroller::new("search-browse", &self.browsing)
-                    .child(div().flex().flex_wrap().w_full().gap_4().children(tiles)),
+                    .child(CardGrid::of(layout).children(tiles)),
             )
             .into_any_element()
     }
