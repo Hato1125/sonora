@@ -107,10 +107,14 @@ impl Render for HomeView {
         });
 
         let sections = self.home.read(cx).sections().to_vec();
+        let feeding = self.home.read(cx).is_feeding();
         let width = self.width;
-        let shelves = self.shelves.update(cx, |shelves, cx| {
-            shelves.render(&sections, Mode::Cards, width, cx)
-        });
+        let shelves = self
+            .shelves
+            .update(cx, |shelves, cx| match sections.is_empty() && feeding {
+                true => shelves.pending(width, cx),
+                false => shelves.render(&sections, Mode::Cards, width, cx),
+            });
 
         Scroller::new("home-page", &self.scrollbar)
             .p(theme.metrics.inset)

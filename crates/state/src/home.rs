@@ -74,6 +74,10 @@ impl Home {
         &self.sections
     }
 
+    pub fn is_feeding(&self) -> bool {
+        self.feeding
+    }
+
     pub fn feed(&mut self, cx: &mut Context<Self>) {
         if self.feeding || !self.sections.is_empty() {
             return;

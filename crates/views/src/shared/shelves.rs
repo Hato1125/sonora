@@ -6,7 +6,9 @@ use gpui::{
 use music::{Album, GenreItem, GenreSection, Playlist};
 use router::{Destination, navigate};
 use state::{Origin, Playback, PlaybackState};
-use ui::{ActiveTheme as _, Button, Card, Mode, Pin, PinKind, Pinnable as _, Text, heading};
+use ui::{
+    ActiveTheme as _, Button, Card, Mode, Pin, PinKind, Pinnable as _, Skeleton, Text, heading,
+};
 
 use crate::shared::album_grid::CardGrid;
 use crate::shared::cells;
@@ -15,6 +17,8 @@ const PLATE: Pixels = px(260.);
 const LANES: usize = 5;
 const ROWS: usize = 3;
 const STEADY: Pixels = px(0.5);
+const PENDING: usize = 3;
+const HEADING: Pixels = px(140.);
 
 pub(crate) struct Shelves {
     id: &'static str,
@@ -33,6 +37,34 @@ impl Shelves {
 
     fn tag(&self, kind: &str, place: usize) -> SharedString {
         SharedString::from(format!("{}-{kind}-{place}", self.id))
+    }
+
+    pub(crate) fn pending(&self, width: Pixels, cx: &App) -> Vec<AnyElement> {
+        let theme = *cx.theme();
+        let layout = CardGrid::layout(width);
+
+        (0..PENDING)
+            .map(|shelf| {
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap_3()
+                    .child(
+                        Skeleton::new()
+                            .w(HEADING)
+                            .h(theme.text(Text::Large))
+                            .rounded(theme.radius),
+                    )
+                    .child(div().flex().w_full().gap_4().overflow_hidden().children(
+                        (0..layout.columns).map(|place| {
+                            Card::new(self.tag("pending", shelf * 100 + place), "")
+                                .loading()
+                                .tile(layout.card)
+                        }),
+                    ))
+                    .into_any_element()
+            })
+            .collect()
     }
 
     pub(crate) fn reset(&mut self) {
