@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use ui::{Layout, Look, Mode, Pin, Rounding, Sorting, ThemeKind, ThemeOverrides};
 
 use crate::Repeat;
-use crate::queue::gap_target;
+use crate::queue::{Resume, gap_target};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -48,6 +48,8 @@ struct Values {
     sorting: HashMap<String, Option<Sorting>>,
     views: HashMap<String, Mode>,
     pinned: Vec<Pin>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    resume: Option<Resume>,
     appearance: Appearance,
 }
 
@@ -87,6 +89,7 @@ impl Default for Values {
             sorting: HashMap::new(),
             views: HashMap::new(),
             pinned: Vec::new(),
+            resume: None,
             appearance: Appearance::default(),
         }
     }
@@ -315,6 +318,33 @@ impl AppSettings {
         self.schedule_save(cx);
     }
 
+    pub fn resume(&self) -> Option<&Resume> {
+        self.values.resume.as_ref()
+    }
+
+    pub fn set_resume(&mut self, resume: Option<Resume>, cx: &mut Context<Self>) {
+        let mut resume = resume;
+        if let Some(next) = resume.as_mut() {
+            carry(self.values.resume.as_ref(), next);
+        }
+        if self.values.resume == resume {
+            return;
+        }
+        self.values.resume = resume;
+        self.schedule_save(cx);
+    }
+
+    pub fn set_resume_position(&mut self, position: f32, cx: &mut Context<Self>) {
+        let Some(resume) = self.values.resume.as_mut() else {
+            return;
+        };
+        if resume.position == position {
+            return;
+        }
+        resume.position = position;
+        self.schedule_save(cx);
+    }
+
     pub fn pinned(&self) -> &[Pin] {
         &self.values.pinned
     }
@@ -470,6 +500,13 @@ fn settings_path() -> PathBuf {
         .join("settings.json")
 }
 
+fn carry(previous: Option<&Resume>, next: &mut Resume) {
+    let playing = |resume: &Resume| resume.current.as_ref().map(|stub| stub.id.clone());
+    next.position = previous
+        .filter(|old| old.provider == next.provider && playing(old) == playing(next))
+        .map_or(0., |old| old.position);
+}
+
 fn place(pinned: &mut Vec<Pin>, pin: Pin, gap: Option<usize>) -> bool {
     let gap = gap.unwrap_or(pinned.len()).min(pinned.len());
     let Some(from) = pinned.iter().position(|it| it.same(&pin)) else {
@@ -490,7 +527,59 @@ fn place(pinned: &mut Vec<Pin>, pin: Pin, gap: Option<usize>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::queue::Stub;
     use ui::PinKind;
+
+    fn resume(provider: &str, playing: &str, position: f32) -> Resume {
+        Resume {
+            provider: provider.to_owned(),
+            position,
+            current: Some(Stub {
+                id: playing.to_owned(),
+                ..Stub::default()
+            }),
+            ..Resume::default()
+        }
+    }
+
+    #[test]
+    fn the_saved_position_follows_the_same_track() {
+        let previous = resume("spotify", "abc", 42.);
+        let mut next = resume("spotify", "abc", 0.);
+
+        carry(Some(&previous), &mut next);
+
+        assert_eq!(next.position, 42.);
+    }
+
+    #[test]
+    fn a_new_track_starts_from_the_beginning() {
+        let previous = resume("spotify", "abc", 42.);
+        let mut next = resume("spotify", "def", 0.);
+
+        carry(Some(&previous), &mut next);
+
+        assert_eq!(next.position, 0.);
+    }
+
+    #[test]
+    fn another_provider_never_inherits_a_position() {
+        let previous = resume("spotify", "abc", 42.);
+        let mut next = resume("youtube", "abc", 0.);
+
+        carry(Some(&previous), &mut next);
+
+        assert_eq!(next.position, 0.);
+    }
+
+    #[test]
+    fn a_first_record_starts_from_the_beginning() {
+        let mut next = resume("spotify", "abc", 42.);
+
+        carry(None, &mut next);
+
+        assert_eq!(next.position, 0.);
+    }
 
     fn pin(id: &str) -> Pin {
         Pin::new(PinKind::Album, id, id)

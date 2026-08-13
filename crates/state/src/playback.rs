@@ -44,6 +44,7 @@ const POSITION_INTERVAL: Duration = Duration::from_millis(500);
 const PRELOAD_BEFORE_END: Duration = Duration::from_secs(10);
 const SKIP_DEBOUNCE: Duration = Duration::from_millis(250);
 const KEY_COOLDOWN: Duration = Duration::from_secs(6);
+const RESUME_STEP: Duration = Duration::from_secs(5);
 const TAPER_DB: f32 = 50.;
 const SIMILAR_LIMIT: usize = 20;
 
@@ -119,6 +120,9 @@ pub struct Playback {
     skipped: Option<Instant>,
     blocked_until: Option<Instant>,
     refused: bool,
+    armed: Option<Duration>,
+    settle: Option<Duration>,
+    stored: Duration,
 }
 
 impl EventEmitter<PlaybackEvent> for Playback {}
@@ -136,6 +140,7 @@ impl Playback {
                     return;
                 };
                 this.start_engine(playback, cx);
+                this.adopt(cx);
             }
             SessionEvent::SignedOut => this.teardown(cx),
             SessionEvent::LocalChanged => {
@@ -181,6 +186,9 @@ impl Playback {
             skipped: None,
             blocked_until: None,
             refused: false,
+            armed: None,
+            settle: None,
+            stored: Duration::ZERO,
         }
     }
 
@@ -253,6 +261,8 @@ impl Playback {
         self.state = PlaybackState::Loading;
         self.position = Duration::ZERO;
         self.preloaded = None;
+        self.armed = None;
+        self.settle = None;
         cx.notify();
 
         let wait = self
@@ -755,10 +765,64 @@ impl Playback {
     }
 
     pub fn resume(&mut self, cx: &mut Context<Self>) {
+        if let Some(at) = self.armed {
+            return self.rearm(at, cx);
+        }
         if let Some(engine) = self.active_engine() {
             engine.play();
             cx.notify();
         }
+    }
+
+    fn rearm(&mut self, at: Duration, cx: &mut Context<Self>) {
+        let Some(track) = self.track.clone() else {
+            return;
+        };
+        if self.active_engine().is_none() {
+            return;
+        }
+        self.load_after(&track, Start::Pick, cx);
+        self.settle = Some(at);
+    }
+
+    fn adopt(&mut self, cx: &mut Context<Self>) {
+        if self.track.is_some() || !self.queue.read(cx).is_empty() {
+            return;
+        }
+        let Some(slug) = self.session.read(cx).provider_slug() else {
+            return;
+        };
+        let Some(resume) = self
+            .settings
+            .read(cx)
+            .resume()
+            .filter(|resume| resume.provider == slug)
+            .cloned()
+        else {
+            return;
+        };
+
+        let at = Duration::from_secs_f32(resume.position.max(0.));
+        let Some(track) = self.queue.update(cx, |queue, cx| queue.revive(resume, cx)) else {
+            return;
+        };
+        self.track = Some(track);
+        self.state = PlaybackState::Paused;
+        self.position = at;
+        self.stored = at;
+        self.armed = Some(at);
+        cx.notify();
+    }
+
+    fn remember(&mut self, force: bool, cx: &mut Context<Self>) {
+        let position = self.position;
+        if !force && position.abs_diff(self.stored) < RESUME_STEP {
+            return;
+        }
+        self.stored = position;
+        let seconds = position.as_secs_f32();
+        self.settings
+            .update(cx, |settings, cx| settings.set_resume_position(seconds, cx));
     }
 
     pub fn pause(&mut self, cx: &mut Context<Self>) {
@@ -790,6 +854,13 @@ impl Playback {
     }
 
     pub fn seek(&mut self, position: Duration, cx: &mut Context<Self>) {
+        if self.armed.is_some() {
+            self.armed = Some(position);
+            self.position = position;
+            self.remember(true, cx);
+            cx.notify();
+            return;
+        }
         if let Some(engine) = self.active_engine() {
             engine.seek(position);
             self.position = position;
@@ -973,6 +1044,9 @@ impl Playback {
                 let started = self.state != PlaybackState::Playing;
                 self.state = PlaybackState::Playing;
                 self.position = position;
+                if let Some(at) = self.settle.take() {
+                    self.seek(at, cx);
+                }
                 if started {
                     cx.emit(PlaybackEvent::StartedPlayback);
                 }
@@ -980,9 +1054,11 @@ impl Playback {
             BackendEvent::Paused(position) => {
                 self.state = PlaybackState::Paused;
                 self.position = position;
+                self.remember(true, cx);
             }
             BackendEvent::Position(position) => {
                 self.position = position;
+                self.remember(false, cx);
                 self.preload_next(position, cx);
             }
             BackendEvent::Length(duration) => {
@@ -1044,6 +1120,9 @@ impl Playback {
             self.origin = None;
             self.state = PlaybackState::Idle;
             self.position = Duration::ZERO;
+            self.armed = None;
+            self.settle = None;
+            self.stored = Duration::ZERO;
         }
         cx.notify();
     }
