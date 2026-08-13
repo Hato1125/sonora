@@ -1,7 +1,7 @@
 use gpui::prelude::*;
 use gpui::{
-    AnyElement, App, Context, ElementId, Entity, FontWeight, MouseButton, Pixels, Point, Render,
-    ScrollHandle, SharedString, Window, div, px,
+    AnyElement, App, Context, ElementId, Entity, FontWeight, MouseButton, MouseDownEvent, Pixels,
+    Point, Render, ScrollHandle, SharedString, Window, div, px,
 };
 use i18n::t;
 use music::Track;
@@ -9,7 +9,7 @@ use router::{Destination, navigate};
 use ui::Input;
 
 use crate::chrome::Chrome;
-use crate::shared::menu::ItemMenu;
+use crate::shared::menu::{ItemMenu, item_menu};
 use state::{Genres, Hit, Kind, Playback, Search};
 use ui::ActiveTheme as _;
 use ui::{
@@ -29,6 +29,21 @@ enum Press {
     Album(String),
 }
 
+#[derive(Clone)]
+enum HitMenu {
+    Song(Box<Track>),
+    Item(Pin),
+}
+
+impl HitMenu {
+    fn of(hit: &Hit) -> Option<Self> {
+        match hit {
+            Hit::Song(track) => Some(Self::Song(Box::new(track.clone()))),
+            _ => pin(hit).map(Self::Item),
+        }
+    }
+}
+
 pub(crate) struct SearchView {
     input: Entity<Input>,
     search: Entity<Search>,
@@ -41,7 +56,7 @@ pub(crate) struct SearchView {
     mixed: Entity<Scrollbar>,
     browsing: Entity<Scrollbar>,
     track_menu: ItemMenu,
-    context_menu: Option<(Track, Point<Pixels>)>,
+    context_menu: Option<(HitMenu, Point<Pixels>)>,
 }
 
 impl SearchView {
@@ -122,6 +137,19 @@ impl SearchView {
         })
     }
 
+    fn menu(
+        &self,
+        target: HitMenu,
+        cx: &Context<Self>,
+    ) -> impl Fn(&MouseDownEvent, &mut Window, &mut App) + 'static {
+        cx.listener(move |this, event: &MouseDownEvent, window, cx| {
+            window.prevent_default();
+            this.track_menu.reset(cx);
+            this.context_menu = Some((target.clone(), event.position));
+            cx.notify();
+        })
+    }
+
     fn subtitle(&self, hit: &Hit, place: usize, compact: bool, theme: &Theme) -> AnyElement {
         let (kind, id, artists, fallback) = match hit {
             Hit::Song(track) => (
@@ -157,7 +185,7 @@ impl SearchView {
         let theme = *cx.theme();
         let meta = self.subtitle(hit, place, compact, &theme);
 
-        match hit {
+        let card = match hit {
             Hit::Song(track) => {
                 let current = track.id.is_some() && track.id == self.playback_status.0;
                 let tint = match current {
@@ -165,7 +193,6 @@ impl SearchView {
                     false => theme.foreground,
                 };
                 let track = track.clone();
-                let view = cx.entity().downgrade();
                 let playing =
                     current && matches!(self.playback_status.1, state::PlaybackState::Playing);
                 let played = track.clone();
@@ -192,19 +219,6 @@ impl SearchView {
                             .child(clock(track.duration)),
                     )
                     .press(self.pressed(Press::Song(Box::new(track.clone())), cx))
-                    .when_some(pin(hit), Pinnable::pin)
-                    .on_mouse_down(MouseButton::Right, move |event, window, cx| {
-                        window.prevent_default();
-                        let Some(view) = view.upgrade() else {
-                            return;
-                        };
-                        view.update(cx, |this, cx| {
-                            this.track_menu.reset(cx);
-                            this.context_menu = Some((track.clone(), event.position));
-                            cx.notify();
-                        });
-                    })
-                    .into_any_element()
             }
             Hit::Artist(artist) => {
                 let origin = artist.id.clone().map(state::Origin::Artist);
@@ -224,13 +238,11 @@ impl SearchView {
                                     .update(cx, |playback, cx| playback.toggle_origin(&origin, cx));
                             }),
                         )
-                    })
-                    .when_some(pin(hit), Pinnable::pin);
+                    });
                 match &artist.id {
                     Some(id) => card.press(self.pressed(Press::Artist(id.clone()), cx)),
                     None => card,
                 }
-                .into_any_element()
             }
             Hit::Album(album) => {
                 let origin = state::Origin::Album(album.id.clone());
@@ -247,10 +259,14 @@ impl SearchView {
                         }),
                     )
                     .press(self.pressed(Press::Album(album.id.clone()), cx))
-                    .when_some(pin(hit), Pinnable::pin)
-                    .into_any_element()
             }
-        }
+        };
+
+        card.when_some(pin(hit), Pinnable::pin)
+            .when_some(HitMenu::of(hit), |card, target| {
+                card.on_mouse_down(MouseButton::Right, self.menu(target, cx))
+            })
+            .into_any_element()
     }
 
     fn best(&self, cx: &Context<Self>) -> Option<AnyElement> {
@@ -277,11 +293,6 @@ impl SearchView {
             ),
         };
 
-        let song = match hit {
-            Hit::Song(track) => Some(track.clone()),
-            _ => None,
-        };
-        let view = cx.entity().downgrade();
         let card = Card::new("best", title)
             .art(theme.metrics.cover * 0.45)
             .cover(cover(hit).clone())
@@ -305,18 +316,8 @@ impl SearchView {
             .bg(theme.secondary)
             .when_some(pin(hit), Pinnable::pin)
             .when_some(target, |card, target| card.press(self.pressed(target, cx)))
-            .when_some(song, |card, track| {
-                card.on_mouse_down(MouseButton::Right, move |event, window, cx| {
-                    window.prevent_default();
-                    let Some(view) = view.upgrade() else {
-                        return;
-                    };
-                    view.update(cx, |this, cx| {
-                        this.track_menu.reset(cx);
-                        this.context_menu = Some((track.clone(), event.position));
-                        cx.notify();
-                    });
-                })
+            .when_some(HitMenu::of(hit), |card, target| {
+                card.on_mouse_down(MouseButton::Right, self.menu(target, cx))
             })
             .into_any_element();
 
@@ -539,13 +540,16 @@ impl Render for SearchView {
             false => Pixels::ZERO,
         };
         let asked = !self.search.read(cx).query().trim().is_empty();
-        let context_menu = self.context_menu.clone().map(|(track, position)| {
-            Popup::new(position, self.track_menu.for_track(&track, cx)).on_close(cx.listener(
-                |this, _, _, cx| {
-                    this.context_menu = None;
-                    cx.notify();
-                },
-            ))
+        let context_menu = self.context_menu.clone().map(|(target, position)| {
+            let menu = match target {
+                HitMenu::Song(track) => self.track_menu.for_track(&track, cx),
+                HitMenu::Item(pin) => item_menu(&pin, &self.track_menu, self.playback.clone(), cx),
+            };
+
+            Popup::new(position, menu).on_close(cx.listener(|this, _, _, cx| {
+                this.context_menu = None;
+                cx.notify();
+            }))
         });
 
         let gutter = pad + inset;
