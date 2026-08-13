@@ -13,6 +13,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   paused where you stopped, with the rest of the queue and the tracks you already heard still in
   place. It is readied silently in the background, so press play and the music starts from that
   second at once, without the progress bar sliding into place first.
+- Double-clicking a word in any text field selects it, and a third click selects everything in the
+  field.
 
 ### Changed
 

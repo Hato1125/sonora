@@ -98,6 +98,33 @@ fn next_word(text: &str, offset: usize) -> usize {
     offset + skipped + end
 }
 
+fn word_at(text: &str, offset: usize) -> Range<usize> {
+    let offset = clamp_offset(text, offset);
+    let after = text[offset..].chars().next();
+    let before = text[..offset].chars().next_back();
+    let Some(anchor) = after
+        .filter(|character| !character.is_whitespace())
+        .or(before)
+        .or(after)
+    else {
+        return offset..offset;
+    };
+
+    let space = anchor.is_whitespace();
+    let start = text[..offset]
+        .char_indices()
+        .rev()
+        .find(|(_, character)| character.is_whitespace() != space)
+        .map(|(index, character)| index + character.len_utf8())
+        .unwrap_or(0);
+    let end = text[offset..]
+        .char_indices()
+        .find(|(_, character)| character.is_whitespace() != space)
+        .map(|(index, _)| offset + index)
+        .unwrap_or(text.len());
+    start..end
+}
+
 fn offset_from_utf16(text: &str, offset: usize) -> usize {
     let mut utf8 = 0;
     let mut utf16 = 0;
@@ -320,12 +347,25 @@ impl Input {
         self.replace_text_in_range(None, &single_line, window, cx);
     }
 
-    fn on_mouse_down(&mut self, event: &MouseDownEvent, _: &mut Window, cx: &mut Context<Self>) {
-        self.selecting = true;
+    fn select_word(&mut self, offset: usize, cx: &mut Context<Self>) {
+        let word = word_at(&self.content, offset);
+        self.move_to(word.start, cx);
+        self.select_to(word.end, cx);
+    }
+
+    fn on_mouse_down(
+        &mut self,
+        event: &MouseDownEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.selecting = event.click_count < 2;
         let offset = self.offset_for(event.position);
-        match event.modifiers.shift {
-            true => self.select_to(offset, cx),
-            false => self.move_to(offset, cx),
+        match (event.click_count, event.modifiers.shift) {
+            (0 | 1, true) => self.select_to(offset, cx),
+            (0 | 1, false) => self.move_to(offset, cx),
+            (2, _) => self.select_word(offset, cx),
+            _ => self.select_all(&SelectAll, window, cx),
         }
     }
 
