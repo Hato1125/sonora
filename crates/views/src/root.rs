@@ -12,7 +12,7 @@ use state::{
 };
 use ui::ActiveTheme as _;
 
-use crate::chrome::{TitleBar, TitleBarEvent, TitleBarOptions, Toolbar, Tooled};
+use crate::chrome::{FrameStats, Stats, TitleBar, TitleBarEvent, TitleBarOptions, Toolbar, Tooled};
 use crate::screens::search::SearchView;
 use crate::shared::tracks::{LIBRARY_COLUMNS, album_columns};
 use crate::shells::Shell;
@@ -69,6 +69,7 @@ pub struct Root {
     toolbar: Option<Entity<Toolbar>>,
     pending: Option<Focus>,
     screens: Screens,
+    stats: FrameStats,
     _adaptive: Entity<Adaptive>,
 }
 
@@ -175,6 +176,7 @@ impl Root {
                 genre_detail: None,
                 settings,
             },
+            stats: FrameStats::default(),
             _adaptive: adaptive,
         };
         root.show(start, cx);
@@ -383,6 +385,12 @@ impl Root {
 
 impl Render for Root {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if FrameStats::wanted() {
+            self.stats.open();
+            let stats = self.stats.clone();
+            window.on_next_frame(move |_, _| stats.close());
+        }
+
         let show_sign_in = match self.session.read(cx).state() {
             SessionState::SignedOut | SessionState::Failed(_) => true,
             SessionState::Restoring | SessionState::SignedIn(_) => false,
@@ -414,6 +422,7 @@ impl Render for Root {
         window.set_rem_size(theme.font_size);
 
         div()
+            .relative()
             .flex()
             .font(font("Inter"))
             .flex_col()
@@ -450,5 +459,8 @@ impl Render for Root {
                     })
                 },
             )
+            .when(FrameStats::wanted(), |this| {
+                this.child(Stats::new(self.stats.clone()))
+            })
     }
 }

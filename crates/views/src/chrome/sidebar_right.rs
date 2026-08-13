@@ -24,7 +24,6 @@ const MIN_WIDTH: Pixels = px(240.);
 const MAX_WIDTH: Pixels = px(560.);
 const PINNED_SHARE: f32 = 0.25;
 const PIN: f32 = 0.3;
-const GLIDE: f32 = 0.18;
 const SETTLE: std::time::Duration = std::time::Duration::from_secs(4);
 
 fn fills_content(width: Pixels) -> bool {
@@ -158,7 +157,6 @@ pub(crate) struct SidebarRight {
     verse_bar: Entity<Scrollbar>,
     followed: Option<usize>,
     goal: Option<Pixels>,
-    placed: Option<Pixels>,
     pinned: bool,
     nudged: Option<std::time::Instant>,
     verse_of: Option<String>,
@@ -220,7 +218,6 @@ impl SidebarRight {
             verse_bar,
             followed: None,
             goal: None,
-            placed: None,
             pinned: true,
             nudged: None,
             verse_of: None,
@@ -679,18 +676,17 @@ impl SidebarRight {
         self.pinned = true;
         self.followed = None;
         self.goal = None;
-        self.placed = None;
         self.nudged = None;
     }
 
     fn pin_verse(&mut self, sung: Option<usize>, window: &mut Window, cx: &mut Context<Self>) {
         let scroll = self.verse_bar.read(cx).scroll().clone();
-        if let Some(placed) = self.placed
-            && (scroll.offset().y - placed).abs() > px(1.)
+        let aimed = self.verse_bar.read(cx).goal();
+        if let Some(goal) = self.goal
+            && (aimed - goal).abs() > px(1.)
         {
             self.pinned = false;
             self.goal = None;
-            self.placed = None;
             self.nudged = Some(std::time::Instant::now());
         }
         if !self.pinned {
@@ -701,33 +697,21 @@ impl SidebarRight {
                 return;
             }
         }
-        if let Some(index) = sung
-            && self.followed != sung
-            && let Some(item) = scroll.bounds_for_item(index)
-        {
-            self.followed = sung;
-            let view = scroll.bounds();
-            let rest = view.origin.y - item.origin.y + view.size.height * PIN;
-            self.goal = Some(rest.clamp(-scroll.max_offset().y, px(0.)));
-        }
-
-        let Some(goal) = self.goal else {
+        let Some(index) = sung else {
             return;
         };
-        let current = scroll.offset().y;
-        let step = goal - current;
-        if step.abs() < px(0.5) {
-            scroll.set_offset(gpui::point(scroll.offset().x, goal));
-            self.placed = Some(goal);
-            self.goal = None;
-            self.verse_bar.update(cx, |bar, _| bar.settle(goal));
+        if self.followed == sung {
             return;
         }
-        let next = current + step * GLIDE;
-        scroll.set_offset(gpui::point(scroll.offset().x, next));
-        self.placed = Some(next);
-        self.verse_bar.update(cx, |bar, _| bar.settle(next));
-        window.request_animation_frame();
+        let Some(item) = scroll.bounds_for_item(index) else {
+            return;
+        };
+        self.followed = sung;
+        let view = scroll.bounds();
+        let rest = view.origin.y - item.origin.y + view.size.height * PIN;
+        let goal = rest.clamp(-scroll.max_offset().y, px(0.));
+        self.verse_bar.update(cx, |bar, _| bar.aim(goal, window));
+        self.goal = Some(self.verse_bar.read(cx).goal());
     }
 
     fn pin(&mut self, sections: Sections, window: &Window, cx: &Context<Self>) {

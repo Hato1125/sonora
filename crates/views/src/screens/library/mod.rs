@@ -893,6 +893,7 @@ impl Render for LibraryView {
                 .when_some(note, |this, note| this.child(vacant(note, cx)))
                 .into_any_element(),
             (_, Mode::List) => Scroller::new("library-page", &self.scrollbar)
+                .pb(inset)
                 .child(self.table(self.section).element())
                 .when_some(note, |this, note| this.child(vacant(note, cx)))
                 .into_any_element(),

@@ -13,6 +13,8 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_PROFILE_RELEASE_STRIP: symbols
   RUST_BACKTRACE: 1
+  RUSTC_WRAPPER: sccache
+  SCCACHE_GHA_ENABLED: "true"
 
 jobs:
   build:
@@ -53,19 +55,25 @@ jobs:
             build-essential pkg-config mold \
             libasound2-dev libfontconfig1-dev libfreetype-dev \
             libx11-dev libxcb1-dev libxcursor-dev libxi-dev \
-            libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libvulkan-dev libdbus-1-dev
+            libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev \
+            libvulkan-dev libdbus-1-dev
 
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
+      - uses: mozilla-actions/sccache-action@v0.0.9
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.target }}
-
+          cache-targets: false
+          cache-on-failure: true
       - name: build
         run: cargo build --release --locked --package sonora --target ${{ matrix.target }}
 
+      - name: sccache stats
+        if: always()
+        run: sccache --show-stats
       - name: stage the executable
         shell: bash
         env:
@@ -75,9 +83,23 @@ jobs:
           set -euo pipefail
           mkdir -p dist
           case "$RUNNER_OS" in
-            macOS)   cp "target/$TARGET/release/sonora" "dist/sonora-$TARGET" ;;
-            Windows) cp "target/$TARGET/release/sonora.exe" "dist/sonora-$VERSION-$TARGET.exe" ;;
-            *)       cp "target/$TARGET/release/sonora" "dist/sonora-$VERSION-$TARGET" ;;
+            macOS)
+              cp \
+                "target/$TARGET/release/sonora" \
+                "dist/sonora-$TARGET"
+              ;;
+
+            Windows)
+              cp \
+                "target/$TARGET/release/sonora.exe" \
+                "dist/sonora-$VERSION-$TARGET.exe"
+              ;;
+
+            *)
+              cp \
+                "target/$TARGET/release/sonora" \
+                "dist/sonora-$VERSION-$TARGET"
+              ;;
           esac
 
       - uses: actions/upload-artifact@v4
@@ -98,8 +120,15 @@ jobs:
         shell: bash
         run: |
           case "$GITHUB_REF" in
-            refs/tags/*) version="$GITHUB_REF_NAME"; number="${GITHUB_REF_NAME#v}" ;;
-            *) version="$(git rev-parse --short HEAD)"; number="0.0.0" ;;
+            refs/tags/*)
+              version="$GITHUB_REF_NAME"
+              number="${GITHUB_REF_NAME#v}"
+              ;;
+
+            *)
+              version="$(git rev-parse --short HEAD)"
+              number="0.0.0"
+              ;;
           esac
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "number=$number" >> "$GITHUB_OUTPUT"
@@ -116,26 +145,60 @@ jobs:
           NUMBER: ${{ steps.meta.outputs.number }}
         run: |
           set -euo pipefail
-          mkdir -p Sonora.app/Contents/MacOS Sonora.app/Contents/Resources
-          lipo -create -output Sonora.app/Contents/MacOS/sonora \
+
+          mkdir -p \
+            Sonora.app/Contents/MacOS \
+            Sonora.app/Contents/Resources
+
+          lipo -create \
+            -output Sonora.app/Contents/MacOS/sonora \
             darwin/sonora-aarch64-apple-darwin \
             darwin/sonora-x86_64-apple-darwin
           chmod +x Sonora.app/Contents/MacOS/sonora
           lipo -info Sonora.app/Contents/MacOS/sonora
-          cp assets/macos/sonora.icns Sonora.app/Contents/Resources/
-          cp COPYING Sonora.app/Contents/Resources/LICENSE
-          cp THIRD-PARTY.md Sonora.app/Contents/Resources/
-          cp assets/fonts/LICENSE.txt Sonora.app/Contents/Resources/LICENSE.Inter
-          cp assets/icons/LICENSE Sonora.app/Contents/Resources/LICENSE.Lucide
-          sed "s/@VERSION@/$NUMBER/g" assets/macos/Info.plist > Sonora.app/Contents/Info.plist
+
+          cp \
+            assets/macos/sonora.icns \
+            Sonora.app/Contents/Resources/
+
+          cp \
+            COPYING \
+            Sonora.app/Contents/Resources/LICENSE
+
+          cp \
+            THIRD-PARTY.md \
+            Sonora.app/Contents/Resources/
+
+          cp \
+            assets/fonts/LICENSE.txt \
+            Sonora.app/Contents/Resources/LICENSE.Inter
+
+          cp \
+            assets/icons/LICENSE \
+            Sonora.app/Contents/Resources/LICENSE.Lucide
+
+          sed \
+            "s/@VERSION@/$NUMBER/g" \
+            assets/macos/Info.plist \
+            > Sonora.app/Contents/Info.plist
+
           plutil -lint Sonora.app/Contents/Info.plist
 
       - name: sign the bundle
         shell: bash
         run: |
           set -euo pipefail
-          codesign --force --sign - Sonora.app
-          codesign --verify --strict --verbose=2 Sonora.app
+
+          codesign \
+            --force \
+            --sign - \
+            Sonora.app
+
+          codesign \
+            --verify \
+            --strict \
+            --verbose=2 \
+            Sonora.app
 
       - name: create the disk image
         shell: bash
@@ -151,7 +214,8 @@ jobs:
             -volname Sonora \
             -srcfolder staging \
             -size "$((megabytes + 128))m" \
-            -ov -format UDZO \
+            -ov \
+            -format UDZO \
             "dist/sonora-$VERSION-macos.dmg"
 
       - uses: actions/upload-artifact@v4

@@ -573,6 +573,9 @@ distributing unlicensed code.
 - Use let-else for early exits; return early rather than nesting.
 - `anyhow::Result` at boundaries, `.context("cannot …")` lowercase; log with `log::warn!`/`error!`
   prefixed by subsystem (`"playback: …"`, `"settings: …"`, `"assets: …"`).
+- **Do not add tests unless asked.** A change ships with the tests that already exist; writing new
+  ones is a separate request. Offering is fine — say what a test would pin down and let the user
+  decide — but do not write it, and do not treat a nearby `mod tests` as an invitation to extend it.
 - Tests are `#[cfg(test)] mod tests` at the bottom of the file they cover — see
   `music/src/spotify/{collection2,radio,search}.rs` and `ui/src/input/mod.rs`. They're pure-function tests;
   there is no UI or network test harness.

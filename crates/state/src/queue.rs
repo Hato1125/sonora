@@ -1,11 +1,147 @@
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::time::Duration;
 
 use gpui::{Context, Entity};
-use music::Track;
+use music::{ArtistRef, Track};
+use serde::{Deserialize, Serialize};
 
-use crate::AppSettings;
+use crate::{AppSettings, Session, SessionEvent};
 
 const PAST_LIMIT: usize = 500;
+const KEPT_PAST: usize = 20;
+const KEPT_UPCOMING: usize = 200;
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Resume {
+    pub(crate) provider: String,
+    pub(crate) position: f32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) current: Option<Stub>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub(crate) past: Vec<Stub>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub(crate) upcoming: Vec<Stub>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Stub {
+    pub(crate) id: String,
+    pub(crate) name: String,
+    pub(crate) artists: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub(crate) credited: Vec<Named>,
+    pub(crate) album: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) album_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) cover: Option<String>,
+    pub(crate) seconds: f32,
+    pub(crate) explicit: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Named {
+    pub(crate) name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) id: Option<String>,
+}
+
+fn stub(track: &Track) -> Option<Stub> {
+    Some(Stub {
+        id: track.id.clone()?,
+        name: track.name.clone(),
+        artists: track.artists.clone(),
+        credited: track
+            .artist_refs
+            .iter()
+            .map(|artist| Named {
+                name: artist.name.clone(),
+                id: artist.id.clone(),
+            })
+            .collect(),
+        album: track.album.clone(),
+        album_id: track.album_id.clone(),
+        cover: track.cover.clone(),
+        seconds: track.duration.as_secs_f32(),
+        explicit: track.explicit,
+    })
+}
+
+fn hydrate(stub: Stub) -> Track {
+    Track {
+        id: Some(stub.id),
+        name: stub.name,
+        playable: true,
+        artists: stub.artists,
+        artist_refs: stub
+            .credited
+            .into_iter()
+            .map(|named| ArtistRef {
+                name: named.name,
+                id: named.id,
+            })
+            .collect(),
+        album: stub.album,
+        album_id: stub.album_id,
+        cover: stub.cover,
+        duration: Duration::from_secs_f32(stub.seconds.max(0.)),
+        added_at: None,
+        playcount: None,
+        popularity: 0,
+        explicit: stub.explicit,
+        track_number: 0,
+        disc_number: 0,
+        tags: Vec::new(),
+        languages: Vec::new(),
+        credits: Vec::new(),
+    }
+}
+
+fn record<'a>(
+    provider: &str,
+    past: &[Track],
+    current: Option<&Track>,
+    upcoming: impl Iterator<Item = &'a Track>,
+) -> Resume {
+    Resume {
+        provider: provider.to_owned(),
+        position: 0.,
+        current: current.and_then(stub),
+        past: past[past.len().saturating_sub(KEPT_PAST)..]
+            .iter()
+            .filter_map(stub)
+            .collect(),
+        upcoming: upcoming.take(KEPT_UPCOMING).filter_map(stub).collect(),
+    }
+}
+
+fn local(track: &Track) -> bool {
+    track.id.as_deref().is_some_and(music::is_local_id)
+}
+
+fn sift<T>(
+    past: &mut Vec<T>,
+    current: &mut Option<T>,
+    upcoming: &mut VecDeque<T>,
+    source: &mut Vec<T>,
+    keep: impl Fn(&T) -> bool,
+) -> bool {
+    let tally = |past: &Vec<T>, current: &Option<T>, upcoming: &VecDeque<T>, source: &Vec<T>| {
+        past.len() + usize::from(current.is_some()) + upcoming.len() + source.len()
+    };
+
+    let before = tally(past, current, upcoming, source);
+    past.retain(&keep);
+    if current.as_ref().is_some_and(|item| !keep(item)) {
+        *current = None;
+    }
+    upcoming.retain(&keep);
+    source.retain(&keep);
+    before != tally(past, current, upcoming, source)
+}
 
 fn scramble(upcoming: &mut VecDeque<Track>) {
     let mut tracks: Vec<Track> = upcoming.drain(..).collect();
@@ -108,11 +244,22 @@ pub struct Queue {
     similar: usize,
     shuffle: bool,
     revision: u64,
+    session: Entity<Session>,
     settings: Entity<AppSettings>,
 }
 
 impl Queue {
-    pub fn new(settings: Entity<AppSettings>, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        session: Entity<Session>,
+        settings: Entity<AppSettings>,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        cx.subscribe(&session, |this, _, event, cx| match event {
+            SessionEvent::SignedOut => this.purge(cx),
+            SessionEvent::SignedIn | SessionEvent::LocalChanged => {}
+        })
+        .detach();
+
         let shuffle = settings.read(cx).shuffle();
 
         Self {
@@ -123,6 +270,7 @@ impl Queue {
             similar: 0,
             shuffle,
             revision: 0,
+            session,
             settings,
         }
     }
@@ -154,7 +302,62 @@ impl Queue {
     fn changed(&mut self, cx: &mut Context<Self>) {
         trim(&mut self.past, PAST_LIMIT);
         self.revision = self.revision.wrapping_add(1);
+        self.remember(cx);
         cx.notify();
+    }
+
+    fn blank(&self) -> bool {
+        self.past.is_empty() && self.current.is_none() && self.upcoming.is_empty()
+    }
+
+    fn remember(&mut self, cx: &mut Context<Self>) {
+        let resume = self
+            .session
+            .read(cx)
+            .provider_slug()
+            .filter(|_| !self.blank())
+            .map(|slug| {
+                record(
+                    slug,
+                    &self.past,
+                    self.current.as_ref(),
+                    self.upcoming.range(..self.queued()),
+                )
+            });
+        self.settings
+            .update(cx, |settings, cx| settings.set_resume(resume, cx));
+    }
+
+    pub(crate) fn revive(&mut self, resume: Resume, cx: &mut Context<Self>) -> Option<Track> {
+        self.past = resume.past.into_iter().map(hydrate).collect();
+        self.current = resume.current.map(hydrate);
+        self.upcoming = resume.upcoming.into_iter().map(hydrate).collect();
+        self.similar = 0;
+        self.source = self
+            .past
+            .iter()
+            .chain(self.current.as_ref())
+            .chain(self.upcoming.iter())
+            .cloned()
+            .collect();
+        self.changed(cx);
+        self.current.clone()
+    }
+
+    fn purge(&mut self, cx: &mut Context<Self>) {
+        let suggested = self.similar > 0;
+        self.upcoming.truncate(self.queued());
+        self.similar = 0;
+        let sifted = sift(
+            &mut self.past,
+            &mut self.current,
+            &mut self.upcoming,
+            &mut self.source,
+            local,
+        );
+        if suggested || sifted {
+            self.changed(cx);
+        }
     }
 
     pub fn revision(&self) -> u64 {
@@ -406,10 +609,11 @@ mod tests {
     use std::collections::VecDeque;
     use std::time::Duration;
 
-    use music::Track;
+    use music::{ArtistRef, Track};
 
     use super::{
-        gap_target, in_order, move_item, restore, scramble, select_past, select_upcoming, trim,
+        gap_target, hydrate, in_order, local, move_item, record, restore, scramble, select_past,
+        select_upcoming, sift, stub, trim,
     };
 
     fn track(id: &str) -> Track {
@@ -600,6 +804,148 @@ mod tests {
         let to = gap_target(1, 2, items.len());
         assert!(!move_item(&mut items, 1, to));
         assert_eq!(items, [4, 2, 3, 1]);
+    }
+
+    #[test]
+    fn a_saved_track_keeps_what_the_player_bar_shows() {
+        let mut source = track("abc");
+        source.artists = "One, Two".to_owned();
+        source.artist_refs = vec![
+            ArtistRef {
+                name: "One".to_owned(),
+                id: Some("a1".to_owned()),
+            },
+            ArtistRef {
+                name: "Two".to_owned(),
+                id: None,
+            },
+        ];
+        source.album = "Album".to_owned();
+        source.album_id = Some("al".to_owned());
+        source.cover = Some("https://cover".to_owned());
+        source.explicit = true;
+
+        let saved = stub(&source).expect("a track with an id");
+        let json = serde_json::to_string(&saved).expect("a serializable stub");
+        let restored = hydrate(serde_json::from_str(&json).expect("a readable stub"));
+
+        assert_eq!(restored.id, source.id);
+        assert_eq!(restored.name, source.name);
+        assert_eq!(restored.artists, source.artists);
+        assert_eq!(restored.artist_refs, source.artist_refs);
+        assert_eq!(restored.album, source.album);
+        assert_eq!(restored.album_id, source.album_id);
+        assert_eq!(restored.cover, source.cover);
+        assert_eq!(restored.duration, source.duration);
+        assert!(restored.explicit);
+        assert!(restored.playable);
+    }
+
+    #[test]
+    fn a_track_without_an_id_is_never_saved() {
+        let mut orphan = track("abc");
+        orphan.id = None;
+
+        assert!(stub(&orphan).is_none());
+    }
+
+    #[test]
+    fn a_record_caps_the_history_and_the_queue() {
+        let past = listing(60);
+        let upcoming = listing(300);
+        let current = track("now");
+
+        let resume = record("spotify", &past, Some(&current), upcoming.iter());
+
+        assert_eq!(resume.provider, "spotify");
+        assert_eq!(resume.position, 0.);
+        assert_eq!(resume.current.map(|stub| stub.id), Some("now".to_owned()));
+        assert_eq!(resume.past.len(), 20);
+        assert_eq!(resume.past.first().map(|stub| stub.id.as_str()), Some("40"));
+        assert_eq!(resume.upcoming.len(), 200);
+        assert_eq!(
+            resume.upcoming.first().map(|stub| stub.id.as_str()),
+            Some("0")
+        );
+    }
+
+    #[test]
+    fn sifting_keeps_only_what_is_wanted() {
+        let mut past = vec![1, 2, 3];
+        let mut current = Some(4);
+        let mut upcoming = VecDeque::from([5, 6]);
+        let mut source = vec![1, 2, 3, 4, 5, 6];
+
+        assert!(sift(
+            &mut past,
+            &mut current,
+            &mut upcoming,
+            &mut source,
+            |item| item % 2 == 0
+        ));
+        assert_eq!(past, [2]);
+        assert_eq!(current, Some(4));
+        assert_eq!(upcoming, [6]);
+        assert_eq!(source, [2, 4, 6]);
+    }
+
+    #[test]
+    fn sifting_reports_an_untouched_queue() {
+        let mut past = vec![1];
+        let mut current = Some(2);
+        let mut upcoming = VecDeque::from([3]);
+        let mut source = vec![1, 2, 3];
+
+        assert!(!sift(
+            &mut past,
+            &mut current,
+            &mut upcoming,
+            &mut source,
+            |_| true
+        ));
+        assert_eq!(past, [1]);
+        assert_eq!(current, Some(2));
+        assert_eq!(upcoming, [3]);
+    }
+
+    #[test]
+    fn signing_out_leaves_only_imported_tracks() {
+        let imported = format!("{}song.flac", music::LOCAL_TRACK_PREFIX);
+        let mut past = vec![track("streamed"), track(&imported)];
+        let mut current = Some(track("playing"));
+        let mut upcoming = VecDeque::from([track("next"), track(&imported)]);
+        let mut source = vec![track("streamed"), track(&imported)];
+
+        assert!(sift(
+            &mut past,
+            &mut current,
+            &mut upcoming,
+            &mut source,
+            local
+        ));
+        assert_eq!(past.len(), 1);
+        assert!(current.is_none());
+        assert_eq!(upcoming.len(), 1);
+        assert_eq!(source.len(), 1);
+        assert!(past.iter().chain(&source).all(local));
+    }
+
+    #[test]
+    fn an_imported_track_outlives_the_session() {
+        let imported = format!("{}song.flac", music::LOCAL_TRACK_PREFIX);
+        let mut past = Vec::new();
+        let mut current = Some(track(&imported));
+        let mut upcoming = VecDeque::new();
+        let mut source = Vec::new();
+
+        assert!(!sift(
+            &mut past,
+            &mut current,
+            &mut upcoming,
+            &mut source,
+            local
+        ));
+        assert!(current.is_some());
     }
 
     #[test]

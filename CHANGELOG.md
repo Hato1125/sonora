@@ -7,6 +7,46 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Sonora remembers what you were listening to. Reopen it and the track you left off on is waiting,
+  paused where you stopped, with the rest of the queue and the tracks you already heard still in
+  place. It is readied silently in the background, so press play and the music starts from that
+  second at once, without the progress bar sliding into place first.
+- Double-clicking a word in any text field selects it, and a third click selects everything in the
+  field.
+- The search field carries a clear button while it holds text, so one click empties it and brings
+  the full list back.
+
+### Changed
+
+- The home feed, genre pages and the genre grid in search scroll and resize without stuttering,
+  however many shelves the feed carries.
+- The single-column search results scroll smoothly however many matches come back, because only the
+  rows on screen are drawn.
+
+### Fixed
+
+- Switching music service, or signing out, now clears the queue, the history and the current track,
+  so nothing from one service is left sitting in the player when you move to another. Music from
+  your imported folder keeps playing.
+- YouTube tracks that refused to play now do. When YouTube turns down the quick route, Sonora
+  works out the stream signature itself and plays the track anyway, often at a higher bitrate.
+- Pinned items now belong to the service they came from, so switching service shows that service's
+  pins alongside your imported ones instead of dead rows that failed to open. Switching back brings
+  the earlier pins straight back, and existing pins are cleared once on this upgrade.
+- Search results no longer all look like the track that is playing: only the song actually playing
+  is highlighted and shows a pause button.
+- Song titles in search results are readable again instead of being cut after a few letters: the
+  three columns only appear once there is real room for them, and a song's duration no longer takes
+  space away from its title.
+- Every search result answers a right-click now, not just songs. Artists and albums open the same
+  context menu they have elsewhere in the app, in the combined list as well as the three columns.
+- The genre grid on search scrolls all the way to its end, so the last row of plates no longer sits
+  flush against the player bar with its bottom cut off.
+- Album, playlist and artist lists in your library end with the same breathing room as every other
+  page instead of stopping against the player bar.
+
 ## [0.12.1] - 2026-08-13
 
 ### Fixed

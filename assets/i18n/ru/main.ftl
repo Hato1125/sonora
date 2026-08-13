@@ -15,6 +15,7 @@ common-more = Ещё
 common-previous = Назад
 common-next = Вперёд
 common-dismiss = Закрыть
+common-clear = Очистить
 number-group = { "\u00A0" }
 
 # navigation
