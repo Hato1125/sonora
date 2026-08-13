@@ -281,7 +281,6 @@ impl RenderOnce for Card {
         let inset = theme.metrics.pad;
         let height = snapped(theme.metrics.list_row, window);
         let listed = art.is_none() && tile.is_none();
-        let has_trailing = trailing.is_some();
         let art_radius = art_radius.or_else(|| tile.map(|_| theme.radius));
         let art = art.or(tile).unwrap_or(snapped(height - inset * 2., window));
         let hovered = match (hovered, fill) {
@@ -426,7 +425,7 @@ impl RenderOnce for Card {
                     .flex_1()
                     .min_w_0()
                     .line_height(relative(LEADING))
-                    .when(listed && !has_trailing, |this| this.min_w(TITLE))
+                    .when(listed, |this| this.min_w(TITLE))
                     .when(tile.is_some(), |this| this.w_full().flex_none().gap_1())
                     .when_else(
                         loading,

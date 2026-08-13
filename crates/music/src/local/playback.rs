@@ -11,7 +11,7 @@ use crate::{PlaybackConfig, PlaybackEvent, PlaybackEvents, PlaybackFactory, Play
 const POLL: Duration = Duration::from_millis(20);
 
 enum Command {
-    Load { id: String },
+    Load { id: String, at: Option<Duration> },
     Preload { id: String },
     Play,
     Pause,
@@ -45,6 +45,16 @@ impl Player for Engine {
         self.commands
             .send(Command::Load {
                 id: track_id.to_owned(),
+                at: None,
+            })
+            .context("cannot reach local playback engine")
+    }
+
+    fn arm(&self, track_id: &str, at: Duration) -> Result<()> {
+        self.commands
+            .send(Command::Load {
+                id: track_id.to_owned(),
+                at: Some(at),
             })
             .context("cannot reach local playback engine")
     }
@@ -137,22 +147,32 @@ async fn engine_loop(
             command = commands.recv() => {
                 let Some(command) = command else { break };
                 match command {
-                    Command::Load { id } => {
-                        events.send(PlaybackEvent::Loading(Duration::ZERO)).ok();
+                    Command::Load { id, at } => {
+                        events.send(PlaybackEvent::Loading(at.unwrap_or_default())).ok();
                         sink.clear();
                         current = None;
                         queued = None;
                         prev_len = 0;
                         match load(&sink, &id) {
                             Ok(slot) => {
-                                sink.play();
+                                place(&sink, &id, at);
+                                match at {
+                                    Some(_) => sink.pause(),
+                                    None => sink.play(),
+                                }
                                 if let Some(length) = slot.length {
                                     events.send(PlaybackEvent::Length(length)).ok();
                                 }
                                 prev_len = sink.len();
                                 current = Some(slot);
-                                playing = true;
-                                events.send(PlaybackEvent::Playing(Duration::ZERO)).ok();
+                                playing = at.is_none();
+                                let position = at.unwrap_or_default();
+                                events
+                                    .send(match playing {
+                                        true => PlaybackEvent::Playing(position),
+                                        false => PlaybackEvent::Paused(position),
+                                    })
+                                    .ok();
                             }
                             Err(error) => {
                                 log::warn!("playback: cannot load {id}: {error:#}");
@@ -219,6 +239,15 @@ async fn engine_loop(
                 prev_len = len;
             }
         }
+    }
+}
+
+fn place(sink: &rodio::Sink, id: &str, at: Option<Duration>) {
+    let Some(at) = at else {
+        return;
+    };
+    if let Err(error) = sink.try_seek(at) {
+        log::warn!("playback: cannot start {id} at {}s: {error}", at.as_secs());
     }
 }
 
