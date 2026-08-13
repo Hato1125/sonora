@@ -12,6 +12,7 @@ use crate::glide::Glide;
 use crate::theme::ActiveTheme as _;
 
 const BAR: Pixels = px(6.);
+const REACHED: Pixels = px(0.5);
 const MIN_THUMB: Pixels = px(24.);
 const LINGER: Duration = Duration::from_secs(2);
 const IDLE: f32 = 0.;
@@ -116,6 +117,7 @@ pub struct Scrollbar {
     scroll_guard: Option<ScrollGuard>,
     linger: Option<Task<()>>,
     glide: Glide,
+    following: bool,
 }
 
 impl Scrollbar {
@@ -133,6 +135,7 @@ impl Scrollbar {
             scroll_guard: None,
             linger: None,
             glide: Glide::default(),
+            following: false,
         }
     }
 
@@ -157,7 +160,18 @@ impl Scrollbar {
     }
 
     pub fn nudge(&mut self, window: &mut Window) {
+        self.following = false;
         self.glide.nudge(&self.scroll, window);
+    }
+
+    pub fn aim(&mut self, to: Pixels, window: &mut Window) {
+        let across = self.scroll.offset().x;
+        self.glide.aim(&self.scroll, point(across, to), window);
+        self.following = true;
+    }
+
+    pub fn goal(&self) -> Pixels {
+        self.glide.goal(&self.scroll).y
     }
 
     pub fn sync(&self) {
@@ -232,9 +246,14 @@ impl Render for Scrollbar {
         let hidden = self.maximum.unwrap_or_else(|| target.hidden());
         let offset = target.offset().min(hidden);
 
+        if self.following && (self.glide.goal(&self.scroll).y - offset).abs() < REACHED {
+            self.following = false;
+        }
         if offset != self.seen {
             self.seen = offset;
-            self.wake(cx);
+            if !self.following {
+                self.wake(cx);
+            }
         }
 
         if viewport <= Pixels::ZERO || hidden <= Pixels::ZERO {
