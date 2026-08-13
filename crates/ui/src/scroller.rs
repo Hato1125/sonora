@@ -57,6 +57,7 @@ impl RenderOnce for Scroller {
             .id(id)
             .size_full()
             .overflow_y_scroll()
+            .restrict_scroll_to_axis()
             .track_scroll(&scroll)
             .children(children);
 

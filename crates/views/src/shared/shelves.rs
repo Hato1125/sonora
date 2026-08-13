@@ -122,6 +122,7 @@ impl Shelves {
                     .w_full()
                     .gap_4()
                     .overflow_x_scroll()
+                    .restrict_scroll_to_axis()
                     .track_scroll(&handle)
                     .children(cards),
             )
