@@ -27,6 +27,7 @@ pub struct YouTubeProvider {
     authuser: PathBuf,
     guest: PathBuf,
     resolved: PathBuf,
+    player: PathBuf,
 }
 
 impl YouTubeProvider {
@@ -40,6 +41,7 @@ impl YouTubeProvider {
             authuser: cache.join("authuser.txt"),
             guest: cache.join("guest"),
             resolved: cache.join("resolved.json"),
+            player: cache.join("player.json"),
         }
     }
 
@@ -47,8 +49,13 @@ impl YouTubeProvider {
         Arc::new(
             YtMusic::with_cookies(cookies)
                 .as_user(authuser)
-                .cache_resolutions(self.resolved.clone()),
+                .cache_resolutions(self.resolved.clone())
+                .cache_player(self.player.clone()),
         )
+    }
+
+    fn guest_client(&self) -> Arc<YtMusic> {
+        Arc::new(YtMusic::anonymous().cache_player(self.player.clone()))
     }
 
     fn authenticated_session(&self, api: Arc<YtMusic>, profile: UserProfile) -> ProviderSession {
@@ -240,7 +247,7 @@ impl MusicProvider for YouTubeProvider {
         }
         if self.guest.exists() {
             log::debug!("youtube: restoring guest session");
-            return Ok(Some(self.guest_session(Arc::new(YtMusic::anonymous()))));
+            return Ok(Some(self.guest_session(self.guest_client())));
         }
         Ok(None)
     }
@@ -254,7 +261,7 @@ impl MusicProvider for YouTubeProvider {
         match method {
             SignIn::Anonymous | SignIn::Default => {
                 self.store_guest();
-                Ok(self.guest_session(Arc::new(YtMusic::anonymous())))
+                Ok(self.guest_session(self.guest_client()))
             }
             SignIn::Browser(name) => {
                 let browser = self

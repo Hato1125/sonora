@@ -7,6 +7,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- YouTube tracks that refused to play now do. When YouTube turns down the quick route, Sonora
+  works out the stream signature itself and plays the track anyway, often at a higher bitrate.
+
 ## [0.12.0] - 2026-08-13
 
 ### Added

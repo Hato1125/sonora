@@ -446,13 +446,11 @@ fn announce(events: &UnboundedSender<PlaybackEvent>, slot: &Slot, playing: bool)
 }
 
 async fn fetch(api: &YtMusic, id: &str) -> Result<Loaded> {
-    let format = api.best_audio(id).await?;
-    let duration = format.duration;
-    let data = api.download(&format).await?;
+    let (format, data) = api.load_audio(id).await?;
     Ok(Loaded {
         data: Arc::new(data),
         loudness_db: format.loudness_db,
-        duration,
+        duration: format.duration,
     })
 }
 
