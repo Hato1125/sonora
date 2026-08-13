@@ -7,6 +7,38 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-08-13
+
+### Added
+
+- Search now opens on a grid of genres, and every genre leads to its own page of playlists, albums
+  and sub-genres, in cards or in a compact list.
+- The home page carries a feed from the service you are signed in to — daily and artist mixes,
+  editorial playlists and discovery shelves — with placeholder shelves while it loads, so the page
+  is useful before you like a single song.
+- German and French translations.
+- The language picker has a search field, so a language is one keystroke away instead of a scroll.
+
+### Changed
+
+- Scrolling glides to a stop instead of jumping, at the same speed on any refresh rate. Holding
+  Shift over a shelf scrolls it sideways, and a shelf no longer steals a plain wheel scroll.
+- Searching keeps what is already in your library above the catalogue results, so a match stops
+  sinking the moment the service answers.
+- Artist names in the narrow search layout are links again, and a table column stays hidden when
+  no row carries a value for it.
+- Sonora describes itself as a music streaming client rather than a Spotify client.
+
+### Fixed
+
+- Home, the genre pages and the genre grid only build what is on screen, which removes the stall
+  on pages with many covers.
+- Opening a genre on YouTube Music no longer crashes on the texture atlas.
+- Genre pages that carry nothing playable, and podcast-only entries, disappear from the grid by
+  themselves.
+- The Nix package installs the released binary instead of wrapping the loader, so audio mixers and
+  process lists show Sonora rather than ld-linux.
+
 ## [0.11.0] - 2026-08-13
 
 ### Added
@@ -368,7 +400,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Initial release: a native Spotify client with playback, an interactive queue, the saved library,
 search, album, playlist, artist and song pages, context menus and adaptive theming.
 
-[unreleased]: https://github.com/nolight132/sonora/compare/v0.11.0...HEAD
+[unreleased]: https://github.com/nolight132/sonora/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/nolight132/sonora/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/nolight132/sonora/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/nolight132/sonora/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/nolight132/sonora/compare/v0.8.0...v0.9.0
