@@ -98,7 +98,7 @@ impl Glide {
         };
 
         scroll.set_offset(landed);
-        window.request_animation_frame();
+        window.refresh();
         self.arm(scroll, window);
     }
 }
