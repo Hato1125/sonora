@@ -17,8 +17,8 @@ use ui::{
     clock, eyebrow, vacant,
 };
 
-use crate::screens::genre;
 use crate::shared::cells;
+use crate::shared::shelves;
 
 const RAIL: Pixels = gpui::px(12.);
 use crate::shared::tracks::{PlaybackStatus, playback_status};
@@ -419,7 +419,7 @@ impl SearchView {
         let plates: Vec<AnyElement> = found
             .into_iter()
             .enumerate()
-            .map(|(place, genre)| genre::plate(("genre", place), genre, None, cx))
+            .map(|(place, genre)| shelves::plate(("genre", place), genre, None, cx))
             .collect();
 
         div()
@@ -440,7 +440,7 @@ impl SearchView {
                 Scroller::new("search-browse", &self.browsing)
                     .px(gutter)
                     .pb(pad)
-                    .child(genre::spread(plates, genre::lanes(width))),
+                    .child(shelves::spread(plates, shelves::lanes(width))),
             )
             .into_any_element()
     }

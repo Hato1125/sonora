@@ -11,9 +11,11 @@ use crate::spotify::{
     albums, artists, collection, collection2, pathfinder, playlists, profiles, radio, search, wire,
 };
 use crate::{
-    Album, AlbumDetail, Artist, ArtistProfile, Genre, GenreDetail, Playlist, PlaylistDetail,
-    SavedArtist, Track, UserProfile,
+    Album, AlbumDetail, Artist, ArtistProfile, Genre, GenreDetail, GenreSection, Playlist,
+    PlaylistDetail, SavedArtist, Track, UserProfile,
 };
+
+const MADE_FOR_YOU: &str = "0JQ5DAt0tbjZptfcdMSKl3";
 
 pub struct LibrespotClient {
     session: Session,
@@ -135,6 +137,12 @@ impl MusicApi for LibrespotClient {
 
     async fn search(&self, query: &str) -> Result<Vec<Track>> {
         search::search(&self.session, query).await
+    }
+
+    async fn home(&self) -> Result<Vec<GenreSection>> {
+        Ok(pathfinder::genre(&self.session, MADE_FOR_YOU)
+            .await?
+            .sections)
     }
 
     async fn genres(&self) -> Result<Vec<Genre>> {

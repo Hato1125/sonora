@@ -108,10 +108,10 @@ impl Root {
             cx.new(|cx| LibraryView::new(library.clone(), playback.clone(), window, cx));
         let local_view = cx.new(|cx| LocalView::new(library.clone(), playback.clone(), window, cx));
 
-        let home_state = cx.new(|cx| Home::new(library.clone(), cx));
+        let io = Io::global(cx);
+        let home_state = cx.new(|cx| Home::new(library.clone(), session.clone(), io.clone(), cx));
         let home = cx.new(|cx| HomeView::new(home_state, playback.clone(), cx));
 
-        let io = Io::global(cx);
         let search_library = library.clone();
 
         let queries = cx.new(|cx| Search::new(session.clone(), search_library, io.clone(), cx));

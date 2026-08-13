@@ -1,24 +1,46 @@
 use std::collections::HashSet;
 use std::rc::Rc;
 
-use gpui::{App, Context, Entity};
-use music::Track;
+use gpui::{App, Context, Entity, Task};
+use music::{GenreSection, Track};
 
-use crate::{Library, LibraryState};
+use crate::{Io, Library, LibraryState, Session, SessionEvent, join};
 
 const GROUP_SIZE: usize = 10;
 const LIMIT: usize = GROUP_SIZE * 3;
 
 pub struct Home {
     library: Entity<Library>,
+    session: Entity<Session>,
+    io: Io,
     quick_picks: Rc<Vec<Track>>,
     quick_picks_seed: u64,
+    sections: Vec<GenreSection>,
+    feeding: bool,
+    task: Option<Task<()>>,
 }
 
 impl Home {
-    pub fn new(library: Entity<Library>, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        library: Entity<Library>,
+        session: Entity<Session>,
+        io: Io,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let quick_picks_seed = fastrand::u64(..);
         let quick_picks = picks(&library, quick_picks_seed, cx);
+
+        cx.subscribe(&session, |this, _, event, cx| match event {
+            SessionEvent::SignedIn => this.feed(cx),
+            SessionEvent::SignedOut => {
+                this.task = None;
+                this.sections.clear();
+                this.feeding = false;
+                cx.notify();
+            }
+            SessionEvent::LocalChanged => {}
+        })
+        .detach();
 
         cx.observe(&library, |this, library, cx| {
             match library.read(cx).state() {
@@ -34,11 +56,47 @@ impl Home {
         })
         .detach();
 
-        Self {
+        let mut home = Self {
             library,
+            session,
+            io,
             quick_picks,
             quick_picks_seed,
+            sections: Vec::new(),
+            feeding: false,
+            task: None,
+        };
+        home.feed(cx);
+        home
+    }
+
+    pub fn sections(&self) -> &[GenreSection] {
+        &self.sections
+    }
+
+    pub fn feed(&mut self, cx: &mut Context<Self>) {
+        if self.feeding || !self.sections.is_empty() {
+            return;
         }
+        let Some(client) = self.session.read(cx).client() else {
+            return;
+        };
+
+        self.feeding = true;
+        let io = self.io.clone();
+        self.task = Some(cx.spawn(async move |this, cx| {
+            let loaded = join(io.spawn(async move { client.home().await })).await;
+
+            this.update(cx, |this, cx| {
+                this.feeding = false;
+                match loaded {
+                    Ok(sections) => this.sections = sections,
+                    Err(error) => log::warn!("home: cannot load the feed: {error:#}"),
+                }
+                cx.notify();
+            })
+            .ok();
+        }));
     }
 
     pub fn quick_picks(&self) -> Rc<Vec<Track>> {

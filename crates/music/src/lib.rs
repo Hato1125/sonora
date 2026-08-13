@@ -84,6 +84,10 @@ pub trait MusicApi: Send + Sync {
     async fn track_radio(&self, track_id: &str) -> Result<Vec<Track>>;
     async fn search(&self, query: &str) -> Result<Vec<Track>>;
 
+    async fn home(&self) -> Result<Vec<GenreSection>> {
+        Ok(Vec::new())
+    }
+
     async fn genres(&self) -> Result<Vec<Genre>> {
         Ok(Vec::new())
     }

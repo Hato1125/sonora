@@ -6,9 +6,21 @@ use ytmusic::{Client, YtMusic, parse};
 use crate::youtube::wire;
 use crate::{Genre, GenreDetail, GenreItem, GenreSection};
 
+const HOME: &str = "FEmusic_home";
 const CATEGORIES: &str = "FEmusic_moods_and_genres";
 const CATEGORY: &str = "FEmusic_moods_and_genres_category";
 const THUMB: u32 = 120;
+
+pub(crate) async fn home(api: &YtMusic) -> Result<Vec<GenreSection>> {
+    let answer = api
+        .execute("browse", Client::Music, json!({ "browseId": HOME }))
+        .await?;
+
+    Ok(parse::find_renderers(&answer, "musicCarouselShelfRenderer")
+        .into_iter()
+        .filter_map(section)
+        .collect())
+}
 
 pub(crate) async fn genres(api: &YtMusic) -> Result<Vec<Genre>> {
     let answer = api
