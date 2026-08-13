@@ -3,7 +3,7 @@ use crate::shared::menu::ItemMenu;
 use gpui::prelude::*;
 use gpui::{Context, Entity, Pixels, Point, Render, ScrollHandle, Window, div, px};
 use state::{Home, Playback};
-use ui::{ActiveTheme as _, Mode, Popup, Scrollbar, Scroller, Viewport, scrolled};
+use ui::{ActiveTheme as _, Mode, Popup, Scrollbar, Scroller};
 
 use crate::shared::cells;
 use crate::shared::picks::{Picks, Shape};
@@ -110,15 +110,7 @@ impl Render for HomeView {
         let feeding = self.home.read(cx).is_feeding();
         let width = self.width;
         let scroll = self.scrollbar.read(cx).scroll().clone();
-        let above = self.shelves.read(cx).above();
-        let seen = scroll.bounds().size.height;
-        let viewport = Viewport {
-            top: (scrolled(&scroll) - above).max(Pixels::ZERO),
-            height: match seen > Pixels::ZERO {
-                true => seen,
-                false => window.viewport_size().height,
-            },
-        };
+        let viewport = self.shelves.read(cx).viewport(&scroll, window);
         let shelves = self
             .shelves
             .update(cx, |shelves, cx| match sections.is_empty() && feeding {

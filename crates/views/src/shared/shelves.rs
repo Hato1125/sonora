@@ -35,7 +35,7 @@ pub(crate) struct Shelves {
     id: &'static str,
     playback: Entity<Playback>,
     rails: Vec<Rail>,
-    above: Rc<Cell<Pixels>>,
+    above: Rc<Cell<Option<Pixels>>>,
 }
 
 impl Shelves {
@@ -44,7 +44,7 @@ impl Shelves {
             id,
             playback,
             rails: Vec::new(),
-            above: Rc::new(Cell::new(Pixels::ZERO)),
+            above: Rc::new(Cell::new(None)),
         }
     }
 
@@ -112,7 +112,7 @@ impl Shelves {
             .viewport(viewport)
             .rows(heights)
             .gap(STACK_GAP)
-            .on_measure(move |top, _, _| above.set(top))
+            .on_measure(move |top, _, _| above.set(Some(top)))
             .draw(move |place, window, cx| {
                 let Some(view) = me.upgrade() else {
                     return div().into_any_element();
@@ -132,8 +132,19 @@ impl Shelves {
             .into_any_element()
     }
 
-    pub(crate) fn above(&self) -> Pixels {
-        self.above.get()
+    pub(crate) fn viewport(&self, scroll: &ScrollHandle, window: &Window) -> Viewport {
+        let seen = scroll.bounds().size.height;
+
+        Viewport {
+            top: match self.above.get() {
+                Some(above) => (scroll.bounds().origin.y - above).max(Pixels::ZERO),
+                None => Pixels::ZERO,
+            },
+            height: match seen > Pixels::ZERO {
+                true => seen,
+                false => window.viewport_size().height,
+            },
+        }
     }
 
     fn height(
