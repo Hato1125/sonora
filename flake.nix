@@ -111,19 +111,11 @@
             };
 
             dontUnpack = true;
-            dontPatchELF = true;
             dontStrip = true;
-
-            nativeBuildInputs = [ pkgs.makeWrapper ];
 
             installPhase = ''
               runHook preInstall
-              install -Dm755 "$src" "$out/libexec/sonora"
-              makeWrapper ${pkgs.stdenv.cc.bintools.dynamicLinker} "$out/bin/sonora" \
-                --add-flags "--library-path ${
-                  pkgs.lib.makeLibraryPath (runtimeLibraries ++ [ pkgs.stdenv.cc.cc.lib ])
-                }" \
-                --add-flags "$out/libexec/sonora"
+              install -Dm755 "$src" "$out/bin/sonora"
               install -Dm444 ${./assets/linux/sonora.desktop} \
                 "$out/share/applications/sonora.desktop"
               install -Dm444 ${./assets/linux/sonora.svg} \
@@ -140,6 +132,15 @@
               install -Dm444 ${./assets/icons/LICENSE} \
                 "$out/share/licenses/sonora/LICENSE.Lucide"
               runHook postInstall
+            '';
+
+            postFixup = ''
+              patchelf \
+                --set-interpreter "${pkgs.stdenv.cc.bintools.dynamicLinker}" \
+                --add-rpath "${
+                  pkgs.lib.makeLibraryPath (runtimeLibraries ++ [ pkgs.stdenv.cc.cc.lib ])
+                }" \
+                "$out/bin/sonora"
             '';
 
             meta = sonora.meta // {
