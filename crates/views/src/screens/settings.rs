@@ -259,7 +259,7 @@ impl SettingsView {
                 Menu::new("language-dropdown")
                     .top(px(30.))
                     .right_0()
-                    .w(px(200.))
+                    .w(px(260.))
                     .item(MenuItem::new("language-search", "").content(self.languages.clone()))
                     .items(entries.into_iter().map(|(id, label)| {
                         MenuItem::new(id, label)
