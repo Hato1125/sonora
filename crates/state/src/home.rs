@@ -15,7 +15,7 @@ pub struct Home {
     io: Io,
     quick_picks: Rc<Vec<Track>>,
     quick_picks_seed: u64,
-    sections: Vec<GenreSection>,
+    sections: Rc<Vec<GenreSection>>,
     feeding: bool,
     task: Option<Task<()>>,
 }
@@ -34,7 +34,7 @@ impl Home {
             SessionEvent::SignedIn => this.feed(cx),
             SessionEvent::SignedOut => {
                 this.task = None;
-                this.sections.clear();
+                this.sections = Rc::new(Vec::new());
                 this.feeding = false;
                 cx.notify();
             }
@@ -62,7 +62,7 @@ impl Home {
             io,
             quick_picks,
             quick_picks_seed,
-            sections: Vec::new(),
+            sections: Rc::new(Vec::new()),
             feeding: false,
             task: None,
         };
@@ -70,8 +70,8 @@ impl Home {
         home
     }
 
-    pub fn sections(&self) -> &[GenreSection] {
-        &self.sections
+    pub fn sections(&self) -> Rc<Vec<GenreSection>> {
+        self.sections.clone()
     }
 
     pub fn is_feeding(&self) -> bool {
@@ -94,7 +94,7 @@ impl Home {
             this.update(cx, |this, cx| {
                 this.feeding = false;
                 match loaded {
-                    Ok(sections) => this.sections = sections,
+                    Ok(sections) => this.sections = Rc::new(sections),
                     Err(error) => log::warn!("home: cannot load the feed: {error:#}"),
                 }
                 cx.notify();

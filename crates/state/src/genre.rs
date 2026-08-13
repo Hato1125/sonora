@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use gpui::{Context, Entity, Task};
 use music::{Genre, GenreDetail, GenreItem, GenreSection};
 use tokio::task::AbortHandle;
@@ -5,7 +7,7 @@ use tokio::task::AbortHandle;
 use crate::{Io, Session, SessionEvent, join};
 
 pub struct Genres {
-    genres: Vec<Genre>,
+    genres: Rc<Vec<Genre>>,
     loading: bool,
     error: Option<String>,
     session: Entity<Session>,
@@ -19,7 +21,7 @@ impl Genres {
             SessionEvent::SignedIn => this.load(cx),
             SessionEvent::SignedOut => {
                 this.task = None;
-                this.genres.clear();
+                this.genres = Rc::new(Vec::new());
                 this.loading = false;
                 this.error = None;
                 cx.notify();
@@ -29,7 +31,7 @@ impl Genres {
         .detach();
 
         Self {
-            genres: Vec::new(),
+            genres: Rc::new(Vec::new()),
             loading: false,
             error: None,
             session,
@@ -38,16 +40,15 @@ impl Genres {
         }
     }
 
-    pub fn genres(&self) -> &[Genre] {
-        &self.genres
+    pub fn genres(&self) -> Rc<Vec<Genre>> {
+        self.genres.clone()
     }
 
     pub fn adopt(&mut self, id: &str, cover: Option<String>, cx: &mut Context<Self>) {
         let Some(cover) = cover else {
             return;
         };
-        let Some(genre) = self
-            .genres
+        let Some(genre) = Rc::make_mut(&mut self.genres)
             .iter_mut()
             .find(|genre| genre.id == id && genre.cover.is_none())
         else {
@@ -60,7 +61,7 @@ impl Genres {
 
     pub fn forget(&mut self, id: &str, cx: &mut Context<Self>) {
         let kept = self.genres.len();
-        self.genres.retain(|genre| genre.id != id);
+        Rc::make_mut(&mut self.genres).retain(|genre| genre.id != id);
         if self.genres.len() != kept {
             cx.notify();
         }
@@ -93,7 +94,7 @@ impl Genres {
             this.update(cx, |this, cx| {
                 this.loading = false;
                 match loaded {
-                    Ok(genres) => this.genres = genres,
+                    Ok(genres) => this.genres = Rc::new(genres),
                     Err(error) => this.error = Some(format!("{error:#}")),
                 }
                 cx.notify();
@@ -105,7 +106,8 @@ impl Genres {
 
 pub struct GenreDetails {
     id: Option<String>,
-    detail: Option<GenreDetail>,
+    name: Option<String>,
+    sections: Rc<Vec<GenreSection>>,
     loading: bool,
     error: Option<String>,
     session: Entity<Session>,
@@ -138,7 +140,8 @@ impl GenreDetails {
 
         Self {
             id: None,
-            detail: None,
+            name: None,
+            sections: Rc::new(Vec::new()),
             loading: false,
             error: None,
             session,
@@ -150,14 +153,11 @@ impl GenreDetails {
     }
 
     pub fn name(&self) -> Option<&str> {
-        self.detail.as_ref().map(|detail| detail.name.as_str())
+        self.name.as_deref()
     }
 
-    pub fn sections(&self) -> &[GenreSection] {
-        self.detail
-            .as_ref()
-            .map(|detail| detail.sections.as_slice())
-            .unwrap_or_default()
+    pub fn sections(&self) -> Rc<Vec<GenreSection>> {
+        self.sections.clone()
     }
 
     pub fn is_loading(&self) -> bool {
@@ -169,7 +169,7 @@ impl GenreDetails {
     }
 
     pub fn open(&mut self, id: &str, cx: &mut Context<Self>) {
-        if self.id.as_deref() == Some(id) && (self.loading || self.detail.is_some()) {
+        if self.id.as_deref() == Some(id) && (self.loading || self.name.is_some()) {
             return;
         }
 
@@ -209,7 +209,8 @@ impl GenreDetails {
                                 true => genres.forget(&known, cx),
                                 false => genres.adopt(&known, cover, cx),
                             });
-                        this.detail = Some(detail);
+                        this.name = Some(detail.name);
+                        this.sections = Rc::new(detail.sections);
                     }
                     Err(error) => this.error = Some(format!("{error:#}")),
                 }
@@ -225,7 +226,8 @@ impl GenreDetails {
             request.abort();
         }
         self.id = None;
-        self.detail = None;
+        self.name = None;
+        self.sections = Rc::new(Vec::new());
         self.loading = false;
         self.error = None;
     }

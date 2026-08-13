@@ -86,7 +86,7 @@ impl Shelves {
 
     pub(crate) fn render(
         &mut self,
-        sections: &[GenreSection],
+        sections: Rc<Vec<GenreSection>>,
         mode: Mode,
         width: Pixels,
         viewport: Viewport,
@@ -104,7 +104,6 @@ impl Shelves {
             .iter()
             .map(|section| self.height(section, mode, width, window, cx))
             .collect();
-        let sections = sections.to_vec();
         let me = cx.entity().downgrade();
         let above = self.above.clone();
 
@@ -124,7 +123,7 @@ impl Shelves {
 
                 match mode {
                     Mode::Cards => {
-                        shelves.rail(place, section, width, &view.downgrade(), window, cx)
+                        shelves.rail(place, &sections, width, &view.downgrade(), window, cx)
                     }
                     Mode::List => shelves.lane(place, section, width, window, cx),
                 }
@@ -205,12 +204,15 @@ impl Shelves {
     fn rail(
         &self,
         place: usize,
-        section: &GenreSection,
+        sections: &Rc<Vec<GenreSection>>,
         width: Pixels,
         me: &WeakEntity<Self>,
         window: &Window,
         cx: &App,
     ) -> AnyElement {
+        let Some(section) = sections.get(place) else {
+            return div().into_any_element();
+        };
         let layout = CardGrid::layout(width);
         let (handle, glide) = self.rails[place].clone();
         let crowded = section.items.len() > layout.columns;
@@ -222,7 +224,7 @@ impl Shelves {
             top: -handle.offset().x.min(Pixels::ZERO),
             height: seen,
         };
-        let items = section.items.clone();
+        let feed = sections.clone();
         let drawn = me.clone();
         let card = layout.card;
         let tall = Card::tile_height(card, window, cx);
@@ -265,13 +267,15 @@ impl Shelves {
                         Deck::new(self.tag("rail", place))
                             .across()
                             .viewport(viewport)
-                            .rows(items.iter().map(|_| card))
+                            .rows(section.items.iter().map(|_| card))
                             .gap(RAIL_GAP)
                             .draw(move |index, _, cx| {
                                 let Some(view) = drawn.upgrade() else {
                                     return div().into_any_element();
                                 };
-                                let Some(item) = items.get(index) else {
+                                let Some(item) =
+                                    feed.get(place).and_then(|section| section.items.get(index))
+                                else {
                                     return div().into_any_element();
                                 };
 
@@ -435,7 +439,7 @@ pub(crate) fn plate(
 
 pub(crate) fn grid(
     id: &'static str,
-    genres: Vec<music::Genre>,
+    genres: Rc<Vec<music::Genre>>,
     width: Pixels,
     viewport: Viewport,
     window: &Window,

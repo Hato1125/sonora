@@ -14,6 +14,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   place. It is readied silently in the background, so press play and the music starts from that
   second at once, without the progress bar sliding into place first.
 
+### Changed
+
+- The home feed, genre pages and the genre grid in search scroll and resize without stuttering,
+  however many shelves the feed carries.
+
 ### Fixed
 
 - Switching music service, or signing out, now clears the queue, the history and the current track,
