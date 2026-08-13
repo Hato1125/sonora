@@ -105,9 +105,11 @@ impl Render for GenreView {
         let sections = detail.sections().to_vec();
         let empty = !loading && sections.is_empty();
         let (mode, width) = (self.mode, self.width);
-        let shelves = self
-            .shelves
-            .update(cx, |shelves, cx| shelves.render(&sections, mode, width, cx));
+        let scroll = self.scrollbar.read(cx).scroll().clone();
+        let viewport = self.shelves.read(cx).viewport(&scroll, window);
+        let shelves = self.shelves.update(cx, |shelves, cx| {
+            shelves.render(&sections, mode, width, viewport, window, cx)
+        });
 
         div().flex().flex_col().size_full().child(
             Scroller::new("genre", &self.scrollbar).p(pad).child(
@@ -128,7 +130,7 @@ impl Render for GenreView {
                             .child(SharedString::from(error))
                     }))
                     .when(empty, |this| this.child(vacant(t!("genre-empty"), cx)))
-                    .children(shelves),
+                    .child(shelves),
             ),
         )
     }
