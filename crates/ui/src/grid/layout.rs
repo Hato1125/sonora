@@ -68,6 +68,12 @@ pub struct ColumnSpec<F: 'static> {
     pub rank: u8,
 }
 
+impl<F: Copy + 'static> ColumnSpec<F> {
+    pub const fn ranked(&self, rank: u8) -> Self {
+        Self { rank, ..*self }
+    }
+}
+
 impl<F: 'static> ColumnSpec<F> {
     pub fn label(&self) -> SharedString {
         match self.header.is_empty() {

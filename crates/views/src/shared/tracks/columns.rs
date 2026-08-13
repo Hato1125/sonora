@@ -61,7 +61,7 @@ const ARTISTS: ColumnSpec<TrackField> = ColumnSpec {
     key: "artists",
     header: "column-artist",
     width: Width::Fill(0.29),
-    rank: SPARE,
+    rank: HANDY,
     ..COLUMN
 };
 
@@ -70,7 +70,7 @@ const ALBUM: ColumnSpec<TrackField> = ColumnSpec {
     key: "album",
     header: "column-album",
     width: Width::Fill(0.29),
-    rank: HANDY,
+    rank: SPARE,
     ..COLUMN
 };
 
@@ -105,11 +105,24 @@ const DURATION: ColumnSpec<TrackField> = ColumnSpec {
 pub(crate) const LIBRARY_COLUMNS: &[ColumnSpec<TrackField>] =
     &[INDEX, COVER, TITLE, ARTISTS, ALBUM, ADDED_AT, DURATION];
 
-pub(crate) const ARTIST_COLUMNS: &[ColumnSpec<TrackField>] =
-    &[INDEX, COVER, TITLE, ARTISTS, ALBUM, PLAYS, DURATION];
+pub(crate) const ARTIST_COLUMNS: &[ColumnSpec<TrackField>] = &[
+    INDEX,
+    COVER,
+    TITLE,
+    ARTISTS.ranked(SPARE),
+    ALBUM.ranked(HANDY),
+    PLAYS,
+    DURATION,
+];
 
-pub(crate) const ARTIST_COLUMNS_LEAN: &[ColumnSpec<TrackField>] =
-    &[INDEX, COVER, TITLE, ARTISTS, ALBUM, DURATION];
+pub(crate) const ARTIST_COLUMNS_LEAN: &[ColumnSpec<TrackField>] = &[
+    INDEX,
+    COVER,
+    TITLE,
+    ARTISTS.ranked(SPARE),
+    ALBUM.ranked(HANDY),
+    DURATION,
+];
 
 pub(crate) const ALBUM_COLUMNS: &[ColumnSpec<TrackField>] =
     &[INDEX, TITLE, ARTISTS, PLAYS, DURATION];
