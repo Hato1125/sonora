@@ -122,6 +122,7 @@ pub struct Playback {
     refused: bool,
     armed: Option<Duration>,
     settle: Option<Duration>,
+    held: bool,
     stored: Duration,
 }
 
@@ -188,6 +189,7 @@ impl Playback {
             refused: false,
             armed: None,
             settle: None,
+            held: false,
             stored: Duration::ZERO,
         }
     }
@@ -263,6 +265,7 @@ impl Playback {
         self.preloaded = None;
         self.armed = None;
         self.settle = None;
+        self.held = false;
         cx.notify();
 
         let wait = self
@@ -766,7 +769,11 @@ impl Playback {
 
     pub fn resume(&mut self, cx: &mut Context<Self>) {
         if let Some(at) = self.armed {
-            return self.rearm(at, cx);
+            if !self.held {
+                return self.rearm(at, cx);
+            }
+            self.armed = None;
+            self.held = false;
         }
         if let Some(engine) = self.active_engine() {
             engine.play();
@@ -783,6 +790,31 @@ impl Playback {
         }
         self.load_after(&track, Start::Pick, cx);
         self.settle = Some(at);
+    }
+
+    fn hold(&mut self, cx: &mut Context<Self>) {
+        self.held = false;
+        let Some(at) = self.armed else {
+            return;
+        };
+        let Some(track) = self.track.clone() else {
+            return;
+        };
+        let Some(id) = track.id.as_deref().filter(|_| track.playable) else {
+            return;
+        };
+        let Some(engine) = self.engine_for(id) else {
+            return;
+        };
+        match engine.arm(id, at) {
+            Ok(()) => {
+                self.held = true;
+                self.state = PlaybackState::Paused;
+                self.position = at;
+            }
+            Err(error) => log::warn!("playback: cannot hold {}: {error:#}", track.name),
+        }
+        cx.notify();
     }
 
     fn adopt(&mut self, cx: &mut Context<Self>) {
@@ -811,7 +843,7 @@ impl Playback {
         self.position = at;
         self.stored = at;
         self.armed = Some(at);
-        cx.notify();
+        self.hold(cx);
     }
 
     fn remember(&mut self, force: bool, cx: &mut Context<Self>) {
@@ -856,6 +888,11 @@ impl Playback {
     pub fn seek(&mut self, position: Duration, cx: &mut Context<Self>) {
         if self.armed.is_some() {
             self.armed = Some(position);
+            if self.held
+                && let Some(engine) = self.active_engine()
+            {
+                engine.seek(position);
+            }
             self.position = position;
             self.remember(true, cx);
             cx.notify();
@@ -993,6 +1030,7 @@ impl Playback {
             self.state = PlaybackState::Idle;
             self.position = Duration::ZERO;
         }
+        self.hold(cx);
         cx.notify();
     }
 
@@ -1007,6 +1045,7 @@ impl Playback {
 
         self.listen(events, true, cx);
         self.local_engine = Some(engine);
+        self.hold(cx);
     }
 
     fn listen(&mut self, mut events: Box<dyn PlaybackEvents>, local: bool, cx: &mut Context<Self>) {
@@ -1036,6 +1075,11 @@ impl Playback {
             return;
         }
         match event {
+            BackendEvent::Unavailable | BackendEvent::Refused if self.held => {
+                self.held = false;
+                self.state = PlaybackState::Paused;
+                log::warn!("playback: cannot hold the restored track, waiting for play");
+            }
             BackendEvent::Loading(position) => {
                 self.state = PlaybackState::Loading;
                 self.position = position;
@@ -1122,6 +1166,7 @@ impl Playback {
             self.position = Duration::ZERO;
             self.armed = None;
             self.settle = None;
+            self.held = false;
             self.stored = Duration::ZERO;
         }
         cx.notify();
