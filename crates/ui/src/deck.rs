@@ -17,6 +17,7 @@ pub struct Deck {
     viewport: Viewport,
     rows: Vec<Pixels>,
     gap: Pixels,
+    across: bool,
     draw: Option<Draw>,
     measure: Option<Measure>,
 }
@@ -30,9 +31,15 @@ impl Deck {
             viewport: Viewport::default(),
             rows: Vec::new(),
             gap: Pixels::ZERO,
+            across: false,
             draw: None,
             measure: None,
         }
+    }
+
+    pub fn across(mut self) -> Self {
+        self.across = true;
+        self
     }
 
     pub fn viewport(mut self, viewport: Viewport) -> Self {
@@ -92,6 +99,7 @@ impl RenderOnce for Deck {
             viewport,
             rows,
             gap,
+            across,
             draw,
             measure,
         } = self;
@@ -106,11 +114,20 @@ impl RenderOnce for Deck {
                 let Some(head) = bounds.first() else {
                     return;
                 };
-                measure(head.origin.y - first, window, cx);
+                let start = match across {
+                    true => head.origin.x,
+                    false => head.origin.y,
+                };
+                measure(start - first, window, cx);
             })
         });
+        let reach = extent(&rows, gap);
 
-        let mut deck = base.id(id).relative().w_full().h(extent(&rows, gap));
+        let mut deck = base.id(id).relative().when_else(
+            across,
+            |this| this.h_full().w(reach),
+            |this| this.w_full().h(reach),
+        );
         deck.style().refine(&overrides);
 
         match draw {
@@ -118,10 +135,11 @@ impl RenderOnce for Deck {
             Some(draw) => deck.children(shown.map(|index| {
                 div()
                     .absolute()
-                    .top(tops[index])
-                    .left_0()
-                    .w_full()
-                    .h(rows[index])
+                    .when_else(
+                        across,
+                        |this| this.left(tops[index]).top_0().h_full().w(rows[index]),
+                        |this| this.top(tops[index]).left_0().w_full().h(rows[index]),
+                    )
                     .overflow_hidden()
                     .child(draw(index, window, cx))
             })),

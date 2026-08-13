@@ -5,7 +5,10 @@ use gpui::{
 };
 use i18n::t;
 use state::{AppSettings, GenreDetails, Playback, Sonora};
-use ui::{ActiveTheme as _, Mode, Popovers, Scrollbar, Scroller, Skeleton, Text, vacant};
+use ui::{
+    ActiveTheme as _, Mode, Popovers, Scrollbar, Scroller, Skeleton, Text, Viewport, scrolled,
+    vacant,
+};
 
 use crate::chrome::{Chrome, Toolbar, Tooled, tools};
 use crate::shared::cells;
@@ -105,9 +108,19 @@ impl Render for GenreView {
         let sections = detail.sections().to_vec();
         let empty = !loading && sections.is_empty();
         let (mode, width) = (self.mode, self.width);
-        let shelves = self
-            .shelves
-            .update(cx, |shelves, cx| shelves.render(&sections, mode, width, cx));
+        let scroll = self.scrollbar.read(cx).scroll().clone();
+        let above = self.shelves.read(cx).above();
+        let seen = scroll.bounds().size.height;
+        let viewport = Viewport {
+            top: (scrolled(&scroll) - above).max(Pixels::ZERO),
+            height: match seen > Pixels::ZERO {
+                true => seen,
+                false => window.viewport_size().height,
+            },
+        };
+        let shelves = self.shelves.update(cx, |shelves, cx| {
+            shelves.render(&sections, mode, width, viewport, window, cx)
+        });
 
         div().flex().flex_col().size_full().child(
             Scroller::new("genre", &self.scrollbar).p(pad).child(
@@ -128,7 +141,7 @@ impl Render for GenreView {
                             .child(SharedString::from(error))
                     }))
                     .when(empty, |this| this.child(vacant(t!("genre-empty"), cx)))
-                    .children(shelves),
+                    .child(shelves),
             ),
         )
     }

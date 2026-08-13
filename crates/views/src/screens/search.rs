@@ -14,7 +14,7 @@ use state::{Genres, Hit, Kind, Playback, Search};
 use ui::ActiveTheme as _;
 use ui::{
     Card, Pin, PinKind, Pinnable, Popup, Room, Scrollbar, Scroller, Separator, Text, Theme, VAST,
-    clock, eyebrow, vacant,
+    Viewport, clock, eyebrow, scrolled, vacant,
 };
 
 use crate::shared::cells;
@@ -416,11 +416,16 @@ impl SearchView {
         let theme = *cx.theme();
         let pad = theme.metrics.inset;
         let width = cells::content_width(window, pad * 2., cx);
-        let plates: Vec<AnyElement> = found
-            .into_iter()
-            .enumerate()
-            .map(|(place, genre)| shelves::plate(("genre", place), genre, None, cx))
-            .collect();
+        let scroll = self.browsing.read(cx).scroll().clone();
+        let seen = scroll.bounds().size.height;
+        let viewport = Viewport {
+            top: scrolled(&scroll),
+            height: match seen > Pixels::ZERO {
+                true => seen,
+                false => window.viewport_size().height,
+            },
+        };
+        let plates = shelves::grid("genre", found, width, viewport, window, cx);
 
         div()
             .flex()
@@ -440,7 +445,7 @@ impl SearchView {
                 Scroller::new("search-browse", &self.browsing)
                     .px(gutter)
                     .pb(pad)
-                    .child(shelves::spread(plates, shelves::lanes(width))),
+                    .child(plates),
             )
             .into_any_element()
     }

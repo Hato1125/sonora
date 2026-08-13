@@ -1,14 +1,17 @@
 use gpui::prelude::*;
 use gpui::{
     AnyElement, App, Context, Div, ElementId, Entity, FontWeight, Pixels, ScrollHandle,
-    ScrollWheelEvent, SharedString, Window, div, point, px,
+    ScrollWheelEvent, SharedString, WeakEntity, Window, div, point, px,
 };
+use std::cell::Cell;
+use std::rc::Rc;
+
 use music::{Album, GenreItem, GenreSection, Playlist};
 use router::{Destination, navigate};
 use state::{Origin, Playback, PlaybackState};
 use ui::{
-    ActiveTheme as _, Button, Card, Glide, Mode, Pin, PinKind, Pinnable as _, Skeleton, Text,
-    heading,
+    ActiveTheme as _, Button, Card, Deck, Glide, Mode, Pin, PinKind, Pinnable as _, Skeleton, Text,
+    Viewport, heading, snapped,
 };
 
 use crate::shared::album_grid::CardGrid;
@@ -19,6 +22,11 @@ const LANES: usize = 5;
 const ROWS: usize = 3;
 const STEADY: Pixels = px(0.5);
 const PENDING: usize = 3;
+const RAIL_GAP: Pixels = px(16.);
+const STACK_GAP: Pixels = px(32.);
+const LANE_GAP: Pixels = px(8.);
+const HEADING_GAP: Pixels = px(12.);
+const LEADING: f32 = 1.4;
 const HEADING: Pixels = px(140.);
 
 type Rail = (ScrollHandle, Glide);
@@ -27,6 +35,7 @@ pub(crate) struct Shelves {
     id: &'static str,
     playback: Entity<Playback>,
     rails: Vec<Rail>,
+    above: Rc<Cell<Pixels>>,
 }
 
 impl Shelves {
@@ -35,6 +44,7 @@ impl Shelves {
             id,
             playback,
             rails: Vec::new(),
+            above: Rc::new(Cell::new(Pixels::ZERO)),
         }
     }
 
@@ -79,8 +89,10 @@ impl Shelves {
         sections: &[GenreSection],
         mode: Mode,
         width: Pixels,
+        viewport: Viewport,
+        window: &Window,
         cx: &mut Context<Self>,
-    ) -> Vec<AnyElement> {
+    ) -> AnyElement {
         while self.rails.len() < sections.len() {
             self.rails.push((ScrollHandle::new(), Glide::default()));
         }
@@ -88,23 +100,64 @@ impl Shelves {
             glide.sync(scroll);
         }
 
-        sections
+        let heights: Vec<Pixels> = sections
             .iter()
-            .enumerate()
-            .map(|(place, section)| match mode {
-                Mode::Cards => self.rail(place, section, width, cx),
-                Mode::List => self.lane(place, section, width, cx),
+            .map(|section| self.height(section, mode, width, window, cx))
+            .collect();
+        let sections = sections.to_vec();
+        let me = cx.entity().downgrade();
+        let above = self.above.clone();
+
+        Deck::new(self.tag("stack", 0))
+            .viewport(viewport)
+            .rows(heights)
+            .gap(STACK_GAP)
+            .on_measure(move |top, _, _| above.set(top))
+            .draw(move |place, _, cx| {
+                let Some(view) = me.upgrade() else {
+                    return div().into_any_element();
+                };
+                let Some(section) = sections.get(place) else {
+                    return div().into_any_element();
+                };
+                let shelves = view.read(cx);
+
+                match mode {
+                    Mode::Cards => shelves.rail(place, section, width, &view.downgrade(), cx),
+                    Mode::List => shelves.lane(place, section, width, cx),
+                }
             })
-            .collect()
+            .into_any_element()
     }
 
-    fn lane(
+    pub(crate) fn above(&self) -> Pixels {
+        self.above.get()
+    }
+
+    fn height(
         &self,
-        place: usize,
         section: &GenreSection,
+        mode: Mode,
         width: Pixels,
-        cx: &Context<Self>,
-    ) -> AnyElement {
+        window: &Window,
+        cx: &App,
+    ) -> Pixels {
+        let theme = *cx.theme();
+        let head = snapped(theme.text(Text::Large) * LEADING, window) + HEADING_GAP;
+        let body = match mode {
+            Mode::Cards => Card::tile_height(CardGrid::layout(width).card, window, cx),
+            Mode::List => {
+                let lanes = lanes(width);
+                let rows = section.items.len().min(lanes * ROWS).div_ceil(lanes);
+                let row = snapped(theme.metrics.list_row, window);
+                row * rows as f32 + LANE_GAP * rows.saturating_sub(1) as f32
+            }
+        };
+
+        head + body
+    }
+
+    fn lane(&self, place: usize, section: &GenreSection, width: Pixels, cx: &App) -> AnyElement {
         let lanes = lanes(width);
         let cards = section
             .items
@@ -128,17 +181,23 @@ impl Shelves {
         place: usize,
         section: &GenreSection,
         width: Pixels,
-        cx: &Context<Self>,
+        me: &WeakEntity<Self>,
+        cx: &App,
     ) -> AnyElement {
         let layout = CardGrid::layout(width);
         let (handle, glide) = self.rails[place].clone();
         let crowded = section.items.len() > layout.columns;
-        let cards: Vec<AnyElement> = section
-            .items
-            .iter()
-            .enumerate()
-            .map(|(index, item)| self.card(place * 100 + index, item, Some(layout.card), cx))
-            .collect();
+        let seen = match handle.bounds().size.width {
+            reach if reach > Pixels::ZERO => reach,
+            _ => width,
+        };
+        let viewport = Viewport {
+            top: -handle.offset().x.min(Pixels::ZERO),
+            height: seen,
+        };
+        let items = section.items.clone();
+        let drawn = me.clone();
+        let card = layout.card;
 
         div()
             .flex()
@@ -152,15 +211,13 @@ impl Shelves {
                     .gap_4()
                     .child(heading(SharedString::from(section.title.clone()), cx))
                     .when(crowded, |this| {
-                        this.child(self.arrows(place, &handle, &glide, cx))
+                        this.child(self.arrows(place, &handle, &glide, me))
                     }),
             )
             .child(
                 div()
                     .id((self.id, place))
-                    .flex()
                     .w_full()
-                    .gap_4()
                     .overflow_x_scroll()
                     .restrict_scroll_to_axis()
                     .track_scroll(&handle)
@@ -174,7 +231,24 @@ impl Shelves {
                             glide.nudge(&scroll, window);
                         }
                     })
-                    .children(cards),
+                    .child(
+                        Deck::new(self.tag("rail", place))
+                            .across()
+                            .viewport(viewport)
+                            .rows(items.iter().map(|_| card))
+                            .gap(RAIL_GAP)
+                            .draw(move |index, _, cx| {
+                                let Some(view) = drawn.upgrade() else {
+                                    return div().into_any_element();
+                                };
+                                let Some(item) = items.get(index) else {
+                                    return div().into_any_element();
+                                };
+
+                                view.read(cx)
+                                    .card(place * 100 + index, item, Some(card), cx)
+                            }),
+                    ),
             )
             .into_any_element()
     }
@@ -184,7 +258,7 @@ impl Shelves {
         place: usize,
         handle: &ScrollHandle,
         glide: &Glide,
-        cx: &Context<Self>,
+        me: &WeakEntity<Self>,
     ) -> AnyElement {
         let at = glide.goal(handle).x;
         let reach = handle.max_offset().x;
@@ -195,11 +269,11 @@ impl Shelves {
             .items_center()
             .gap_1()
             .child(
-                self.arrow(self.tag("previous", place), false, handle, glide, cx)
+                self.arrow(self.tag("previous", place), false, handle, glide, me)
                     .disabled(at >= -STEADY),
             )
             .child(
-                self.arrow(self.tag("next", place), true, handle, glide, cx)
+                self.arrow(self.tag("next", place), true, handle, glide, me)
                     .disabled(reach > Pixels::ZERO && at <= STEADY - reach),
             )
             .into_any_element()
@@ -211,11 +285,11 @@ impl Shelves {
         forward: bool,
         handle: &ScrollHandle,
         glide: &Glide,
-        cx: &Context<Self>,
+        me: &WeakEntity<Self>,
     ) -> Button {
         let handle = handle.clone();
         let glide = glide.clone();
-        let me = cx.entity().downgrade();
+        let me = me.clone();
 
         Button::new(id)
             .small()
@@ -329,11 +403,42 @@ pub(crate) fn plate(
         .into_any_element()
 }
 
-pub(crate) fn lanes(width: Pixels) -> usize {
+pub(crate) fn grid(
+    id: &'static str,
+    genres: Vec<music::Genre>,
+    width: Pixels,
+    viewport: Viewport,
+    window: &Window,
+    cx: &App,
+) -> AnyElement {
+    let lanes = lanes(width);
+    let row = snapped(cx.theme().metrics.list_row, window);
+    let rows = genres.len().div_ceil(lanes);
+
+    Deck::new(id)
+        .viewport(viewport)
+        .rows((0..rows).map(|_| row))
+        .gap(LANE_GAP)
+        .draw(move |place, _, cx| {
+            let first = place * lanes;
+            let cells = (first..(first + lanes).min(genres.len()))
+                .map(|index| plate((id, index), genres[index].clone(), None, cx));
+
+            div()
+                .flex()
+                .w_full()
+                .gap_2()
+                .children(cells.map(|cell| div().flex().flex_1().min_w_0().child(cell)))
+                .into_any_element()
+        })
+        .into_any_element()
+}
+
+fn lanes(width: Pixels) -> usize {
     ((width / PLATE).floor().max(1.) as usize).min(LANES)
 }
 
-pub(crate) fn spread(cards: Vec<AnyElement>, lanes: usize) -> Div {
+fn spread(cards: Vec<AnyElement>, lanes: usize) -> Div {
     let mut columns: Vec<Vec<AnyElement>> = (0..lanes).map(|_| Vec::new()).collect();
     for (place, card) in cards.into_iter().enumerate() {
         columns[place % lanes].push(card);
