@@ -186,9 +186,7 @@ impl SearchView {
                     .trailing(
                         div()
                             .flex_none()
-                            .w(cells::TRAILING)
                             .whitespace_nowrap()
-                            .text_right()
                             .text_size(theme.text(Text::Small))
                             .text_color(theme.muted_foreground)
                             .child(clock(track.duration)),
@@ -535,7 +533,7 @@ impl Render for SearchView {
         let theme = *cx.theme();
         let pad = theme.metrics.inset;
         let width = cells::content_width(window, pad * 2., cx);
-        let stacked = !Chrome::room(window, cx).fits(Room::Wide);
+        let stacked = !Chrome::room(window, cx).fits(Room::Vast);
         let inset = match width > VAST {
             true => (width - VAST) / 2.,
             false => Pixels::ZERO,
