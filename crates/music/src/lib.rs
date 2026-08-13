@@ -125,6 +125,14 @@ pub enum PlaybackEvent {
 
 pub trait Player: Send + Sync {
     fn load(&self, track_id: &str, seamless: bool) -> Result<()>;
+
+    fn arm(&self, track_id: &str, at: Duration) -> Result<()> {
+        self.load(track_id, false)?;
+        self.pause();
+        self.seek(at);
+        Ok(())
+    }
+
     fn preload(&self, track_id: &str) -> Result<()>;
     fn play(&self);
     fn pause(&self);

@@ -11,7 +11,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Sonora remembers what you were listening to. Reopen it and the track you left off on is waiting,
   paused where you stopped, with the rest of the queue and the tracks you already heard still in
-  place. Press play and it picks up from that second.
+  place. It is readied silently in the background, so press play and the music starts from that
+  second at once, without the progress bar sliding into place first.
 
 ### Fixed
 
