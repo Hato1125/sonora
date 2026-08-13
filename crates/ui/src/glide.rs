@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use gpui::{Pixels, Point, ScrollHandle, Window, point, px};
 
-const EASE: f32 = 0.22;
+const EASE: f32 = 0.12;
 const REST: Pixels = px(0.5);
 
 #[derive(Default)]
