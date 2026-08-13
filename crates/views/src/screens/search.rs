@@ -413,7 +413,7 @@ impl SearchView {
 
     fn browse(&self, gutter: Pixels, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let error = self.genres.read(cx).error().map(str::to_owned);
-        let found = self.genres.read(cx).genres().to_vec();
+        let found = self.genres.read(cx).genres();
         let theme = *cx.theme();
         let pad = theme.metrics.inset;
         let width = cells::content_width(window, pad * 2., cx);

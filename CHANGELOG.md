@@ -13,6 +13,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   paused where you stopped, with the rest of the queue and the tracks you already heard still in
   place. Press play and it picks up from that second.
 
+### Changed
+
+- The home feed, genre pages and the genre grid in search scroll and resize without stuttering,
+  however many shelves the feed carries.
+
 ### Fixed
 
 - Switching music service, or signing out, now clears the queue, the history and the current track,
