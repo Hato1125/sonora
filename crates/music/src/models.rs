@@ -105,7 +105,6 @@ pub struct Genre {
     pub id: String,
     pub name: String,
     pub cover: Option<String>,
-    pub color: Option<u32>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

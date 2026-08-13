@@ -30,7 +30,6 @@ mod skeleton;
 mod switch;
 mod tabs;
 mod theme;
-mod tile;
 mod time;
 mod toast;
 mod tooltip;
@@ -79,7 +78,6 @@ pub use tabs::Tabs;
 pub use theme::{
     ActiveTheme, Look, MAX_FONT, MAX_TRANSPARENCY, MIN_FONT, Theme, ThemeKind, ThemeOverrides,
 };
-pub use tile::{Tile, paint};
 pub use time::clock;
 pub use toast::Toast;
 pub use tooltip::{Perch, Tooltip};

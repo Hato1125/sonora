@@ -9,7 +9,6 @@ pub(crate) mod menu;
 pub(crate) mod page;
 pub(crate) mod picks;
 pub(crate) mod playlist_editor;
-pub(crate) mod tints;
 pub(crate) mod tracks;
 
 use gpui::prelude::*;

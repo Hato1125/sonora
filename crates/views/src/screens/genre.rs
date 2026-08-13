@@ -1,28 +1,27 @@
 use gpui::prelude::*;
 use gpui::{
-    AnyElement, App, Context, Entity, FontWeight, Hsla, Pixels, Render, ScrollHandle, SharedString,
-    Window, div,
+    AnyElement, App, Context, Div, ElementId, Entity, FontWeight, Hsla, Pixels, Render,
+    ScrollHandle, SharedString, Window, div,
 };
 use i18n::t;
 use music::{Album, GenreItem, Playlist};
 use router::{Destination, navigate};
 use state::{GenreDetails, Origin, Playback, PlaybackState};
 use ui::{
-    ActiveTheme as _, Card, Pin, PinKind, Pinnable as _, Scrollbar, Scroller, Skeleton, Text, Tile,
-    eyebrow, heading, paint, vacant,
+    ActiveTheme as _, Card, Pin, PinKind, Pinnable as _, Scrollbar, Scroller, Skeleton, Text,
+    heading, vacant,
 };
 
 use crate::chrome::Chrome;
-use crate::shared::album_grid::CardGrid;
 use crate::shared::cells;
-use crate::shared::tints::Tints;
 
 const TILE: Pixels = gpui::px(220.);
+const PLATE: Pixels = gpui::px(260.);
+const LANES: usize = 5;
 
 pub(crate) struct GenreView {
     detail: Entity<GenreDetails>,
     playback: Entity<Playback>,
-    tints: Entity<Tints>,
     scrollbar: Entity<Scrollbar>,
 }
 
@@ -36,18 +35,15 @@ impl GenreView {
         cx.observe(&playback, |_, _, cx| cx.notify()).detach();
         let chrome = Chrome::entity(cx);
         cx.observe(&chrome, |_, _, cx| cx.notify()).detach();
-        let tints = cx.new(|_| Tints::default());
-        cx.observe(&tints, |_, _, cx| cx.notify()).detach();
 
         Self {
             detail,
             playback,
-            tints,
             scrollbar: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
         }
     }
 
-    fn playlist_card(&self, id: usize, playlist: Playlist, width: Pixels, cx: &App) -> AnyElement {
+    fn playlist_card(&self, id: usize, playlist: Playlist, cx: &App) -> AnyElement {
         let origin = Origin::Playlist(playlist.id.clone());
         let playing = matches!(
             self.playback.read(cx).playing_from(&origin),
@@ -63,12 +59,11 @@ impl GenreView {
         let playback = self.playback.clone();
 
         Card::new(("genre-playlist", id), SharedString::from(playlist.name))
-            .tile(width)
             .cover(playlist.cover)
             .weight(FontWeight::SEMIBOLD)
-            .flat()
             .underline()
             .meta(SharedString::from(playlist.owner))
+            .bg(plated(cx))
             .play(playing, move |_, _, cx| {
                 playback.update(cx, |playback, cx| playback.toggle_origin(&origin, cx));
             })
@@ -77,7 +72,7 @@ impl GenreView {
             .into_any_element()
     }
 
-    fn album_card(&self, id: usize, album: Album, width: Pixels, cx: &App) -> AnyElement {
+    fn album_card(&self, id: usize, album: Album, cx: &App) -> AnyElement {
         let theme = *cx.theme();
         let origin = Origin::Album(album.id.clone());
         let playing = matches!(
@@ -98,12 +93,11 @@ impl GenreView {
         .truncate();
 
         Card::new(("genre-album", id), SharedString::from(album.name))
-            .tile(width)
             .cover(album.cover)
             .weight(FontWeight::SEMIBOLD)
-            .flat()
             .underline()
             .bare_meta(meta)
+            .bg(plated(cx))
             .play(playing, move |_, _, cx| {
                 playback.update(cx, |playback, cx| playback.toggle_origin(&origin, cx));
             })
@@ -113,68 +107,36 @@ impl GenreView {
     }
 
     fn sections(&self, width: Pixels, cx: &mut Context<Self>) -> Vec<AnyElement> {
-        let layout = CardGrid::layout(width);
-        let tiles = CardGrid::tiles(width);
+        let lanes = lanes(width);
         let sections = self.detail.read(cx).sections().to_vec();
 
         sections
             .into_iter()
             .enumerate()
             .map(|(place, section)| {
-                let genres = section
-                    .items
-                    .iter()
-                    .all(|item| matches!(item, GenreItem::Genre(_)));
-                let shape = match genres {
-                    true => tiles,
-                    false => layout,
-                };
                 let cards = section
                     .items
                     .into_iter()
-                    .take(shape.columns)
                     .enumerate()
                     .map(|(index, item)| {
                         let id = place * 100 + index;
                         match item {
-                            GenreItem::Playlist(playlist) => {
-                                self.playlist_card(id, playlist, shape.card, cx)
-                            }
-                            GenreItem::Album(album) => self.album_card(id, album, shape.card, cx),
-                            GenreItem::Genre(genre) => self.tile(genre, shape.card, cx),
+                            GenreItem::Playlist(playlist) => self.playlist_card(id, playlist, cx),
+                            GenreItem::Album(album) => self.album_card(id, album, cx),
+                            GenreItem::Genre(genre) => plate(("genre-plate", id), genre, cx),
                         }
                     })
-                    .collect::<Vec<_>>();
+                    .collect();
 
                 div()
                     .flex()
                     .flex_col()
                     .gap_3()
                     .child(heading(SharedString::from(section.title), cx))
-                    .child(CardGrid::of(shape).children(cards))
+                    .child(spread(cards, lanes))
                     .into_any_element()
             })
             .collect()
-    }
-
-    pub(crate) fn tile(
-        &self,
-        genre: music::Genre,
-        width: Pixels,
-        cx: &mut Context<Self>,
-    ) -> AnyElement {
-        let wash = wash(&self.tints, &genre, cx);
-        let opened = SharedString::from(genre.id);
-
-        Tile::new(
-            SharedString::from(format!("genre-tile-{opened}")),
-            genre.name,
-            width,
-        )
-        .wash(wash)
-        .cover(genre.cover)
-        .press(move |_, _, cx| navigate(Destination::Genre(opened.clone()), cx))
-        .into_any_element()
     }
 }
 
@@ -199,16 +161,9 @@ impl Render for GenreView {
                     .p(pad)
                     .child(
                         div()
-                            .flex()
-                            .flex_col()
-                            .gap_2()
-                            .child(eyebrow(t!("genre-eyebrow"), cx))
-                            .child(
-                                div()
-                                    .text_size(theme.text(Text::Display))
-                                    .font_weight(FontWeight::BOLD)
-                                    .child(SharedString::from(title)),
-                            ),
+                            .text_size(theme.text(Text::Display))
+                            .font_weight(FontWeight::BOLD)
+                            .child(SharedString::from(title)),
                     )
                     .when(loading, |this| this.child(Skeleton::new().w_full().h(TILE)))
                     .children(error.map(|error| {
@@ -223,13 +178,43 @@ impl Render for GenreView {
     }
 }
 
-pub(crate) fn wash<V: 'static>(
-    tints: &Entity<Tints>,
-    genre: &music::Genre,
-    cx: &mut Context<V>,
-) -> Option<Hsla> {
-    match genre.cover.as_deref() {
-        Some(cover) => tints.update(cx, |tints, cx| tints.of(cover, cx)),
-        None => genre.color.map(paint),
+pub(crate) fn plate(id: impl Into<ElementId>, genre: music::Genre, cx: &App) -> AnyElement {
+    let opened = SharedString::from(genre.id);
+
+    Card::new(id, SharedString::from(genre.name))
+        .cover(genre.cover)
+        .fallback("icons/music.svg")
+        .weight(FontWeight::SEMIBOLD)
+        .bg(plated(cx))
+        .press(move |_, _, cx| navigate(Destination::Genre(opened.clone()), cx))
+        .into_any_element()
+}
+
+pub(crate) fn lanes(width: Pixels) -> usize {
+    ((width / PLATE).floor().max(1.) as usize).min(LANES)
+}
+
+pub(crate) fn spread(cards: Vec<AnyElement>, lanes: usize) -> Div {
+    let mut columns: Vec<Vec<AnyElement>> = (0..lanes).map(|_| Vec::new()).collect();
+    for (place, card) in cards.into_iter().enumerate() {
+        columns[place % lanes].push(card);
     }
+
+    div()
+        .flex()
+        .w_full()
+        .gap_2()
+        .children(columns.into_iter().map(|column| {
+            div()
+                .flex()
+                .flex_1()
+                .min_w_0()
+                .flex_col()
+                .gap_2()
+                .children(column)
+        }))
+}
+
+fn plated(cx: &App) -> Hsla {
+    cx.theme().secondary
 }

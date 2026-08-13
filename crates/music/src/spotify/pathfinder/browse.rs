@@ -121,8 +121,6 @@ struct Representation {
     title: Option<Label>,
     #[serde(default, deserialize_with = "nullable")]
     artwork: Artwork,
-    #[serde(rename = "backgroundColor")]
-    background: Option<Hex>,
 }
 
 #[derive(Deserialize)]
@@ -176,12 +174,6 @@ struct Source {
 struct Label {
     #[serde(rename = "transformedLabel", default, deserialize_with = "nullable")]
     label: String,
-}
-
-#[derive(Deserialize)]
-struct Hex {
-    #[serde(default, deserialize_with = "nullable")]
-    hex: String,
 }
 
 fn nullable<'de, D, T>(deserializer: D) -> Result<T, D::Error>
@@ -321,7 +313,6 @@ fn genre(uri: &str, container: WireCard) -> Option<Genre> {
         id,
         name: card.title.map(|title| title.label).unwrap_or_default(),
         cover: Some(cover),
-        color: card.background.and_then(|color| tint(&color.hex)),
     })
 }
 
@@ -346,13 +337,6 @@ fn joined(artists: &[ArtistRef]) -> String {
         .map(|artist| artist.name.as_str())
         .collect::<Vec<_>>()
         .join(", ")
-}
-
-fn tint(hex: &str) -> Option<u32> {
-    let digits = hex.strip_prefix('#').unwrap_or(hex);
-    (digits.len() == 6)
-        .then(|| u32::from_str_radix(digits, 16).ok())
-        .flatten()
 }
 
 fn trimmed(uri: &str, prefix: &str) -> Option<String> {

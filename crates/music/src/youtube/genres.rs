@@ -8,7 +8,6 @@ use crate::{Genre, GenreDetail, GenreItem, GenreSection};
 
 const CATEGORIES: &str = "FEmusic_moods_and_genres";
 const CATEGORY: &str = "FEmusic_moods_and_genres_category";
-const RGB: u64 = 0x00ff_ffff;
 
 pub(crate) async fn genres(api: &YtMusic) -> Result<Vec<Genre>> {
     let answer = api
@@ -70,9 +69,5 @@ fn card(item: &Value) -> Option<Genre> {
             .to_owned(),
         name: button.run_text(&["buttonText"])?,
         cover: None,
-        color: button
-            .at(&["solid", "leftStripeColor"])
-            .and_then(Value::as_u64)
-            .map(|color| (color & RGB) as u32),
     })
 }
