@@ -19,6 +19,7 @@ const NAME: u32 = 1;
 const TOP: u32 = 95;
 const TAIL: u32 = 35;
 const DERIVED: u32 = 80;
+const MINE: u32 = 60;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
@@ -315,7 +316,7 @@ fn songs(library: &[Track], catalog: &[Track], query: &Query) -> Vec<Scored> {
             (ARTIST, track.artists.as_str()),
             (ALBUM, track.album.as_str()),
         ];
-        let Some(score) = fit(&fields, query).max(rank) else {
+        let Some(score) = favored(fit(&fields, query), rank).max(rank) else {
             continue;
         };
 
@@ -358,7 +359,7 @@ fn albums_of(albums: &[Album], library: &[Track], catalog: &[Track], query: &Que
     let mut seen: Vec<&String> = Vec::new();
     for (id, name, artists, artist_refs, cover, rank, popularity) in saved.chain(derived) {
         let fields = [(TITLE, name.as_str()), (ARTIST, artists.as_str())];
-        let Some(score) = fit(&fields, query).max(inherited(rank)) else {
+        let Some(score) = favored(fit(&fields, query), rank).max(inherited(rank)) else {
             continue;
         };
         if seen.contains(&id) {
@@ -427,7 +428,7 @@ fn artists(
 
     for (track, rank) in sources(library, catalog) {
         for artist in &track.artist_refs {
-            let Some(score) = named(&artist.name, query).max(inherited(rank)) else {
+            let Some(score) = favored(named(&artist.name, query), rank).max(inherited(rank)) else {
                 continue;
             };
             let mine = usize::from(rank.is_none());
@@ -436,7 +437,7 @@ fn artists(
     }
     for album in albums {
         for artist in &album.artist_refs {
-            let Some(score) = named(&artist.name, query) else {
+            let Some(score) = favored(named(&artist.name, query), None) else {
                 continue;
             };
             record(artist, score, 0, 0);
@@ -479,6 +480,13 @@ fn placed(at: usize, total: usize) -> u32 {
 
 fn inherited(rank: Option<u32>) -> Option<u32> {
     rank.map(|score| score * DERIVED / 100)
+}
+
+fn favored(score: Option<u32>, rank: Option<u32>) -> Option<u32> {
+    match rank {
+        Some(_) => score,
+        None => score.map(|score| score + MINE),
+    }
 }
 
 fn order(scored: &mut [Scored]) {
@@ -656,6 +664,25 @@ mod tests {
     #[test]
     fn library_exact_title_outranks_the_catalog_top() {
         let hits = rank(&[rhapsody()], &[], &[dora()], "bohemian rhapsody");
+        assert_eq!(titles(&hits), ["Bohemian Rhapsody", "Дорога"]);
+    }
+
+    #[test]
+    fn a_library_hit_holds_its_place_when_the_catalog_answers() {
+        let library = [rhapsody()];
+        assert_eq!(
+            titles(&rank(&library, &[], &[], "bohe")),
+            ["Bohemian Rhapsody"]
+        );
+        assert_eq!(
+            titles(&rank(&library, &[], &[dora()], "bohe")),
+            ["Bohemian Rhapsody", "Дорога"]
+        );
+    }
+
+    #[test]
+    fn a_weak_library_hit_still_beats_the_catalog_top() {
+        let hits = rank(&[rhapsody()], &[], &[dora()], "hapsod");
         assert_eq!(titles(&hits), ["Bohemian Rhapsody", "Дорога"]);
     }
 
