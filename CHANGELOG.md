@@ -18,6 +18,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - The home feed, genre pages and the genre grid in search scroll and resize without stuttering,
   however many shelves the feed carries.
+- The single-column search results scroll smoothly however many matches come back, because only the
+  rows on screen are drawn.
 
 ### Fixed
 
