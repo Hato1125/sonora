@@ -74,6 +74,11 @@ impl RenderOnce for Scroller {
 
         surface.style().refine(&overrides);
 
-        div().relative().size_full().child(surface).child(bar)
+        div()
+            .relative()
+            .size_full()
+            .min_h_0()
+            .child(surface)
+            .child(bar)
     }
 }

@@ -42,6 +42,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   space away from its title.
 - Every search result answers a right-click now, not just songs. Artists and albums open the same
   context menu they have elsewhere in the app, in the combined list as well as the three columns.
+- The genre grid on search scrolls all the way to its end, so the last row of plates no longer sits
+  flush against the player bar with its bottom cut off.
 
 ## [0.12.1] - 2026-08-13
 
