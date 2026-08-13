@@ -1,5 +1,6 @@
 /target
 /result
+/.claude
 /.direnv
 /vendor
 __pycache__/
