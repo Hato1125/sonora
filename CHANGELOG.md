@@ -44,6 +44,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   context menu they have elsewhere in the app, in the combined list as well as the three columns.
 - The genre grid on search scrolls all the way to its end, so the last row of plates no longer sits
   flush against the player bar with its bottom cut off.
+- Album, playlist and artist lists in your library end with the same breathing room as every other
+  page instead of stopping against the player bar.
 
 ## [0.12.1] - 2026-08-13
 
