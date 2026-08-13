@@ -7,6 +7,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Sonora remembers what you were listening to. Reopen it and the track you left off on is waiting,
+  paused where you stopped, with the rest of the queue and the tracks you already heard still in
+  place. Press play and it picks up from that second.
+
 ### Fixed
 
 - Switching music service, or signing out, now clears the queue, the history and the current track,
