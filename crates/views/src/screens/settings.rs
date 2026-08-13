@@ -101,6 +101,8 @@ pub struct SettingsView {
     popovers: Popovers,
     browsers: Option<(&'static str, Vec<SharedString>)>,
     secret: Entity<Input>,
+    languages: Entity<Input>,
+    picking: bool,
 }
 
 impl SettingsView {
@@ -112,6 +114,8 @@ impl SettingsView {
         let settings = Sonora::global(cx).settings.clone();
         cx.observe(&session, |_, _, cx| cx.notify()).detach();
         cx.observe(&settings, |_, _, cx| cx.notify()).detach();
+        let languages = cx.new(|cx| Input::new("settings-language-search", cx).compact());
+        cx.observe(&languages, |_, _, cx| cx.notify()).detach();
         Self {
             session,
             playback,
@@ -122,6 +126,8 @@ impl SettingsView {
             popovers: Popovers::default(),
             browsers: None,
             secret: cx.new(|cx| Input::new("login-cookie-hint", cx)),
+            languages,
+            picking: false,
         }
     }
 
@@ -231,11 +237,16 @@ impl SettingsView {
             None => t!("settings-language-system"),
         };
 
-        let entries = std::iter::once((i18n::AUTO, t!("settings-language-system"))).chain(
-            Language::ALL
-                .into_iter()
-                .map(|language| (language.id(), SharedString::from(language.label()))),
-        );
+        let asked = self.languages.read(cx).text().trim().to_lowercase();
+        let entries = std::iter::once((i18n::AUTO, t!("settings-language-system")))
+            .chain(
+                Language::ALL
+                    .into_iter()
+                    .map(|language| (language.id(), SharedString::from(language.label()))),
+            )
+            .filter(|(id, label)| matches(id, label, &asked))
+            .collect::<Vec<_>>();
+        let barren = entries.is_empty();
 
         let picker = Popover::new(LANGUAGES, self.popovers.clone())
             .button(
@@ -248,8 +259,9 @@ impl SettingsView {
                 Menu::new("language-dropdown")
                     .top(px(30.))
                     .right_0()
-                    .w(px(170.))
-                    .items(entries.map(|(id, label)| {
+                    .w(px(200.))
+                    .item(MenuItem::new("language-search", "").content(self.languages.clone()))
+                    .items(entries.into_iter().map(|(id, label)| {
                         MenuItem::new(id, label)
                             .selected(chosen == id)
                             .on_click(cx.listener(move |this, _, _, cx| {
@@ -258,7 +270,13 @@ impl SettingsView {
                                 this.popovers.close();
                                 cx.notify();
                             }))
-                    })),
+                    }))
+                    .when(barren, |menu| {
+                        menu.item(
+                            MenuItem::new("language-empty", t!("settings-language-none"))
+                                .disabled(),
+                        )
+                    }),
             );
 
         self.row(
@@ -1253,7 +1271,20 @@ fn open_settings_file(path: &Path) -> std::io::Result<()> {
 }
 
 impl Render for SettingsView {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let picking = self.popovers.shows(LANGUAGES);
+        if picking != self.picking {
+            self.picking = picking;
+            match picking {
+                true => self
+                    .languages
+                    .update(cx, |input, cx| input.focus(window, cx)),
+                false => self
+                    .languages
+                    .update(cx, |input, cx| input.set_text("", cx)),
+            }
+        }
+
         let browsers = self.browsers.clone();
         let accounts = match self.session.read(cx).state() {
             SessionState::Authorizing(Some(SignInPrompt::Accounts(accounts))) => {
@@ -1302,4 +1333,8 @@ impl Render for SettingsView {
                 this.child(self.secret_prompt(cx).into_any_element())
             })
     }
+}
+
+fn matches(id: &str, label: &str, asked: &str) -> bool {
+    asked.is_empty() || label.to_lowercase().contains(asked) || id.to_lowercase().contains(asked)
 }
