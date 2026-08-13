@@ -15,9 +15,9 @@ use anyhow::Result;
 use async_trait::async_trait;
 
 pub use models::{
-    Album, AlbumDetail, Artist, ArtistProfile, ArtistRef, Credit, Lyrics, LyricsHit, LyricsLine,
-    LyricsQuery, LyricsWord, Playlist, PlaylistDetail, ReleaseType, SavedArtist, Track,
-    UserProfile,
+    Album, AlbumDetail, Artist, ArtistProfile, ArtistRef, Credit, Genre, GenreDetail, GenreItem,
+    GenreSection, Lyrics, LyricsHit, LyricsLine, LyricsQuery, LyricsWord, Playlist, PlaylistDetail,
+    ReleaseType, SavedArtist, Track, UserProfile,
 };
 
 pub const LOCAL_TRACK_PREFIX: &str = "local:";
@@ -83,6 +83,18 @@ pub trait MusicApi: Send + Sync {
     async fn playlist_covers(&self, playlist_id: &str, wanted: usize) -> Result<Vec<String>>;
     async fn track_radio(&self, track_id: &str) -> Result<Vec<Track>>;
     async fn search(&self, query: &str) -> Result<Vec<Track>>;
+
+    async fn home(&self) -> Result<Vec<GenreSection>> {
+        Ok(Vec::new())
+    }
+
+    async fn genres(&self) -> Result<Vec<Genre>> {
+        Ok(Vec::new())
+    }
+
+    async fn genre(&self, _genre_id: &str) -> Result<GenreDetail> {
+        Ok(GenreDetail::default())
+    }
 }
 
 #[async_trait]

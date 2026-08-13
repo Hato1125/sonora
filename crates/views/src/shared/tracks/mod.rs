@@ -281,6 +281,21 @@ impl GridSource for TrackSource {
         self.provider.tracks(cx).len()
     }
 
+    fn populated(&self, field: TrackField, cx: &App) -> bool {
+        let tracks = self.provider.tracks(cx);
+        if tracks.is_empty() {
+            return true;
+        }
+
+        match field {
+            TrackField::Artists => tracks.iter().any(|track| !track.artists.is_empty()),
+            TrackField::Album => tracks.iter().any(|track| !track.album.is_empty()),
+            TrackField::AddedAt => tracks.iter().any(|track| track.added_at.is_some()),
+            TrackField::Plays => tracks.iter().any(|track| track.playcount.is_some()),
+            _ => true,
+        }
+    }
+
     fn matches(&self, row: usize, query: &str, cx: &App) -> bool {
         self.at(row, cx).is_some_and(|track| {
             if !self.sieve.keeps(&track) {

@@ -1,5 +1,6 @@
 mod artist;
 mod detail;
+mod genre;
 mod home;
 mod library;
 mod lyrics;
@@ -15,6 +16,7 @@ mod toast;
 
 pub use artist::ArtistDetail;
 pub use detail::{Collection, Detail, Header};
+pub use genre::{GenreDetails, Genres};
 pub use home::Home;
 pub use library::{Library, LibraryEvent, LibraryState};
 pub use lyrics::{Lyrics, LyricsState};

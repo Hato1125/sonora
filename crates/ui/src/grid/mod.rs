@@ -54,6 +54,10 @@ pub trait GridSource: 'static {
 
     fn columns(&self) -> &'static [ColumnSpec<Self::Field>];
     fn rows(&self, cx: &App) -> usize;
+
+    fn populated(&self, _field: Self::Field, _cx: &App) -> bool {
+        true
+    }
     fn cell(&self, cell: Cell<Self::Field>, cx: &mut App) -> AnyElement;
 
     fn context_menu(&self, _row: usize, _visible: &[Self::Field], _cx: &App) -> Option<Menu> {
@@ -115,12 +119,14 @@ pub struct GridDelegate<S: GridSource> {
 impl<S: GridSource> GridDelegate<S> {
     pub fn new(source: S, width: Pixels, cx: &App) -> Self {
         let heads = vec![Pixels::ZERO; source.columns().len()];
+        let blank = vec![false; heads.len()];
         let columns = resolve(
             source.columns(),
             width,
             cx.theme().metrics,
             &Layout::default(),
             &heads,
+            &blank,
         );
         let mut delegate = Self {
             source,
@@ -209,12 +215,20 @@ impl<S: GridSource> GridDelegate<S> {
     }
 
     fn relayout(&mut self, cx: &App) {
+        let blank: Vec<bool> = self
+            .source
+            .columns()
+            .iter()
+            .map(|spec| !self.source.populated(spec.field, cx))
+            .collect();
+
         self.columns = resolve(
             self.source.columns(),
             self.width,
             cx.theme().metrics,
             &self.layout,
             &self.heads,
+            &blank,
         );
     }
 

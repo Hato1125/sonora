@@ -214,13 +214,15 @@ home-quick-picks-empty = Like a few songs and they will show up here
 
 # search page
 search-placeholder = What do you want to listen to?
+search-browse = Browse all
+genre-empty = Nothing to show here yet
 search-best-match = Best match
 search-no-matches = No matches
 search-results = Results
 search-songs = Songs
 search-artists = Artists
 search-albums = Albums
-search-tagged = { $kind } · { $value }
+search-tag = { $kind } ·
 search-saved =
     { $count ->
         [one] { $count } song in Library

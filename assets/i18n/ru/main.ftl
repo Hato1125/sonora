@@ -215,13 +215,15 @@ home-quick-picks-empty = Добавьте несколько треков, и о
 
 # search page
 search-placeholder = Что хотите послушать?
+search-browse = Всё подряд
+genre-empty = Здесь пока пусто
 search-best-match = Лучшее совпадение
 search-no-matches = Ничего не найдено
 search-results = Результаты
 search-songs = Треки
 search-artists = Исполнители
 search-albums = Альбомы
-search-tagged = { $kind } · { $value }
+search-tag = { $kind } ·
 search-saved =
     { $count ->
         [one] { $count } трек в медиатеке
