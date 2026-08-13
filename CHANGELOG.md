@@ -12,6 +12,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - YouTube tracks that refused to play now do. When YouTube turns down the quick route, Sonora
   works out the stream signature itself and plays the track anyway, often at a higher bitrate.
 
+## [0.12.1] - 2026-08-13
+
+### Fixed
+
+- The queue scrolls with the same glide as the rest of the app instead of jumping.
+- The language picker is wide enough for its search field.
+
 ## [0.12.0] - 2026-08-13
 
 ### Added
@@ -405,7 +412,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Initial release: a native Spotify client with playback, an interactive queue, the saved library,
 search, album, playlist, artist and song pages, context menus and adaptive theming.
 
-[unreleased]: https://github.com/nolight132/sonora/compare/v0.12.0...HEAD
+[unreleased]: https://github.com/nolight132/sonora/compare/v0.12.1...HEAD
+[0.12.1]: https://github.com/nolight132/sonora/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/nolight132/sonora/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/nolight132/sonora/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/nolight132/sonora/compare/v0.9.0...v0.10.0
