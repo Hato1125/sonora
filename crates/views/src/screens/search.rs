@@ -534,7 +534,7 @@ impl Render for SearchView {
         let theme = *cx.theme();
         let pad = theme.metrics.inset;
         let width = cells::content_width(window, pad * 2., cx);
-        let stacked = !Chrome::room(window, cx).fits(Room::Vast);
+        let stacked = !Chrome::room(window, cx).fits(Room::Wide);
         let inset = match width > VAST {
             true => (width - VAST) / 2.,
             false => Pixels::ZERO,
