@@ -113,7 +113,7 @@ impl Shelves {
             .rows(heights)
             .gap(STACK_GAP)
             .on_measure(move |top, _, _| above.set(top))
-            .draw(move |place, _, cx| {
+            .draw(move |place, window, cx| {
                 let Some(view) = me.upgrade() else {
                     return div().into_any_element();
                 };
@@ -123,8 +123,10 @@ impl Shelves {
                 let shelves = view.read(cx);
 
                 match mode {
-                    Mode::Cards => shelves.rail(place, section, width, &view.downgrade(), cx),
-                    Mode::List => shelves.lane(place, section, width, cx),
+                    Mode::Cards => {
+                        shelves.rail(place, section, width, &view.downgrade(), window, cx)
+                    }
+                    Mode::List => shelves.lane(place, section, width, window, cx),
                 }
             })
             .into_any_element()
@@ -143,7 +145,7 @@ impl Shelves {
         cx: &App,
     ) -> Pixels {
         let theme = *cx.theme();
-        let head = snapped(theme.text(Text::Large) * LEADING, window) + HEADING_GAP;
+        let head = head(window, cx) + HEADING_GAP;
         let body = match mode {
             Mode::Cards => Card::tile_height(CardGrid::layout(width).card, window, cx),
             Mode::List => {
@@ -157,7 +159,14 @@ impl Shelves {
         head + body
     }
 
-    fn lane(&self, place: usize, section: &GenreSection, width: Pixels, cx: &App) -> AnyElement {
+    fn lane(
+        &self,
+        place: usize,
+        section: &GenreSection,
+        width: Pixels,
+        window: &Window,
+        cx: &App,
+    ) -> AnyElement {
         let lanes = lanes(width);
         let cards = section
             .items
@@ -171,7 +180,13 @@ impl Shelves {
             .flex()
             .flex_col()
             .gap_3()
-            .child(heading(SharedString::from(section.title.clone()), cx))
+            .child(
+                div()
+                    .flex()
+                    .items_end()
+                    .h(head(window, cx))
+                    .child(heading(SharedString::from(section.title.clone()), cx)),
+            )
             .child(spread(cards, lanes))
             .into_any_element()
     }
@@ -182,6 +197,7 @@ impl Shelves {
         section: &GenreSection,
         width: Pixels,
         me: &WeakEntity<Self>,
+        window: &Window,
         cx: &App,
     ) -> AnyElement {
         let layout = CardGrid::layout(width);
@@ -198,6 +214,7 @@ impl Shelves {
         let items = section.items.clone();
         let drawn = me.clone();
         let card = layout.card;
+        let tall = Card::tile_height(card, window, cx);
 
         div()
             .flex()
@@ -209,6 +226,7 @@ impl Shelves {
                     .items_end()
                     .justify_between()
                     .gap_4()
+                    .h(head(window, cx))
                     .child(heading(SharedString::from(section.title.clone()), cx))
                     .when(crowded, |this| {
                         this.child(self.arrows(place, &handle, &glide, me))
@@ -218,6 +236,7 @@ impl Shelves {
                 div()
                     .id((self.id, place))
                     .w_full()
+                    .h(tall)
                     .overflow_x_scroll()
                     .restrict_scroll_to_axis()
                     .track_scroll(&handle)
@@ -457,6 +476,12 @@ fn spread(cards: Vec<AnyElement>, lanes: usize) -> Div {
                 .gap_2()
                 .children(column)
         }))
+}
+
+fn head(window: &Window, cx: &App) -> Pixels {
+    let theme = *cx.theme();
+
+    snapped(theme.text(Text::Title) * LEADING, window).max(theme.metrics.control_small)
 }
 
 fn dressed(card: Card, tile: Option<Pixels>, cx: &App) -> Card {
