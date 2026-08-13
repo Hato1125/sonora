@@ -91,6 +91,14 @@ impl Engine {
         Ok(())
     }
 
+    fn arm(&self, track_id: &str, at: Duration) -> Result<()> {
+        let uri = track_uri(track_id)?;
+
+        self.flush.request();
+        self.player.load(uri, false, at.as_millis() as u32);
+        Ok(())
+    }
+
     fn preload(&self, track_id: &str) -> Result<()> {
         self.player.preload(track_uri(track_id)?);
         Ok(())
@@ -117,6 +125,10 @@ impl Engine {
 impl MusicPlayer for Engine {
     fn load(&self, track_id: &str, seamless: bool) -> Result<()> {
         self.load(track_id, seamless)
+    }
+
+    fn arm(&self, track_id: &str, at: Duration) -> Result<()> {
+        self.arm(track_id, at)
     }
 
     fn preload(&self, track_id: &str) -> Result<()> {

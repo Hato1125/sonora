@@ -14,7 +14,7 @@ const NORMAL_CAP: f32 = 1.0;
 const POLL: Duration = Duration::from_millis(20);
 
 enum Command {
-    Load { id: String },
+    Load { id: String, at: Option<Duration> },
     Preload { id: String },
     Play,
     Pause,
@@ -56,6 +56,16 @@ impl Player for Engine {
         self.commands
             .send(Command::Load {
                 id: track_id.to_string(),
+                at: None,
+            })
+            .context("cannot reach playback engine")
+    }
+
+    fn arm(&self, track_id: &str, at: Duration) -> Result<()> {
+        self.commands
+            .send(Command::Load {
+                id: track_id.to_string(),
+                at: Some(at),
             })
             .context("cannot reach playback engine")
     }
@@ -173,6 +183,7 @@ async fn engine_loop(
 
     let mut playing = false;
     let mut autostart = true;
+    let mut hold: Option<Duration> = None;
     let mut epoch = 0u64;
     let mut pending: Option<u64> = None;
     let mut inflight: Option<tokio::task::AbortHandle> = None;
@@ -186,8 +197,8 @@ async fn engine_loop(
             command = commands.recv() => {
                 let Some(command) = command else { break };
                 match command {
-                    Command::Load { id } => {
-                        if current.as_ref().is_some_and(|slot| slot.id == id) {
+                    Command::Load { id, at } => {
+                        if at.is_none() && current.as_ref().is_some_and(|slot| slot.id == id) {
                             playing = true;
                             autostart = true;
                             if let Some(slot) = &current {
@@ -214,17 +225,18 @@ async fn engine_loop(
                             inflight =
                                 Some(spawn(&api, id.clone(), epoch, Kind::Play, &fetched));
                         }
-                        events.send(PlaybackEvent::Loading(Duration::ZERO)).ok();
+                        events.send(PlaybackEvent::Loading(at.unwrap_or_default())).ok();
                         silence(&sink, current.as_ref()).await;
                         current = None;
                         queued = None;
                         playing = false;
-                        autostart = true;
+                        autostart = at.is_none();
+                        hold = at;
                         prev_len = 0;
                         let Some(loaded) = cached else { continue };
-                        match begin(&sink, &id, &loaded, &config, autostart) {
+                        match begin(&sink, &id, &loaded, &config, autostart, hold.take()) {
                             Ok(slot) => {
-                                announce(&events, &slot, autostart);
+                                announce(&events, &slot, autostart, at.unwrap_or_default());
                                 prev_len = sink.len();
                                 current = Some(slot);
                                 playing = autostart;
@@ -264,8 +276,10 @@ async fn engine_loop(
                         }
                         events.send(PlaybackEvent::Paused(position)).ok();
                     }
-                    Command::Seek(position) => {
-                        if let Some(slot) = &current {
+                    Command::Seek(position) => match &current {
+                        None if hold.is_some() => hold = Some(position),
+                        None => {}
+                        Some(slot) => {
                             slot.mute();
                             settle(&sink).await;
                             if let Err(error) = sink.try_seek(position) {
@@ -276,7 +290,7 @@ async fn engine_loop(
                             }
                             events.send(PlaybackEvent::Position(sink.get_pos())).ok();
                         }
-                    }
+                    },
                     Command::Gain(level) => output.set_volume(level),
                 }
             }
@@ -292,11 +306,12 @@ async fn engine_loop(
                         }
                         pending = None;
                         inflight = None;
+                        let at = hold.take();
                         match result
-                            .and_then(|loaded| begin(&sink, &id, &loaded, &config, autostart))
+                            .and_then(|loaded| begin(&sink, &id, &loaded, &config, autostart, at))
                         {
                             Ok(slot) => {
-                                announce(&events, &slot, autostart);
+                                announce(&events, &slot, autostart, at.unwrap_or_default());
                                 prev_len = sink.len();
                                 current = Some(slot);
                                 playing = autostart;
@@ -401,9 +416,15 @@ fn begin(
     loaded: &Loaded,
     config: &PlaybackConfig,
     start: bool,
+    at: Option<Duration>,
 ) -> Result<Slot> {
     sink.clear();
     let slot = append(sink, id, loaded, config, true)?;
+    if let Some(at) = at
+        && let Err(error) = sink.try_seek(at)
+    {
+        log::warn!("playback: cannot start {id} at {}s: {error}", at.as_secs());
+    }
     match start {
         true => sink.play(),
         false => sink.pause(),
@@ -434,13 +455,18 @@ fn append(
     })
 }
 
-fn announce(events: &UnboundedSender<PlaybackEvent>, slot: &Slot, playing: bool) {
+fn announce(
+    events: &UnboundedSender<PlaybackEvent>,
+    slot: &Slot,
+    playing: bool,
+    position: Duration,
+) {
     if let Some(length) = slot.length {
         events.send(PlaybackEvent::Length(length)).ok();
     }
     let event = match playing {
-        true => PlaybackEvent::Playing(Duration::ZERO),
-        false => PlaybackEvent::Paused(Duration::ZERO),
+        true => PlaybackEvent::Playing(position),
+        false => PlaybackEvent::Paused(position),
     };
     events.send(event).ok();
 }
