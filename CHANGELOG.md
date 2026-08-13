@@ -11,6 +11,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - YouTube tracks that refused to play now do. When YouTube turns down the quick route, Sonora
   works out the stream signature itself and plays the track anyway, often at a higher bitrate.
+- Search results no longer all look like the track that is playing: only the song actually playing
+  is highlighted and shows a pause button.
 
 ## [0.12.1] - 2026-08-13
 
