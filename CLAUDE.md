@@ -1,7 +1,7 @@
 # sonora
 
-A native Spotify client in Rust on [GPUI](https://github.com/zed-industries/zed) (Zed's UI
-framework), streaming through [librespot](https://github.com/librespot-org/librespot) and [ytmusic-rs](https://github.com/noligh132/ytmusic-rs). Cargo workspace, edition 2024, resolver 3.
+A native music streaming client, built with Rust and [GPUI](https://github.com/zed-industries/zed)
+(Zed's UI framework), streaming through [librespot](https://github.com/librespot-org/librespot) and [ytmusic-rs](https://github.com/noligh132/ytmusic-rs). Cargo workspace, edition 2024, resolver 3.
 
 ## Read this before writing code
 
