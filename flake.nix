@@ -1,5 +1,5 @@
 {
-  description = "Sonora - a minimal native Spotify client";
+  description = "Sonora - a native music streaming client";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -88,7 +88,7 @@
             '';
 
             meta = {
-              description = "A minimal native Spotify client built with GPUI";
+              description = "A native music streaming client, built with Rust and GPUI";
               mainProgram = "sonora";
               license = with pkgs.lib.licenses; [
                 gpl3Plus
@@ -143,7 +143,7 @@
             '';
 
             meta = sonora.meta // {
-              description = "A minimal native Spotify client built with GPUI (prebuilt release binary)";
+              description = "A native music streaming client, built with Rust and GPUI (prebuilt release binary)";
             };
           };
         in
