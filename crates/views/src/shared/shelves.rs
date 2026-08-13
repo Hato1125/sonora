@@ -458,7 +458,7 @@ pub(crate) fn grid(
                 .flex()
                 .w_full()
                 .gap_2()
-                .children(cells.map(|cell| div().flex().flex_1().min_w_0().child(cell)))
+                .children(cells.map(|cell| div().flex().flex_col().flex_1().min_w_0().child(cell)))
                 .into_any_element()
         })
         .into_any_element()
