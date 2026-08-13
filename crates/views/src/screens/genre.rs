@@ -18,6 +18,7 @@ use crate::shared::cells;
 const TILE: Pixels = gpui::px(220.);
 const PLATE: Pixels = gpui::px(260.);
 const LANES: usize = 5;
+const ROWS: usize = 3;
 
 pub(crate) struct GenreView {
     detail: Entity<GenreDetails>,
@@ -117,6 +118,7 @@ impl GenreView {
                 let cards = section
                     .items
                     .into_iter()
+                    .take(lanes * ROWS)
                     .enumerate()
                     .map(|(index, item)| {
                         let id = place * 100 + index;

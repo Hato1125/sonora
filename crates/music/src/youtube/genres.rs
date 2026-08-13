@@ -8,6 +8,7 @@ use crate::{Genre, GenreDetail, GenreItem, GenreSection};
 
 const CATEGORIES: &str = "FEmusic_moods_and_genres";
 const CATEGORY: &str = "FEmusic_moods_and_genres_category";
+const THUMB: u32 = 120;
 
 pub(crate) async fn genres(api: &YtMusic) -> Result<Vec<Genre>> {
     let answer = api
@@ -51,13 +52,27 @@ fn section(shelf: &Value) -> Option<GenreSection> {
 }
 
 fn item(node: &Value) -> Option<GenreItem> {
-    if let Some(playlist) = parse::two_row_playlist(node) {
-        return Some(GenreItem::Playlist(wire::playlist(playlist, false, true)));
+    if let Some(source) = parse::two_row_playlist(node) {
+        let thumb = thumb(&source.thumbnails);
+        let mut playlist = wire::playlist(source, false, true);
+        playlist.cover = thumb;
+        return Some(GenreItem::Playlist(playlist));
     }
 
-    parse::two_row_album(node)
-        .map(wire::album)
-        .map(GenreItem::Album)
+    let source = parse::two_row_album(node)?;
+    let thumb = thumb(&source.thumbnails);
+    let mut album = wire::album(source);
+    album.cover = thumb;
+
+    Some(GenreItem::Album(album))
+}
+
+fn thumb(thumbnails: &[ytmusic::Thumbnail]) -> Option<String> {
+    thumbnails
+        .iter()
+        .find(|thumb| thumb.width >= THUMB)
+        .or_else(|| thumbnails.last())
+        .map(|thumb| thumb.url.clone())
 }
 
 fn card(item: &Value) -> Option<Genre> {
