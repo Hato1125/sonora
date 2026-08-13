@@ -195,7 +195,8 @@ impl SidebarLeft {
     }
 
     fn pins(&self, window: &Window, cx: &mut Context<Self>) -> Vec<AnyElement> {
-        let pinned = self.settings.read(cx).pinned().to_vec();
+        let slugs = self.session.read(cx).active_slugs();
+        let pinned = self.settings.read(cx).pinned(&slugs);
         if pinned.is_empty() && !self.dropping {
             return Vec::new();
         }
@@ -269,10 +270,11 @@ impl SidebarLeft {
                         return;
                     };
                     let dragged = event.drag(cx).pin.clone();
+                    let slugs = this.session.read(cx).active_slugs();
                     let from = this
                         .settings
                         .read(cx)
-                        .pinned()
+                        .pinned(&slugs)
                         .iter()
                         .position(|it| it.same(&dragged));
                     let gap = match from {
@@ -452,8 +454,13 @@ impl Render for SidebarLeft {
                 let gap = this.drop_gap.take();
                 this.dropping = false;
                 let pin = dragged.pin.clone();
-                this.settings
-                    .update(cx, |settings, cx| settings.pin(pin, gap, cx));
+                if let Some(slug) = this.session.read(cx).slug_for(&pin.id) {
+                    let slugs = this.session.read(cx).active_slugs();
+                    let before = this.settings.read(cx).pins_before(&slugs, slug);
+                    let gap = gap.map(|gap| gap.saturating_sub(before));
+                    this.settings
+                        .update(cx, |settings, cx| settings.pin(slug, pin, gap, cx));
+                }
                 cx.notify();
             }))
             .when(!self.is_open(), |this| this.hidden())

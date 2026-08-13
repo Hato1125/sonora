@@ -188,6 +188,28 @@ impl Session {
         Some(provider.slug())
     }
 
+    pub fn local_slug(&self) -> &'static str {
+        self.local_provider.slug()
+    }
+
+    pub fn active_slugs(&self) -> Vec<&'static str> {
+        let mut slugs = Vec::new();
+        if self.client.is_some() {
+            slugs.extend(self.provider_slug());
+        }
+        if self.local_client.is_some() {
+            slugs.push(self.local_slug());
+        }
+        slugs
+    }
+
+    pub fn slug_for(&self, id: &str) -> Option<&'static str> {
+        match music::is_local_id(id) {
+            true => Some(self.local_slug()),
+            false => self.provider_slug(),
+        }
+    }
+
     pub fn authenticated(&self) -> bool {
         self.authenticated
     }

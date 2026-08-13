@@ -25,6 +25,8 @@ const DEFAULT_SIDEBAR_RIGHT_WIDTH: f32 = 380.;
 const DEFAULT_FONT_SIZE: f32 = 14.;
 const DEFAULT_STARTUP: &str = "home";
 
+type Pins = HashMap<String, Vec<Pin>>;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 struct Values {
@@ -47,7 +49,7 @@ struct Values {
     tables: HashMap<String, Layout>,
     sorting: HashMap<String, Option<Sorting>>,
     views: HashMap<String, Mode>,
-    pinned: Vec<Pin>,
+    pins: Pins,
     #[serde(skip_serializing_if = "Option::is_none")]
     resume: Option<Resume>,
     appearance: Appearance,
@@ -88,7 +90,7 @@ impl Default for Values {
             tables: HashMap::new(),
             sorting: HashMap::new(),
             views: HashMap::new(),
-            pinned: Vec::new(),
+            pins: Pins::new(),
             resume: None,
             appearance: Appearance::default(),
         }
@@ -318,6 +320,10 @@ impl AppSettings {
         self.schedule_save(cx);
     }
 
+    pub fn pinned(&self, slugs: &[&str]) -> Vec<Pin> {
+        gather(&self.values.pins, slugs)
+    }
+
     pub fn resume(&self) -> Option<&Resume> {
         self.values.resume.as_ref()
     }
@@ -345,22 +351,21 @@ impl AppSettings {
         self.schedule_save(cx);
     }
 
-    pub fn pinned(&self) -> &[Pin] {
-        &self.values.pinned
+    pub fn pins_before(&self, slugs: &[&str], slug: &str) -> usize {
+        before(&self.values.pins, slugs, slug)
     }
 
-    pub fn pin(&mut self, pin: Pin, gap: Option<usize>, cx: &mut Context<Self>) {
-        if !place(&mut self.values.pinned, pin, gap) {
+    pub fn pin(&mut self, slug: &str, pin: Pin, gap: Option<usize>, cx: &mut Context<Self>) {
+        if !put(&mut self.values.pins, slug, pin, gap) {
             return;
         }
         self.schedule_save(cx);
     }
 
-    pub fn unpin(&mut self, pin: &Pin, cx: &mut Context<Self>) {
-        let Some(index) = self.values.pinned.iter().position(|it| it.same(pin)) else {
+    pub fn unpin(&mut self, slug: &str, pin: &Pin, cx: &mut Context<Self>) {
+        if !take(&mut self.values.pins, slug, pin) {
             return;
-        };
-        self.values.pinned.remove(index);
+        }
         self.schedule_save(cx);
     }
 
@@ -498,6 +503,41 @@ fn settings_path() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."))
         .join("sonora")
         .join("settings.json")
+}
+
+fn gather(pins: &Pins, slugs: &[&str]) -> Vec<Pin> {
+    slugs
+        .iter()
+        .filter_map(|slug| pins.get(*slug))
+        .flat_map(|group| group.iter().cloned())
+        .collect()
+}
+
+fn before(pins: &Pins, slugs: &[&str], slug: &str) -> usize {
+    slugs
+        .iter()
+        .take_while(|it| **it != slug)
+        .filter_map(|it| pins.get(*it))
+        .map(Vec::len)
+        .sum()
+}
+
+fn put(pins: &mut Pins, slug: &str, pin: Pin, gap: Option<usize>) -> bool {
+    place(pins.entry(slug.to_owned()).or_default(), pin, gap)
+}
+
+fn take(pins: &mut Pins, slug: &str, pin: &Pin) -> bool {
+    let Some(group) = pins.get_mut(slug) else {
+        return false;
+    };
+    let Some(index) = group.iter().position(|it| it.same(pin)) else {
+        return false;
+    };
+    group.remove(index);
+    if group.is_empty() {
+        pins.remove(slug);
+    }
+    true
 }
 
 fn carry(previous: Option<&Resume>, next: &mut Resume) {
