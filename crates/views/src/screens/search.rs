@@ -19,6 +19,8 @@ use ui::{
 
 use crate::screens::genre;
 use crate::shared::cells;
+
+const RAIL: Pixels = gpui::px(12.);
 use crate::shared::tracks::{PlaybackStatus, playback_status};
 
 enum Press {
@@ -348,6 +350,7 @@ impl SearchView {
         id: &'static str,
         bar: &Entity<Scrollbar>,
         rows: Vec<AnyElement>,
+        gutter: Pixels,
         cx: &Context<Self>,
     ) -> AnyElement {
         if rows.is_empty() {
@@ -361,7 +364,9 @@ impl SearchView {
             .min_h_0()
             .child(
                 Scroller::new(id, bar)
-                    .child(div().flex().flex_col().gap_1().pl_3().pr_3().children(rows)),
+                    .px(gutter)
+                    .pb(cx.theme().metrics.inset)
+                    .child(div().flex().flex_col().gap_1().children(rows)),
             )
             .into_any_element()
     }
@@ -372,6 +377,7 @@ impl SearchView {
         bar: &Entity<Scrollbar>,
         title: SharedString,
         rows: Vec<AnyElement>,
+        gutter: Pixels,
         cx: &Context<Self>,
     ) -> AnyElement {
         div()
@@ -381,8 +387,8 @@ impl SearchView {
             .min_w_0()
             .min_h_0()
             .gap_1()
-            .child(div().pl_3().child(eyebrow(title, cx).pb_1()))
-            .child(self.panel(id, bar, rows, cx))
+            .child(div().pl(gutter).child(eyebrow(title, cx).pb_1()))
+            .child(self.panel(id, bar, rows, gutter, cx))
             .into_any_element()
     }
 
@@ -401,16 +407,16 @@ impl SearchView {
             .map(|(place, hit)| self.row(hit, place, false, cx))
             .collect();
 
-        self.section(id, bar, title, rows, cx)
+        self.section(id, bar, title, rows, RAIL, cx)
     }
 
-    fn browse(&self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+    fn browse(&self, gutter: Pixels, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let error = self.genres.read(cx).error().map(str::to_owned);
         let found = self.genres.read(cx).genres().to_vec();
         let theme = *cx.theme();
         let pad = theme.metrics.inset;
         let width = cells::content_width(window, pad * 2., cx);
-        let tiles: Vec<AnyElement> = found
+        let plates: Vec<AnyElement> = found
             .into_iter()
             .enumerate()
             .map(|(place, genre)| genre::plate(("genre", place), genre, cx))
@@ -422,21 +428,24 @@ impl SearchView {
             .flex_1()
             .min_h_0()
             .gap_3()
-            .child(eyebrow(t!("search-browse"), cx))
+            .child(div().px(gutter).child(eyebrow(t!("search-browse"), cx)))
             .children(error.map(|error| {
                 div()
                     .flex_none()
+                    .px(gutter)
                     .text_color(theme.danger)
                     .child(SharedString::from(error))
             }))
             .child(
                 Scroller::new("search-browse", &self.browsing)
-                    .child(genre::spread(tiles, genre::lanes(width))),
+                    .px(gutter)
+                    .pb(pad)
+                    .child(genre::spread(plates, genre::lanes(width))),
             )
             .into_any_element()
     }
 
-    fn everything(&self, cx: &Context<Self>) -> AnyElement {
+    fn everything(&self, gutter: Pixels, cx: &Context<Self>) -> AnyElement {
         let mut places = [0; 3];
         let rows = self
             .search
@@ -455,7 +464,14 @@ impl SearchView {
             })
             .collect();
 
-        self.section("search-all", &self.mixed, t!("search-results"), rows, cx)
+        self.section(
+            "search-all",
+            &self.mixed,
+            t!("search-results"),
+            rows,
+            gutter,
+            cx,
+        )
     }
 }
 
@@ -528,13 +544,15 @@ impl Render for SearchView {
             ))
         });
 
+        let gutter = pad + inset;
         let results = match (asked, stacked) {
-            (false, _) => self.browse(window, cx),
-            (true, true) => self.everything(cx),
+            (false, _) => self.browse(gutter, window, cx),
+            (true, true) => self.everything(gutter, cx),
             (true, false) => div()
                 .flex()
                 .flex_1()
                 .min_h_0()
+                .px(gutter)
                 .child(self.column(Kind::Song, cx))
                 .child(Separator::vertical())
                 .child(self.column(Kind::Artist, cx))
@@ -548,12 +566,19 @@ impl Render for SearchView {
             .flex_col()
             .size_full()
             .gap_6()
-            .px(pad + inset)
             .pt(pad)
-            .pb(pad)
-            .child(div().flex().flex_none().child(self.input.clone()))
-            .children(self.failure(cx))
-            .children(self.best(cx))
+            .child(
+                div()
+                    .flex()
+                    .flex_none()
+                    .px(gutter)
+                    .child(self.input.clone()),
+            )
+            .children(
+                self.failure(cx)
+                    .map(|failure| div().px(gutter).child(failure)),
+            )
+            .children(self.best(cx).map(|best| div().px(gutter).child(best)))
             .child(results)
             .when_some(context_menu, |this, menu| this.child(menu))
     }

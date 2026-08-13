@@ -153,12 +153,11 @@ impl Render for GenreView {
         let sections = self.sections(width, cx);
 
         div().flex().flex_col().size_full().child(
-            Scroller::new("genre", &self.scrollbar).child(
+            Scroller::new("genre", &self.scrollbar).p(pad).child(
                 div()
                     .flex()
                     .flex_col()
                     .gap_8()
-                    .p(pad)
                     .child(
                         div()
                             .text_size(theme.text(Text::Display))
