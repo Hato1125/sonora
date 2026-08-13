@@ -21,7 +21,7 @@ use crate::shared::cells;
 use crate::shared::shelves;
 
 const RAIL: Pixels = gpui::px(12.);
-const ROW_GAP: Pixels = gpui::px(4.);
+const ROW_GAP: f32 = 0.25;
 use crate::shared::tracks::{PlaybackStatus, playback_status};
 
 enum Press {
@@ -498,7 +498,7 @@ impl SearchView {
         let deck = Deck::new("search-all-deck")
             .viewport(viewport)
             .rows((0..places.len()).map(|_| row))
-            .gap(ROW_GAP)
+            .gap(theme.font_size * ROW_GAP)
             .draw(move |index, _, cx| {
                 let Some(view) = me.upgrade() else {
                     return div().into_any_element();
