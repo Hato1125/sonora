@@ -113,7 +113,7 @@ impl Render for HomeView {
             .shelves
             .update(cx, |shelves, cx| match sections.is_empty() && feeding {
                 true => shelves.pending(width, cx),
-                false => shelves.render(&sections, Mode::Cards, width, cx),
+                false => shelves.render(&sections, Mode::Cards, width, window, cx),
             });
 
         Scroller::new("home-page", &self.scrollbar)

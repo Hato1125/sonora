@@ -7,6 +7,7 @@ mod drag;
 mod explicit;
 mod filters;
 mod form;
+mod glide;
 mod grid;
 mod info_card;
 mod inline_links;
@@ -45,6 +46,7 @@ pub use drag::{Edge, drop_gap, drop_marker};
 pub use explicit::ExplicitBadge;
 pub use filters::{FlagAxis, RangeAxis, RangeScrubber, RangeState, SortAxis, Unit};
 pub use form::{FORM_CONTEXT, Submit};
+pub use glide::Glide;
 pub use grid::{
     Cell, ColumnSpec, Deselect, GRID_CONTEXT, Grid, GridDelegate, GridEvent, GridSource, GridState,
     Layout, ROW_GROUP, SelectNext, SelectPrevious, Sort, Sorting, Table, Toggle, Viewport, Width,

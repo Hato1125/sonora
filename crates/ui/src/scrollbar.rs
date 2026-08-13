@@ -8,6 +8,7 @@ use gpui::{
     MouseDownEvent, Pixels, Render, ScrollHandle, Task, Window, div, point, px,
 };
 
+use crate::glide::Glide;
 use crate::theme::ActiveTheme as _;
 
 const BAR: Pixels = px(6.);
@@ -114,6 +115,7 @@ pub struct Scrollbar {
     hover_guard: Option<HoverGuard>,
     scroll_guard: Option<ScrollGuard>,
     linger: Option<Task<()>>,
+    glide: Glide,
 }
 
 impl Scrollbar {
@@ -130,6 +132,7 @@ impl Scrollbar {
             hover_guard: None,
             scroll_guard: None,
             linger: None,
+            glide: Glide::default(),
         }
     }
 
@@ -151,6 +154,14 @@ impl Scrollbar {
 
     pub fn settle(&mut self, offset: Pixels) {
         self.seen = offset;
+    }
+
+    pub fn nudge(&mut self) {
+        self.glide.nudge(&self.scroll.clone());
+    }
+
+    pub fn glide(&mut self, window: &mut Window) {
+        self.glide.step(&self.scroll.clone(), window);
     }
 
     pub fn scroll(&self) -> &ScrollHandle {

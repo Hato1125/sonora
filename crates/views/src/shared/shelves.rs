@@ -1,13 +1,17 @@
 use gpui::prelude::*;
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use gpui::{
     AnyElement, App, Context, Div, ElementId, Entity, FontWeight, Pixels, ScrollHandle,
-    SharedString, div, point, px,
+    ScrollWheelEvent, SharedString, Window, div, point, px,
 };
 use music::{Album, GenreItem, GenreSection, Playlist};
 use router::{Destination, navigate};
 use state::{Origin, Playback, PlaybackState};
 use ui::{
-    ActiveTheme as _, Button, Card, Mode, Pin, PinKind, Pinnable as _, Skeleton, Text, heading,
+    ActiveTheme as _, Button, Card, Glide, Mode, Pin, PinKind, Pinnable as _, Skeleton, Text,
+    heading,
 };
 
 use crate::shared::album_grid::CardGrid;
@@ -20,10 +24,12 @@ const STEADY: Pixels = px(0.5);
 const PENDING: usize = 3;
 const HEADING: Pixels = px(140.);
 
+type Rail = (ScrollHandle, Rc<RefCell<Glide>>);
+
 pub(crate) struct Shelves {
     id: &'static str,
     playback: Entity<Playback>,
-    rails: Vec<ScrollHandle>,
+    rails: Vec<Rail>,
 }
 
 impl Shelves {
@@ -76,10 +82,15 @@ impl Shelves {
         sections: &[GenreSection],
         mode: Mode,
         width: Pixels,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Vec<AnyElement> {
         while self.rails.len() < sections.len() {
-            self.rails.push(ScrollHandle::new());
+            self.rails
+                .push((ScrollHandle::new(), Rc::new(RefCell::new(Glide::default()))));
+        }
+        for (scroll, glide) in &self.rails {
+            glide.borrow_mut().step(scroll, window);
         }
 
         sections
@@ -125,7 +136,7 @@ impl Shelves {
         cx: &Context<Self>,
     ) -> AnyElement {
         let layout = CardGrid::layout(width);
-        let handle = self.rails[place].clone();
+        let (handle, glide) = self.rails[place].clone();
         let crowded = section.items.len() > layout.columns;
         let cards: Vec<AnyElement> = section
             .items
@@ -145,7 +156,9 @@ impl Shelves {
                     .justify_between()
                     .gap_4()
                     .child(heading(SharedString::from(section.title.clone()), cx))
-                    .when(crowded, |this| this.child(self.arrows(place, &handle, cx))),
+                    .when(crowded, |this| {
+                        this.child(self.arrows(place, &handle, &glide, cx))
+                    }),
             )
             .child(
                 div()
@@ -156,13 +169,29 @@ impl Shelves {
                     .overflow_x_scroll()
                     .restrict_scroll_to_axis()
                     .track_scroll(&handle)
+                    .on_scroll_wheel({
+                        let scroll = handle.clone();
+                        let glide = glide.clone();
+                        move |event: &ScrollWheelEvent, _, _| {
+                            if event.delta.precise() {
+                                return;
+                            }
+                            glide.borrow_mut().nudge(&scroll);
+                        }
+                    })
                     .children(cards),
             )
             .into_any_element()
     }
 
-    fn arrows(&self, place: usize, handle: &ScrollHandle, cx: &Context<Self>) -> AnyElement {
-        let at = handle.offset().x;
+    fn arrows(
+        &self,
+        place: usize,
+        handle: &ScrollHandle,
+        glide: &Rc<RefCell<Glide>>,
+        cx: &Context<Self>,
+    ) -> AnyElement {
+        let at = glide.borrow().goal(handle).x;
         let reach = handle.max_offset().x;
 
         div()
@@ -171,11 +200,11 @@ impl Shelves {
             .items_center()
             .gap_1()
             .child(
-                self.arrow(self.tag("previous", place), false, handle, cx)
+                self.arrow(self.tag("previous", place), false, handle, glide, cx)
                     .disabled(at >= -STEADY),
             )
             .child(
-                self.arrow(self.tag("next", place), true, handle, cx)
+                self.arrow(self.tag("next", place), true, handle, glide, cx)
                     .disabled(reach > Pixels::ZERO && at <= STEADY - reach),
             )
             .into_any_element()
@@ -186,9 +215,11 @@ impl Shelves {
         id: impl Into<ElementId>,
         forward: bool,
         handle: &ScrollHandle,
+        glide: &Rc<RefCell<Glide>>,
         cx: &Context<Self>,
     ) -> Button {
         let handle = handle.clone();
+        let glide = glide.clone();
         let me = cx.entity().downgrade();
 
         Button::new(id)
@@ -203,7 +234,7 @@ impl Shelves {
                 false => "common-previous",
             })
             .on_click(move |_, _, cx| {
-                slide(&handle, forward);
+                slide(&handle, &glide, forward);
                 me.update(cx, |_, cx| cx.notify()).ok();
             })
     }
@@ -335,14 +366,14 @@ fn dressed(card: Card, tile: Option<Pixels>, cx: &App) -> Card {
     }
 }
 
-fn slide(handle: &ScrollHandle, forward: bool) {
+fn slide(handle: &ScrollHandle, glide: &Rc<RefCell<Glide>>, forward: bool) {
     let page = handle.bounds().size.width;
-    let reach = handle.max_offset().x.max(Pixels::ZERO);
-    let at = handle.offset().x;
+    let mut glide = glide.borrow_mut();
+    let at = glide.goal(handle);
     let next = match forward {
-        true => (at - page).max(-reach),
-        false => (at + page).min(Pixels::ZERO),
+        true => at.x - page,
+        false => at.x + page,
     };
 
-    handle.set_offset(point(next, handle.offset().y));
+    glide.aim(handle, point(next, at.y));
 }
