@@ -360,6 +360,7 @@ impl Root {
             Destination::Genre(id) => {
                 let (genre, detail) = self.genre(cx);
                 detail.update(cx, |detail, cx| detail.open(&id, cx));
+                toolbar = Some(genre.read(cx).toolbar());
                 genre.into()
             }
             Destination::Search => self.screens.search.clone().into(),

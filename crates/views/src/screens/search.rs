@@ -419,7 +419,7 @@ impl SearchView {
         let plates: Vec<AnyElement> = found
             .into_iter()
             .enumerate()
-            .map(|(place, genre)| genre::plate(("genre", place), genre, cx))
+            .map(|(place, genre)| genre::plate(("genre", place), genre, None, cx))
             .collect();
 
         div()
