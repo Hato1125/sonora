@@ -621,10 +621,12 @@ fn unpin_item(pin: &Pin) -> MenuItem {
     MenuItem::new("unpin", t!("nav-unpin"))
         .icon("icons/x.svg")
         .on_click(move |_, _, cx| {
-            Sonora::global(cx)
-                .settings
-                .clone()
-                .update(cx, |settings, cx| settings.unpin(&unpinned, cx));
+            let settings = Sonora::global(cx).settings.clone();
+            let session = Sonora::global(cx).session.clone();
+            let Some(slug) = session.read(cx).slug_for(&unpinned.id) else {
+                return;
+            };
+            settings.update(cx, |settings, cx| settings.unpin(slug, &unpinned, cx));
         })
 }
 

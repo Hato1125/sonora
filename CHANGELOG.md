@@ -11,6 +11,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - YouTube tracks that refused to play now do. When YouTube turns down the quick route, Sonora
   works out the stream signature itself and plays the track anyway, often at a higher bitrate.
+- Pinned items now belong to the service they came from, so switching service shows that service's
+  pins alongside your imported ones instead of dead rows that failed to open. Switching back brings
+  the earlier pins straight back, and existing pins are cleared once on this upgrade.
 
 ## [0.12.1] - 2026-08-13
 

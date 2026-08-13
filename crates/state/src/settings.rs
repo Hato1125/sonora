@@ -25,6 +25,8 @@ const DEFAULT_SIDEBAR_RIGHT_WIDTH: f32 = 380.;
 const DEFAULT_FONT_SIZE: f32 = 14.;
 const DEFAULT_STARTUP: &str = "home";
 
+type Pins = HashMap<String, Vec<Pin>>;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 struct Values {
@@ -47,7 +49,7 @@ struct Values {
     tables: HashMap<String, Layout>,
     sorting: HashMap<String, Option<Sorting>>,
     views: HashMap<String, Mode>,
-    pinned: Vec<Pin>,
+    pins: Pins,
     appearance: Appearance,
 }
 
@@ -86,7 +88,7 @@ impl Default for Values {
             tables: HashMap::new(),
             sorting: HashMap::new(),
             views: HashMap::new(),
-            pinned: Vec::new(),
+            pins: Pins::new(),
             appearance: Appearance::default(),
         }
     }
@@ -315,22 +317,25 @@ impl AppSettings {
         self.schedule_save(cx);
     }
 
-    pub fn pinned(&self) -> &[Pin] {
-        &self.values.pinned
+    pub fn pinned(&self, slugs: &[&str]) -> Vec<Pin> {
+        gather(&self.values.pins, slugs)
     }
 
-    pub fn pin(&mut self, pin: Pin, gap: Option<usize>, cx: &mut Context<Self>) {
-        if !place(&mut self.values.pinned, pin, gap) {
+    pub fn pins_before(&self, slugs: &[&str], slug: &str) -> usize {
+        before(&self.values.pins, slugs, slug)
+    }
+
+    pub fn pin(&mut self, slug: &str, pin: Pin, gap: Option<usize>, cx: &mut Context<Self>) {
+        if !put(&mut self.values.pins, slug, pin, gap) {
             return;
         }
         self.schedule_save(cx);
     }
 
-    pub fn unpin(&mut self, pin: &Pin, cx: &mut Context<Self>) {
-        let Some(index) = self.values.pinned.iter().position(|it| it.same(pin)) else {
+    pub fn unpin(&mut self, slug: &str, pin: &Pin, cx: &mut Context<Self>) {
+        if !take(&mut self.values.pins, slug, pin) {
             return;
-        };
-        self.values.pinned.remove(index);
+        }
         self.schedule_save(cx);
     }
 
@@ -470,6 +475,41 @@ fn settings_path() -> PathBuf {
         .join("settings.json")
 }
 
+fn gather(pins: &Pins, slugs: &[&str]) -> Vec<Pin> {
+    slugs
+        .iter()
+        .filter_map(|slug| pins.get(*slug))
+        .flat_map(|group| group.iter().cloned())
+        .collect()
+}
+
+fn before(pins: &Pins, slugs: &[&str], slug: &str) -> usize {
+    slugs
+        .iter()
+        .take_while(|it| **it != slug)
+        .filter_map(|it| pins.get(*it))
+        .map(Vec::len)
+        .sum()
+}
+
+fn put(pins: &mut Pins, slug: &str, pin: Pin, gap: Option<usize>) -> bool {
+    place(pins.entry(slug.to_owned()).or_default(), pin, gap)
+}
+
+fn take(pins: &mut Pins, slug: &str, pin: &Pin) -> bool {
+    let Some(group) = pins.get_mut(slug) else {
+        return false;
+    };
+    let Some(index) = group.iter().position(|it| it.same(pin)) else {
+        return false;
+    };
+    group.remove(index);
+    if group.is_empty() {
+        pins.remove(slug);
+    }
+    true
+}
+
 fn place(pinned: &mut Vec<Pin>, pin: Pin, gap: Option<usize>) -> bool {
     let gap = gap.unwrap_or(pinned.len()).min(pinned.len());
     let Some(from) = pinned.iter().position(|it| it.same(&pin)) else {
@@ -555,5 +595,88 @@ mod tests {
 
         assert!(place(&mut pinned, Pin::new(PinKind::Song, "x", "x"), None));
         assert_eq!(pinned.len(), 2);
+    }
+
+    #[test]
+    fn a_legacy_pinned_list_is_ignored() {
+        let stored = r#"{"volume":0.5,"pinned":[{"kind":"album","id":"a","title":"a"}]}"#;
+        let values: Values = serde_json::from_str(stored).expect("legacy settings still parse");
+
+        assert_eq!(values.volume, 0.5);
+        assert!(values.pins.is_empty());
+    }
+
+    #[test]
+    fn a_pin_belongs_to_one_slug_only() {
+        let mut pins = Pins::new();
+
+        assert!(put(&mut pins, "spotify", pin("a"), None));
+        assert_eq!(ids(&gather(&pins, &["spotify"])), ["a"]);
+        assert!(gather(&pins, &["youtube"]).is_empty());
+    }
+
+    #[test]
+    fn a_slug_set_reads_the_union_in_order() {
+        let mut pins = Pins::new();
+        put(&mut pins, "spotify", pin("a"), None);
+        put(&mut pins, "spotify", pin("b"), None);
+        put(&mut pins, "local", pin("local:c"), None);
+        put(&mut pins, "youtube", pin("d"), None);
+
+        assert_eq!(
+            ids(&gather(&pins, &["spotify", "local"])),
+            ["a", "b", "local:c"]
+        );
+        assert_eq!(
+            ids(&gather(&pins, &["local", "spotify"])),
+            ["local:c", "a", "b"]
+        );
+        assert_eq!(ids(&gather(&pins, &["local"])), ["local:c"]);
+    }
+
+    #[test]
+    fn a_missing_slug_reads_as_nothing() {
+        let pins = Pins::new();
+
+        assert!(gather(&pins, &["spotify", "local"]).is_empty());
+    }
+
+    #[test]
+    fn unpinning_only_touches_its_own_slug() {
+        let mut pins = Pins::new();
+        put(&mut pins, "spotify", pin("a"), None);
+        put(&mut pins, "youtube", pin("a"), None);
+
+        assert!(take(&mut pins, "youtube", &pin("a")));
+        assert!(!take(&mut pins, "youtube", &pin("a")));
+        assert_eq!(ids(&gather(&pins, &["spotify", "youtube"])), ["a"]);
+    }
+
+    #[test]
+    fn the_union_offset_skips_earlier_slugs() {
+        let mut pins = Pins::new();
+        put(&mut pins, "spotify", pin("a"), None);
+        put(&mut pins, "spotify", pin("b"), None);
+        put(&mut pins, "local", pin("local:c"), None);
+
+        let slugs = ["spotify", "local"];
+        assert_eq!(before(&pins, &slugs, "spotify"), 0);
+        assert_eq!(before(&pins, &slugs, "local"), 2);
+        assert_eq!(before(&pins, &slugs, "youtube"), 3);
+    }
+
+    #[test]
+    fn ordering_inside_a_slug_still_follows_the_gap() {
+        let mut pins = Pins::new();
+        put(&mut pins, "spotify", pin("a"), None);
+        put(&mut pins, "spotify", pin("b"), None);
+        put(&mut pins, "local", pin("local:c"), None);
+
+        assert!(put(&mut pins, "spotify", pin("b"), Some(0)));
+        assert_eq!(
+            ids(&gather(&pins, &["spotify", "local"])),
+            ["b", "a", "local:c"]
+        );
+        assert!(!put(&mut pins, "spotify", pin("b"), Some(1)));
     }
 }
