@@ -221,7 +221,7 @@ search-results = Результаты
 search-songs = Треки
 search-artists = Исполнители
 search-albums = Альбомы
-search-tagged = { $kind } · { $value }
+search-tag = { $kind } ·
 search-saved =
     { $count ->
         [one] { $count } трек в медиатеке

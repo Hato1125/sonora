@@ -221,7 +221,7 @@ search-results = Wyniki
 search-songs = Utwory
 search-artists = Wykonawcy
 search-albums = Albumy
-search-tagged = { $kind } · { $value }
+search-tag = { $kind } ·
 search-saved =
     { $count ->
         [one] { $count } utwór w bibliotece

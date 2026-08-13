@@ -220,7 +220,7 @@ search-results = Results
 search-songs = Songs
 search-artists = Artists
 search-albums = Albums
-search-tagged = { $kind } · { $value }
+search-tag = { $kind } ·
 search-saved =
     { $count ->
         [one] { $count } song in Library

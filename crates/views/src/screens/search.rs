@@ -113,24 +113,33 @@ impl SearchView {
     }
 
     fn subtitle(&self, hit: &Hit, place: usize, compact: bool, theme: &Theme) -> AnyElement {
-        let links = |id: String, artists, fallback| {
-            cells::artist_links(id, artists, fallback, theme.muted_foreground)
-                .truncate()
-                .into_any_element()
-        };
-
-        match (compact, hit) {
-            (false, Hit::Song(track)) => links(
+        let (kind, id, artists, fallback) = match hit {
+            Hit::Song(track) => (
+                Kind::Song,
                 format!("song-artist-{place}"),
                 track.artist_refs.clone(),
                 track.artists.clone(),
             ),
-            (false, Hit::Album(album)) => links(
+            Hit::Album(album) => (
+                Kind::Album,
                 format!("album-artist-{place}"),
                 album.artist_refs.clone(),
                 album.artists.clone(),
             ),
-            _ => meta(hit, compact).into_any_element(),
+            Hit::Artist(_) => return meta(hit, compact).into_any_element(),
+        };
+
+        let links = cells::artist_links(id, artists, fallback, theme.muted_foreground).truncate();
+
+        match compact {
+            true => div()
+                .flex()
+                .min_w_0()
+                .gap_1()
+                .child(div().flex_none().child(tag(kind)))
+                .child(links)
+                .into_any_element(),
+            false => links.into_any_element(),
         }
     }
 
@@ -430,8 +439,8 @@ fn pin(hit: &Hit) -> Option<Pin> {
 
 fn meta(hit: &Hit, compact: bool) -> SharedString {
     match hit {
-        Hit::Song(track) => tagged(Kind::Song, &track.artists, compact),
-        Hit::Album(album) => tagged(Kind::Album, &album.artists, compact),
+        Hit::Song(track) => SharedString::from(track.artists.clone()),
+        Hit::Album(album) => SharedString::from(album.artists.clone()),
         Hit::Artist(artist) => match compact {
             true => noun(Kind::Artist),
             false => held(artist.saved),
@@ -439,13 +448,9 @@ fn meta(hit: &Hit, compact: bool) -> SharedString {
     }
 }
 
-fn tagged(kind: Kind, value: &str, compact: bool) -> SharedString {
-    if !compact {
-        return SharedString::from(value.to_owned());
-    }
-
+fn tag(kind: Kind) -> SharedString {
     let noun = noun(kind);
-    t!("search-tagged", kind = &noun, value = value)
+    t!("search-tag", kind = &noun)
 }
 
 fn held(saved: usize) -> SharedString {
@@ -504,7 +509,6 @@ impl Render for SearchView {
             .gap_6()
             .px(pad + inset)
             .pt(pad)
-            .pb(pad)
             .child(div().flex().flex_none().child(self.input.clone()))
             .children(self.failure(cx))
             .children(self.best(cx))
