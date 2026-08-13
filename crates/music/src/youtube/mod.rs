@@ -1,6 +1,7 @@
 mod accounts;
 mod auth;
 mod client;
+mod genres;
 mod playback;
 mod wire;
 
@@ -12,11 +13,12 @@ use async_trait::async_trait;
 use ytmusic::YtMusic;
 use ytmusic::browser::{self, Browser, Family};
 
-use crate::youtube::client::YouTubeClient;
 use crate::youtube::playback::Factory;
+
 use crate::{
     InputSource, MusicProvider, PromptSink, ProviderSession, SignIn, SignInPrompt, UserProfile,
 };
+pub use client::YouTubeClient;
 
 const GUEST_ID: &str = "youtube-guest";
 

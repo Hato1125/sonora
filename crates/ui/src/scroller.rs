@@ -1,5 +1,8 @@
 use gpui::prelude::*;
-use gpui::{AnyElement, App, Div, ElementId, Entity, Interactivity, StyleRefinement, Window, div};
+use gpui::{
+    AnyElement, App, Div, ElementId, Entity, Interactivity, ScrollWheelEvent, StyleRefinement,
+    Window, div,
+};
 
 use crate::scrollbar::Scrollbar;
 
@@ -52,12 +55,21 @@ impl RenderOnce for Scroller {
 
         let scroll = bar.read(cx).scroll().clone();
         let overrides = std::mem::take(base.style());
+        bar.read(cx).sync();
+        let gliding = bar.clone();
 
         let mut surface = base
             .id(id)
             .size_full()
             .overflow_y_scroll()
+            .restrict_scroll_to_axis()
             .track_scroll(&scroll)
+            .on_scroll_wheel(move |event: &ScrollWheelEvent, window, cx| {
+                if event.delta.precise() {
+                    return;
+                }
+                gliding.update(cx, |bar, _| bar.nudge(window));
+            })
             .children(children);
 
         surface.style().refine(&overrides);

@@ -1,5 +1,5 @@
 {
-  description = "Sonora - a minimal native Spotify client";
+  description = "Sonora - a native music streaming client";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -88,7 +88,7 @@
             '';
 
             meta = {
-              description = "A minimal native Spotify client built with GPUI";
+              description = "A native music streaming client, built with Rust and GPUI";
               mainProgram = "sonora";
               license = with pkgs.lib.licenses; [
                 gpl3Plus
@@ -111,19 +111,11 @@
             };
 
             dontUnpack = true;
-            dontPatchELF = true;
             dontStrip = true;
-
-            nativeBuildInputs = [ pkgs.makeWrapper ];
 
             installPhase = ''
               runHook preInstall
-              install -Dm755 "$src" "$out/libexec/sonora"
-              makeWrapper ${pkgs.stdenv.cc.bintools.dynamicLinker} "$out/bin/sonora" \
-                --add-flags "--library-path ${
-                  pkgs.lib.makeLibraryPath (runtimeLibraries ++ [ pkgs.stdenv.cc.cc.lib ])
-                }" \
-                --add-flags "$out/libexec/sonora"
+              install -Dm755 "$src" "$out/bin/sonora"
               install -Dm444 ${./assets/linux/sonora.desktop} \
                 "$out/share/applications/sonora.desktop"
               install -Dm444 ${./assets/linux/sonora.svg} \
@@ -142,8 +134,17 @@
               runHook postInstall
             '';
 
+            postFixup = ''
+              patchelf \
+                --set-interpreter "${pkgs.stdenv.cc.bintools.dynamicLinker}" \
+                --add-rpath "${
+                  pkgs.lib.makeLibraryPath (runtimeLibraries ++ [ pkgs.stdenv.cc.cc.lib ])
+                }" \
+                "$out/bin/sonora"
+            '';
+
             meta = sonora.meta // {
-              description = "A minimal native Spotify client built with GPUI (prebuilt release binary)";
+              description = "A native music streaming client, built with Rust and GPUI (prebuilt release binary)";
             };
           };
         in

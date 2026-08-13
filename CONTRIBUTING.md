@@ -1,7 +1,8 @@
 # Contributing to Sonora
 
-Sonora is a native Spotify client in Rust on [GPUI](https://github.com/zed-industries/zed),
-streaming through [librespot](https://github.com/librespot-org/librespot). Linux is the platform we mainly
+Sonora is a native music streaming client, built with Rust and
+[GPUI](https://github.com/zed-industries/zed), streaming through
+[librespot](https://github.com/librespot-org/librespot). Linux is the platform we mainly
 develop against. Windows and macOS are built by CI but usually not exercised locally except for
 platform-specific features.
 

@@ -7,8 +7,8 @@ use input::{
 };
 use router::{Destination, LibraryTab, NavigationEvent, SettingsTab, back, forward, navigate};
 use state::{
-    ArtistDetail, Detail, Home, Io, Library, Playback, Queue, Search, Session, SessionState,
-    SideTab, SongDetail, Sonora,
+    ArtistDetail, Detail, GenreDetails, Genres, Home, Io, Library, Playback, Queue, Search,
+    Session, SessionState, SideTab, SongDetail, Sonora,
 };
 use ui::ActiveTheme as _;
 
@@ -18,8 +18,8 @@ use crate::shared::tracks::{LIBRARY_COLUMNS, album_columns};
 use crate::shells::Shell;
 use crate::shells::workspace::Workspace;
 use crate::{
-    Adaptive, ArtistView, DetailView, FullscreenView, HomeView, LibraryView, LocalView, LoginView,
-    SettingsView, SongView,
+    Adaptive, ArtistView, DetailView, FullscreenView, GenreView, HomeView, LibraryView, LocalView,
+    LoginView, SettingsView, SongView,
 };
 
 struct Screens {
@@ -35,6 +35,9 @@ struct Screens {
     playlist: Option<Entity<DetailView>>,
     playlist_detail: Option<Entity<Detail>>,
     search: Entity<SearchView>,
+    genres: Entity<Genres>,
+    genre: Option<Entity<GenreView>>,
+    genre_detail: Option<Entity<GenreDetails>>,
     settings: Entity<SettingsView>,
 }
 
@@ -105,14 +108,15 @@ impl Root {
             cx.new(|cx| LibraryView::new(library.clone(), playback.clone(), window, cx));
         let local_view = cx.new(|cx| LocalView::new(library.clone(), playback.clone(), window, cx));
 
-        let home_state = cx.new(|cx| Home::new(library.clone(), cx));
+        let io = Io::global(cx);
+        let home_state = cx.new(|cx| Home::new(library.clone(), session.clone(), io.clone(), cx));
         let home = cx.new(|cx| HomeView::new(home_state, playback.clone(), cx));
 
-        let io = Io::global(cx);
         let search_library = library.clone();
 
         let queries = cx.new(|cx| Search::new(session.clone(), search_library, io.clone(), cx));
-        let search = cx.new(|cx| SearchView::new(queries, playback.clone(), cx));
+        let genres = cx.new(|cx| Genres::new(session.clone(), io.clone(), cx));
+        let search = cx.new(|cx| SearchView::new(queries, genres.clone(), playback.clone(), cx));
 
         let settings = cx.new(|cx| SettingsView::new(session.clone(), playback.clone(), cx));
 
@@ -166,6 +170,9 @@ impl Root {
                 playlist: None,
                 playlist_detail: None,
                 search,
+                genres,
+                genre: None,
+                genre_detail: None,
                 settings,
             },
             _adaptive: adaptive,
@@ -183,6 +190,20 @@ impl Root {
         let view = cx.new(|cx| ArtistView::new(detail.clone(), self.playback.clone(), cx));
         self.screens.artist = Some(view.clone());
         self.screens.artist_detail = Some(detail.clone());
+        (view, detail)
+    }
+
+    fn genre(&mut self, cx: &mut Context<Self>) -> (Entity<GenreView>, Entity<GenreDetails>) {
+        if let (Some(view), Some(detail)) = (&self.screens.genre, &self.screens.genre_detail) {
+            return (view.clone(), detail.clone());
+        }
+
+        let genres = self.screens.genres.clone();
+        let detail =
+            cx.new(|cx| GenreDetails::new(self.session.clone(), genres, self.io.clone(), cx));
+        let view = cx.new(|cx| GenreView::new(detail.clone(), self.playback.clone(), cx));
+        self.screens.genre = Some(view.clone());
+        self.screens.genre_detail = Some(detail.clone());
         (view, detail)
     }
 
@@ -335,6 +356,12 @@ impl Root {
                 detail.update(cx, |artist, cx| artist.open(&id, cx));
                 toolbar = Some(artist.read(cx).toolbar());
                 artist.into()
+            }
+            Destination::Genre(id) => {
+                let (genre, detail) = self.genre(cx);
+                detail.update(cx, |detail, cx| detail.open(&id, cx));
+                toolbar = Some(genre.read(cx).toolbar());
+                genre.into()
             }
             Destination::Search => self.screens.search.clone().into(),
             Destination::Settings(tab) => {

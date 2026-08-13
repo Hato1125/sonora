@@ -7,11 +7,13 @@ use serde::de::DeserializeOwned;
 
 mod album;
 mod artist;
+mod browse;
 mod hashes;
 mod plays;
 
 pub(crate) use album::album;
 pub(crate) use artist::{Overview, artist};
+pub(crate) use browse::{all as genres, page as genre};
 pub(crate) use plays::track;
 
 const ENDPOINT: &str = "https://api-partner.spotify.com/pathfinder/v2/query";

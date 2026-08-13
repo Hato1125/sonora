@@ -6,10 +6,10 @@ use async_trait::async_trait;
 use tokio::task::JoinSet;
 use ytmusic::YtMusic;
 
-use crate::youtube::wire;
+use crate::youtube::{genres, wire};
 use crate::{
-    Album, AlbumDetail, Artist, ArtistProfile, MediaKind, MusicApi, Playlist, PlaylistDetail,
-    SavedArtist, Track, UserProfile,
+    Album, AlbumDetail, Artist, ArtistProfile, Genre, GenreDetail, GenreSection, MediaKind,
+    MusicApi, Playlist, PlaylistDetail, SavedArtist, Track, UserProfile,
 };
 
 const PORTRAIT_LIMIT: usize = 24;
@@ -315,6 +315,18 @@ impl MusicApi for YouTubeClient {
             .enumerate()
             .map(|(index, track)| wire::track(track, index as u32))
             .collect())
+    }
+
+    async fn home(&self) -> Result<Vec<GenreSection>> {
+        genres::home(&self.api).await
+    }
+
+    async fn genres(&self) -> Result<Vec<Genre>> {
+        genres::genres(&self.api).await
+    }
+
+    async fn genre(&self, genre_id: &str) -> Result<GenreDetail> {
+        genres::genre(&self.api, genre_id).await
     }
 }
 

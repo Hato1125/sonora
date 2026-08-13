@@ -215,13 +215,15 @@ home-quick-picks-empty = Polub kilka utworów, a pojawią się tutaj
 
 # search page
 search-placeholder = Czego chcesz posłuchać?
+search-browse = Przeglądaj
+genre-empty = Nie ma tu jeszcze nic
 search-best-match = Najlepszy wynik
 search-no-matches = Brak wyników
 search-results = Wyniki
 search-songs = Utwory
 search-artists = Wykonawcy
 search-albums = Albumy
-search-tagged = { $kind } · { $value }
+search-tag = { $kind } ·
 search-saved =
     { $count ->
         [one] { $count } utwór w bibliotece
@@ -323,6 +325,8 @@ settings-startup-detail = Ekran otwierany przez Sonorę po uruchomieniu
 settings-language = Język
 settings-language-detail = Język interfejsu Sonora
 settings-language-system = Systemowy
+settings-language-search = Szukaj języka
+settings-language-none = Nie znaleziono języków
 settings-window-controls = Przyciski okna
 settings-window-controls-detail = Rysuj minimalizację, maksymalizację i zamknięcie na pasku tytułu
 settings-controls-side = Strona przycisków

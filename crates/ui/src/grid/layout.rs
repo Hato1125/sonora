@@ -68,6 +68,12 @@ pub struct ColumnSpec<F: 'static> {
     pub rank: u8,
 }
 
+impl<F: Copy + 'static> ColumnSpec<F> {
+    pub const fn ranked(&self, rank: u8) -> Self {
+        Self { rank, ..*self }
+    }
+}
+
 impl<F: 'static> ColumnSpec<F> {
     pub fn label(&self) -> SharedString {
         match self.header.is_empty() {
@@ -186,12 +192,13 @@ pub fn resolve<F: 'static>(
     metrics: Metrics,
     layout: &Layout,
     heads: &[Pixels],
+    blank: &[bool],
 ) -> Vec<Resolved<F>> {
     let available = (room - SLACK).max(MIN_TABLE);
     let head = |ix: usize| heads.get(ix).copied().unwrap_or_default();
     let mut visible = ordered(specs, layout)
         .into_iter()
-        .filter(|(_, spec)| !layout.hides(spec.key))
+        .filter(|(ix, spec)| !layout.hides(spec.key) && !blank.get(*ix).copied().unwrap_or(false))
         .collect::<Vec<_>>();
     if visible.is_empty() {
         visible.extend(specs.iter().enumerate().take(1));
@@ -607,11 +614,11 @@ mod tests {
     }
 
     fn laid(room: Pixels, layout: &Layout) -> Vec<Resolved<Field>> {
-        resolve(SPECS, room, metrics(), layout, &[])
+        resolve(SPECS, room, metrics(), layout, &[], &[])
     }
 
     fn headed(room: Pixels, heads: &[Pixels]) -> Vec<Resolved<Field>> {
-        resolve(SPECS, room, metrics(), &Layout::default(), heads)
+        resolve(SPECS, room, metrics(), &Layout::default(), heads, &[])
     }
 
     fn head_of(key: &str, width: Pixels) -> Vec<Pixels> {

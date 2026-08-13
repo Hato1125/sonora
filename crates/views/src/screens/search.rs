@@ -10,14 +10,17 @@ use ui::Input;
 
 use crate::chrome::Chrome;
 use crate::shared::menu::ItemMenu;
-use state::{Hit, Kind, Playback, Search};
+use state::{Genres, Hit, Kind, Playback, Search};
 use ui::ActiveTheme as _;
 use ui::{
     Card, Pin, PinKind, Pinnable, Popup, Room, Scrollbar, Scroller, Separator, Text, Theme, VAST,
-    clock, eyebrow, vacant,
+    Viewport, clock, eyebrow, scrolled, vacant,
 };
 
 use crate::shared::cells;
+use crate::shared::shelves;
+
+const RAIL: Pixels = gpui::px(12.);
 use crate::shared::tracks::{PlaybackStatus, playback_status};
 
 enum Press {
@@ -29,12 +32,14 @@ enum Press {
 pub(crate) struct SearchView {
     input: Entity<Input>,
     search: Entity<Search>,
+    genres: Entity<Genres>,
     playback: Entity<Playback>,
     playback_status: PlaybackStatus,
     songs: Entity<Scrollbar>,
     artists: Entity<Scrollbar>,
     albums: Entity<Scrollbar>,
     mixed: Entity<Scrollbar>,
+    browsing: Entity<Scrollbar>,
     track_menu: ItemMenu,
     context_menu: Option<(Track, Point<Pixels>)>,
 }
@@ -42,9 +47,12 @@ pub(crate) struct SearchView {
 impl SearchView {
     pub(crate) fn new(
         search: Entity<Search>,
+        genres: Entity<Genres>,
         playback: Entity<Playback>,
         cx: &mut Context<Self>,
     ) -> Self {
+        cx.observe(&genres, |_, _, cx| cx.notify()).detach();
+        genres.update(cx, |genres, cx| genres.load(cx));
         let input = cx.new(|cx| Input::new("search-placeholder", cx).icon("icons/search.svg"));
 
         cx.observe(&input, |this, input, cx| {
@@ -83,12 +91,14 @@ impl SearchView {
         Self {
             input,
             search,
+            genres,
             playback,
             playback_status: current_playback,
             songs: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
             artists: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
             albums: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
             mixed: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
+            browsing: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
             track_menu: ItemMenu::new(playlist_scrollbar),
             context_menu: None,
         }
@@ -113,24 +123,33 @@ impl SearchView {
     }
 
     fn subtitle(&self, hit: &Hit, place: usize, compact: bool, theme: &Theme) -> AnyElement {
-        let links = |id: String, artists, fallback| {
-            cells::artist_links(id, artists, fallback, theme.muted_foreground)
-                .truncate()
-                .into_any_element()
-        };
-
-        match (compact, hit) {
-            (false, Hit::Song(track)) => links(
+        let (kind, id, artists, fallback) = match hit {
+            Hit::Song(track) => (
+                Kind::Song,
                 format!("song-artist-{place}"),
                 track.artist_refs.clone(),
                 track.artists.clone(),
             ),
-            (false, Hit::Album(album)) => links(
+            Hit::Album(album) => (
+                Kind::Album,
                 format!("album-artist-{place}"),
                 album.artist_refs.clone(),
                 album.artists.clone(),
             ),
-            _ => meta(hit, compact).into_any_element(),
+            Hit::Artist(_) => return meta(hit, compact).into_any_element(),
+        };
+
+        let links = cells::artist_links(id, artists, fallback, theme.muted_foreground).truncate();
+
+        match compact {
+            true => div()
+                .flex()
+                .min_w_0()
+                .gap_1()
+                .child(div().flex_none().child(tag(kind)))
+                .child(links)
+                .into_any_element(),
+            false => links.into_any_element(),
         }
     }
 
@@ -331,6 +350,7 @@ impl SearchView {
         id: &'static str,
         bar: &Entity<Scrollbar>,
         rows: Vec<AnyElement>,
+        gutter: Pixels,
         cx: &Context<Self>,
     ) -> AnyElement {
         if rows.is_empty() {
@@ -344,7 +364,9 @@ impl SearchView {
             .min_h_0()
             .child(
                 Scroller::new(id, bar)
-                    .child(div().flex().flex_col().gap_1().pl_3().pr_3().children(rows)),
+                    .px(gutter)
+                    .pb(cx.theme().metrics.inset)
+                    .child(div().flex().flex_col().gap_1().children(rows)),
             )
             .into_any_element()
     }
@@ -355,6 +377,7 @@ impl SearchView {
         bar: &Entity<Scrollbar>,
         title: SharedString,
         rows: Vec<AnyElement>,
+        gutter: Pixels,
         cx: &Context<Self>,
     ) -> AnyElement {
         div()
@@ -364,8 +387,8 @@ impl SearchView {
             .min_w_0()
             .min_h_0()
             .gap_1()
-            .child(div().pl_3().child(eyebrow(title, cx).pb_1()))
-            .child(self.panel(id, bar, rows, cx))
+            .child(div().pl(gutter).child(eyebrow(title, cx).pb_1()))
+            .child(self.panel(id, bar, rows, gutter, cx))
             .into_any_element()
     }
 
@@ -384,10 +407,50 @@ impl SearchView {
             .map(|(place, hit)| self.row(hit, place, false, cx))
             .collect();
 
-        self.section(id, bar, title, rows, cx)
+        self.section(id, bar, title, rows, RAIL, cx)
     }
 
-    fn everything(&self, cx: &Context<Self>) -> AnyElement {
+    fn browse(&self, gutter: Pixels, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+        let error = self.genres.read(cx).error().map(str::to_owned);
+        let found = self.genres.read(cx).genres().to_vec();
+        let theme = *cx.theme();
+        let pad = theme.metrics.inset;
+        let width = cells::content_width(window, pad * 2., cx);
+        let scroll = self.browsing.read(cx).scroll().clone();
+        let seen = scroll.bounds().size.height;
+        let viewport = Viewport {
+            top: scrolled(&scroll),
+            height: match seen > Pixels::ZERO {
+                true => seen,
+                false => window.viewport_size().height,
+            },
+        };
+        let plates = shelves::grid("genre", found, width, viewport, window, cx);
+
+        div()
+            .flex()
+            .flex_col()
+            .flex_1()
+            .min_h_0()
+            .gap_3()
+            .child(div().px(gutter).child(eyebrow(t!("search-browse"), cx)))
+            .children(error.map(|error| {
+                div()
+                    .flex_none()
+                    .px(gutter)
+                    .text_color(theme.danger)
+                    .child(SharedString::from(error))
+            }))
+            .child(
+                Scroller::new("search-browse", &self.browsing)
+                    .px(gutter)
+                    .pb(pad)
+                    .child(plates),
+            )
+            .into_any_element()
+    }
+
+    fn everything(&self, gutter: Pixels, cx: &Context<Self>) -> AnyElement {
         let mut places = [0; 3];
         let rows = self
             .search
@@ -406,7 +469,14 @@ impl SearchView {
             })
             .collect();
 
-        self.section("search-all", &self.mixed, t!("search-results"), rows, cx)
+        self.section(
+            "search-all",
+            &self.mixed,
+            t!("search-results"),
+            rows,
+            gutter,
+            cx,
+        )
     }
 }
 
@@ -430,8 +500,8 @@ fn pin(hit: &Hit) -> Option<Pin> {
 
 fn meta(hit: &Hit, compact: bool) -> SharedString {
     match hit {
-        Hit::Song(track) => tagged(Kind::Song, &track.artists, compact),
-        Hit::Album(album) => tagged(Kind::Album, &album.artists, compact),
+        Hit::Song(track) => SharedString::from(track.artists.clone()),
+        Hit::Album(album) => SharedString::from(album.artists.clone()),
         Hit::Artist(artist) => match compact {
             true => noun(Kind::Artist),
             false => held(artist.saved),
@@ -439,13 +509,9 @@ fn meta(hit: &Hit, compact: bool) -> SharedString {
     }
 }
 
-fn tagged(kind: Kind, value: &str, compact: bool) -> SharedString {
-    if !compact {
-        return SharedString::from(value.to_owned());
-    }
-
+fn tag(kind: Kind) -> SharedString {
     let noun = noun(kind);
-    t!("search-tagged", kind = &noun, value = value)
+    t!("search-tag", kind = &noun)
 }
 
 fn held(saved: usize) -> SharedString {
@@ -483,12 +549,15 @@ impl Render for SearchView {
             ))
         });
 
-        let results = match stacked {
-            true => self.everything(cx),
-            false => div()
+        let gutter = pad + inset;
+        let results = match (asked, stacked) {
+            (false, _) => self.browse(gutter, window, cx),
+            (true, true) => self.everything(gutter, cx),
+            (true, false) => div()
                 .flex()
                 .flex_1()
                 .min_h_0()
+                .px(gutter)
                 .child(self.column(Kind::Song, cx))
                 .child(Separator::vertical())
                 .child(self.column(Kind::Artist, cx))
@@ -502,13 +571,20 @@ impl Render for SearchView {
             .flex_col()
             .size_full()
             .gap_6()
-            .px(pad + inset)
             .pt(pad)
-            .pb(pad)
-            .child(div().flex().flex_none().child(self.input.clone()))
-            .children(self.failure(cx))
-            .children(self.best(cx))
-            .when(asked, |this| this.child(results))
+            .child(
+                div()
+                    .flex()
+                    .flex_none()
+                    .px(gutter)
+                    .child(self.input.clone()),
+            )
+            .children(
+                self.failure(cx)
+                    .map(|failure| div().px(gutter).child(failure)),
+            )
+            .children(self.best(cx).map(|best| div().px(gutter).child(best)))
+            .child(results)
             .when_some(context_menu, |this, menu| this.child(menu))
     }
 }
