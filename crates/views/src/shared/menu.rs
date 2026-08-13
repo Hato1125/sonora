@@ -503,6 +503,17 @@ pub(crate) fn playlist_menu(
 }
 
 pub(crate) fn pin_menu(pin: &Pin, tracks: &ItemMenu, playback: Entity<Playback>, cx: &App) -> Menu {
+    item_menu(pin, tracks, playback, cx)
+        .item(MenuItem::separator("pin-separator"))
+        .item(unpin_item(pin))
+}
+
+pub(crate) fn item_menu(
+    pin: &Pin,
+    tracks: &ItemMenu,
+    playback: Entity<Playback>,
+    cx: &App,
+) -> Menu {
     let library = Sonora::global(cx).library.clone();
     let built = match pin.kind {
         PinKind::Album => library
@@ -519,13 +530,10 @@ pub(crate) fn pin_menu(pin: &Pin, tracks: &ItemMenu, playback: Entity<Playback>,
         PinKind::Song => saved_track(&pin.id, cx).map(|track| tracks.for_track(&track, cx)),
     };
 
-    let menu = built.unwrap_or_else(|| sparse_pin_menu(pin, playback));
-
-    menu.item(MenuItem::separator("pin-separator"))
-        .item(unpin_item(pin))
+    built.unwrap_or_else(|| sparse_menu(pin, playback))
 }
 
-fn sparse_pin_menu(pin: &Pin, playback: Entity<Playback>) -> Menu {
+fn sparse_menu(pin: &Pin, playback: Entity<Playback>) -> Menu {
     let destination = Destination::from(pin);
     let copied = pin.id.clone();
     let kind = media_kind(pin.kind);

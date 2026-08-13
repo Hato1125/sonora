@@ -26,6 +26,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the earlier pins straight back, and existing pins are cleared once on this upgrade.
 - Search results no longer all look like the track that is playing: only the song actually playing
   is highlighted and shows a pause button.
+- Song titles in search results are readable again instead of being cut after a few letters: the
+  three columns only appear once there is real room for them, and a song's duration no longer takes
+  space away from its title.
+- Every search result answers a right-click now, not just songs. Artists and albums open the same
+  context menu they have elsewhere in the app, in the combined list as well as the three columns.
 
 ## [0.12.1] - 2026-08-13
 
