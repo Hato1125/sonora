@@ -193,18 +193,20 @@ impl Render for TitleBar {
             .on_mouse_down(MouseButton::Left, |_, window, _| {
                 window.start_window_move();
             })
-            .when(leading, |this| {
-                this.child(div().flex_none().pl_2().child(WindowControls::new(true)))
-            })
             .child(
                 div()
                     .flex()
                     .flex_none()
                     .items_center()
-                    .when(!leading, |this| this.pl(px(TITLE_BAR_LEFT_INSET)))
+                    .when_else(
+                        leading,
+                        |this| this.pl_2(),
+                        |this| this.pl(px(TITLE_BAR_LEFT_INSET)),
+                    )
                     .pr_3()
                     .gap_1()
                     .when(offset > Pixels::ZERO, |this| this.w(offset))
+                    .when(leading, |this| this.child(WindowControls::new(true)))
                     .when(navigation, |this| this.child(self.toggle(cx))),
             )
             .child(
