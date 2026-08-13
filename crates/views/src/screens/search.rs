@@ -159,14 +159,15 @@ impl SearchView {
 
         match hit {
             Hit::Song(track) => {
-                let tint = match track.id.is_some() && track.id == self.playback_status.0 {
+                let current = track.id.is_some() && track.id == self.playback_status.0;
+                let tint = match current {
                     true => theme.primary,
                     false => theme.foreground,
                 };
                 let track = track.clone();
                 let view = cx.entity().downgrade();
-                let playing = tint == theme.primary
-                    && self.playback.read(cx).state() == &state::PlaybackState::Playing;
+                let playing =
+                    current && matches!(self.playback_status.1, state::PlaybackState::Playing);
                 let played = track.clone();
                 Card::new(("song", place), track.name.clone())
                     .cover(track.cover.clone())
