@@ -1,59 +1,105 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use gpui::{Pixels, Point, ScrollHandle, Window, point, px};
 
 const EASE: f32 = 0.22;
 const REST: Pixels = px(0.5);
 
 #[derive(Default)]
-pub struct Glide {
+struct Drift {
     shown: Point<Pixels>,
     target: Point<Pixels>,
     gliding: bool,
+    armed: bool,
 }
 
-impl Glide {
-    pub fn nudge(&mut self, scroll: &ScrollHandle) {
-        let landed = scroll.offset();
-        let step = landed - self.shown;
-        let from = match self.gliding {
-            true => self.target,
-            false => self.shown,
-        };
+#[derive(Clone, Default)]
+pub struct Glide(Rc<RefCell<Drift>>);
 
-        self.target = held(from + step, scroll);
-        self.gliding = true;
-        scroll.set_offset(self.shown);
+impl Glide {
+    pub fn sync(&self, scroll: &ScrollHandle) {
+        let mut drift = self.0.borrow_mut();
+        if !drift.gliding {
+            drift.shown = scroll.offset();
+        }
     }
 
-    pub fn aim(&mut self, scroll: &ScrollHandle, to: Point<Pixels>) {
-        self.target = held(to, scroll);
-        self.gliding = true;
+    pub fn nudge(&self, scroll: &ScrollHandle, window: &mut Window) {
+        {
+            let mut drift = self.0.borrow_mut();
+            let landed = scroll.offset();
+            let step = landed - drift.shown;
+            let from = match drift.gliding {
+                true => drift.target,
+                false => drift.shown,
+            };
+
+            drift.target = held(from + step, scroll);
+            drift.gliding = true;
+            scroll.set_offset(drift.shown);
+        }
+        self.arm(scroll, window);
+    }
+
+    pub fn aim(&self, scroll: &ScrollHandle, to: Point<Pixels>, window: &mut Window) {
+        {
+            let mut drift = self.0.borrow_mut();
+            drift.target = held(to, scroll);
+            drift.gliding = true;
+        }
+        self.arm(scroll, window);
     }
 
     pub fn goal(&self, scroll: &ScrollHandle) -> Point<Pixels> {
-        match self.gliding {
-            true => self.target,
+        let drift = self.0.borrow();
+
+        match drift.gliding {
+            true => drift.target,
             false => scroll.offset(),
         }
     }
 
-    pub fn step(&mut self, scroll: &ScrollHandle, window: &mut Window) {
-        if !self.gliding {
-            self.shown = scroll.offset();
-            return;
+    fn arm(&self, scroll: &ScrollHandle, window: &mut Window) {
+        {
+            let mut drift = self.0.borrow_mut();
+            if drift.armed {
+                return;
+            }
+            drift.armed = true;
         }
 
-        let target = held(self.target, scroll);
-        let step = target - self.shown;
-        if step.x.abs() < REST && step.y.abs() < REST {
-            self.shown = target;
-            self.gliding = false;
-            scroll.set_offset(target);
-            return;
-        }
+        let glide = self.clone();
+        let scroll = scroll.clone();
+        window.on_next_frame(move |window, _| glide.step(&scroll, window));
+    }
 
-        self.shown += point(step.x * EASE, step.y * EASE);
-        scroll.set_offset(self.shown);
+    fn step(&self, scroll: &ScrollHandle, window: &mut Window) {
+        let landed = {
+            let mut drift = self.0.borrow_mut();
+            drift.armed = false;
+            if !drift.gliding {
+                return;
+            }
+
+            let target = held(drift.target, scroll);
+            let step = target - drift.shown;
+            match step.x.abs() < REST && step.y.abs() < REST {
+                true => {
+                    drift.shown = target;
+                    drift.gliding = false;
+                    target
+                }
+                false => {
+                    drift.shown += point(step.x * EASE, step.y * EASE);
+                    drift.shown
+                }
+            }
+        };
+
+        scroll.set_offset(landed);
         window.request_animation_frame();
+        self.arm(scroll, window);
     }
 }
 

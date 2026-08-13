@@ -45,7 +45,7 @@ impl ParentElement for Scroller {
 }
 
 impl RenderOnce for Scroller {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let Self {
             mut base,
             id,
@@ -55,7 +55,7 @@ impl RenderOnce for Scroller {
 
         let scroll = bar.read(cx).scroll().clone();
         let overrides = std::mem::take(base.style());
-        bar.update(cx, |bar, _| bar.glide(window));
+        bar.read(cx).sync();
         let gliding = bar.clone();
 
         let mut surface = base
@@ -64,11 +64,11 @@ impl RenderOnce for Scroller {
             .overflow_y_scroll()
             .restrict_scroll_to_axis()
             .track_scroll(&scroll)
-            .on_scroll_wheel(move |event: &ScrollWheelEvent, _, cx| {
+            .on_scroll_wheel(move |event: &ScrollWheelEvent, window, cx| {
                 if event.delta.precise() {
                     return;
                 }
-                gliding.update(cx, |bar, _| bar.nudge());
+                gliding.update(cx, |bar, _| bar.nudge(window));
             })
             .children(children);
 

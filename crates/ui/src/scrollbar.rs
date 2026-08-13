@@ -156,12 +156,12 @@ impl Scrollbar {
         self.seen = offset;
     }
 
-    pub fn nudge(&mut self) {
-        self.glide.nudge(&self.scroll.clone());
+    pub fn nudge(&mut self, window: &mut Window) {
+        self.glide.nudge(&self.scroll, window);
     }
 
-    pub fn glide(&mut self, window: &mut Window) {
-        self.glide.step(&self.scroll.clone(), window);
+    pub fn sync(&self) {
+        self.glide.sync(&self.scroll);
     }
 
     pub fn scroll(&self) -> &ScrollHandle {
