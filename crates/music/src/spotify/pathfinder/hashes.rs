@@ -59,8 +59,8 @@ pub(super) async fn resolve(session: &Session, operation: &str) -> Result<Hash> 
         .with_context(|| format!("the hash registry has no {operation} query"))
 }
 
-pub(super) async fn refetch(session: &Session, operation: &str) -> Option<String> {
-    fetched(session)
+pub(super) async fn refetch(session: &Session, operation: &str, stale: &str) -> Option<String> {
+    refreshed(session, Some(stale))
         .await
         .ok()?
         .get(operation)
@@ -72,7 +72,11 @@ pub(super) async fn refetch(session: &Session, operation: &str) -> Option<String
 }
 
 async fn fetched(session: &Session) -> Result<HashMap<String, String>> {
-    let operations = match download(session).await {
+    refreshed(session, None).await
+}
+
+async fn refreshed(session: &Session, stale: Option<&str>) -> Result<HashMap<String, String>> {
+    let operations = match download(session, stale).await {
         Ok(operations) => operations,
         Err(error) => {
             log::warn!("pathfinder: cannot refresh the query hashes: {error:#}");
@@ -83,10 +87,14 @@ async fn fetched(session: &Session) -> Result<HashMap<String, String>> {
     Ok(operations)
 }
 
-async fn download(session: &Session) -> Result<HashMap<String, String>> {
+async fn download(session: &Session, stale: Option<&str>) -> Result<HashMap<String, String>> {
+    let uri = match stale {
+        Some(stale) => format!("{WORKER}?stale={stale}"),
+        None => WORKER.to_owned(),
+    };
     let request = Request::builder()
         .method(Method::GET)
-        .uri(WORKER)
+        .uri(uri)
         .header(header::ACCEPT, "application/json")
         .body(Bytes::new())
         .context("cannot build the query hash request")?;
