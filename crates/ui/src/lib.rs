@@ -65,7 +65,7 @@ pub use layout::{ALWAYS, MIN_CONTENT, ROOMY, Room, SNUG, VAST, WIDE};
 pub use menu::{Menu, MenuItem, SubmenuState};
 pub use metrics::{LEADING, Metrics, Rounding, Text, snapped};
 pub use modal::Modal;
-pub use motion::{Motion, Motioned, Stillness};
+pub use motion::{Motion, Motioned, Pace, Stillness, mix};
 pub use palette::tint;
 pub use panel::{Panel, Side};
 pub use pin::{DraggedPin, Pin, PinKind, Pinnable, Spot};
