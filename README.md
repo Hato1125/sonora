@@ -68,8 +68,7 @@ Just use the flake in the project root.
 inputs.sonora.packages.${system}.default
 ```
 
-The flake installs the latest tagged release binary; it does not build from source. `sonora` and
-`sonora-bin` are aliases of `default`.
+The flake installs the latest tagged release binary.
 
 ### Windows
 Download the latest `.exe` for your architecture from [Releases](https://github.com/nolight132/sonora/releases/latest). There isn't a proper Windows installer yet.
