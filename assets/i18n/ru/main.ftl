@@ -223,7 +223,7 @@ search-no-matches = Ничего не найдено
 search-results = Результаты
 search-songs = Треки
 search-artists = Исполнители
-search-albums = Альбомы
+search-albums-playlists = Альбомы и плейлисты
 search-tag = { $kind } ·
 search-saved =
     { $count ->
