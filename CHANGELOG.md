@@ -7,6 +7,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- The songs, artists and albums columns in search scroll smoothly however many matches come back,
+  and each column still scrolls on its own.
+
 ## [0.13.0] - 2026-08-14
 
 ### Added
