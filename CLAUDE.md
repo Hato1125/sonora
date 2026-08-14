@@ -68,16 +68,21 @@ PATH** for that target. If it isn't, either install mold or build with
 ```sh
 nix develop          # or: direnv allow  (.envrc runs `use flake`)
 cargo run --locked --package sonora
-nix run              # build + run the packaged binary
-nix build            # ./result/bin/sonora
+nix run              # run the released binary
+nix build            # ./result/bin/sonora, fetched not compiled
 ```
+
+The flake packages the **released** binary and never builds from source: `default`, `sonora` and
+`sonora-bin` all resolve to the asset named by `release.version`. So it cannot build the working
+tree — use `cargo` for that — and a local change is invisible to `nix build` until it is tagged.
+There is no `cargoHash` to keep in step with `Cargo.lock` any more.
 
 The devShell supplies `rustc`, `rustfmt`, `rust-analyzer`, `mold`, `pkg-config`, `sccache` and the
 runtime libs via `LD_LIBRARY_PATH`. It does **not** ship `cargo` or `cargo-clippy` — those come from
 the ambient system profile here. If `cargo` is missing inside the shell, that's why.
 
-When `Cargo.lock` changes, `cargoHash` in `flake.nix` goes stale. Build once, take the `got:` hash
-from the failure, and paste it in.
+Nothing in `flake.nix` tracks `Cargo.lock`, so a lockfile change never makes the flake stale. The
+per-target `hash` values follow the release assets instead, and only move when a version is cut.
 
 ### Arch / CachyOS
 
@@ -618,7 +623,7 @@ is incomplete. Cutting a release therefore takes three steps:
    line comparing against the previous tag.
 2. The tag `v<version>`, which is what `.github/workflows/release.yml` triggers on.
 3. `chore(nix): point the flake at <version>` — once the tag has built, the `release.version` and
-   per-target `hash` values in `flake.nix`, plus `cargoHash` if `Cargo.lock` moved.
+   per-target `hash` values in `flake.nix`.
 
 Entries are user-facing sentences under `Added` / `Changed` / `Fixed`, not commit subjects: say what
 someone using Sonora can now do, and leave out work no user can observe. Add to `## [Unreleased]` as
