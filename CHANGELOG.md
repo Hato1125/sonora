@@ -7,6 +7,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Appearance settings carry a Reduce motion choice — follow the system, always or never — so you can
+  decide up front whether Sonora animates its interface.
+
 ## [0.14.0] - 2026-08-14
 
 ### Added

@@ -316,6 +316,8 @@ settings-opacity-value = { $percent }%
 settings-theme-config = Открыть конфиг
 settings-adaptive = Адаптивная тема
 settings-adaptive-detail = Подкрашивать палитру обложкой играющего альбома
+settings-motion = Меньше анимации
+settings-motion-detail = Пропускать анимации и переходы в интерфейсе
 settings-corners = Углы
 settings-corners-detail = Насколько скруглены поверхности и элементы
 settings-font = Размер шрифта
@@ -380,6 +382,11 @@ corners-square = Прямые
 corners-subtle = Лёгкие
 corners-rounded = Скруглённые
 corners-round = Круглые
+
+# motion
+motion-system = Как в системе
+motion-always = Всегда
+motion-never = Никогда
 
 toast-playlist-created = Плейлист создан
 toast-playlist-renamed = Плейлист переименован
