@@ -9330,7 +9330,7 @@ dependencies = [
 [[package]]
 name = "ytmusic"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/ytmusic-rs?rev=af7d2caddf1a0f681efd35c3385ce4e3456a9ed8#af7d2caddf1a0f681efd35c3385ce4e3456a9ed8"
+source = "git+https://github.com/nolight132/ytmusic-rs?rev=f771acf85e737b46922e32e7d4f5bc1164216ea5#f771acf85e737b46922e32e7d4f5bc1164216ea5"
 dependencies = [
  "aes",
  "anyhow",

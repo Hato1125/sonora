@@ -222,7 +222,7 @@ search-no-matches = No matches
 search-results = Results
 search-songs = Songs
 search-artists = Artists
-search-albums = Albums
+search-albums-playlists = Albums & playlists
 search-tag = { $kind } ·
 search-saved =
     { $count ->
