@@ -22,6 +22,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The songs, artists and albums columns in search scroll smoothly however many matches come back,
   and each column still scrolls on its own.
 
+### Fixed
+
+- Sonora sat redrawing the window as fast as the screen allowed whenever the lyrics panel was open,
+  heating the machine and draining the battery while nothing on screen was moving. It now rests when
+  there is nothing to draw.
+- When Spotify ships a new build of its web player, album, artist and search pages recover on the
+  next attempt instead of failing for hours.
+
 ## [0.13.0] - 2026-08-14
 
 ### Added
