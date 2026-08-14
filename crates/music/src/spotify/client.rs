@@ -139,6 +139,14 @@ impl MusicApi for LibrespotClient {
         search::search(&self.session, query).await
     }
 
+    async fn search_albums(&self, query: &str) -> Result<Vec<Album>> {
+        pathfinder::search_albums(&self.session, query).await
+    }
+
+    async fn search_playlists(&self, query: &str) -> Result<Vec<Playlist>> {
+        pathfinder::search_playlists(&self.session, query).await
+    }
+
     async fn home(&self) -> Result<Vec<GenreSection>> {
         Ok(pathfinder::genre(&self.session, MADE_FOR_YOU)
             .await?
