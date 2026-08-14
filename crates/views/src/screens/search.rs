@@ -338,32 +338,6 @@ impl SearchView {
         )
     }
 
-    fn panel(
-        &self,
-        id: &'static str,
-        bar: &Entity<Scrollbar>,
-        rows: Vec<AnyElement>,
-        gutter: Pixels,
-        cx: &Context<Self>,
-    ) -> AnyElement {
-        if rows.is_empty() {
-            return vacant(t!("search-no-matches"), cx)
-                .flex_none()
-                .into_any_element();
-        }
-
-        div()
-            .flex_1()
-            .min_h_0()
-            .child(
-                Scroller::new(id, bar)
-                    .px(gutter)
-                    .pb(cx.theme().metrics.inset)
-                    .child(div().flex().flex_col().gap_1().children(rows)),
-            )
-            .into_any_element()
-    }
-
     fn shell(
         &self,
         title: SharedString,
@@ -383,37 +357,15 @@ impl SearchView {
             .into_any_element()
     }
 
-    fn section(
-        &self,
-        id: &'static str,
-        bar: &Entity<Scrollbar>,
-        title: SharedString,
-        rows: Vec<AnyElement>,
-        gutter: Pixels,
-        cx: &Context<Self>,
-    ) -> AnyElement {
-        let body = self.panel(id, bar, rows, gutter, cx);
-
-        self.shell(title, body, gutter, cx)
-    }
-
-    fn column(&self, kind: Kind, cx: &Context<Self>) -> AnyElement {
+    fn column(&self, kind: Kind, window: &Window, cx: &Context<Self>) -> AnyElement {
         let (id, bar, title) = match kind {
             Kind::Song => ("search-songs", &self.songs, t!("search-songs")),
             Kind::Artist => ("search-artists", &self.artists, t!("search-artists")),
             Kind::Album => ("search-albums", &self.albums, t!("search-albums")),
         };
+        let body = self.deck(id, bar, Some(kind), RAIL, window, cx);
 
-        let me = cx.entity().downgrade();
-        let rows = self
-            .search
-            .read(cx)
-            .of(kind)
-            .enumerate()
-            .map(|(place, hit)| self.row(hit, place, false, &me, cx))
-            .collect();
-
-        self.section(id, bar, title, rows, RAIL, cx)
+        self.shell(title, body, RAIL, cx)
     }
 
     fn browse(&self, gutter: Pixels, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
@@ -457,39 +409,49 @@ impl SearchView {
     }
 
     fn everything(&self, gutter: Pixels, window: &Window, cx: &Context<Self>) -> AnyElement {
-        let body = self.stack(gutter, window, cx);
+        let body = self.deck("search-all", &self.mixed, None, gutter, window, cx);
 
         self.shell(t!("search-results"), body, gutter, cx)
     }
 
-    fn stack(&self, gutter: Pixels, window: &Window, cx: &Context<Self>) -> AnyElement {
-        let mut seats = [0; 3];
-        let places: Vec<usize> = self
-            .search
+    fn seats(&self, only: Option<Kind>, cx: &Context<Self>) -> Vec<(usize, usize)> {
+        let mut taken = [0; 3];
+
+        self.search
             .read(cx)
             .hits()
             .iter()
-            .map(|hit| {
-                let slot = match hit {
-                    Hit::Song(_) => 0,
-                    Hit::Artist(_) => 1,
-                    Hit::Album(_) => 2,
-                };
-                let place = seats[slot];
-                seats[slot] += 1;
-                place
+            .enumerate()
+            .filter_map(|(at, hit)| {
+                let slot = slot(hit);
+                let place = taken[slot];
+                taken[slot] += 1;
+                only.is_none_or(|kind| seat(kind) == slot)
+                    .then_some((at, place))
             })
-            .collect();
+            .collect()
+    }
 
-        if places.is_empty() {
+    fn deck(
+        &self,
+        id: &'static str,
+        bar: &Entity<Scrollbar>,
+        only: Option<Kind>,
+        gutter: Pixels,
+        window: &Window,
+        cx: &Context<Self>,
+    ) -> AnyElement {
+        let seats = self.seats(only, cx);
+        if seats.is_empty() {
             return vacant(t!("search-no-matches"), cx)
                 .flex_none()
                 .into_any_element();
         }
 
+        let compact = only.is_none();
         let theme = *cx.theme();
         let row = snapped(theme.metrics.list_row, window);
-        let scroll = self.mixed.read(cx).scroll().clone();
+        let scroll = bar.read(cx).scroll().clone();
         let seen = scroll.bounds().size.height;
         let viewport = Viewport {
             top: scrolled(&scroll),
@@ -499,32 +461,51 @@ impl SearchView {
             },
         };
         let me = cx.entity().downgrade();
-        let deck = Deck::new("search-all-deck")
+        let deck = Deck::new(format!("{id}-deck"))
             .viewport(viewport)
-            .rows((0..places.len()).map(|_| row))
+            .rows((0..seats.len()).map(|_| row))
             .gap(theme.font_size * ROW_GAP)
             .draw(move |index, _, cx| {
                 let Some(view) = me.upgrade() else {
                     return div().into_any_element();
                 };
+                let Some(&(at, place)) = seats.get(index) else {
+                    return div().into_any_element();
+                };
                 let this = view.read(cx);
-                let Some(hit) = this.search.read(cx).hits().get(index) else {
+                let Some(hit) = this.search.read(cx).hits().get(at) else {
                     return div().into_any_element();
                 };
 
-                this.row(hit, places[index], true, &view.downgrade(), cx)
+                this.row(hit, place, compact, &view.downgrade(), cx)
             });
 
         div()
             .flex_1()
             .min_h_0()
             .child(
-                Scroller::new("search-all", &self.mixed)
+                Scroller::new(id, bar)
                     .px(gutter)
                     .pb(theme.metrics.inset)
                     .child(deck),
             )
             .into_any_element()
+    }
+}
+
+fn slot(hit: &Hit) -> usize {
+    match hit {
+        Hit::Song(_) => 0,
+        Hit::Artist(_) => 1,
+        Hit::Album(_) => 2,
+    }
+}
+
+fn seat(kind: Kind) -> usize {
+    match kind {
+        Kind::Song => 0,
+        Kind::Artist => 1,
+        Kind::Album => 2,
     }
 }
 
@@ -644,11 +625,11 @@ impl Render for SearchView {
                 .flex_1()
                 .min_h_0()
                 .px(gutter)
-                .child(self.column(Kind::Song, cx))
+                .child(self.column(Kind::Song, window, cx))
                 .child(Separator::vertical())
-                .child(self.column(Kind::Artist, cx))
+                .child(self.column(Kind::Artist, window, cx))
                 .child(Separator::vertical())
-                .child(self.column(Kind::Album, cx))
+                .child(self.column(Kind::Album, window, cx))
                 .into_any_element(),
         };
 
