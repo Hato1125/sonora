@@ -22,12 +22,16 @@ use crate::shared::shelves;
 
 const RAIL: Pixels = gpui::px(12.);
 const ROW_GAP: f32 = 0.25;
+const SONGS: &[Kind] = &[Kind::Song];
+const ARTISTS: &[Kind] = &[Kind::Artist];
+const RELEASES: &[Kind] = &[Kind::Album, Kind::Playlist];
 use crate::shared::tracks::{PlaybackStatus, playback_status};
 
 enum Press {
     Song(Box<Track>),
     Artist(String),
     Album(String),
+    Playlist(String),
 }
 
 #[derive(Clone)]
@@ -40,7 +44,7 @@ impl HitMenu {
     fn of(hit: &Hit) -> Option<Self> {
         match hit {
             Hit::Song(track) => Some(Self::Song(Box::new(track.clone()))),
-            _ => pin(hit).map(Self::Item),
+            Hit::Artist(_) | Hit::Album(_) | Hit::Playlist(_) => pin(hit).map(Self::Item),
         }
     }
 }
@@ -142,7 +146,15 @@ impl SearchView {
                 album.artist_refs.clone(),
                 album.artists.clone(),
             ),
-            Hit::Artist(_) => return meta(hit, compact).into_any_element(),
+            Hit::Playlist(list) if !list.owner.is_empty() => (
+                Kind::Playlist,
+                format!("playlist-owner-{place}"),
+                Vec::new(),
+                list.owner.clone(),
+            ),
+            Hit::Artist(_) | Hit::Playlist(_) => {
+                return meta(hit, compact).into_any_element();
+            }
         };
 
         let links = cells::artist_links(id, artists, fallback, theme.muted_foreground).truncate();
@@ -252,6 +264,24 @@ impl SearchView {
                     })
                     .press(pressed(Press::Album(album.id.clone()), me))
             }
+            Hit::Playlist(list) => {
+                let origin = state::Origin::Playlist(list.id.clone());
+                let playing = self.playback.read(cx).playing_from(&origin)
+                    == Some(state::PlaybackState::Playing);
+                let toggled = me.clone();
+                Card::new(("playlist", place), list.name.clone())
+                    .cover(list.cover.clone())
+                    .meta(meta)
+                    .play(playing, move |_, _, cx| {
+                        toggled
+                            .update(cx, |this, cx| {
+                                this.playback
+                                    .update(cx, |playback, cx| playback.toggle_origin(&origin, cx));
+                            })
+                            .ok();
+                    })
+                    .press(pressed(Press::Playlist(list.id.clone()), me))
+            }
         };
 
         card.when_some(pin(hit), Pinnable::pin)
@@ -282,6 +312,12 @@ impl SearchView {
                 album.name.clone(),
                 album.artist_refs.clone(),
                 Some(Press::Album(album.id.clone())),
+            ),
+            Hit::Playlist(list) => (
+                Kind::Playlist,
+                list.name.clone(),
+                Vec::new(),
+                Some(Press::Playlist(list.id.clone())),
             ),
         };
 
@@ -358,12 +394,22 @@ impl SearchView {
     }
 
     fn column(&self, kind: Kind, window: &Window, cx: &Context<Self>) -> AnyElement {
-        let (id, bar, title) = match kind {
-            Kind::Song => ("search-songs", &self.songs, t!("search-songs")),
-            Kind::Artist => ("search-artists", &self.artists, t!("search-artists")),
-            Kind::Album => ("search-albums", &self.albums, t!("search-albums")),
+        let (id, bar, title, only) = match kind {
+            Kind::Song => ("search-songs", &self.songs, t!("search-songs"), SONGS),
+            Kind::Artist => (
+                "search-artists",
+                &self.artists,
+                t!("search-artists"),
+                ARTISTS,
+            ),
+            Kind::Album | Kind::Playlist => (
+                "search-albums",
+                &self.albums,
+                t!("search-albums-playlists"),
+                RELEASES,
+            ),
         };
-        let body = self.deck(id, bar, Some(kind), RAIL, window, cx);
+        let body = self.deck(id, bar, only, RAIL, window, cx);
 
         self.shell(title, body, RAIL, cx)
     }
@@ -409,13 +455,13 @@ impl SearchView {
     }
 
     fn everything(&self, gutter: Pixels, window: &Window, cx: &Context<Self>) -> AnyElement {
-        let body = self.deck("search-all", &self.mixed, None, gutter, window, cx);
+        let body = self.deck("search-all", &self.mixed, &Kind::ALL, gutter, window, cx);
 
         self.shell(t!("search-results"), body, gutter, cx)
     }
 
-    fn seats(&self, only: Option<Kind>, cx: &Context<Self>) -> Vec<(usize, usize)> {
-        let mut taken = [0; 3];
+    fn seats(&self, only: &[Kind], cx: &Context<Self>) -> Vec<(usize, usize)> {
+        let mut taken = [0; Kind::ALL.len()];
 
         self.search
             .read(cx)
@@ -423,11 +469,10 @@ impl SearchView {
             .iter()
             .enumerate()
             .filter_map(|(at, hit)| {
-                let slot = slot(hit);
-                let place = taken[slot];
-                taken[slot] += 1;
-                only.is_none_or(|kind| seat(kind) == slot)
-                    .then_some((at, place))
+                let kind = hit.kind();
+                let place = taken[seat(kind)];
+                taken[seat(kind)] += 1;
+                only.contains(&kind).then_some((at, place))
             })
             .collect()
     }
@@ -436,7 +481,7 @@ impl SearchView {
         &self,
         id: &'static str,
         bar: &Entity<Scrollbar>,
-        only: Option<Kind>,
+        only: &[Kind],
         gutter: Pixels,
         window: &Window,
         cx: &Context<Self>,
@@ -448,7 +493,7 @@ impl SearchView {
                 .into_any_element();
         }
 
-        let compact = only.is_none();
+        let compact = only.len() > 1;
         let theme = *cx.theme();
         let row = snapped(theme.metrics.list_row, window);
         let scroll = bar.read(cx).scroll().clone();
@@ -493,19 +538,12 @@ impl SearchView {
     }
 }
 
-fn slot(hit: &Hit) -> usize {
-    match hit {
-        Hit::Song(_) => 0,
-        Hit::Artist(_) => 1,
-        Hit::Album(_) => 2,
-    }
-}
-
 fn seat(kind: Kind) -> usize {
     match kind {
         Kind::Song => 0,
         Kind::Artist => 1,
         Kind::Album => 2,
+        Kind::Playlist => 3,
     }
 }
 
@@ -522,6 +560,7 @@ fn pressed(
                 .update(cx, |playback, cx| playback.play_radio(track, cx)),
             Press::Artist(id) => navigate(Destination::Artist(id.clone().into()), cx),
             Press::Album(id) => navigate(Destination::Album(id.clone().into()), cx),
+            Press::Playlist(id) => navigate(Destination::Playlist(id.clone().into()), cx),
         })
         .ok();
     }
@@ -549,6 +588,7 @@ fn cover(hit: &Hit) -> Option<String> {
         Hit::Song(track) => track.cover.clone(),
         Hit::Artist(artist) => artist.cover.clone(),
         Hit::Album(album) => album.cover.clone(),
+        Hit::Playlist(list) => list.cover.clone(),
     }
 }
 
@@ -557,6 +597,7 @@ fn pin(hit: &Hit) -> Option<Pin> {
         Hit::Song(track) => (PinKind::Song, track.id.clone()?, track.name.clone()),
         Hit::Artist(artist) => (PinKind::Artist, artist.id.clone()?, artist.name.clone()),
         Hit::Album(album) => (PinKind::Album, album.id.clone(), album.name.clone()),
+        Hit::Playlist(list) => (PinKind::Playlist, list.id.clone(), list.name.clone()),
     };
 
     Some(Pin::new(kind, id, name).cover(cover(hit)))
@@ -569,6 +610,10 @@ fn meta(hit: &Hit, compact: bool) -> SharedString {
         Hit::Artist(artist) => match compact {
             true => noun(Kind::Artist),
             false => held(artist.saved),
+        },
+        Hit::Playlist(list) => match list.owner.is_empty() {
+            true => noun(Kind::Playlist),
+            false => SharedString::from(list.owner.clone()),
         },
     }
 }
@@ -590,6 +635,7 @@ fn noun(kind: Kind) -> SharedString {
         Kind::Song => t!("kind-song"),
         Kind::Artist => t!("kind-artist"),
         Kind::Album => t!("kind-album"),
+        Kind::Playlist => t!("kind-playlist"),
     }
 }
 
