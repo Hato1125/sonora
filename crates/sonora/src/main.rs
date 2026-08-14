@@ -140,6 +140,7 @@ fn open_window(
                     px(if cfg!(target_os = "macos") { 12. } else { 9. }),
                 )),
             }),
+            inactive_frame_interval: None,
             is_movable: true,
             is_resizable: true,
             app_id: Some("sonora".into()),
