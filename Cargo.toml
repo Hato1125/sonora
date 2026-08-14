@@ -26,8 +26,8 @@ env_logger = "0.11"
 fastrand = "2.5"
 futures = "0.3"
 fluent-bundle = "0.16"
-gpui = { git = "https://github.com/zed-industries/zed", rev = "f25b256f2c10e1b638031a3d8d5a524056ebf268" }
-gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "f25b256f2c10e1b638031a3d8d5a524056ebf268", features = [
+gpui = { git = "https://github.com/nolight132/zed", rev = "1b8071574557dcdd870e460529d14be4c86ed602" }
+gpui_platform = { git = "https://github.com/nolight132/zed", rev = "1b8071574557dcdd870e460529d14be4c86ed602", features = [
   "font-kit",
   "wayland",
   "x11",
@@ -55,7 +55,7 @@ serde_json = "1.0"
 souvlaki = "0.8"
 sys-locale = "0.3"
 unic-langid = { version = "0.9", features = ["macros"] }
-ytmusic = { git = "https://github.com/nolight132/ytmusic-rs", rev = "af7d2caddf1a0f681efd35c3385ce4e3456a9ed8" }
+ytmusic = { git = "https://github.com/nolight132/ytmusic-rs", rev = "f771acf85e737b46922e32e7d4f5bc1164216ea5" }
 
 librespot-core = { version = "0.8.0", default-features = false, features = [
   "rustls-tls-native-roots",

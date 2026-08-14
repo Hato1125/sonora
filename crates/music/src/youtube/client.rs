@@ -317,6 +317,26 @@ impl MusicApi for YouTubeClient {
             .collect())
     }
 
+    async fn search_albums(&self, query: &str) -> Result<Vec<Album>> {
+        Ok(self
+            .api
+            .search_albums(query)
+            .await?
+            .into_iter()
+            .map(wire::album)
+            .collect())
+    }
+
+    async fn search_playlists(&self, query: &str) -> Result<Vec<Playlist>> {
+        Ok(self
+            .api
+            .search_playlists(query)
+            .await?
+            .into_iter()
+            .map(|playlist| wire::playlist(playlist, false, false))
+            .collect())
+    }
+
     async fn home(&self) -> Result<Vec<GenreSection>> {
         genres::home(&self.api).await
     }

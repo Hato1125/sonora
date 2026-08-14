@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
+use anyhow::Result;
 use gpui::{Context, Entity, Task};
-use music::{Album, ArtistRef, Track};
+use music::{Album, ArtistRef, Playlist, Track};
 
 use crate::{Io, Library, LibraryState, Session, SessionEvent, join};
 
@@ -26,6 +27,11 @@ pub enum Kind {
     Song,
     Artist,
     Album,
+    Playlist,
+}
+
+impl Kind {
+    pub const ALL: [Kind; 4] = [Kind::Song, Kind::Artist, Kind::Album, Kind::Playlist];
 }
 
 #[derive(Clone)]
@@ -46,19 +52,44 @@ pub struct AlbumHit {
 }
 
 #[derive(Clone)]
+pub struct PlaylistHit {
+    pub id: String,
+    pub name: String,
+    pub owner: String,
+    pub cover: Option<String>,
+}
+
+#[derive(Clone)]
 pub enum Hit {
     Song(Track),
     Artist(ArtistHit),
     Album(AlbumHit),
+    Playlist(PlaylistHit),
 }
 
 impl Hit {
-    fn kind(&self) -> Kind {
+    pub fn kind(&self) -> Kind {
         match self {
             Hit::Song(_) => Kind::Song,
             Hit::Artist(_) => Kind::Artist,
             Hit::Album(_) => Kind::Album,
+            Hit::Playlist(_) => Kind::Playlist,
         }
+    }
+}
+
+#[derive(Default)]
+struct Catalog {
+    tracks: Vec<Track>,
+    albums: Vec<Album>,
+    playlists: Vec<Playlist>,
+}
+
+impl Catalog {
+    fn clear(&mut self) {
+        self.tracks.clear();
+        self.albums.clear();
+        self.playlists.clear();
     }
 }
 
@@ -86,7 +117,7 @@ struct Scored {
 pub struct Search {
     query: String,
     served: Option<String>,
-    catalog: Vec<Track>,
+    catalog: Catalog,
     portraits: HashMap<String, String>,
     hits: Vec<Hit>,
     loading: bool,
@@ -130,7 +161,7 @@ impl Search {
         Self {
             query: String::new(),
             served: None,
-            catalog: Vec::new(),
+            catalog: Catalog::default(),
             portraits: HashMap::new(),
             hits: Vec::new(),
             loading: false,
@@ -200,8 +231,20 @@ impl Search {
         self.task = Some(cx.spawn(async move |this, cx| {
             cx.background_executor().timer(DEBOUNCE).await;
 
+            let songs = {
+                let client = client.clone();
+                let asked = query.clone();
+                io.spawn(async move { client.search(&asked).await })
+            };
+            let albums = {
+                let client = client.clone();
+                let asked = query.clone();
+                io.spawn(async move { client.search_albums(&asked).await })
+            };
             let asked = query.clone();
-            let catalog = join(io.spawn(async move { client.search(&asked).await })).await;
+            let playlists = io.spawn(async move { client.search_playlists(&asked).await });
+            let (songs, albums, playlists) =
+                (join(songs).await, join(albums).await, join(playlists).await);
 
             this.update(cx, |this, cx| {
                 if this.query != query {
@@ -209,13 +252,14 @@ impl Search {
                 }
                 this.loading = false;
                 this.served = Some(query);
-                match catalog {
-                    Ok(tracks) => this.catalog = tracks,
-                    Err(error) => {
-                        this.catalog.clear();
-                        this.error = Some(format!("{error:#}"));
-                    }
-                }
+
+                let mut trouble = Vec::new();
+                this.catalog = Catalog {
+                    tracks: salvaged(songs, &mut trouble),
+                    albums: salvaged(albums, &mut trouble),
+                    playlists: salvaged(playlists, &mut trouble),
+                };
+                this.error = (!trouble.is_empty()).then(|| trouble.join(" · "));
                 this.rank(cx);
             })
             .ok();
@@ -228,7 +272,7 @@ impl Search {
             .iter()
             .filter_map(|hit| match hit {
                 Hit::Artist(artist) => artist.id.clone(),
-                _ => None,
+                Hit::Song(_) | Hit::Album(_) | Hit::Playlist(_) => None,
             })
             .filter(|id| !self.portraits.contains_key(id))
             .collect();
@@ -270,13 +314,23 @@ impl Search {
 
         self.hits = {
             let held = self.library.read(cx);
-            let (tracks, albums) = match held.state() {
-                LibraryState::Ready { tracks, albums, .. } => {
-                    (tracks.as_slice(), albums.as_slice())
-                }
-                _ => (&[][..], &[][..]),
+            let (tracks, albums, playlists) = match held.state() {
+                LibraryState::Ready {
+                    tracks,
+                    albums,
+                    playlists,
+                    ..
+                } => (tracks.as_slice(), albums.as_slice(), playlists.as_slice()),
+                _ => (&[][..], &[][..], &[][..]),
             };
-            rank(tracks, albums, &self.catalog, &self.portraits, query)
+            rank(
+                tracks,
+                albums,
+                playlists,
+                &self.catalog,
+                &self.portraits,
+                query,
+            )
         };
         self.fetch_portraits(cx);
         cx.notify();
@@ -286,7 +340,8 @@ impl Search {
 fn rank(
     library: &[Track],
     albums: &[Album],
-    catalog: &[Track],
+    playlists: &[Playlist],
+    catalog: &Catalog,
     portraits: &HashMap<String, String>,
     asked: &str,
 ) -> Vec<Hit> {
@@ -295,9 +350,10 @@ fn rank(
         return Vec::new();
     }
 
-    let mut all = songs(library, catalog, &query);
-    all.extend(artists(library, catalog, albums, portraits, &query));
+    let mut all = songs(library, &catalog.tracks, &query);
+    all.extend(artists(library, &catalog.tracks, albums, portraits, &query));
     all.extend(albums_of(albums, library, catalog, &query));
+    all.extend(playlists_of(playlists, &catalog.playlists, &query));
     order(&mut all);
 
     all.into_iter().map(|scored| scored.hit).collect()
@@ -330,7 +386,7 @@ fn songs(library: &[Track], catalog: &[Track], query: &Query) -> Vec<Scored> {
     capped(scored)
 }
 
-fn albums_of(albums: &[Album], library: &[Track], catalog: &[Track], query: &Query) -> Vec<Scored> {
+fn albums_of(albums: &[Album], library: &[Track], catalog: &Catalog, query: &Query) -> Vec<Scored> {
     let saved = albums.iter().map(|album| {
         (
             &album.id,
@@ -342,7 +398,19 @@ fn albums_of(albums: &[Album], library: &[Track], catalog: &[Track], query: &Que
             0,
         )
     });
-    let derived = sources(library, catalog).filter_map(|(track, rank)| {
+    let total = catalog.albums.len();
+    let found = catalog.albums.iter().enumerate().map(move |(at, album)| {
+        (
+            &album.id,
+            &album.name,
+            &album.artists,
+            &album.artist_refs,
+            &album.cover,
+            Some(placed(at, total)),
+            0,
+        )
+    });
+    let derived = sources(library, &catalog.tracks).filter_map(|(track, rank)| {
         let id = track.album_id.as_ref()?;
         Some((
             id,
@@ -357,7 +425,9 @@ fn albums_of(albums: &[Album], library: &[Track], catalog: &[Track], query: &Que
 
     let mut scored: Vec<Scored> = Vec::new();
     let mut seen: Vec<&String> = Vec::new();
-    for (id, name, artists, artist_refs, cover, rank, popularity) in saved.chain(derived) {
+    for (id, name, artists, artist_refs, cover, rank, popularity) in
+        saved.chain(found).chain(derived)
+    {
         let fields = [(TITLE, name.as_str()), (ARTIST, artists.as_str())];
         let Some(score) = favored(fit(&fields, query), rank).max(inherited(rank)) else {
             continue;
@@ -376,6 +446,44 @@ fn albums_of(albums: &[Album], library: &[Track], catalog: &[Track], query: &Que
                 artists: artists.clone(),
                 artist_refs: artist_refs.clone(),
                 cover: cover.clone(),
+            }),
+        });
+    }
+
+    capped(scored)
+}
+
+fn playlists_of(playlists: &[Playlist], catalog: &[Playlist], query: &Query) -> Vec<Scored> {
+    let total = catalog.len();
+    let saved = playlists.iter().map(|playlist| (playlist, None));
+    let found = catalog
+        .iter()
+        .enumerate()
+        .map(move |(at, playlist)| (playlist, Some(placed(at, total))));
+
+    let mut scored: Vec<Scored> = Vec::new();
+    let mut seen: Vec<&String> = Vec::new();
+    for (playlist, rank) in saved.chain(found) {
+        let fields = [
+            (TITLE, playlist.name.as_str()),
+            (ARTIST, playlist.owner.as_str()),
+        ];
+        let Some(score) = favored(fit(&fields, query), rank).max(inherited(rank)) else {
+            continue;
+        };
+        if seen.contains(&&playlist.id) {
+            continue;
+        }
+        seen.push(&playlist.id);
+
+        scored.push(Scored {
+            score,
+            popularity: 0,
+            hit: Hit::Playlist(PlaylistHit {
+                id: playlist.id.clone(),
+                name: playlist.name.clone(),
+                owner: playlist.owner.clone(),
+                cover: playlist.cover.clone(),
             }),
         });
     }
@@ -504,6 +612,16 @@ fn capped(mut scored: Vec<Scored>) -> Vec<Scored> {
     scored
 }
 
+fn salvaged<T>(found: Result<Vec<T>>, trouble: &mut Vec<String>) -> Vec<T> {
+    match found {
+        Ok(found) => found,
+        Err(error) => {
+            trouble.push(format!("{error:#}"));
+            Vec::new()
+        }
+    }
+}
+
 fn kept(library: &[Track], track: &Track) -> bool {
     track
         .id
@@ -556,7 +674,12 @@ mod tests {
     use super::*;
 
     fn rank(library: &[Track], albums: &[Album], catalog: &[Track], asked: &str) -> Vec<Hit> {
-        super::rank(library, albums, catalog, &HashMap::new(), asked)
+        let catalog = Catalog {
+            tracks: catalog.to_vec(),
+            ..Catalog::default()
+        };
+
+        super::rank(library, albums, &[], &catalog, &HashMap::new(), asked)
     }
 
     fn track(name: &str, artists: &str, album: &str) -> Track {
@@ -735,7 +858,14 @@ mod tests {
         portrait.cover = Some("https://album-cover".to_owned());
 
         let portraits = HashMap::from([("artist-one".to_owned(), "https://portrait".to_owned())]);
-        let hits = super::rank(&[portrait], &[], &[], &portraits, "echo");
+        let hits = super::rank(
+            &[portrait],
+            &[],
+            &[],
+            &Catalog::default(),
+            &portraits,
+            "echo",
+        );
 
         let Some(Hit::Artist(artist)) = hits.iter().find(|hit| hit.kind() == Kind::Artist) else {
             panic!("expected an artist hit");

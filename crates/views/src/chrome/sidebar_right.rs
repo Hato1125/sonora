@@ -809,7 +809,7 @@ impl Render for SidebarRight {
             self.past_len = sections.past;
             self.anchor = true;
         }
-        if self.anchor {
+        if self.anchor && self.open && self.tab == SideTab::Queue {
             self.pin(sections, window, cx);
         }
 

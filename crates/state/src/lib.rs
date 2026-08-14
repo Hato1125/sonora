@@ -23,7 +23,7 @@ pub use lyrics::{Lyrics, LyricsState};
 pub use playback::{Origin, Playback, PlaybackState, Repeat};
 pub use queue::{Named, Queue, Resume, Stub};
 pub use remote::{Remote, attach as attach_remote};
-pub use search::{AlbumHit, ArtistHit, Hit, Kind, Search};
+pub use search::{AlbumHit, ArtistHit, Hit, Kind, PlaylistHit, Search};
 pub use session::{ProviderInfo, Session, SessionEvent, SessionState};
 pub use settings::{AppSettings, SideTab};
 pub use song::SongDetail;

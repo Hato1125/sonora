@@ -10,11 +10,13 @@ mod artist;
 mod browse;
 mod hashes;
 mod plays;
+mod search;
 
 pub(crate) use album::album;
 pub(crate) use artist::{Overview, artist};
 pub(crate) use browse::{all as genres, page as genre};
 pub(crate) use plays::track;
+pub(crate) use search::{albums as search_albums, playlists as search_playlists};
 
 const ENDPOINT: &str = "https://api-partner.spotify.com/pathfinder/v2/query";
 const APP_PLATFORM: &str = "WebPlayer";
@@ -45,7 +47,7 @@ async fn query<T: DeserializeOwned>(
     if hash.tried {
         return Err(rejected);
     }
-    let Some(latest) = hashes::refetch(session, operation).await else {
+    let Some(latest) = hashes::refetch(session, operation, &hash.value).await else {
         return Err(rejected);
     };
     if latest == hash.value {
