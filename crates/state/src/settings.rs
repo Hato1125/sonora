@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use gpui::{Context, Task};
 use serde::{Deserialize, Serialize};
-use ui::{Layout, Look, Mode, Pin, Rounding, Sorting, Stillness, ThemeKind, ThemeOverrides};
+use ui::{Layout, Look, Mode, Pace, Pin, Rounding, Sorting, Stillness, ThemeKind, ThemeOverrides};
 
 use crate::Repeat;
 use crate::queue::{Resume, gap_target};
@@ -67,6 +67,7 @@ struct Appearance {
     window_controls: bool,
     controls_on_left: bool,
     reduce_motion: String,
+    motion_pace: String,
     theme_overrides: ThemeOverrides,
 }
 
@@ -121,6 +122,7 @@ impl Default for Appearance {
             window_controls: true,
             controls_on_left: false,
             reduce_motion: Stillness::default().id().to_owned(),
+            motion_pace: Pace::default().id().to_owned(),
             theme_overrides: ThemeOverrides::default(),
         }
     }
@@ -221,6 +223,10 @@ impl AppSettings {
 
     pub fn stillness(&self) -> Stillness {
         Stillness::from_id(&self.values.appearance.reduce_motion)
+    }
+
+    pub fn pace(&self) -> Pace {
+        Pace::from_id(&self.values.appearance.motion_pace)
     }
 
     pub fn look(&self) -> Look {
@@ -454,7 +460,16 @@ impl AppSettings {
             return;
         }
         self.values.appearance.reduce_motion = stillness.id().to_owned();
-        ui::motion::apply(stillness, cx);
+        ui::motion::apply(stillness, self.pace(), cx);
+        self.schedule_save(cx);
+    }
+
+    pub fn set_pace(&mut self, pace: Pace, cx: &mut Context<Self>) {
+        if self.pace() == pace {
+            return;
+        }
+        self.values.appearance.motion_pace = pace.id().to_owned();
+        ui::motion::apply(self.stillness(), pace, cx);
         self.schedule_save(cx);
     }
 

@@ -3,11 +3,13 @@ use gpui::{
     App, ClickEvent, Div, ElementId, Interactivity, Stateful, StyleRefinement, Window, div, px,
 };
 
+use crate::motion::{Motion, Motioned as _};
 use crate::theme::ActiveTheme as _;
 
 const SCALE: f32 = 0.85;
 const INSET: f32 = 2.;
 const WIDTH: f32 = 1.75;
+const BORDER: f32 = 1.;
 
 type Click = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 
@@ -71,17 +73,34 @@ impl RenderOnce for Switch {
             true => theme.primary,
             false => theme.muted,
         };
-        let hover = match checked {
-            true => theme.primary_hover,
-            false => theme.secondary_hover,
-        };
         let overrides = std::mem::take(base.style());
+
+        let travel = height * (WIDTH - 1.) - px(BORDER * 2.);
+        let (from, to) = match checked {
+            true => (0., 1.),
+            false => (1., 0.),
+        };
+        let (track_was, track_is) = match checked {
+            true => (theme.muted, theme.primary),
+            false => (theme.primary, theme.muted),
+        };
+        let (edge_was, edge_is) = match checked {
+            true => (theme.border, theme.primary),
+            false => (theme.primary, theme.border),
+        };
+        let (hover_was, hover_is) = match checked {
+            true => (theme.secondary_hover, theme.primary_hover),
+            false => (theme.primary_hover, theme.secondary_hover),
+        };
+        let (knob_was, knob_is) = match checked {
+            true => (theme.muted_foreground, theme.primary_foreground),
+            false => (theme.primary_foreground, theme.muted_foreground),
+        };
 
         let mut switch = base
             .flex()
             .flex_none()
             .items_center()
-            .when(checked, |this| this.justify_end())
             .w(height * WIDTH)
             .h(height)
             .p(px(INSET))
@@ -93,18 +112,32 @@ impl RenderOnce for Switch {
                 false => theme.border,
             })
             .when(disabled, |this| this.opacity(0.4))
-            .when(!disabled, |this| {
-                this.cursor_pointer().hover(move |style| style.bg(hover))
-            })
-            .child(div().size(thumb).rounded(thumb / 2.).bg(match checked {
-                true => theme.primary_foreground,
-                false => theme.muted_foreground,
-            }));
+            .when(!disabled, |this| this.cursor_pointer())
+            .child(div().size(thumb).flex_none().rounded(thumb / 2.).motion(
+                ("thumb", usize::from(checked)),
+                Motion::Control,
+                move |knob, t| {
+                    knob.ml(travel * (from + (to - from) * t))
+                        .bg(crate::motion::mix(knob_was, knob_is, t))
+                },
+            ));
 
         switch.style().refine(&overrides);
         if !disabled && let Some(handler) = on_click {
             switch = switch.on_click(handler);
         }
-        switch
+        switch.motion(
+            ("track", usize::from(checked)),
+            Motion::Control,
+            move |track, t| {
+                let hover = crate::motion::mix(hover_was, hover_is, t);
+                track
+                    .bg(crate::motion::mix(track_was, track_is, t))
+                    .border_color(crate::motion::mix(edge_was, edge_is, t))
+                    .when(!disabled, move |this| {
+                        this.hover(move |style| style.bg(hover))
+                    })
+            },
+        )
     }
 }

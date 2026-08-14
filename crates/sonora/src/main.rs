@@ -70,17 +70,18 @@ fn main() {
                 .destination()
         });
         router::init(start, cx);
-        let (look, overrides, language, stillness) = {
+        let (look, overrides, language, stillness, pace) = {
             let settings = Sonora::global(cx).settings.read(cx);
             (
                 settings.look(),
                 settings.theme_overrides().clone(),
                 settings.language().to_owned(),
                 settings.stillness(),
+                settings.pace(),
             )
         };
         i18n::set(i18n::resolve(&language));
-        ui::motion::apply(stillness, cx);
+        ui::motion::apply(stillness, pace, cx);
         ui::Theme::init(look, &overrides, cx);
 
         actions::register(cx);

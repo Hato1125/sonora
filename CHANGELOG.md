@@ -11,6 +11,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Appearance settings carry a Reduce motion choice — follow the system, always or never — so you can
   decide up front whether Sonora animates its interface.
+- Appearance settings also carry an Animation speed choice — slow, standard or quick — that stretches
+  or tightens every interface animation to taste.
+
+### Changed
+
+- Switches now slide and fade between on and off instead of snapping, at a fixed control speed that
+  the animation speed setting deliberately leaves alone.
 
 ## [0.14.0] - 2026-08-14
 

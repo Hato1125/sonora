@@ -15,8 +15,8 @@ use state::{AppSettings, Playback, Session, SessionState, Sonora};
 use ui::{ActiveTheme as _, Scrollbar, Scroller};
 use ui::{
     Avatar, Button, InfoCard, Initials, Input, Look, MAX_FONT, MAX_TRANSPARENCY, MIN_FONT, Menu,
-    MenuItem, Modal, Popover, Popovers, Rounding, Scrubber, ScrubberState, Separator, Skeleton,
-    Stillness, Switch, Text, Theme, ThemeKind,
+    MenuItem, Modal, Pace, Popover, Popovers, Rounding, Scrubber, ScrubberState, Separator,
+    Skeleton, Stillness, Switch, Text, Theme, ThemeKind,
 };
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -28,6 +28,7 @@ const CORNERS: &str = "corners";
 const LANGUAGES: &str = "languages";
 const STARTUP: &str = "startup";
 const MOTION: &str = "motion";
+const PACE: &str = "pace";
 
 struct Account {
     slug: &'static str,
@@ -151,6 +152,7 @@ impl SettingsView {
                 self.adaptive_row(cx).into_any_element(),
                 self.opacity_row(cx).into_any_element(),
                 self.motion_row(cx).into_any_element(),
+                self.pace_row(cx).into_any_element(),
             ]
             .into_iter()
             .chain([
@@ -664,6 +666,45 @@ impl SettingsView {
         self.row(
             t!("settings-motion"),
             t!("settings-motion-detail"),
+            muted,
+            small,
+            picker.into_any_element(),
+        )
+    }
+
+    fn pace_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+        let muted = theme.muted_foreground;
+        let small = theme.text(Text::Small);
+        let current = self.settings.read(cx).pace();
+
+        let picker = Popover::new(PACE, self.popovers.clone())
+            .button(
+                Button::new("pace-picker")
+                    .label(format!("{}  ▾", current.label()))
+                    .small()
+                    .outline(),
+            )
+            .menu(
+                Menu::new("pace-dropdown")
+                    .top(px(30.))
+                    .right_0()
+                    .w(px(170.))
+                    .items(Pace::ALL.into_iter().map(|pace| {
+                        MenuItem::new(pace.id(), pace.label())
+                            .selected(current == pace)
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                this.settings
+                                    .update(cx, |settings, cx| settings.set_pace(pace, cx));
+                                this.popovers.close();
+                                cx.notify();
+                            }))
+                    })),
+            );
+
+        self.row(
+            t!("settings-pace"),
+            t!("settings-pace-detail"),
             muted,
             small,
             picker.into_any_element(),
