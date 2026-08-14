@@ -186,7 +186,7 @@ impl PlayerBar {
         let theme = *cx.theme();
         let empty = theme.muted_foreground.opacity(0.3);
         let level = self.playback.read(cx).volume();
-        let bubble = self.over_volume.map(|at| (at, percent(at)));
+        let bubble = self.over_volume.map(|at| (at, percent(level)));
         let restore = self.muted.unwrap_or(0.7);
 
         div()

@@ -65,10 +65,10 @@ AUR, COPR, .deb coming soon.
 Just use the flake in the project root.
 
 ```sh
-inputs.sonora.packages.${system}.sonora-bin
+inputs.sonora.packages.${system}.default
 ```
 
-`sonora-bin` tracks the latest tagged release.
+The flake installs the latest tagged release binary.
 
 ### Windows
 Download the latest `.exe` for your architecture from [Releases](https://github.com/nolight132/sonora/releases/latest). There isn't a proper Windows installer yet.

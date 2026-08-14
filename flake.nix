@@ -47,58 +47,6 @@
             dbus
           ];
 
-          sonora = pkgs.rustPlatform.buildRustPackage {
-            pname = "sonora";
-            version = (pkgs.lib.importTOML ./Cargo.toml).workspace.package.version;
-
-            src = ./.;
-
-            cargoHash = "sha256-dhjP45qJxmw6VG0Sc1EPO3ZHrIBMXqxBkfk19ID/Fhg=";
-
-            nativeBuildInputs = with pkgs; [
-              pkg-config
-              mold
-              bintools
-            ];
-
-            buildInputs = runtimeLibraries;
-
-            postInstall = ''
-              install -Dm444 assets/linux/sonora.desktop \
-                -t "$out/share/applications"
-              install -Dm444 assets/linux/sonora.svg \
-                "$out/share/icons/hicolor/scalable/apps/sonora.svg"
-              for icon in assets/linux/icons/hicolor/*/apps/sonora.png; do
-                size="$(basename "$(dirname "$(dirname "$icon")")")"
-                install -Dm444 "$icon" \
-                  "$out/share/icons/hicolor/$size/apps/sonora.png"
-              done
-              install -Dm444 COPYING "$out/share/licenses/sonora/LICENSE"
-              install -Dm444 THIRD-PARTY.md "$out/share/licenses/sonora/THIRD-PARTY.md"
-              install -Dm444 assets/fonts/LICENSE.txt \
-                "$out/share/licenses/sonora/LICENSE.Inter"
-              install -Dm444 assets/icons/LICENSE \
-                "$out/share/licenses/sonora/LICENSE.Lucide"
-            '';
-
-            postFixup = ''
-              patchelf \
-                --add-rpath "${pkgs.lib.makeLibraryPath runtimeLibraries}" \
-                "$out/bin/sonora"
-            '';
-
-            meta = {
-              description = "A native music streaming client, built with Rust and GPUI";
-              mainProgram = "sonora";
-              license = with pkgs.lib.licenses; [
-                gpl3Plus
-                ofl
-                isc
-              ];
-              platforms = pkgs.lib.platforms.linux;
-            };
-          };
-
           asset = release.assets.${pkgs.stdenv.hostPlatform.system};
 
           sonora-bin = pkgs.stdenv.mkDerivation {
@@ -143,14 +91,22 @@
                 "$out/bin/sonora"
             '';
 
-            meta = sonora.meta // {
-              description = "A native music streaming client, built with Rust and GPUI (prebuilt release binary)";
+            meta = {
+              description = "A native music streaming client, built with Rust and GPUI";
+              mainProgram = "sonora";
+              license = with pkgs.lib.licenses; [
+                gpl3Plus
+                ofl
+                isc
+              ];
+              platforms = pkgs.lib.platforms.linux;
             };
           };
         in
         {
-          inherit sonora sonora-bin;
-          default = sonora;
+          inherit sonora-bin;
+          sonora = sonora-bin;
+          default = sonora-bin;
         }
       );
 

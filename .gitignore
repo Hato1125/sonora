@@ -4,3 +4,4 @@
 /.direnv
 /vendor
 __pycache__/
+/.idea
