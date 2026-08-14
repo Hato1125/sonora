@@ -16,7 +16,7 @@ use ui::{ActiveTheme as _, Scrollbar, Scroller};
 use ui::{
     Avatar, Button, InfoCard, Initials, Input, Look, MAX_FONT, MAX_TRANSPARENCY, MIN_FONT, Menu,
     MenuItem, Modal, Popover, Popovers, Rounding, Scrubber, ScrubberState, Separator, Skeleton,
-    Switch, Text, Theme, ThemeKind,
+    Stillness, Switch, Text, Theme, ThemeKind,
 };
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -27,6 +27,7 @@ const THEMES: &str = "themes";
 const CORNERS: &str = "corners";
 const LANGUAGES: &str = "languages";
 const STARTUP: &str = "startup";
+const MOTION: &str = "motion";
 
 struct Account {
     slug: &'static str,
@@ -149,6 +150,7 @@ impl SettingsView {
                 self.theme_row(cx).into_any_element(),
                 self.adaptive_row(cx).into_any_element(),
                 self.opacity_row(cx).into_any_element(),
+                self.motion_row(cx).into_any_element(),
             ]
             .into_iter()
             .chain([
@@ -625,6 +627,46 @@ impl SettingsView {
                     }
                 }))
                 .into_any_element(),
+        )
+    }
+
+    fn motion_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+        let muted = theme.muted_foreground;
+        let small = theme.text(Text::Small);
+        let current = self.settings.read(cx).stillness();
+
+        let picker = Popover::new(MOTION, self.popovers.clone())
+            .button(
+                Button::new("motion-picker")
+                    .label(format!("{}  ▾", current.label()))
+                    .small()
+                    .outline(),
+            )
+            .menu(
+                Menu::new("motion-dropdown")
+                    .top(px(30.))
+                    .right_0()
+                    .w(px(170.))
+                    .items(Stillness::ALL.into_iter().map(|stillness| {
+                        MenuItem::new(stillness.id(), stillness.label())
+                            .selected(current == stillness)
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                this.settings.update(cx, |settings, cx| {
+                                    settings.set_stillness(stillness, cx);
+                                });
+                                this.popovers.close();
+                                cx.notify();
+                            }))
+                    })),
+            );
+
+        self.row(
+            t!("settings-motion"),
+            t!("settings-motion-detail"),
+            muted,
+            small,
+            picker.into_any_element(),
         )
     }
 

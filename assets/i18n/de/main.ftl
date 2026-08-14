@@ -313,6 +313,8 @@ settings-opacity-value = { $percent } %
 settings-theme-config = Konfiguration öffnen
 settings-adaptive = Adaptives Design
 settings-adaptive-detail = Färbt die Palette nach dem Cover des laufenden Albums
+settings-motion = Bewegung reduzieren
+settings-motion-detail = Animationen und Übergänge der Oberfläche überspringen
 settings-corners = Ecken
 settings-corners-detail = Wie stark Flächen und Bedienelemente abgerundet sind
 settings-font = Schriftgröße
@@ -377,6 +379,11 @@ corners-square = Eckig
 corners-subtle = Dezent
 corners-rounded = Abgerundet
 corners-round = Rund
+
+# motion
+motion-system = Wie im System
+motion-always = Immer
+motion-never = Nie
 
 toast-playlist-created = Playlist erstellt
 toast-playlist-renamed = Playlist umbenannt

@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use gpui::{Context, Task};
 use serde::{Deserialize, Serialize};
-use ui::{Layout, Look, Mode, Pin, Rounding, Sorting, ThemeKind, ThemeOverrides};
+use ui::{Layout, Look, Mode, Pin, Rounding, Sorting, Stillness, ThemeKind, ThemeOverrides};
 
 use crate::Repeat;
 use crate::queue::{Resume, gap_target};
@@ -66,6 +66,7 @@ struct Appearance {
     transparency: f32,
     window_controls: bool,
     controls_on_left: bool,
+    reduce_motion: String,
     theme_overrides: ThemeOverrides,
 }
 
@@ -119,6 +120,7 @@ impl Default for Appearance {
             transparency: 0.15,
             window_controls: true,
             controls_on_left: false,
+            reduce_motion: Stillness::default().id().to_owned(),
             theme_overrides: ThemeOverrides::default(),
         }
     }
@@ -215,6 +217,10 @@ impl AppSettings {
 
     pub fn rounding(&self) -> &str {
         &self.values.appearance.rounding
+    }
+
+    pub fn stillness(&self) -> Stillness {
+        Stillness::from_id(&self.values.appearance.reduce_motion)
     }
 
     pub fn look(&self) -> Look {
@@ -440,6 +446,15 @@ impl AppSettings {
 
     pub fn set_rounding(&mut self, rounding: impl Into<String>, cx: &mut Context<Self>) {
         self.values.appearance.rounding = rounding.into();
+        self.schedule_save(cx);
+    }
+
+    pub fn set_stillness(&mut self, stillness: Stillness, cx: &mut Context<Self>) {
+        if self.stillness() == stillness {
+            return;
+        }
+        self.values.appearance.reduce_motion = stillness.id().to_owned();
+        ui::motion::apply(stillness, cx);
         self.schedule_save(cx);
     }
 
