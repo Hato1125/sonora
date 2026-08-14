@@ -302,7 +302,7 @@ fn date(date: &PathDate) -> String {
     date.iso.get(..length).unwrap_or(&date.iso).to_owned()
 }
 
-fn release_type(kind: &str) -> ReleaseType {
+pub(super) fn release_type(kind: &str) -> ReleaseType {
     match kind {
         "SINGLE" => ReleaseType::Single,
         "COMPILATION" => ReleaseType::Compilation,

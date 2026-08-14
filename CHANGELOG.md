@@ -12,7 +12,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Searching now reaches the whole catalogue for albums and playlists, not just the ones your library
   already knows about. The third column of results holds both, tagged so you can tell them apart,
   and a playlist behaves like one everywhere: open it, play it, pin it or right-click it for the
-  usual menu. Albums and playlists you have saved still come first.
+  usual menu. Albums and playlists you have saved still come first. Spotify and YouTube Music both
+  answer these searches from their own catalogue.
 
 ### Changed
 
