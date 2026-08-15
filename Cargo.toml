@@ -100,3 +100,7 @@ opt-level = 2
 [profile.dev.package."*"]
 debug = false
 opt-level = 2
+
+[patch."https://github.com/nolight132/zed"]
+gpui = { git = "https://github.com/nolight132/gpui", rev = "f4f9aae241b943952e71ead730f0e86625967344" }
+gpui_platform = { git = "https://github.com/nolight132/gpui", rev = "f4f9aae241b943952e71ead730f0e86625967344" }
