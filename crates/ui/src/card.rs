@@ -386,12 +386,48 @@ impl RenderOnce for Card {
 
                 div()
                     .relative()
+                    .flex_none()
                     .size(art)
                     .child(leading)
                     .child(control)
                     .into_any_element()
             }
         };
+
+        let title = div()
+            .min_w_0()
+            .truncate()
+            .when_some(grip.clone(), |this, grip| {
+                this.on_mouse_down(MouseButton::Right, move |event, window, cx| {
+                    grip(event, window, cx)
+                })
+            })
+            .when_some(weight, |this, weight| this.font_weight(weight))
+            .when(underline, |this| {
+                this.group_hover(CARD_GROUP, |style| style.underline())
+            })
+            .text_color(tint.unwrap_or(theme.foreground))
+            .when_some(size, |this, size| this.text_size(theme.text(size)))
+            .child(title);
+        let heading = match explicit {
+            false => title.into_any_element(),
+            true => div()
+                .flex()
+                .items_center()
+                .gap(px(3.))
+                .min_w_0()
+                .child(title)
+                .child(div().flex_none().child(ExplicitBadge::new()))
+                .into_any_element(),
+        };
+        let caption = meta.map(|meta| match bare {
+            true => div().child(meta),
+            false => div()
+                .truncate()
+                .text_size(theme.text(Text::Small))
+                .text_color(theme.muted_foreground)
+                .child(meta),
+        });
 
         let mut card = base
             .group(CARD_GROUP)
@@ -408,16 +444,16 @@ impl RenderOnce for Card {
                 this.cursor_pointer()
                     .on_click(move |event, window, cx| press(event, window, cx))
             })
-            .child(
-                div()
+            .child(match grip.clone() {
+                Some(grip) => div()
                     .flex_none()
-                    .when_some(grip.clone(), |this, grip| {
-                        this.on_mouse_down(MouseButton::Right, move |event, window, cx| {
-                            grip(event, window, cx)
-                        })
+                    .on_mouse_down(MouseButton::Right, move |event, window, cx| {
+                        grip(event, window, cx)
                     })
-                    .child(leading),
-            )
+                    .child(leading)
+                    .into_any_element(),
+                None => leading,
+            })
             .child(
                 div()
                     .flex()
@@ -426,7 +462,7 @@ impl RenderOnce for Card {
                     .min_w_0()
                     .line_height(relative(LEADING))
                     .when(listed, |this| this.min_w(TITLE))
-                    .when(tile.is_some(), |this| this.w_full().flex_none().gap_1())
+                    .when(tile.is_some(), |this| this.w_full().flex_none())
                     .when_else(
                         loading,
                         |this| {
@@ -434,69 +470,26 @@ impl RenderOnce for Card {
                                 .child(Skeleton::new().w(BAR_TITLE.0).h(BAR_TITLE.1))
                                 .child(Skeleton::new().w(BAR_META.0).h(BAR_META.1))
                         },
-                        |this| {
-                            this.children(eyebrow.map(|eyebrow| {
-                                div()
-                                    .text_size(theme.text(Text::Small))
-                                    .text_color(theme.muted_foreground)
-                                    .font_weight(FontWeight::SEMIBOLD)
-                                    .child(upper(eyebrow))
-                            }))
-                            .child(
-                                div()
-                                    .flex()
-                                    .flex_col()
-                                    .min_w_0()
-                                    .gap(TIGHT)
-                                    .child(
-                                        div()
-                                            .flex()
-                                            .items_center()
-                                            .gap(px(3.))
-                                            .min_w_0()
-                                            .text_color(tint.unwrap_or(theme.foreground))
-                                            .when_some(size, |this, size| {
-                                                this.text_size(theme.text(size))
-                                            })
-                                            .child(
-                                                div()
-                                                    .min_w_0()
-                                                    .truncate()
-                                                    .when_some(grip, |this, grip| {
-                                                        this.on_mouse_down(
-                                                            MouseButton::Right,
-                                                            move |event, window, cx| {
-                                                                grip(event, window, cx)
-                                                            },
-                                                        )
-                                                    })
-                                                    .when_some(weight, |this, weight| {
-                                                        this.font_weight(weight)
-                                                    })
-                                                    .when(underline, |this| {
-                                                        this.group_hover(CARD_GROUP, |style| {
-                                                            style.underline()
-                                                        })
-                                                    })
-                                                    .child(title),
-                                            )
-                                            .when(explicit, |this| {
-                                                this.child(
-                                                    div().flex_none().child(ExplicitBadge::new()),
-                                                )
-                                            }),
-                                    )
-                                    .children(meta.map(|meta| {
-                                        match bare {
-                                            true => div().child(meta),
-                                            false => div()
-                                                .truncate()
-                                                .text_size(theme.text(Text::Small))
-                                                .text_color(theme.muted_foreground)
-                                                .child(meta),
-                                        }
-                                    })),
-                            )
+                        |this| match eyebrow {
+                            None => this.gap(TIGHT).child(heading).children(caption),
+                            Some(eyebrow) => this
+                                .when(tile.is_some(), |this| this.gap_1())
+                                .child(
+                                    div()
+                                        .text_size(theme.text(Text::Small))
+                                        .text_color(theme.muted_foreground)
+                                        .font_weight(FontWeight::SEMIBOLD)
+                                        .child(upper(eyebrow)),
+                                )
+                                .child(
+                                    div()
+                                        .flex()
+                                        .flex_col()
+                                        .min_w_0()
+                                        .gap(TIGHT)
+                                        .child(heading)
+                                        .children(caption),
+                                ),
                         },
                     ),
             )
