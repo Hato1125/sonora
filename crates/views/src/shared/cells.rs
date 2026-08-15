@@ -89,22 +89,24 @@ pub(crate) fn index<F>(
     let theme = *cx.theme();
     let faded = theme.muted_foreground.opacity(0.5);
 
+    let dimmed = |icon, color| {
+        svg()
+            .path(icon)
+            .size(glyph(&theme))
+            .flex_none()
+            .text_color(color)
+            .group_hover(ROW_GROUP, |style| style.invisible())
+            .into_any_element()
+    };
     let resting = match &state {
-        Some(PlaybackState::Playing) => Glyph {
-            icon: PLAYING,
-            color: theme.foreground,
-        }
-        .into_any_element(),
-        Some(_) => Glyph {
-            icon: PAUSE,
-            color: theme.muted_foreground,
-        }
-        .into_any_element(),
+        Some(PlaybackState::Playing) => dimmed(PLAYING, theme.foreground),
+        Some(_) => dimmed(PAUSE, theme.muted_foreground),
         None => div()
             .text_color(match playable {
                 true => theme.muted_foreground,
                 false => faded,
             })
+            .group_hover(ROW_GROUP, |style| style.invisible())
             .child(format!("{}", cell.display + 1))
             .into_any_element(),
     };
@@ -196,12 +198,7 @@ pub(crate) fn transport<F>(cell: &Cell<F>, resting: AnyElement, hover: Transport
                         };
                     })
                 })
-                .child(
-                    div()
-                        .flex()
-                        .group_hover(ROW_GROUP, |style| style.invisible())
-                        .child(resting),
-                )
+                .child(resting)
                 .child(
                     div()
                         .id(("transport", cell.row))
@@ -244,18 +241,11 @@ pub(crate) fn link<F>(
     color: Hsla,
     to: Destination,
 ) -> AnyElement {
-    let text = div()
+    line(cell, Some(color))
         .id((id, cell.row))
-        .min_w_0()
-        .truncate()
         .hover(|style| style.underline())
         .link(to)
-        .child(value.into());
-
-    line(cell, Some(color))
-        .flex()
-        .items_center()
-        .child(text)
+        .child(value.into())
         .into_any_element()
 }
 
@@ -284,13 +274,7 @@ pub(crate) fn artists<F>(
 ) -> AnyElement {
     cell.frame()
         .child(
-            artist_links(
-                SharedString::from(format!("artist-{}", cell.row)),
-                artists,
-                fallback,
-                color,
-            )
-            .truncate(),
+            artist_links(SharedString::new_static("artist"), artists, fallback, color).truncate(),
         )
         .into_any_element()
 }

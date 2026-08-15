@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::cmp::Ordering;
 use ui::ActiveTheme as _;
 
@@ -11,6 +12,7 @@ use ui::{Cell, ColumnSpec, GridSource, Menu, Pin, PinKind, Width};
 
 use crate::shared::cells::{self, DATE, NUMBER, TRAILING, YEAR};
 use crate::shared::menu::album_menu;
+use crate::shared::text::{folded, holds};
 use crate::shared::tracks::initial;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -116,6 +118,12 @@ pub(super) struct AlbumSource {
     playback: Entity<Playback>,
     local: bool,
     span: Option<(f32, f32)>,
+    spread: RefCell<Option<Spread>>,
+}
+
+struct Spread {
+    stamp: (usize, String),
+    years: Vec<f32>,
 }
 
 impl AlbumSource {
@@ -125,6 +133,7 @@ impl AlbumSource {
             playback,
             local: false,
             span: None,
+            spread: RefCell::new(None),
         }
     }
 
@@ -134,6 +143,7 @@ impl AlbumSource {
             playback,
             local: true,
             span: None,
+            spread: RefCell::new(None),
         }
     }
 
@@ -153,6 +163,13 @@ impl AlbumSource {
     }
 
     pub(super) fn years(&self, query: &str, cx: &App) -> Vec<f32> {
+        let stamp = (self.albums(cx).len(), query.to_owned());
+        if let Some(spread) = self.spread.borrow().as_ref()
+            && spread.stamp == stamp
+        {
+            return spread.years.clone();
+        }
+
         let mut years: Vec<f32> = self
             .albums(cx)
             .iter()
@@ -161,6 +178,11 @@ impl AlbumSource {
             .collect();
         years.sort_by(f32::total_cmp);
         years.dedup();
+        *self.spread.borrow_mut() = Some(Spread {
+            stamp,
+            years: years.clone(),
+        });
+
         years
     }
 
@@ -227,9 +249,12 @@ impl GridSource for AlbumSource {
     }
 
     fn pin(&self, row: usize, cx: &App) -> Option<Pin> {
-        let album = self.at(row, cx)?;
+        let album = self.albums(cx).get(row)?;
 
-        Some(Pin::new(PinKind::Album, album.id, album.name).cover(album.cover))
+        Some(
+            Pin::new(PinKind::Album, album.id.clone(), album.name.clone())
+                .cover(album.cover.clone()),
+        )
     }
 
     fn context_menu(&self, row: usize, _visible: &[AlbumField], cx: &App) -> Option<Menu> {
@@ -277,18 +302,16 @@ impl GridSource for AlbumSource {
 
     fn compare(&self, field: AlbumField, a: usize, b: usize, cx: &App) -> Ordering {
         let albums = self.albums(cx);
-        let text = |index: usize, pick: fn(&Album) -> &String| {
-            albums
-                .get(index)
-                .map(|album| pick(album).to_lowercase())
-                .unwrap_or_default()
+        let text = |index: usize, pick: fn(&Album) -> &str| {
+            albums.get(index).map(pick).unwrap_or_default()
         };
 
         match field {
-            AlbumField::Name => text(a, |album| &album.name).cmp(&text(b, |album| &album.name)),
-            AlbumField::Artists => {
-                text(a, |album| &album.artists).cmp(&text(b, |album| &album.artists))
-            }
+            AlbumField::Name => folded(text(a, |album| &album.name), text(b, |album| &album.name)),
+            AlbumField::Artists => folded(
+                text(a, |album| &album.artists),
+                text(b, |album| &album.artists),
+            ),
             AlbumField::Year => albums
                 .get(a)
                 .map(|album| album.year)
@@ -324,8 +347,7 @@ fn hits(album: &Album, query: &str) -> bool {
     if query.is_empty() {
         return true;
     }
-    let haystack = format!("{} {} {}", album.name, album.artists, album.year);
-    haystack.to_lowercase().contains(query)
+    holds(&album.name, query) || holds(&album.artists, query) || holds(&year(album), query)
 }
 
 fn year(album: &Album) -> String {

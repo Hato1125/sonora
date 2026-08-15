@@ -10,6 +10,7 @@ use ui::{Cell, ColumnSpec, GridSource, Menu, Pin, PinKind, Width};
 
 use crate::shared::cells::{self, DATE, NUMBER};
 use crate::shared::menu::artist_menu;
+use crate::shared::text::{folded, holds};
 use crate::shared::tracks::initial;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -116,7 +117,7 @@ impl GridSource for ArtistSource {
 
     fn matches(&self, row: usize, query: &str, cx: &App) -> bool {
         self.at(row, cx)
-            .is_some_and(|artist| artist.name.to_lowercase().contains(query))
+            .is_some_and(|artist| holds(&artist.name, query))
     }
 
     fn playing(&self, row: usize, cx: &App) -> bool {
@@ -131,9 +132,12 @@ impl GridSource for ArtistSource {
     }
 
     fn pin(&self, row: usize, cx: &App) -> Option<Pin> {
-        let artist = self.at(row, cx)?;
+        let artist = self.artists(cx).get(row)?;
 
-        Some(Pin::new(PinKind::Artist, artist.id, artist.name).cover(artist.cover))
+        Some(
+            Pin::new(PinKind::Artist, artist.id.clone(), artist.name.clone())
+                .cover(artist.cover.clone()),
+        )
     }
 
     fn context_menu(&self, row: usize, _visible: &[ArtistField], cx: &App) -> Option<Menu> {
@@ -171,9 +175,10 @@ impl GridSource for ArtistSource {
         let at = |index: usize| artists.get(index);
 
         match field {
-            ArtistField::Name => at(a)
-                .map(|artist| artist.name.to_lowercase())
-                .cmp(&at(b).map(|artist| artist.name.to_lowercase())),
+            ArtistField::Name => folded(
+                at(a).map(|artist| artist.name.as_str()).unwrap_or_default(),
+                at(b).map(|artist| artist.name.as_str()).unwrap_or_default(),
+            ),
             ArtistField::AddedAt => at(a)
                 .map(|artist| artist.added_at)
                 .cmp(&at(b).map(|artist| artist.added_at)),
