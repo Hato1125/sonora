@@ -34,6 +34,7 @@ struct Values {
     volume: f32,
     normalisation: bool,
     gapless: bool,
+    adaptive_menu: bool,
     sidebar_width: f32,
     sidebar_open: bool,
     sidebar_right_width: f32,
@@ -78,6 +79,7 @@ impl Default for Values {
             volume: DEFAULT_VOLUME,
             normalisation: true,
             gapless: true,
+            adaptive_menu: false,
             sidebar_width: DEFAULT_SIDEBAR_WIDTH,
             sidebar_open: true,
             sidebar_right_width: DEFAULT_SIDEBAR_RIGHT_WIDTH,
@@ -167,6 +169,10 @@ impl AppSettings {
 
     pub fn gapless(&self) -> bool {
         self.values.gapless
+    }
+
+    pub fn adaptive_menu(&self) -> bool {
+        self.values.adaptive_menu
     }
 
     pub fn sidebar_width(&self) -> f32 {
@@ -289,6 +295,11 @@ impl AppSettings {
 
     pub fn set_gapless(&mut self, gapless: bool, cx: &mut Context<Self>) {
         self.values.gapless = gapless;
+        self.schedule_save(cx);
+    }
+
+    pub fn set_adaptive_menu(&mut self, adaptive_menu: bool, cx: &mut Context<Self>) {
+        self.values.adaptive_menu = adaptive_menu;
         self.schedule_save(cx);
     }
 

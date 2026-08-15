@@ -12,7 +12,7 @@ use i18n::{Language, t};
 use music::{AccountChoice, SignIn, SignInPrompt};
 use router::{Screen, SettingsTab};
 use state::{AppSettings, Failure, Playback, Session, SessionState, Sonora};
-use ui::{ActiveTheme as _, Scrollbar, Scroller};
+use ui::{ActiveTheme as _, Scrollbar, Scroller, eyebrow};
 use ui::{
     Avatar, Button, InfoCard, Initials, Input, Look, MAX_FONT, MAX_TRANSPARENCY, MIN_FONT, Menu,
     MenuItem, Modal, Pace, Popover, Popovers, Rounding, Scrubber, ScrubberState, Separator,
@@ -161,6 +161,10 @@ impl SettingsView {
             ])
             .chain(decorated().then(|| self.decorations_row(cx).into_any_element()))
             .chain(decorated().then(|| self.side_row(cx).into_any_element()))
+            .chain([
+                self.advanced_header(cx).into_any_element(),
+                self.adaptive_menu_row(cx).into_any_element(),
+            ])
             .collect(),
             SettingsTab::Playback => vec![
                 self.playback_row(cx).into_any_element(),
@@ -726,6 +730,33 @@ impl SettingsView {
                 .on_click(cx.listener(move |this, _, _, cx| {
                     this.playback
                         .update(cx, |playback, cx| playback.set_normalisation(!on, cx));
+                }))
+                .into_any_element(),
+        )
+    }
+
+    fn advanced_header(&self, cx: &gpui::App) -> impl IntoElement {
+        div()
+            .pt_5()
+            .pb_1()
+            .child(eyebrow(t!("settings-advanced"), cx))
+    }
+
+    fn adaptive_menu_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+        let muted = theme.muted_foreground;
+        let small = theme.text(Text::Small);
+        let on = self.settings.read(cx).adaptive_menu();
+
+        self.row(
+            t!("settings-adaptive-menu"),
+            t!("settings-adaptive-menu-detail"),
+            muted,
+            small,
+            Switch::new("adaptive-menu", on)
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.settings
+                        .update(cx, |settings, cx| settings.set_adaptive_menu(!on, cx));
                 }))
                 .into_any_element(),
         )

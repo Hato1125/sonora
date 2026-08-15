@@ -16,7 +16,7 @@ use gpui::{
 use jiff::Timestamp;
 use music::Track;
 use router::Destination;
-use state::{Detail, Library, Playback, PlaybackState};
+use state::{Detail, Library, Playback, PlaybackState, Sonora};
 use ui::{
     Button, Cell, ColumnSpec, GridSource, GridState, Menu, Pin, PinKind, ROW_GROUP, Scrollbar,
     clock,
@@ -398,9 +398,12 @@ impl GridSource for TrackSource {
 
     fn context_menu(&self, row: usize, visible: &[TrackField], cx: &App) -> Option<Menu> {
         let track = self.provider.tracks(cx).get(row)?;
-        let columns = TrackColumns {
-            album: visible.contains(&TrackField::Album),
-            artists: visible.contains(&TrackField::Artists),
+        let columns = match Sonora::global(cx).settings.read(cx).adaptive_menu() {
+            true => TrackColumns {
+                album: visible.contains(&TrackField::Album),
+                artists: visible.contains(&TrackField::Artists),
+            },
+            false => TrackColumns::default(),
         };
         Some(match (&self.album, &self.playlist) {
             (Some(detail), _) => {
