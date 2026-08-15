@@ -124,6 +124,8 @@ player-unmute = Включить звук
 player-previous = Предыдущий трек
 player-next = Следующий трек
 player-fullscreen = Полноэкранный режим
+player-fullscreen-leave = Выйти из полноэкранного режима
+fullscreen-artwork = Обложка
 
 # filters
 filter-library = Фильтр медиатеки

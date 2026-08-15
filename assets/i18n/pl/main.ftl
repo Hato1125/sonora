@@ -124,6 +124,8 @@ player-unmute = Wyłącz wyciszenie
 player-previous = Poprzedni utwór
 player-next = Następny utwór
 player-fullscreen = Pełny ekran
+player-fullscreen-leave = Wyjdź z trybu pełnoekranowego
+fullscreen-artwork = Okładka
 
 # filters
 filter-library = Filtruj bibliotekę

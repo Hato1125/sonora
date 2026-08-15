@@ -125,9 +125,15 @@ impl Root {
         let song = cx.new(|cx| SongView::new(song_detail.clone(), playback.clone(), cx));
 
         let start = navigation.read(cx).current();
-        let workspace =
-            cx.new(|cx| Workspace::new(playback.clone(), queue, library_view.clone().into(), cx));
-        let fullscreen = cx.new(|cx| FullscreenView::new(playback.clone(), cx));
+        let workspace = cx.new(|cx| {
+            Workspace::new(
+                playback.clone(),
+                queue.clone(),
+                library_view.clone().into(),
+                cx,
+            )
+        });
+        let fullscreen = cx.new(|cx| FullscreenView::new(playback.clone(), queue.clone(), cx));
 
         let title_bar = cx.new(TitleBar::new);
         cx.subscribe(&title_bar, |this, _, event, cx| match event {

@@ -1,4 +1,5 @@
 mod artist;
+mod cover;
 mod detail;
 mod genre;
 mod home;
@@ -15,6 +16,7 @@ mod song;
 mod toast;
 
 pub use artist::ArtistDetail;
+pub use cover::Cover;
 pub use detail::{Collection, Detail, Header};
 pub use genre::{GenreDetails, Genres};
 pub use home::Home;
@@ -71,6 +73,7 @@ pub(crate) async fn join<T>(handle: JoinHandle<Result<T>>) -> Result<T> {
 
 pub struct Sonora {
     pub session: Entity<Session>,
+    pub cover: Entity<Cover>,
     pub library: Entity<Library>,
     pub lyrics: Entity<Lyrics>,
     pub playback: Entity<Playback>,
@@ -101,10 +104,12 @@ pub fn init(
     let library = cx.new(|cx| Library::new(session.clone(), io.clone(), cx));
     let queue = cx.new(|cx| Queue::new(session.clone(), settings.clone(), cx));
     let playback = cx.new(|cx| Playback::new(session.clone(), queue.clone(), settings.clone(), cx));
-    let lyrics = cx.new(|cx| Lyrics::new(playback.clone(), lyrics_providers, io, cx));
+    let lyrics = cx.new(|cx| Lyrics::new(playback.clone(), lyrics_providers, io.clone(), cx));
+    let cover = cx.new(|cx| Cover::new(session.clone(), playback.clone(), io, cx));
 
     cx.set_global(Sonora {
         session,
+        cover,
         library,
         lyrics,
         playback,

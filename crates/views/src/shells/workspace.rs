@@ -89,6 +89,7 @@ impl Shell for Workspace {
             sidebar_open: sidebar.is_open(),
             sidebar_right: Some(self.sidebar_right.read(cx).is_open()),
             offset: sidebar.occupied_width(),
+            border: true,
             content,
         }
     }

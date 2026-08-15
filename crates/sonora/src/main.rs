@@ -89,6 +89,7 @@ fn main() {
 
         let Sonora {
             session,
+            cover: _,
             library,
             lyrics: _,
             playback,

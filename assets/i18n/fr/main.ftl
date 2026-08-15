@@ -124,6 +124,8 @@ player-unmute = Rétablir le son
 player-previous = Titre précédent
 player-next = Titre suivant
 player-fullscreen = Plein écran
+player-fullscreen-leave = Quitter le plein écran
+fullscreen-artwork = Pochette
 
 # filters
 filter-library = Filtrer la bibliothèque

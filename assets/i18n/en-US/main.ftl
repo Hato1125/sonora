@@ -124,6 +124,8 @@ player-unmute = Unmute
 player-previous = Previous track
 player-next = Next track
 player-fullscreen = Fullscreen
+player-fullscreen-leave = Leave fullscreen
+fullscreen-artwork = Artwork
 
 # filters
 filter-library = Filter your library
