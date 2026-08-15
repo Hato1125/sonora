@@ -139,10 +139,7 @@ fn open_window(
             titlebar: Some(TitlebarOptions {
                 title: Some("Sonora".into()),
                 appears_transparent: true,
-                traffic_light_position: Some(point(
-                    px(9.),
-                    px(if cfg!(target_os = "macos") { 12. } else { 9. }),
-                )),
+                traffic_light_position: Some(point(px(9.), px(9.))),
             }),
             inactive_frame_interval: None,
             is_movable: true,

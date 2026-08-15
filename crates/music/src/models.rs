@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::time::Duration;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -160,7 +161,7 @@ pub struct Artist {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Lyrics {
     Plain(String),
-    Synced { lines: Vec<LyricsLine> },
+    Synced { lines: Arc<[LyricsLine]> },
 }
 
 impl Lyrics {

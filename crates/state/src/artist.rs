@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use gpui::{Context, Entity, Task};
 use music::{Album, Artist, Track};
 use tokio::task::AbortHandle;
@@ -6,7 +8,7 @@ use crate::{Io, Session, SessionEvent, join};
 
 pub struct ArtistDetail {
     id: Option<String>,
-    artist: Option<Artist>,
+    artist: Option<Arc<Artist>>,
     loading: bool,
     error: Option<String>,
     session: Entity<Session>,
@@ -19,7 +21,8 @@ impl ArtistDetail {
     pub fn new(session: Entity<Session>, io: Io, cx: &mut Context<Self>) -> Self {
         cx.subscribe(&session, |this, _, event, cx| match event {
             SessionEvent::SignedIn => {
-                if let Some(id) = this.id.clone() {
+                if let Some(id) = this.id.clone().filter(|id| !music::is_local_id(id)) {
+                    this.clear();
                     this.open(&id, cx);
                 }
             }
@@ -29,7 +32,12 @@ impl ArtistDetail {
                     cx.notify();
                 }
             }
-            SessionEvent::LocalChanged => {}
+            SessionEvent::LocalChanged => {
+                if let Some(id) = this.id.clone().filter(|id| music::is_local_id(id)) {
+                    this.clear();
+                    this.open(&id, cx);
+                }
+            }
         })
         .detach();
 
@@ -46,7 +54,7 @@ impl ArtistDetail {
     }
 
     pub fn artist(&self) -> Option<&Artist> {
-        self.artist.as_ref()
+        self.artist.as_deref()
     }
 
     pub fn id(&self) -> Option<&str> {
@@ -83,15 +91,15 @@ impl ArtistDetail {
         self.clear();
         self.id = Some(id.to_owned());
 
-        let session = self.session.read(cx);
-        let client = match music::is_local_id(id) {
-            true => session.local_client(),
-            false => session.client(),
-        };
-        let Some(client) = client else {
+        let Some(catalog) = self.session.read(cx).catalog(id) else {
             cx.notify();
             return;
         };
+        if let Some(artist) = catalog.peek_artist(id) {
+            self.artist = Some(artist);
+            cx.notify();
+            return;
+        }
 
         self.loading = true;
         cx.notify();
@@ -99,7 +107,7 @@ impl ArtistDetail {
         let id = id.to_owned();
         let request = self.io.spawn({
             let id = id.clone();
-            async move { client.artist(&id).await }
+            async move { catalog.artist(&id).await }
         });
         self.request = Some(request.abort_handle());
         self.task = Some(cx.spawn(async move |this, cx| {

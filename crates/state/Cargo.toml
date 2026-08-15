@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+async-trait.workspace = true
 dirs.workspace = true
 fastrand.workspace = true
 futures.workspace = true
@@ -13,6 +14,7 @@ gpui.workspace = true
 i18n.workspace = true
 image.workspace = true
 log.workspace = true
+moka.workspace = true
 music.workspace = true
 serde.workspace = true
 serde_json.workspace = true

@@ -148,9 +148,12 @@ impl MusicApi for LibrespotClient {
     }
 
     async fn home(&self) -> Result<Vec<GenreSection>> {
-        Ok(pathfinder::genre(&self.session, MADE_FOR_YOU)
+        let mut sections = pathfinder::genre(&self.session, MADE_FOR_YOU)
             .await?
-            .sections)
+            .sections;
+        playlists::mend(&self.session, &mut sections).await;
+
+        Ok(sections)
     }
 
     async fn genres(&self) -> Result<Vec<Genre>> {

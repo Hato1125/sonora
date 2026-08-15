@@ -81,7 +81,9 @@ fn hit(found: Found) -> Option<LyricsHit> {
         .as_deref()
         .map(parse)
         .filter(|lines| !lines.is_empty())
-        .map(|lines| Lyrics::Synced { lines })
+        .map(|lines| Lyrics::Synced {
+            lines: lines.into(),
+        })
         .or_else(|| {
             found
                 .plain

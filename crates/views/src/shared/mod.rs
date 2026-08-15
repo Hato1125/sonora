@@ -10,6 +10,7 @@ pub(crate) mod page;
 pub(crate) mod picks;
 pub(crate) mod playlist_editor;
 pub(crate) mod shelves;
+pub(crate) mod text;
 pub(crate) mod tracks;
 pub(crate) mod transport;
 pub(crate) mod trouble;

@@ -1,18 +1,16 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
+use std::sync::Arc;
 
 use gpui::{Context, Entity, Task};
 use music::{AlbumDetail, ArtistProfile, Track};
 use tokio::task::AbortHandle;
 
+use crate::catalog::SongPage;
 use crate::{Io, Session, SessionEvent, join};
 
 pub struct SongDetail {
     id: Option<String>,
-    track: Option<Track>,
-    album: Option<AlbumDetail>,
-    artist: Option<ArtistProfile>,
-    portraits: HashMap<String, String>,
-    playcount: Option<u64>,
+    page: Option<Arc<SongPage>>,
     loading: bool,
     error: Option<String>,
     session: Entity<Session>,
@@ -25,7 +23,8 @@ impl SongDetail {
     pub fn new(session: Entity<Session>, io: Io, cx: &mut Context<Self>) -> Self {
         cx.subscribe(&session, |this, _, event, cx| match event {
             SessionEvent::SignedIn => {
-                if let Some(id) = this.id.clone() {
+                if let Some(id) = this.id.clone().filter(|id| !music::is_local_id(id)) {
+                    this.clear();
                     this.open(&id, cx);
                 }
             }
@@ -33,16 +32,17 @@ impl SongDetail {
                 this.clear();
                 cx.notify();
             }
-            SessionEvent::LocalChanged => {}
+            SessionEvent::LocalChanged => {
+                if let Some(id) = this.id.clone().filter(|id| music::is_local_id(id)) {
+                    this.clear();
+                    this.open(&id, cx);
+                }
+            }
         })
         .detach();
         Self {
             id: None,
-            track: None,
-            album: None,
-            artist: None,
-            portraits: HashMap::new(),
-            playcount: None,
+            page: None,
             loading: false,
             error: None,
             session,
@@ -53,19 +53,22 @@ impl SongDetail {
     }
 
     pub fn track(&self) -> Option<&Track> {
-        self.track.as_ref()
+        self.page.as_ref().map(|page| &page.track)
     }
     pub fn album(&self) -> Option<&AlbumDetail> {
-        self.album.as_ref()
+        self.page.as_ref()?.album.as_deref()
     }
     pub fn artist(&self) -> Option<&ArtistProfile> {
-        self.artist.as_ref()
+        self.page.as_ref()?.artist.as_deref()
     }
     pub fn portraits(&self) -> &HashMap<String, String> {
-        &self.portraits
+        self.page
+            .as_ref()
+            .map(|page| &page.portraits)
+            .unwrap_or_else(|| empty_portraits())
     }
     pub fn playcount(&self) -> Option<u64> {
-        self.playcount
+        self.page.as_ref().and_then(|page| page.playcount)
     }
     pub fn is_loading(&self) -> bool {
         self.loading
@@ -75,90 +78,27 @@ impl SongDetail {
     }
 
     pub fn open(&mut self, id: &str, cx: &mut Context<Self>) {
-        if self.id.as_deref() == Some(id) && (self.loading || self.track.is_some()) {
+        if self.id.as_deref() == Some(id) && (self.loading || self.page.is_some()) {
             return;
         }
         self.clear();
         self.id = Some(id.to_owned());
-        let Some(client) = self.session.read(cx).client() else {
+        let Some(catalog) = self.session.read(cx).catalog(id) else {
             cx.notify();
             return;
         };
+        if let Some(page) = catalog.peek_song(id) {
+            self.page = Some(page);
+            cx.notify();
+            return;
+        }
+
         self.loading = true;
         cx.notify();
         let id = id.to_owned();
         let request = self.io.spawn({
             let id = id.clone();
-            async move {
-                let track = client.track(&id).await?;
-                let album_id = track.album_id.clone();
-                let artist_id = track
-                    .artist_refs
-                    .first()
-                    .and_then(|artist| artist.id.clone());
-                let mut credit_ids = track
-                    .credits
-                    .iter()
-                    .filter_map(|credit| credit.id.clone())
-                    .chain(
-                        track
-                            .artist_refs
-                            .iter()
-                            .filter_map(|artist| artist.id.clone()),
-                    )
-                    .collect::<HashSet<_>>()
-                    .into_iter()
-                    .collect::<Vec<_>>();
-                if let Some(artist_id) = artist_id.as_deref() {
-                    credit_ids.retain(|id| id != artist_id);
-                }
-                let primary_artist = artist_id.clone();
-                let album = async {
-                    match album_id {
-                        Some(album_id) => client.album(&album_id).await.ok(),
-                        None => None,
-                    }
-                };
-                let artist = async {
-                    match artist_id {
-                        Some(artist_id) => client.artist_profile(&artist_id).await.ok(),
-                        None => None,
-                    }
-                };
-                let portraits = async {
-                    match credit_ids.is_empty() {
-                        true => HashMap::new(),
-                        false => client.artist_images(credit_ids).await.unwrap_or_default(),
-                    }
-                };
-                let (album, artist, mut portraits) = tokio::join!(album, artist, portraits);
-                if let (Some(id), Some(cover)) = (
-                    primary_artist,
-                    artist
-                        .as_ref()
-                        .and_then(|artist| artist.cover_large.clone()),
-                ) {
-                    portraits.insert(id, cover);
-                }
-                let album_track = album.as_ref().and_then(|album| {
-                    album
-                        .tracks
-                        .iter()
-                        .find(|album_track| album_track.id == track.id)
-                });
-                let playcount = match (album_track, track.id.as_deref()) {
-                    (Some(album_track), _) => album_track.playcount,
-                    (None, Some(track_id)) => match client.track_playcount(track_id).await {
-                        Ok(playcount) => playcount,
-                        Err(error) => {
-                            log::warn!("song: cannot read track play count: {error:#}");
-                            None
-                        }
-                    },
-                    (None, None) => None,
-                };
-                anyhow::Ok((track, album, artist, portraits, playcount))
-            }
+            async move { catalog.song(&id).await }
         });
         self.request = Some(request.abort_handle());
         self.task = Some(cx.spawn(async move |this, cx| {
@@ -170,13 +110,7 @@ impl SongDetail {
                 this.loading = false;
                 this.request = None;
                 match loaded {
-                    Ok((track, album, artist, portraits, playcount)) => {
-                        this.track = Some(track);
-                        this.album = album;
-                        this.artist = artist;
-                        this.portraits = portraits;
-                        this.playcount = playcount;
-                    }
+                    Ok(page) => this.page = Some(page),
                     Err(error) => this.error = Some(format!("{error:#}")),
                 }
                 cx.notify();
@@ -191,12 +125,13 @@ impl SongDetail {
             request.abort();
         }
         self.id = None;
-        self.track = None;
-        self.album = None;
-        self.artist = None;
-        self.portraits.clear();
-        self.playcount = None;
+        self.page = None;
         self.loading = false;
         self.error = None;
     }
+}
+
+fn empty_portraits() -> &'static HashMap<String, String> {
+    static EMPTY: std::sync::OnceLock<HashMap<String, String>> = std::sync::OnceLock::new();
+    EMPTY.get_or_init(HashMap::new)
 }
