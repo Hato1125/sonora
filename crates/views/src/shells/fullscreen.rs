@@ -29,6 +29,8 @@ const COVER_MAX: f32 = 520.;
 const RESERVE: f32 = 2.9;
 const PANEL: f32 = 460.;
 const PILL_GAP: f32 = 2.;
+const FROST: f32 = 16.;
+const FROSTED: f32 = 0.5;
 const SEEK_MAX: f32 = 420.;
 const CLOCK_SHORT: f32 = 3.4;
 const CLOCK_LONG: f32 = 5.4;
@@ -74,7 +76,7 @@ impl FullscreenView {
             queue,
             cover,
             aside,
-            panel: None,
+            panel: Some(SideTab::Lyrics),
             seek: ScrubberState::new("fullscreen-seek"),
             pending: None,
             large: None,
@@ -182,7 +184,7 @@ impl FullscreenView {
             })
     }
 
-    fn meta(&self, width: Pixels, cx: &mut Context<Self>) -> impl IntoElement {
+    fn meta(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
         let track = self.playback.read(cx).track().cloned();
         let title = match &track {
@@ -198,7 +200,7 @@ impl FullscreenView {
             .items_center()
             .gap_1()
             .w_full()
-            .max_w(width)
+            .min_w_0()
             .child(
                 div()
                     .flex()
@@ -237,18 +239,19 @@ impl FullscreenView {
             )
             .when_some(track, |this, track| {
                 this.child(
-                    InlineLinks::new(
-                        "fullscreen-artists",
-                        track
-                            .artist_refs
-                            .into_iter()
-                            .map(|artist| InlineLink::new(artist.name, artist.id.map(Into::into))),
-                        track.artists,
-                        theme.muted_foreground,
-                    )
-                    .text_size(theme.text(Text::Body))
-                    .truncate()
-                    .on_click(|id, cx| navigate(Destination::Artist(id), cx)),
+                    div().flex().w_full().min_w_0().justify_center().child(
+                        InlineLinks::new(
+                            "fullscreen-artists",
+                            track.artist_refs.into_iter().map(|artist| {
+                                InlineLink::new(artist.name, artist.id.map(Into::into))
+                            }),
+                            track.artists,
+                            theme.muted_foreground,
+                        )
+                        .text_size(theme.text(Text::Body))
+                        .truncate()
+                        .on_click(|id, cx| navigate(Destination::Artist(id), cx)),
+                    ),
                 )
             })
     }
@@ -408,7 +411,8 @@ impl FullscreenView {
             .rounded(theme.radius + gap)
             .border_1()
             .border_color(theme.border)
-            .bg(theme.popover)
+            .backdrop_blur(px(FROST))
+            .bg(theme.popover.opacity(FROSTED))
             .child(tab(
                 "fullscreen-artwork-tab",
                 "icons/disc-3.svg",
@@ -544,9 +548,13 @@ impl Render for FullscreenView {
                                 .justify_center()
                                 .gap_5()
                                 .min_w_0()
-                                .when(split, |this| this.flex_1().h_full())
+                                .when_else(
+                                    split,
+                                    |this| this.flex_1().h_full(),
+                                    |this| this.w_full(),
+                                )
                                 .child(self.artwork(side, cx))
-                                .child(self.meta(side.max(px(SEEK_MAX * 0.5)), cx))
+                                .child(self.meta(cx))
                                 .when(split, |this| this.child(self.controls(cx))),
                         )
                     })
