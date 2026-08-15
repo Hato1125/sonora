@@ -1,4 +1,5 @@
 use std::rc::Rc;
+use std::sync::Arc;
 
 use gpui::{Context, Entity, Task};
 use music::{Genre, GenreDetail, GenreItem, GenreSection};
@@ -106,7 +107,7 @@ impl Genres {
 
 pub struct GenreDetails {
     id: Option<String>,
-    name: Option<String>,
+    detail: Option<Arc<GenreDetail>>,
     sections: Rc<Vec<GenreSection>>,
     loading: bool,
     error: Option<String>,
@@ -127,6 +128,7 @@ impl GenreDetails {
         cx.subscribe(&session, |this, _, event, cx| match event {
             SessionEvent::SignedIn => {
                 if let Some(id) = this.id.clone() {
+                    this.clear();
                     this.open(&id, cx);
                 }
             }
@@ -140,7 +142,7 @@ impl GenreDetails {
 
         Self {
             id: None,
-            name: None,
+            detail: None,
             sections: Rc::new(Vec::new()),
             loading: false,
             error: None,
@@ -153,7 +155,7 @@ impl GenreDetails {
     }
 
     pub fn name(&self) -> Option<&str> {
-        self.name.as_deref()
+        self.detail.as_ref().map(|detail| detail.name.as_str())
     }
 
     pub fn sections(&self) -> Rc<Vec<GenreSection>> {
@@ -169,17 +171,21 @@ impl GenreDetails {
     }
 
     pub fn open(&mut self, id: &str, cx: &mut Context<Self>) {
-        if self.id.as_deref() == Some(id) && (self.loading || self.name.is_some()) {
+        if self.id.as_deref() == Some(id) && (self.loading || self.detail.is_some()) {
             return;
         }
 
         self.clear();
         self.id = Some(id.to_owned());
-
-        let Some(client) = self.session.read(cx).client() else {
+        let Some(catalog) = self.session.read(cx).catalog(id) else {
             cx.notify();
             return;
         };
+        if let Some(detail) = catalog.peek_genre(id) {
+            self.adopt(id, detail, cx);
+            cx.notify();
+            return;
+        }
 
         self.loading = true;
         cx.notify();
@@ -187,7 +193,7 @@ impl GenreDetails {
         let id = id.to_owned();
         let request = self.io.spawn({
             let id = id.clone();
-            async move { client.genre(&id).await }
+            async move { catalog.genre(&id).await }
         });
         self.request = Some(request.abort_handle());
         self.task = Some(cx.spawn(async move |this, cx| {
@@ -201,17 +207,7 @@ impl GenreDetails {
                 this.loading = false;
                 this.request = None;
                 match loaded {
-                    Ok(detail) => {
-                        let cover = pictured(&detail);
-                        let known = id.clone();
-                        this.genres
-                            .update(cx, |genres, cx| match detail.sections.is_empty() {
-                                true => genres.forget(&known, cx),
-                                false => genres.adopt(&known, cover, cx),
-                            });
-                        this.name = Some(detail.name);
-                        this.sections = Rc::new(detail.sections);
-                    }
+                    Ok(detail) => this.adopt(&id, detail, cx),
                     Err(error) => this.error = Some(format!("{error:#}")),
                 }
                 cx.notify();
@@ -220,13 +216,24 @@ impl GenreDetails {
         }));
     }
 
+    fn adopt(&mut self, id: &str, detail: Arc<GenreDetail>, cx: &mut Context<Self>) {
+        let cover = pictured(&detail);
+        self.genres
+            .update(cx, |genres, cx| match detail.sections.is_empty() {
+                true => genres.forget(id, cx),
+                false => genres.adopt(id, cover, cx),
+            });
+        self.sections = Rc::new(detail.sections.clone());
+        self.detail = Some(detail);
+    }
+
     fn clear(&mut self) {
         self.task = None;
         if let Some(request) = self.request.take() {
             request.abort();
         }
         self.id = None;
-        self.name = None;
+        self.detail = None;
         self.sections = Rc::new(Vec::new());
         self.loading = false;
         self.error = None;

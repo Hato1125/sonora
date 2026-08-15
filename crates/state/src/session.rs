@@ -9,6 +9,7 @@ use music::{
 };
 use tokio::sync::mpsc::UnboundedSender;
 
+use crate::catalog::CatalogSource;
 use crate::settings::AppSettings;
 use crate::{Io, join};
 
@@ -71,6 +72,7 @@ pub struct Session {
     error: Option<(usize, Failure)>,
     settings: Entity<AppSettings>,
     client: Option<Arc<dyn MusicApi>>,
+    catalog: Option<Arc<CatalogSource>>,
     playback: Option<Arc<dyn PlaybackFactory>>,
     authenticated: bool,
     playcounts: bool,
@@ -80,6 +82,7 @@ pub struct Session {
     input: Option<UnboundedSender<String>>,
     local_provider: Arc<dyn MusicProvider>,
     local_client: Option<Arc<dyn MusicApi>>,
+    local_catalog: Option<Arc<CatalogSource>>,
     local_playback: Option<Arc<dyn PlaybackFactory>>,
     local_task: Option<Task<()>>,
 }
@@ -107,6 +110,7 @@ impl Session {
             error: None,
             settings,
             client: None,
+            catalog: None,
             playback: None,
             authenticated: false,
             playcounts: false,
@@ -116,6 +120,7 @@ impl Session {
             input: None,
             local_provider,
             local_client: None,
+            local_catalog: None,
             local_playback: None,
             local_task: None,
         };
@@ -137,6 +142,13 @@ impl Session {
 
     pub fn local_client(&self) -> Option<Arc<dyn MusicApi>> {
         self.local_client.clone()
+    }
+
+    pub(crate) fn catalog(&self, id: &str) -> Option<Arc<CatalogSource>> {
+        match music::is_local_id(id) {
+            true => self.local_catalog.clone(),
+            false => self.catalog.clone(),
+        }
     }
 
     pub fn local_playback(&self) -> Option<Arc<dyn PlaybackFactory>> {
@@ -400,6 +412,7 @@ impl Session {
         self.awaiting = None;
         self.resume = None;
         self.client = None;
+        self.catalog = None;
         self.playback = None;
         self.authenticated = false;
         self.playcounts = false;
@@ -417,6 +430,7 @@ impl Session {
         self.settings.update(cx, |settings, cx| {
             settings.set_provider(slug, cx);
         });
+        self.catalog = Some(Arc::new(CatalogSource::new(session.api.clone())));
         self.client = Some(session.api);
         self.playback = Some(session.playback);
         self.authenticated = session.authenticated;
@@ -439,6 +453,7 @@ impl Session {
             return;
         }
         self.client = None;
+        self.catalog = None;
         self.playback = None;
         self.state = SessionState::Failed(failure);
         cx.notify();
@@ -483,6 +498,7 @@ impl Session {
     pub fn clear_local_folder(&mut self, cx: &mut Context<Self>) {
         self.local_provider.sign_out();
         self.local_client = None;
+        self.local_catalog = None;
         self.local_playback = None;
         self.local_task = None;
         cx.notify();
@@ -490,6 +506,7 @@ impl Session {
     }
 
     fn local_signed_in(&mut self, session: ProviderSession, cx: &mut Context<Self>) {
+        self.local_catalog = Some(Arc::new(CatalogSource::new(session.api.clone())));
         self.local_client = Some(session.api);
         self.local_playback = Some(session.playback);
         cx.notify();

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use gpui::{Context, Entity, Task};
 use i18n::t;
 use music::{Album, AlbumDetail, ArtistRef, Playlist, PlaylistDetail, Track};
@@ -11,8 +13,8 @@ pub enum Collection {
 }
 
 enum Loaded {
-    Album(AlbumDetail),
-    Playlist(PlaylistDetail),
+    Album(Arc<AlbumDetail>),
+    Playlist(Arc<PlaylistDetail>),
 }
 
 pub struct Header {
@@ -33,6 +35,7 @@ pub struct Detail {
     playlist: Option<Playlist>,
     tracks: Vec<Track>,
     loading: bool,
+    loaded: bool,
     error: Option<String>,
     session: Entity<Session>,
     library: Entity<Library>,
@@ -56,8 +59,30 @@ impl Detail {
                     cx.notify();
                 }
             }
-            SessionEvent::SignedIn => this.resume(cx),
-            SessionEvent::LocalChanged => {}
+            SessionEvent::SignedIn => {
+                if let (Some(kind), Some(id)) = (
+                    this.kind,
+                    this.id.clone().filter(|id| !music::is_local_id(id)),
+                ) {
+                    this.clear();
+                    match kind {
+                        Collection::Album => this.open_album(&id, cx),
+                        Collection::Playlist => this.open_playlist(&id, cx),
+                    }
+                }
+            }
+            SessionEvent::LocalChanged => {
+                if let (Some(kind), Some(id)) = (
+                    this.kind,
+                    this.id.clone().filter(|id| music::is_local_id(id)),
+                ) {
+                    this.clear();
+                    match kind {
+                        Collection::Album => this.open_album(&id, cx),
+                        Collection::Playlist => this.open_playlist(&id, cx),
+                    }
+                }
+            }
         })
         .detach();
 
@@ -88,6 +113,7 @@ impl Detail {
             playlist: None,
             tracks: Vec::new(),
             loading: false,
+            loaded: false,
             error: None,
             session,
             library,
@@ -135,13 +161,19 @@ impl Detail {
             log::warn!("detail: cannot remove a track while signed out");
             return;
         };
+        let catalog = self.session.read(cx).catalog(&playlist_id);
         let io = self.io.clone();
         self.mutation = Some(cx.spawn(async move |this, cx| {
             let removed_id = track_id.clone();
+            let invalidated = playlist_id.clone();
             let removed = join(io.spawn(async move {
                 client
                     .remove_track_from_playlist(&playlist_id, &removed_id)
-                    .await
+                    .await?;
+                if let Some(catalog) = catalog {
+                    catalog.invalidate_playlist(&invalidated).await;
+                }
+                anyhow::Ok(())
             }))
             .await;
             this.update(cx, |this, cx| {
@@ -172,17 +204,29 @@ impl Detail {
             .or_else(|| library.local_album(id))
             .cloned();
         let header = known.as_ref().map(album_header);
-        if self.open(Collection::Album, id, header, cx) {
+        if self.open(Collection::Album, id, header, cx) && !self.loaded {
             self.album = known;
         }
     }
 
     pub fn open_playlist(&mut self, id: &str, cx: &mut Context<Self>) {
-        let known = self.library.read(cx).playlist(id).cloned();
+        let mut known = self.library.read(cx).playlist(id).cloned();
         let header = known.as_ref().map(playlist_header);
-        if self.open(Collection::Playlist, id, header, cx) {
-            self.playlist = known;
+        if !self.open(Collection::Playlist, id, header, cx) {
+            return;
         }
+        if self.loaded
+            && let Some(known) = known.as_mut()
+        {
+            if known.cover.is_none() {
+                known.cover = self
+                    .playlist
+                    .as_ref()
+                    .and_then(|playlist| playlist.cover.clone());
+            }
+            self.header = Some(playlist_header(known));
+        }
+        self.playlist = known.or_else(|| self.playlist.take());
     }
 
     fn open(
@@ -192,7 +236,7 @@ impl Detail {
         known: Option<Header>,
         cx: &mut Context<Self>,
     ) -> bool {
-        if self.shows(id) {
+        if self.shows(kind, id) {
             return false;
         }
 
@@ -200,27 +244,27 @@ impl Detail {
         self.id = Some(id.to_owned());
         self.kind = Some(kind);
         self.header = known;
+
+        let Some(catalog) = self.session.read(cx).catalog(id) else {
+            cx.notify();
+            return true;
+        };
+        let cached = match kind {
+            Collection::Album => catalog.peek_album(id).map(Loaded::Album),
+            Collection::Playlist => catalog.peek_playlist(id).map(Loaded::Playlist),
+        };
+        if let Some(cached) = cached {
+            self.adopt(cached, cx);
+            cx.notify();
+            return true;
+        }
+
         self.load(kind, id.to_owned(), cx);
         true
     }
 
-    fn resume(&mut self, cx: &mut Context<Self>) {
-        let (Some(kind), Some(id)) = (self.kind, self.id.clone()) else {
-            return;
-        };
-        if self.loading || !self.tracks.is_empty() {
-            return;
-        }
-        self.load(kind, id, cx);
-    }
-
     fn load(&mut self, kind: Collection, id: String, cx: &mut Context<Self>) {
-        let session = self.session.read(cx);
-        let client = match music::is_local_id(&id) {
-            true => session.local_client(),
-            false => session.client(),
-        };
-        let Some(client) = client else {
+        let Some(catalog) = self.session.read(cx).catalog(&id) else {
             cx.notify();
             return;
         };
@@ -233,8 +277,8 @@ impl Detail {
         self.task = Some(cx.spawn(async move |this, cx| {
             let loaded = join(io.spawn(async move {
                 match kind {
-                    Collection::Album => client.album(&id).await.map(Loaded::Album),
-                    Collection::Playlist => client.playlist(&id).await.map(Loaded::Playlist),
+                    Collection::Album => catalog.album(&id).await.map(Loaded::Album),
+                    Collection::Playlist => catalog.playlist(&id).await.map(Loaded::Playlist),
                 }
             }))
             .await;
@@ -242,22 +286,7 @@ impl Detail {
             this.update(cx, |this, cx| {
                 this.loading = false;
                 match loaded {
-                    Ok(Loaded::Album(detail)) => {
-                        this.header = Some(album_header(&detail.album));
-                        this.album = Some(detail.album);
-                        this.tracks = detail.tracks;
-                    }
-                    Ok(Loaded::Playlist(mut detail)) => {
-                        if detail.playlist.cover.is_none() {
-                            detail.playlist.cover = this.known_mosaic(&detail.playlist, cx);
-                        }
-                        if detail.playlist.cover.is_none() {
-                            this.paint_mosaic(&detail.playlist, &detail.tracks, cx);
-                        }
-                        this.header = Some(playlist_header(&detail.playlist));
-                        this.playlist = Some(detail.playlist);
-                        this.tracks = detail.tracks;
-                    }
+                    Ok(detail) => this.adopt(detail, cx),
                     Err(error) => this.error = Some(format!("{error:#}")),
                 }
                 cx.notify();
@@ -304,9 +333,32 @@ impl Detail {
         }));
     }
 
-    fn shows(&self, id: &str) -> bool {
-        let same = self.id.as_deref() == Some(id);
-        same && (self.loading || !self.tracks.is_empty())
+    fn shows(&self, kind: Collection, id: &str) -> bool {
+        let same = self.kind == Some(kind) && self.id.as_deref() == Some(id);
+        same && (self.loading || self.loaded)
+    }
+
+    fn adopt(&mut self, loaded: Loaded, cx: &mut Context<Self>) {
+        match loaded {
+            Loaded::Album(detail) => {
+                self.header = Some(album_header(&detail.album));
+                self.album = Some(detail.album.clone());
+                self.tracks = detail.tracks.clone();
+            }
+            Loaded::Playlist(detail) => {
+                let mut playlist = detail.playlist.clone();
+                if playlist.cover.is_none() {
+                    playlist.cover = self.known_mosaic(&playlist, cx);
+                }
+                if playlist.cover.is_none() {
+                    self.paint_mosaic(&playlist, &detail.tracks, cx);
+                }
+                self.header = Some(playlist_header(&playlist));
+                self.playlist = Some(playlist);
+                self.tracks = detail.tracks.clone();
+            }
+        }
+        self.loaded = true;
     }
 
     fn clear(&mut self) {
@@ -320,6 +372,7 @@ impl Detail {
         self.playlist = None;
         self.tracks.clear();
         self.loading = false;
+        self.loaded = false;
         self.error = None;
     }
 }
