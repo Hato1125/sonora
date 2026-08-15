@@ -19,6 +19,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Switches now slide and fade between on and off instead of snapping, at a fixed control speed that
   the animation speed setting deliberately leaves alone.
 
+### Fixed
+
+- The volume percentage now sits above the slider handle instead of trailing the pointer, so it
+  reads as a label on the handle you are dragging.
+
 ## [0.14.0] - 2026-08-14
 
 ### Added
