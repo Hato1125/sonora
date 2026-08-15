@@ -59,7 +59,9 @@ mod tests {
         LyricsHit {
             source: "test",
             lyrics: match synced {
-                true => Lyrics::Synced { lines: Vec::new() },
+                true => Lyrics::Synced {
+                    lines: Vec::new().into(),
+                },
                 false => Lyrics::Plain("la".to_owned()),
             },
             title: title.to_owned(),
