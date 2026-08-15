@@ -11,6 +11,9 @@ use librespot_oauth::OAuthClientBuilder;
 pub const DEFAULT_CLIENT_ID: &str = "65b708073fc0480ea92a077233ca87bd";
 pub const DEFAULT_REDIRECT_URI: &str = "http://127.0.0.1:8989/login";
 
+const PRODUCT_WAIT: std::time::Duration = std::time::Duration::from_secs(5);
+const PRODUCT_POLL: std::time::Duration = std::time::Duration::from_millis(100);
+
 pub const SCOPES: &[&str] = &[
     "playlist-read-collaborative",
     "playlist-read-private",
@@ -91,6 +94,7 @@ pub async fn restore(config: &AuthConfig) -> Result<Option<Session>> {
     };
 
     session.connect(credentials, true).await.map_err(denied)?;
+    premium(&session).await?;
     Ok(Some(session))
 }
 
@@ -112,7 +116,27 @@ pub async fn login(config: &AuthConfig) -> Result<Session> {
         .connect(Credentials::with_access_token(token.access_token), true)
         .await
         .map_err(denied)?;
+    premium(&session).await?;
     Ok(session)
+}
+
+async fn premium(session: &Session) -> Result<()> {
+    let deadline = tokio::time::Instant::now() + PRODUCT_WAIT;
+    loop {
+        if let Some(account) = session.user_data().attributes.get("type") {
+            match account.as_str() {
+                "premium" => return Ok(()),
+                _ => {
+                    session.shutdown();
+                    return Err(anyhow::Error::new(SignInFailure(SignInProblem::Premium)));
+                }
+            }
+        }
+        if tokio::time::Instant::now() >= deadline {
+            return Ok(());
+        }
+        tokio::time::sleep(PRODUCT_POLL).await;
+    }
 }
 
 fn denied(error: librespot_core::Error) -> anyhow::Error {
