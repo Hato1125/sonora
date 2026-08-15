@@ -367,25 +367,9 @@ impl FullscreenView {
             .w_full()
             .max_w(px(SEEK_MAX))
             .flex_none()
+            .when(inline, |this| this.child(self.pill(false, cx)))
             .child(self.seek(cx))
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .w_full()
-                    .gap_2()
-                    .child(div().flex_1().min_w_0())
-                    .child(transport(&self.playback, &self.queue, true, cx))
-                    .child(
-                        div()
-                            .flex()
-                            .flex_1()
-                            .min_w_0()
-                            .items_center()
-                            .justify_end()
-                            .when(inline, |this| this.child(self.pill(false, cx))),
-                    ),
-            )
+            .child(transport(&self.playback, &self.queue, true, cx))
     }
 
     fn pill(&self, fading: bool, cx: &mut Context<Self>) -> impl IntoElement {
@@ -598,7 +582,7 @@ impl Render for FullscreenView {
                         .child(self.controls(cx)),
                 )
             })
-            .child(div().absolute().top_0().right_0().child(self.leave()))
+            .child(div().absolute().top_0().right_3().child(self.leave()))
             .children(self.menu(cx))
     }
 }
