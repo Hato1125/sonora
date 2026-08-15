@@ -1,5 +1,4 @@
 mod aside;
-mod debug;
 mod player_bar;
 mod sidebar_left;
 mod sidebar_right;
@@ -9,7 +8,6 @@ mod toolbar;
 pub(crate) mod tools;
 
 pub(crate) use aside::Aside;
-pub(crate) use debug::{FrameStats, Stats};
 pub(crate) use player_bar::PlayerBar;
 pub(crate) use sidebar_left::SidebarLeft;
 pub(crate) use sidebar_right::SidebarRight;
