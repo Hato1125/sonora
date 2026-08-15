@@ -3,15 +3,15 @@ use std::ops::Range;
 use gpui::prelude::*;
 
 use gpui::{
-    Context, Div, DragMoveEvent, Entity, FontWeight, Hsla, MouseButton, MouseDownEvent, Pixels,
-    Point, Render, ScrollHandle, ScrollStrategy, ScrollWheelEvent, SharedString,
-    UniformListScrollHandle, Window, div, linear_color_stop, linear_gradient, px, uniform_list,
+    Context, DragMoveEvent, Entity, FontWeight, MouseButton, MouseDownEvent, Pixels, Point, Render,
+    ScrollHandle, ScrollStrategy, ScrollWheelEvent, SharedString, Task, UniformListScrollHandle,
+    Window, div, ease_in_out, px, uniform_list,
 };
 use i18n::t;
 use music::Track;
 use state::{Lyrics, LyricsState, Playback, PlaybackState, Queue, SideTab, Sonora};
 use ui::{
-    ActiveTheme as _, Button, Card, DraggedPin, Edge, Pin, PinKind, Pinnable as _, Popup,
+    ActiveTheme as _, Button, Card, DraggedPin, Edge, Motion, Pin, PinKind, Pinnable as _, Popup,
     Scrollbar, Scroller, Spot, Text, drop_gap, drop_marker, eyebrow, snapped, vacant,
 };
 
@@ -20,37 +20,15 @@ use crate::shared::menu::ItemMenu;
 
 const QUEUE: &str = "queue";
 const FADE: f32 = 96.;
+const BLUR: f32 = 0.07;
+const PAST: f32 = 0.4;
 const PINNED_SHARE: f32 = 0.25;
 const PIN: f32 = 0.3;
 const SETTLE: std::time::Duration = std::time::Duration::from_secs(4);
 
-fn shade(color: Hsla, above: bool) -> Div {
-    div()
-        .absolute()
-        .left_0()
-        .right_0()
-        .child(veil(color, above, px(FADE)))
-        .child(veil(color, above, px(FADE * 0.45)))
-        .when_else(above, |this| this.top_0(), |this| this.bottom_0())
-}
-
-fn veil(color: Hsla, above: bool, height: Pixels) -> Div {
-    let (from, to) = match above {
-        true => (color, color.opacity(0.)),
-        false => (color.opacity(0.), color),
-    };
-
-    div()
-        .absolute()
-        .left_0()
-        .right_0()
-        .h(height)
-        .when_else(above, |this| this.top_0(), |this| this.bottom_0())
-        .bg(linear_gradient(
-            180.,
-            linear_color_stop(from, 0.),
-            linear_color_stop(to, 1.),
-        ))
+fn effects() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var("SONORA_BLUR").as_deref() != Ok("0"))
 }
 
 fn track(queue: &Queue, position: QueuePosition) -> Option<Track> {
@@ -191,6 +169,13 @@ pub(crate) struct Aside {
     past_len: usize,
     anchor: bool,
     titled: bool,
+    aiming: bool,
+    rested: Option<Pixels>,
+    since: std::time::Instant,
+    over: Option<usize>,
+    hovered: Option<usize>,
+    fading: Option<usize>,
+    linger: Option<Task<()>>,
 }
 
 impl Aside {
@@ -247,6 +232,13 @@ impl Aside {
             past_len: 0,
             anchor: true,
             titled: true,
+            aiming: false,
+            rested: None,
+            since: std::time::Instant::now(),
+            over: None,
+            hovered: None,
+            fading: None,
+            linger: None,
         }
     }
 
@@ -271,6 +263,58 @@ impl Aside {
         self.track_menu.reset(cx);
         self.context_menu = None;
         cx.notify();
+    }
+
+    /// How far the row under the cursor has travelled between blurred and sharp.
+    fn stirred(&self, window: &mut Window) -> f32 {
+        let span = Motion::Quick.span().as_secs_f32().max(f32::EPSILON);
+        let stirred = (self.since.elapsed().as_secs_f32() / span).clamp(0., 1.);
+        if stirred < 1. {
+            window.request_animation_frame();
+        }
+        ease_in_out(stirred)
+    }
+
+    fn brush(&mut self, index: usize, over: bool, cx: &mut Context<Self>) {
+        if !over {
+            if self.over == Some(index) {
+                self.over = None;
+            }
+            if self.hovered == Some(index) {
+                self.hovered = None;
+                self.fading = Some(index);
+                self.since = std::time::Instant::now();
+                self.linger = Some(cx.spawn(async move |this, cx| {
+                    cx.background_executor().timer(Motion::Quick.span()).await;
+                    this.update(cx, |this, cx| {
+                        if this.fading != Some(index) {
+                            return;
+                        }
+                        this.fading = None;
+                        cx.notify();
+                    })
+                    .ok();
+                }));
+                cx.notify();
+            }
+            return;
+        }
+
+        self.over = Some(index);
+        if self.hovered == Some(index) {
+            return;
+        }
+        self.fading = None;
+        self.linger = Some(cx.spawn(async move |this, cx| {
+            this.update(cx, |this, cx| {
+                if this.over != Some(index) {
+                    return;
+                }
+                this.hovered = Some(index);
+                cx.notify();
+            })
+            .ok();
+        }));
     }
 
     fn dismiss_menu(&mut self, cx: &mut Context<Self>) {
@@ -575,35 +619,67 @@ impl Aside {
             _ => None,
         };
 
+        let verse = match self.titled {
+            true => theme.text(Text::Large),
+            false => theme.text(Text::Title),
+        };
+
         let body: Vec<gpui::AnyElement> = match (&lines, &state) {
             (Some(lines), _) => {
                 let sung = music::lyrics::active(lines, at);
+                let ahead = sung.unwrap_or(0);
+                let blur = match effects() {
+                    true => verse * BLUR,
+                    false => px(0.),
+                };
+                let stirred = self.stirred(window);
+
                 lines
                     .iter()
                     .enumerate()
                     .map(|(index, line)| {
                         let seek = line.start;
-                        div()
+                        let text = SharedString::from(line.text.clone());
+                        let near = index == ahead || index == ahead + 1;
+                        let hazed = !near;
+                        let waking = self.hovered == Some(index);
+                        let settling = self.fading == Some(index);
+                        let tint = match (Some(index) == sung, index < ahead) {
+                            (true, _) => theme.foreground,
+                            (false, true) => theme.muted_foreground.opacity(PAST),
+                            (false, false) => theme.muted_foreground,
+                        };
+
+                        let verse_line = div()
                             .id(("verse", index))
                             .px_2()
                             .py_1()
                             .rounded(theme.radius)
                             .cursor_pointer()
                             .hover(|style| style.bg(theme.table_hover))
-                            .text_size(theme.text(Text::Large))
-                            .when_else(
-                                Some(index) == sung,
-                                |this| {
-                                    this.text_color(theme.foreground)
-                                        .font_weight(FontWeight::SEMIBOLD)
-                                },
-                                |this| this.text_color(theme.muted_foreground),
-                            )
+                            .text_size(verse)
+                            .text_color(tint)
+                            .when(Some(index) == sung, |this| {
+                                this.font_weight(FontWeight::SEMIBOLD)
+                            })
+                            .on_hover(cx.listener(move |this, over: &bool, _, cx| {
+                                this.brush(index, *over, cx)
+                            }))
                             .on_click(cx.listener(move |this, _, _, cx| {
                                 this.playback
                                     .update(cx, |playback, cx| playback.seek(seek, cx));
                             }))
-                            .child(SharedString::from(line.text.clone()))
+                            .child(text);
+
+                        let softness = match (hazed, waking, settling) {
+                            (false, _, _) => 0.,
+                            (true, true, _) => 1. - stirred,
+                            (true, false, true) => stirred,
+                            (true, false, false) => 1.,
+                        };
+
+                        verse_line
+                            .when(softness > 0., |this| this.blur(blur * softness))
                             .into_any_element()
                     })
                     .collect()
@@ -644,12 +720,16 @@ impl Aside {
             .flex_1()
             .min_h_0()
             .px_1()
-            .pb_12()
+            .pt(px(FADE * 0.75))
+            .pb(px(FADE * 0.75))
+            .when(effects(), |this| this.fade_edges(px(FADE), px(FADE)))
             .children(body)
     }
 
     fn anchor_verse(&mut self) {
         self.pinned = true;
+        self.aiming = false;
+        self.rested = None;
         self.followed = None;
         self.goal = None;
         self.nudged = None;
@@ -658,6 +738,7 @@ impl Aside {
     fn pin_verse(&mut self, sung: Option<usize>, window: &mut Window, cx: &mut Context<Self>) {
         let scroll = self.verse_bar.read(cx).scroll().clone();
         let aimed = self.verse_bar.read(cx).goal();
+        let resting = scroll.offset().y;
         if let Some(goal) = self.goal
             && (aimed - goal).abs() > px(1.)
         {
@@ -667,22 +748,36 @@ impl Aside {
         }
         if !self.pinned {
             self.followed = sung;
+            // Keep the reader in charge for as long as they keep moving: the timer counts from the
+            // last scroll, not from the first one.
+            if self.rested != Some(resting) {
+                self.rested = Some(resting);
+                self.nudged = Some(std::time::Instant::now());
+            }
             if self.nudged.is_some_and(|at| at.elapsed() >= SETTLE) {
                 self.anchor_verse();
             } else {
                 return;
             }
         }
-        let Some(index) = sung else {
-            return;
-        };
-        if self.followed == sung {
+        if sung.is_none() {
             return;
         }
-        let Some(item) = scroll.bounds_for_item(index) else {
+        // The rows a verse sits among change on the very frame it starts being sung, and their
+        // bounds only settle once that frame has been laid out. Aim on the next one.
+        if self.followed != sung {
+            self.followed = sung;
+            self.aiming = true;
+            window.request_animation_frame();
+            return;
+        }
+        if !self.aiming {
+            return;
+        }
+        let Some(item) = sung.and_then(|index| scroll.bounds_for_item(index)) else {
             return;
         };
-        self.followed = sung;
+        self.aiming = false;
         let view = scroll.bounds();
         let rest = view.origin.y - item.origin.y + view.size.height * PIN;
         let goal = rest.clamp(-scroll.max_offset().y, px(0.));
@@ -763,7 +858,6 @@ impl Aside {
 
 impl Render for Aside {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = *cx.theme();
         self.scrollbar.read(cx).sync();
         let queue = self.queue.read(cx);
         let sections = Sections {
@@ -819,10 +913,12 @@ impl Render for Aside {
                                 .relative()
                                 .flex_1()
                                 .min_h_0()
+                                .when(effects(), |this| this.fade_edges(px(FADE * 0.5), px(FADE)))
                                 .child(
                                     self.rows(sections, cx)
                                         .px_2()
                                         .pb(px(FADE * 0.75))
+                                        .pt(px(FADE * 0.5))
                                         .track_scroll(&self.scroll)
                                         .size_full()
                                         .on_scroll_wheel(
@@ -836,10 +932,6 @@ impl Render for Aside {
                                 )
                                 .child(self.scrollbar.clone()),
                         )
-                    })
-                    .when(self.tab == SideTab::Lyrics || !empty, |this| {
-                        this.child(shade(theme.background, true))
-                            .child(shade(theme.background, false))
                     })
                     .children(self.follow(cx)),
             )
