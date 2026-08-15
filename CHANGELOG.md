@@ -23,6 +23,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   cancelled browser approval — instead of showing the raw message from the streaming library. An
   unrecognised failure is trimmed down to one readable sentence too.
 
+### Fixed
+
+- Signing in with an account that has no Spotify Premium closed Sonora outright, and it kept closing
+  on every launch until the cached session was deleted by hand. Sonora now stays open, forgets that
+  session and explains on the login screen that streaming needs Premium.
+
 ## [0.14.0] - 2026-08-14
 
 ### Added

@@ -21,7 +21,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 
 use crate::spotify::playback::Factory;
-use crate::{MusicApi as _, MusicProvider, ProviderSession};
+use crate::{MusicApi as _, MusicProvider, ProviderSession, SignInFailure, SignInProblem};
 
 pub use auth::AuthConfig;
 pub use client::LibrespotClient;
@@ -37,6 +37,16 @@ impl SpotifyProvider {
 
     pub fn from_env() -> Self {
         Self::new(AuthConfig::from_env())
+    }
+
+    fn drop_free(&self, error: anyhow::Error) -> anyhow::Error {
+        if matches!(
+            error.downcast_ref::<SignInFailure>(),
+            Some(SignInFailure(SignInProblem::Premium))
+        ) {
+            auth::forget(&self.config);
+        }
+        error
     }
 
     async fn session(&self, client: LibrespotClient) -> Result<ProviderSession> {
@@ -75,7 +85,10 @@ impl MusicProvider for SpotifyProvider {
     }
 
     async fn restore(&self) -> Result<Option<ProviderSession>> {
-        let Some(session) = auth::restore(&self.config).await? else {
+        let Some(session) = auth::restore(&self.config)
+            .await
+            .map_err(|error| self.drop_free(error))?
+        else {
             return Ok(None);
         };
         self.session(LibrespotClient::new(session)).await.map(Some)
@@ -87,7 +100,9 @@ impl MusicProvider for SpotifyProvider {
         _prompt: crate::PromptSink,
         _input: crate::InputSource,
     ) -> Result<ProviderSession> {
-        let session = auth::login(&self.config).await?;
+        let session = auth::login(&self.config)
+            .await
+            .map_err(|error| self.drop_free(error))?;
         self.session(LibrespotClient::new(session)).await
     }
 

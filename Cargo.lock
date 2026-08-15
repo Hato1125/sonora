@@ -3736,7 +3736,7 @@ dependencies = [
 [[package]]
 name = "librespot-audio"
 version = "0.8.0"
-source = "git+https://github.com/nolight132/librespot?rev=81b99cf12a29ba2915894f24d67aec85a963dc06#81b99cf12a29ba2915894f24d67aec85a963dc06"
+source = "git+https://github.com/nolight132/librespot?rev=e7eb953d5848fd97bacd00e6c0e33500765eaa63#e7eb953d5848fd97bacd00e6c0e33500765eaa63"
 dependencies = [
  "aes",
  "bytes",
@@ -3755,7 +3755,7 @@ dependencies = [
 [[package]]
 name = "librespot-core"
 version = "0.8.0"
-source = "git+https://github.com/nolight132/librespot?rev=81b99cf12a29ba2915894f24d67aec85a963dc06#81b99cf12a29ba2915894f24d67aec85a963dc06"
+source = "git+https://github.com/nolight132/librespot?rev=e7eb953d5848fd97bacd00e6c0e33500765eaa63#e7eb953d5848fd97bacd00e6c0e33500765eaa63"
 dependencies = [
  "aes",
  "base64",
@@ -3811,7 +3811,7 @@ dependencies = [
 [[package]]
 name = "librespot-metadata"
 version = "0.8.0"
-source = "git+https://github.com/nolight132/librespot?rev=81b99cf12a29ba2915894f24d67aec85a963dc06#81b99cf12a29ba2915894f24d67aec85a963dc06"
+source = "git+https://github.com/nolight132/librespot?rev=e7eb953d5848fd97bacd00e6c0e33500765eaa63#e7eb953d5848fd97bacd00e6c0e33500765eaa63"
 dependencies = [
  "async-trait",
  "bytes",
@@ -3828,7 +3828,7 @@ dependencies = [
 [[package]]
 name = "librespot-oauth"
 version = "0.8.0"
-source = "git+https://github.com/nolight132/librespot?rev=81b99cf12a29ba2915894f24d67aec85a963dc06#81b99cf12a29ba2915894f24d67aec85a963dc06"
+source = "git+https://github.com/nolight132/librespot?rev=e7eb953d5848fd97bacd00e6c0e33500765eaa63#e7eb953d5848fd97bacd00e6c0e33500765eaa63"
 dependencies = [
  "log",
  "oauth2",
@@ -3841,7 +3841,7 @@ dependencies = [
 [[package]]
 name = "librespot-playback"
 version = "0.8.0"
-source = "git+https://github.com/nolight132/librespot?rev=81b99cf12a29ba2915894f24d67aec85a963dc06#81b99cf12a29ba2915894f24d67aec85a963dc06"
+source = "git+https://github.com/nolight132/librespot?rev=e7eb953d5848fd97bacd00e6c0e33500765eaa63#e7eb953d5848fd97bacd00e6c0e33500765eaa63"
 dependencies = [
  "cpal",
  "form_urlencoded",
@@ -3864,7 +3864,7 @@ dependencies = [
 [[package]]
 name = "librespot-protocol"
 version = "0.8.0"
-source = "git+https://github.com/nolight132/librespot?rev=81b99cf12a29ba2915894f24d67aec85a963dc06#81b99cf12a29ba2915894f24d67aec85a963dc06"
+source = "git+https://github.com/nolight132/librespot?rev=e7eb953d5848fd97bacd00e6c0e33500765eaa63#e7eb953d5848fd97bacd00e6c0e33500765eaa63"
 dependencies = [
  "protobuf",
  "protobuf-codegen",
