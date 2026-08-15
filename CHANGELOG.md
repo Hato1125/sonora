@@ -18,6 +18,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Switches now slide and fade between on and off instead of snapping, at a fixed control speed that
   the animation speed setting deliberately leaves alone.
+- A sign-in that fails now explains itself in plain words on a small card, on the login screen and in
+  account settings — being outside your account country, an expired session, no connection, a
+  cancelled browser approval — instead of showing the raw message from the streaming library. An
+  unrecognised failure is trimmed down to one readable sentence too.
 
 ## [0.14.0] - 2026-08-14
 

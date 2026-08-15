@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 
 use anyhow::{Context as _, Result, anyhow};
+
+use crate::{SignInFailure, SignInProblem};
 use librespot_core::authentication::Credentials;
 use librespot_core::cache::Cache;
 use librespot_core::{Session, SessionConfig};
@@ -88,7 +90,7 @@ pub async fn restore(config: &AuthConfig) -> Result<Option<Session>> {
         return Ok(None);
     };
 
-    session.connect(credentials, true).await?;
+    session.connect(credentials, true).await.map_err(denied)?;
     Ok(Some(session))
 }
 
@@ -114,17 +116,33 @@ pub async fn login(config: &AuthConfig) -> Result<Session> {
 }
 
 fn denied(error: librespot_core::Error) -> anyhow::Error {
-    anyhow::Error::new(error).context(
-        "Spotify refused the session. librespot can only open a session with one of Spotify's \
-         own client ids, not a developer-app client id",
-    )
+    let problem = classify(&error.to_string());
+    anyhow::Error::new(error).context(SignInFailure(problem))
+}
+
+fn classify(message: &str) -> SignInProblem {
+    let message = message.to_lowercase();
+    if message.contains("travel restriction") {
+        return SignInProblem::Region;
+    }
+    if message.contains("bad credentials") || message.contains("invalid credentials") {
+        return SignInProblem::Credentials;
+    }
+    if message.contains("connection")
+        || message.contains("timed out")
+        || message.contains("dns")
+        || message.contains("network")
+    {
+        return SignInProblem::Network;
+    }
+    SignInProblem::Refused
 }
 
 fn explain(error: librespot_oauth::OAuthError) -> anyhow::Error {
     let message = error.to_string();
     match callback_error(&message) {
         Some("invalid_scope") => anyhow!("Spotify rejected the requested scopes (invalid_scope)"),
-        Some("access_denied") => anyhow!("Authorization was denied in the browser"),
+        Some("access_denied") => anyhow::Error::new(SignInFailure(SignInProblem::Cancelled)),
         Some(code) => anyhow!("Spotify refused authorization ({code})"),
         None => anyhow::Error::new(error).context("browser authorization failed"),
     }

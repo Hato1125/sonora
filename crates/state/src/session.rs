@@ -4,8 +4,8 @@ use std::sync::Arc;
 use anyhow::Error;
 use gpui::{Context, Entity, EventEmitter, Task};
 use music::{
-    MusicApi, MusicProvider, PlaybackFactory, PromptSink, ProviderSession, SignIn, SignInPrompt,
-    UserProfile,
+    MusicApi, MusicProvider, PlaybackFactory, PromptSink, ProviderSession, SignIn, SignInFailure,
+    SignInProblem, SignInPrompt, UserProfile,
 };
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -13,12 +13,37 @@ use crate::settings::AppSettings;
 use crate::{Io, join};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Failure {
+    pub problem: Option<SignInProblem>,
+    pub summary: String,
+    pub detail: Option<String>,
+}
+
+impl Failure {
+    fn new(error: &Error) -> Self {
+        let problem = error
+            .downcast_ref::<SignInFailure>()
+            .map(|failure| failure.0);
+        let detail = error
+            .chain()
+            .skip(1)
+            .map(ToString::to_string)
+            .collect::<Vec<_>>();
+        Self {
+            problem,
+            summary: error.to_string(),
+            detail: (!detail.is_empty()).then(|| detail.join(": ")),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SessionState {
     SignedOut,
     Restoring,
     Authorizing(Option<SignInPrompt>),
     SignedIn(UserProfile),
-    Failed(String),
+    Failed(Failure),
 }
 
 pub enum SessionEvent {
@@ -34,7 +59,7 @@ pub struct ProviderInfo {
     pub stored: bool,
     pub active: bool,
     pub pending: bool,
-    pub error: Option<String>,
+    pub error: Option<Failure>,
 }
 
 pub struct Session {
@@ -43,7 +68,7 @@ pub struct Session {
     active: Option<usize>,
     awaiting: Option<usize>,
     resume: Option<(usize, UserProfile)>,
-    error: Option<(usize, String)>,
+    error: Option<(usize, Failure)>,
     settings: Entity<AppSettings>,
     client: Option<Arc<dyn MusicApi>>,
     playback: Option<Arc<dyn PlaybackFactory>>,
@@ -134,7 +159,7 @@ impl Session {
                 active: self.active == Some(index),
                 pending: self.awaiting == Some(index),
                 error: match &self.error {
-                    Some((failed, message)) if *failed == index => Some(message.clone()),
+                    Some((failed, failure)) if *failed == index => Some(failure.clone()),
                     _ => None,
                 },
             })
@@ -402,9 +427,9 @@ impl Session {
     }
 
     fn failed(&mut self, error: &Error, cx: &mut Context<Self>) {
-        let message = format!("{error:#}");
+        let failure = Failure::new(error);
         if let Some(failed) = self.awaiting.or(self.active) {
-            self.error = Some((failed, message.clone()));
+            self.error = Some((failed, failure.clone()));
         }
         self.awaiting = None;
         if let Some((index, profile)) = self.resume.take() {
@@ -415,7 +440,7 @@ impl Session {
         }
         self.client = None;
         self.playback = None;
-        self.state = SessionState::Failed(message);
+        self.state = SessionState::Failed(failure);
         cx.notify();
         cx.emit(SessionEvent::SignedOut);
     }

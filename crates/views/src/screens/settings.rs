@@ -11,7 +11,7 @@ use gpui::{ScrollHandle, prelude::*, svg};
 use i18n::{Language, t};
 use music::{AccountChoice, SignIn, SignInPrompt};
 use router::{Screen, SettingsTab};
-use state::{AppSettings, Playback, Session, SessionState, Sonora};
+use state::{AppSettings, Failure, Playback, Session, SessionState, Sonora};
 use ui::{ActiveTheme as _, Scrollbar, Scroller};
 use ui::{
     Avatar, Button, InfoCard, Initials, Input, Look, MAX_FONT, MAX_TRANSPARENCY, MIN_FONT, Menu,
@@ -38,7 +38,7 @@ struct Account {
     active: bool,
     guest: bool,
     cancel: bool,
-    error: Option<SharedString>,
+    error: Option<Failure>,
 }
 
 fn offered(method: &SignIn, stored: bool, guest: bool) -> bool {
@@ -860,7 +860,7 @@ impl SettingsView {
                 active: info.active && !signed_out,
                 guest: info.active && !signed_out && guest,
                 cancel: waiting && info.pending,
-                error: info.error.map(SharedString::from),
+                error: info.error,
             })
             .collect();
         let mut cards = Vec::new();
@@ -993,12 +993,7 @@ impl SettingsView {
                     ),
             )
             .when_some(error, |this, error| {
-                this.child(
-                    div()
-                        .text_color(theme.danger)
-                        .text_size(theme.text(Text::Small))
-                        .child(error),
-                )
+                this.child(crate::shared::trouble::trouble(error, false))
             })
             .when(!methods.is_empty(), |this| {
                 this.child(
