@@ -12,7 +12,7 @@ use protobuf::{Message as _, MessageField};
 use tokio::task::JoinSet;
 
 use crate::spotify::{collection, wire};
-use crate::{PlaylistDetail, Track};
+use crate::{GenreItem, GenreSection, Playlist, PlaylistDetail, Track};
 
 const TRACK_PREFIX: &str = "spotify:track:";
 const PLAYLIST_PREFIX: &str = "spotify:playlist:";
@@ -132,6 +132,64 @@ pub async fn playlist(session: &Session, playlist_id: &str) -> Result<PlaylistDe
     let tracks = tracks_from(session, &content).await?;
 
     Ok(PlaylistDetail { playlist, tracks })
+}
+
+pub async fn header(session: &Session, playlist_id: &str) -> Result<Playlist> {
+    let content = snapshot(session, playlist_id).await?;
+
+    Ok(wire::playlist_from(
+        playlist_id,
+        &content,
+        &session.username(),
+    ))
+}
+
+pub async fn mend(session: &Session, sections: &mut Vec<GenreSection>) {
+    let blanks: Vec<String> = sections
+        .iter()
+        .flat_map(|section| section.items.iter())
+        .filter_map(|item| match item {
+            GenreItem::Playlist(playlist) if playlist.name.is_empty() => Some(playlist.id.clone()),
+            _ => None,
+        })
+        .collect();
+    if blanks.is_empty() {
+        return;
+    }
+
+    let mut pending = JoinSet::new();
+    for id in blanks {
+        let session = session.clone();
+        pending.spawn(async move { (id.clone(), header(&session, &id).await.ok()) });
+    }
+
+    let mut found = HashMap::new();
+    while let Some(joined) = pending.join_next().await {
+        if let Ok((id, Some(playlist))) = joined {
+            found.insert(id, playlist);
+        }
+    }
+
+    for section in sections.iter_mut() {
+        for item in &mut section.items {
+            let GenreItem::Playlist(playlist) = item else {
+                continue;
+            };
+            if !playlist.name.is_empty() {
+                continue;
+            }
+            let Some(mended) = found.get(&playlist.id) else {
+                continue;
+            };
+            playlist.name = mended.name.clone();
+            playlist.cover = mended.cover.clone();
+        }
+        section.items.retain(|item| match item {
+            GenreItem::Playlist(playlist) => !playlist.name.is_empty(),
+            _ => true,
+        });
+    }
+    sections.retain(|section| !section.items.is_empty());
 }
 
 pub async fn playlist_tracks(session: &Session, playlist_id: &str) -> Result<Vec<Track>> {

@@ -96,6 +96,10 @@ pub trait MusicApi: Send + Sync {
         Ok(Vec::new())
     }
 
+    async fn mend_home(&self, sections: Vec<GenreSection>) -> Vec<GenreSection> {
+        sections
+    }
+
     async fn genres(&self) -> Result<Vec<Genre>> {
         Ok(Vec::new())
     }
