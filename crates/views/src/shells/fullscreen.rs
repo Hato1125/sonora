@@ -22,6 +22,7 @@ const COVER_WIDE: f32 = 0.34;
 const COVER_MIN: f32 = 160.;
 const COVER_MAX: f32 = 520.;
 const PANEL: f32 = 460.;
+const PILL_GAP: f32 = 3.;
 const SEEK_MAX: f32 = 720.;
 const CLOCK_SHORT: f32 = 3.4;
 const CLOCK_LONG: f32 = 5.4;
@@ -141,6 +142,7 @@ impl FullscreenView {
                     .items_center()
                     .gap_2()
                     .min_w_0()
+                    .child(div().w(theme.metrics.control_small).flex_none())
                     .child(
                         div()
                             .min_w_0()
@@ -197,7 +199,6 @@ impl FullscreenView {
             .items_center()
             .gap_2()
             .w_full()
-            .max_w(px(SEEK_MAX))
             .child(label(elapsed, true))
             .child(
                 div().flex_1().min_w_0().child(
@@ -216,10 +217,24 @@ impl FullscreenView {
             .child(label(total, false))
     }
 
+    fn controls(&self, width: Pixels, cx: &mut Context<Self>) -> impl IntoElement {
+        div()
+            .flex()
+            .flex_col()
+            .items_center()
+            .gap_3()
+            .w_full()
+            .max_w(width)
+            .flex_none()
+            .child(self.seek(cx))
+            .child(transport(&self.playback, &self.queue, true, cx))
+    }
+
     fn pill(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
+        let gap = px(PILL_GAP);
 
-        let tab = |id: &'static str, icon: &'static str, hint: &'static str, panel| {
+        let tab = move |id: &'static str, icon: &'static str, hint: &'static str, panel| {
             let showing = self.panel == panel;
 
             Button::new(id)
@@ -228,6 +243,7 @@ impl FullscreenView {
                 .icon(icon)
                 .tooltip_above(hint)
                 .selected(showing)
+                .rounded(theme.radius)
                 .tint(match showing {
                     true => theme.foreground,
                     false => theme.muted_foreground,
@@ -236,33 +252,42 @@ impl FullscreenView {
         };
 
         div()
+            .absolute()
+            .bottom_3()
+            .w_full()
             .flex()
-            .flex_none()
-            .items_center()
-            .gap_1()
-            .p_1()
-            .rounded_full()
-            .border_1()
-            .border_color(theme.border)
-            .bg(theme.secondary)
-            .child(tab(
-                "fullscreen-artwork",
-                "icons/disc-3.svg",
-                "fullscreen-artwork",
-                None,
-            ))
-            .child(tab(
-                "fullscreen-lyrics",
-                "icons/mic-vocal.svg",
-                "lyrics-title",
-                Some(SideTab::Lyrics),
-            ))
-            .child(tab(
-                "fullscreen-queue",
-                "icons/list-music.svg",
-                "queue-title",
-                Some(SideTab::Queue),
-            ))
+            .justify_center()
+            .child(
+                div()
+                    .flex()
+                    .flex_none()
+                    .items_center()
+                    .gap(gap)
+                    .p(gap)
+                    .rounded(theme.radius + gap)
+                    .border_1()
+                    .border_color(theme.border)
+                    .bg(theme.popover)
+                    .block_mouse_except_scroll()
+                    .child(tab(
+                        "fullscreen-artwork",
+                        "icons/disc-3.svg",
+                        "fullscreen-artwork",
+                        None,
+                    ))
+                    .child(tab(
+                        "fullscreen-lyrics",
+                        "icons/mic-vocal.svg",
+                        "lyrics-title",
+                        Some(SideTab::Lyrics),
+                    ))
+                    .child(tab(
+                        "fullscreen-queue",
+                        "icons/list-music.svg",
+                        "queue-title",
+                        Some(SideTab::Queue),
+                    )),
+            )
     }
 
     fn leave(&self) -> Button {
@@ -305,6 +330,7 @@ impl Render for FullscreenView {
         div()
             .id("fullscreen")
             .track_focus(&self.focus)
+            .relative()
             .flex()
             .flex_col()
             .flex_1()
@@ -316,6 +342,7 @@ impl Render for FullscreenView {
             .bg(theme.background)
             .child(
                 div()
+                    .relative()
                     .flex()
                     .flex_1()
                     .min_h_0()
@@ -332,61 +359,30 @@ impl Render for FullscreenView {
                                 .justify_center()
                                 .gap_5()
                                 .min_w_0()
-                                .when(split, |this| this.flex_1())
+                                .when(split, |this| this.flex_1().h_full())
                                 .child(self.artwork(side, cx))
-                                .child(self.meta(side, cx)),
+                                .child(self.meta(side, cx))
+                                .when(split, |this| this.child(self.controls(side, cx))),
                         )
                     })
                     .when(self.panel.is_some(), |this| {
                         this.child(
                             div()
+                                .relative()
                                 .flex()
                                 .flex_col()
                                 .flex_1()
                                 .min_w_0()
                                 .min_h_0()
                                 .h_full()
-                                .py_2()
-                                .rounded(theme.radius * 2.)
-                                .when(split, |this| {
-                                    this.max_w(px(PANEL))
-                                        .border_1()
-                                        .border_color(theme.border)
-                                        .bg(theme.secondary)
-                                })
-                                .child(self.aside.clone()),
+                                .when(split, |this| this.max_w(px(PANEL)))
+                                .child(self.aside.clone())
+                                .child(self.pill(cx)),
                         )
-                    }),
+                    })
+                    .when(self.panel.is_none(), |this| this.child(self.pill(cx))),
             )
-            .child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .items_center()
-                    .gap_3()
-                    .w_full()
-                    .flex_none()
-                    .child(self.seek(cx))
-                    .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .w_full()
-                            .gap_2()
-                            .child(div().flex_1().min_w_0())
-                            .child(transport(&self.playback, &self.queue, true, cx))
-                            .child(
-                                div()
-                                    .flex()
-                                    .flex_1()
-                                    .min_w_0()
-                                    .items_center()
-                                    .justify_end()
-                                    .gap_2()
-                                    .when(room.fits(Room::Snug), |this| this.child(self.pill(cx)))
-                                    .child(self.leave()),
-                            ),
-                    ),
-            )
+            .when(!split, |this| this.child(self.controls(px(SEEK_MAX), cx)))
+            .child(div().absolute().top_0().right_0().p_2().child(self.leave()))
     }
 }

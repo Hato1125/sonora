@@ -3,9 +3,9 @@ use std::ops::Range;
 use gpui::prelude::*;
 
 use gpui::{
-    Context, DragMoveEvent, Entity, FontWeight, MouseButton, MouseDownEvent, Pixels, Point, Render,
-    ScrollHandle, ScrollStrategy, ScrollWheelEvent, SharedString, UniformListScrollHandle, Window,
-    div, px, uniform_list,
+    Context, Div, DragMoveEvent, Entity, FontWeight, Hsla, MouseButton, MouseDownEvent, Pixels,
+    Point, Render, ScrollHandle, ScrollStrategy, ScrollWheelEvent, SharedString,
+    UniformListScrollHandle, Window, div, linear_color_stop, linear_gradient, px, uniform_list,
 };
 use i18n::t;
 use music::Track;
@@ -19,9 +19,29 @@ use crate::chrome::{Chrome, section_label};
 use crate::shared::menu::ItemMenu;
 
 const QUEUE: &str = "queue";
+const FADE: f32 = 40.;
 const PINNED_SHARE: f32 = 0.25;
 const PIN: f32 = 0.3;
 const SETTLE: std::time::Duration = std::time::Duration::from_secs(4);
+
+fn shade(color: Hsla, above: bool) -> Div {
+    let (from, to) = match above {
+        true => (color, color.opacity(0.)),
+        false => (color.opacity(0.), color),
+    };
+
+    div()
+        .absolute()
+        .left_0()
+        .right_0()
+        .h(px(FADE))
+        .when_else(above, |this| this.top_0(), |this| this.bottom_0())
+        .bg(linear_gradient(
+            180.,
+            linear_color_stop(from, 0.),
+            linear_color_stop(to, 1.),
+        ))
+}
 
 fn track(queue: &Queue, position: QueuePosition) -> Option<Track> {
     match position {
@@ -501,7 +521,7 @@ impl Aside {
         Some(
             div()
                 .absolute()
-                .bottom_3()
+                .when_else(self.titled, |this| this.bottom_3(), |this| this.bottom_16())
                 .w_full()
                 .flex()
                 .justify_center()
@@ -731,6 +751,7 @@ impl Aside {
 
 impl Render for Aside {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
         self.scrollbar.read(cx).sync();
         let queue = self.queue.read(cx);
         let sections = Sections {
@@ -774,6 +795,8 @@ impl Render for Aside {
                     .min_h_0()
                     .when(self.tab == SideTab::Lyrics, |this| {
                         this.child(self.verses(window, cx))
+                            .child(shade(theme.background, true))
+                            .child(shade(theme.background, false))
                     })
                     .when(self.tab == SideTab::Queue && empty, |this| {
                         this.child(vacant(t!("queue-empty"), cx).flex_1())
