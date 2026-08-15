@@ -13,6 +13,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   decide up front whether Sonora animates its interface.
 - Appearance settings also carry an Animation speed choice — slow, standard or quick — that stretches
   or tightens every interface animation to taste.
+- Fullscreen is a real player now: large artwork that swaps to the album's high-resolution cover as
+  soon as it arrives, the track and its artists, a seek bar, transport controls, and a pill that
+  puts lyrics or the queue beside the artwork — the same lyrics and queue as the side panel, with
+  everything they can do. On a narrow window the chosen panel takes over the whole body instead.
 
 ### Changed
 

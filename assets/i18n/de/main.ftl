@@ -124,6 +124,8 @@ player-unmute = Ton einschalten
 player-previous = Vorheriger Titel
 player-next = Nächster Titel
 player-fullscreen = Vollbild
+player-fullscreen-leave = Vollbild verlassen
+fullscreen-artwork = Cover
 
 # filters
 filter-library = Bibliothek filtern

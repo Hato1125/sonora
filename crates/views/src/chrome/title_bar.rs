@@ -19,6 +19,7 @@ pub(crate) struct TitleBarOptions {
     pub sidebar_open: bool,
     pub sidebar_right: Option<bool>,
     pub offset: Pixels,
+    pub border: bool,
     pub content: Option<AnyView>,
 }
 
@@ -29,6 +30,7 @@ impl Default for TitleBarOptions {
             sidebar_open: false,
             sidebar_right: None,
             offset: Pixels::ZERO,
+            border: true,
             content: None,
         }
     }
@@ -187,8 +189,9 @@ impl Render for TitleBar {
             .h(height)
             .flex_none()
             .when(!theme.transparent, |this| this.bg(theme.background))
-            .border_b_1()
-            .border_color(theme.title_bar_border)
+            .when(self.options.border, |this| {
+                this.border_b_1().border_color(theme.title_bar_border)
+            })
             .window_control_area(gpui::WindowControlArea::Drag)
             .on_mouse_down(MouseButton::Left, |_, window, _| {
                 window.start_window_move();

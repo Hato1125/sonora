@@ -24,6 +24,8 @@ const KEEP_ITEMS: usize = 96;
 const IDLE: Duration = Duration::from_secs(120);
 const ORPHAN: Duration = Duration::from_secs(20);
 const SWEEP: Duration = Duration::from_secs(30);
+const SOFT_ITEMS: usize = 8;
+const SOFT_SIGMA: f32 = 1.6;
 const SMALL_BYTES: usize = 64 * 1024;
 const BIG_BYTES: usize = 256 * 1024;
 
@@ -36,6 +38,7 @@ struct Cached {
 struct ArtworkCache {
     items: HashMap<Resource, Cached>,
     pending: HashMap<Resource, Instant>,
+    soft: HashMap<Resource, Arc<RenderImage>>,
     bytes: usize,
     _sweep: Task<()>,
 }
@@ -50,6 +53,7 @@ impl ArtworkCache {
             let cache = cx.new(|cx| Self {
                 items: HashMap::new(),
                 pending: HashMap::new(),
+                soft: HashMap::new(),
                 bytes: 0,
                 _sweep: sweeper(cx),
             });
@@ -107,6 +111,18 @@ impl ArtworkCache {
         if let Ok(image) = cached.value {
             cx.drop_image(image, window);
         }
+    }
+
+    fn soften(&mut self, resource: &Resource, image: Arc<RenderImage>) -> Arc<RenderImage> {
+        if let Some(found) = self.soft.get(resource) {
+            return found.clone();
+        }
+        if self.soft.len() >= SOFT_ITEMS {
+            self.soft.clear();
+        }
+        let softened = blurred(&image).unwrap_or(image);
+        self.soft.insert(resource.clone(), softened.clone());
+        softened
     }
 
     fn sweep(&mut self, cx: &mut App) {
@@ -219,6 +235,31 @@ impl ImageCache for ArtworkCache {
     }
 }
 
+fn blurred(image: &RenderImage) -> Option<Arc<RenderImage>> {
+    let frames: Vec<Frame> = (0..image.frame_count())
+        .filter_map(|index| {
+            let size = image.size(index);
+            let width = size.width.0.max(0) as u32;
+            let height = size.height.0.max(0) as u32;
+            let bytes = image.as_bytes(index)?.to_vec();
+            let whole = RgbaImage::from_raw(width, height, bytes)?;
+
+            Some(Frame::from_parts(
+                imageops::fast_blur(&whole, SOFT_SIGMA),
+                0,
+                0,
+                image.delay(index),
+            ))
+        })
+        .collect();
+    if frames.len() != image.frame_count() {
+        log::warn!("artwork: cannot soften an image");
+        return None;
+    }
+
+    Some(Arc::new(RenderImage::new(frames)))
+}
+
 fn squared(image: &RenderImage) -> Option<Arc<RenderImage>> {
     let widest = (0..image.frame_count())
         .map(|frame| image.size(frame))
@@ -297,6 +338,7 @@ pub struct Artwork {
     radius: Option<Pixels>,
     fallback: SharedString,
     accent: bool,
+    soft: bool,
     interactivity: Interactivity,
 }
 
@@ -308,6 +350,7 @@ impl Artwork {
             size: px(28.),
             circle: false,
             radius: None,
+            soft: false,
             fallback: FALLBACK_ICON.into(),
             accent: false,
             interactivity: Interactivity::new(),
@@ -331,6 +374,11 @@ impl Artwork {
 
     pub fn fallback(mut self, icon: impl Into<SharedString>) -> Self {
         self.fallback = icon.into();
+        self
+    }
+
+    pub fn soft(mut self, soft: bool) -> Self {
+        self.soft = soft;
         self
     }
 
@@ -361,6 +409,7 @@ impl RenderOnce for Artwork {
             radius,
             fallback,
             accent,
+            soft,
             interactivity,
         } = self;
         let theme = *cx.theme();
@@ -383,9 +432,23 @@ impl RenderOnce for Artwork {
         match url {
             Some(url) => {
                 let cache = ArtworkCache::entity(cx);
-                let source = match url.strip_prefix(FILE_PREFIX) {
-                    Some(path) => ImageSource::Resource(Resource::Path(Arc::from(Path::new(path)))),
-                    None => ImageSource::from(SharedUri::from(url)),
+                let resource = match url.strip_prefix(FILE_PREFIX) {
+                    Some(path) => Resource::Path(Arc::from(Path::new(path))),
+                    None => Resource::Uri(SharedUri::from(url)),
+                };
+                let source = match soft {
+                    false => ImageSource::Resource(resource),
+                    true => {
+                        let cache = cache.clone();
+                        ImageSource::Custom(Arc::new(move |window, cx| {
+                            let loaded = cache
+                                .update(cx, |cache, cx| cache.load(&resource, window, cx))?
+                                .map(|image| {
+                                    cache.update(cx, |cache, _| cache.soften(&resource, image))
+                                });
+                            Some(loaded)
+                        }))
+                    }
                 };
                 refined(
                     img(source)
