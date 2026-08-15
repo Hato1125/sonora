@@ -7,7 +7,7 @@ use gpui::{
 };
 use gpui::{Window, div, px};
 use i18n::t;
-use input::ToggleFullscreen;
+use input::{ToggleFullscreen, WORKSPACE_CONTEXT};
 use router::{Destination, navigate};
 use state::{Cover, Playback, Queue, SideTab, Sonora};
 use ui::{
@@ -22,12 +22,14 @@ use crate::shells::Shell;
 
 const COVER_TALL: f32 = 0.46;
 const COVER_WIDE: f32 = 0.34;
+const COVER_TALL_TIGHT: f32 = 0.6;
+const COVER_WIDE_TIGHT: f32 = 0.86;
 const COVER_MIN: f32 = 96.;
 const COVER_MAX: f32 = 520.;
 const RESERVE: f32 = 2.9;
 const PANEL: f32 = 460.;
-const PILL_GAP: f32 = 3.;
-const SEEK_MAX: f32 = 720.;
+const PILL_GAP: f32 = 2.;
+const SEEK_MAX: f32 = 420.;
 const CLOCK_SHORT: f32 = 3.4;
 const CLOCK_LONG: f32 = 5.4;
 const REST: Duration = Duration::from_secs(3);
@@ -158,7 +160,7 @@ impl FullscreenView {
             .flex_none()
             .when_some(album, |this, album| {
                 this.cursor_pointer()
-                    .on_click(move |_, window, cx| leave_for(&album, window, cx))
+                    .on_click(move |_, _, cx| open_album(&album, cx))
             })
             .child(
                 Artwork::new(small)
@@ -214,7 +216,7 @@ impl FullscreenView {
                             .text_size(theme.text(Text::Title))
                             .when_some(album, |this, album| {
                                 this.hover(|style| style.underline())
-                                    .on_click(move |_, window, cx| leave_for(&album, window, cx))
+                                    .on_click(move |_, _, cx| open_album(&album, cx))
                             })
                             .on_mouse_down(
                                 MouseButton::Right,
@@ -246,7 +248,7 @@ impl FullscreenView {
                     )
                     .text_size(theme.text(Text::Body))
                     .truncate()
-                    .on_click(|id, cx| leave_and(Destination::Artist(id), cx)),
+                    .on_click(|id, cx| navigate(Destination::Artist(id), cx)),
                 )
             })
     }
@@ -272,7 +274,7 @@ impl FullscreenView {
                     .id("strip-artwork")
                     .when_some(album.clone(), |this, album| {
                         this.cursor_pointer()
-                            .on_click(move |_, window, cx| leave_for(&album, window, cx))
+                            .on_click(move |_, _, cx| open_album(&album, cx))
                     })
                     .child(Artwork::new(track.as_ref().and_then(|t| t.cover.clone())).size(cover)),
             )
@@ -296,7 +298,7 @@ impl FullscreenView {
                             )
                             .text_size(theme.text(Text::Small))
                             .truncate()
-                            .on_click(|id, cx| leave_and(Destination::Artist(id), cx)),
+                            .on_click(|id, cx| navigate(Destination::Artist(id), cx)),
                         )
                     }),
             )
@@ -470,20 +472,8 @@ impl FullscreenView {
     }
 }
 
-fn leave_and(destination: Destination, cx: &mut App) {
-    navigate(destination, cx);
-    if let Some(window) = cx.active_window() {
-        window
-            .update(cx, |_, window, cx| {
-                window.dispatch_action(Box::new(ToggleFullscreen), cx)
-            })
-            .ok();
-    }
-}
-
-fn leave_for(album: &str, window: &mut Window, cx: &mut App) {
+fn open_album(album: &str, cx: &mut App) {
     navigate(Destination::Album(album.into()), cx);
-    window.dispatch_action(Box::new(ToggleFullscreen), cx);
 }
 
 impl Shell for FullscreenView {
@@ -506,17 +496,23 @@ impl Render for FullscreenView {
         let room = Room::of(viewport.width);
         let split = room.fits(Room::Wide) && self.panel.is_some();
         let reserve = theme.metrics.title_bar + theme.metrics.player_bar * RESERVE;
+        let (tall, wide, ceiling) = match room.fits(Room::Wide) {
+            true => (COVER_TALL, COVER_WIDE, px(COVER_MAX)),
+            false => (COVER_TALL_TIGHT, COVER_WIDE_TIGHT, viewport.width),
+        };
         let side = snapped(
-            (viewport.height * COVER_TALL)
+            (viewport.height * tall)
                 .min(viewport.height - reserve)
-                .min(viewport.width * COVER_WIDE)
-                .clamp(px(COVER_MIN), px(COVER_MAX)),
+                .min(viewport.width * wide)
+                .min(ceiling)
+                .max(px(COVER_MIN)),
             window,
         );
         let staged = self.panel.is_none() || split;
 
         div()
             .id("fullscreen")
+            .key_context(WORKSPACE_CONTEXT)
             .track_focus(&self.focus)
             .relative()
             .flex()

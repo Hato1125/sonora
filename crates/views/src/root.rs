@@ -10,7 +10,7 @@ use state::{
     ArtistDetail, Detail, GenreDetails, Genres, Home, Io, Library, Playback, Queue, Search,
     Session, SessionState, SideTab, SongDetail, Sonora,
 };
-use ui::ActiveTheme as _;
+use ui::{ActiveTheme as _, Dismiss};
 
 use crate::chrome::{FrameStats, Stats, TitleBar, TitleBarEvent, TitleBarOptions, Toolbar, Tooled};
 use crate::screens::search::SearchView;
@@ -291,16 +291,16 @@ impl Root {
     }
 
     fn toggle_fullscreen(&mut self, cx: &mut Context<Self>) {
-        let entering = matches!(self.view, RootView::Workspace);
-        self.view = match entering {
-            true => RootView::Fullscreen,
-            false => RootView::Workspace,
-        };
-        self.pending = Some(match entering {
-            true => Focus::Fullscreen,
-            false => Focus::Workspace,
-        });
-        cx.notify();
+        match self.view {
+            RootView::Workspace => navigate(Destination::Fullscreen, cx),
+            RootView::Fullscreen => back(cx),
+        }
+    }
+
+    fn dismiss(&mut self, cx: &mut Context<Self>) {
+        if matches!(self.view, RootView::Fullscreen) {
+            back(cx);
+        }
     }
 
     fn options(&self, cx: &Context<Self>) -> TitleBarOptions {
@@ -319,6 +319,13 @@ impl Root {
     }
 
     fn show(&mut self, destination: Destination, cx: &mut Context<Self>) {
+        if let Destination::Fullscreen = destination {
+            self.view = RootView::Fullscreen;
+            self.pending = Some(Focus::Fullscreen);
+            cx.notify();
+            return;
+        }
+        self.view = RootView::Workspace;
         self.pending = Some(match destination {
             Destination::Search => Focus::Search,
             _ => Focus::Workspace,
@@ -327,6 +334,7 @@ impl Root {
         let mut toolbar = None;
 
         let content: AnyView = match destination {
+            Destination::Fullscreen => return,
             Destination::Home => self.screens.home.clone().into(),
             Destination::Library(LibraryTab::Local) => {
                 let local = self.screens.local.clone();
@@ -449,6 +457,7 @@ impl Render for Root {
             .on_action(cx.listener(|this, _: &OpenSearch, _, cx| this.open_search(cx)))
             .on_action(cx.listener(|this, _: &OpenSettings, _, cx| this.open_settings(cx)))
             .on_action(cx.listener(|this, _: &ToggleFullscreen, _, cx| this.toggle_fullscreen(cx)))
+            .on_action(cx.listener(|this, _: &Dismiss, _, cx| this.dismiss(cx)))
             .on_action(
                 cx.listener(|this, _: &ToggleQueue, _, cx| this.show_side(SideTab::Queue, cx)),
             )
