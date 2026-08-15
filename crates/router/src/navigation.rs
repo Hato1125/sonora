@@ -38,9 +38,15 @@ impl Navigation {
             return;
         }
 
+        let replacing = self.current() == Destination::Fullscreen;
         self.trail.truncate(self.at + 1);
-        self.trail.push(destination);
-        self.at = self.trail.len() - 1;
+        match replacing {
+            true => self.trail[self.at] = destination,
+            false => {
+                self.trail.push(destination);
+                self.at = self.trail.len() - 1;
+            }
+        }
         self.arrive(cx);
     }
 
