@@ -18,6 +18,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Switches now slide and fade between on and off instead of snapping, at a fixed control speed that
   the animation speed setting deliberately leaves alone.
+- A sign-in that fails now explains itself in plain words on a small card, on the login screen and in
+  account settings — being outside your account country, an expired session, no connection, a
+  cancelled browser approval — instead of showing the raw message from the streaming library. An
+  unrecognised failure is trimmed down to one readable sentence too.
+
+### Fixed
+
+- Signing in with an account that has no Spotify Premium closed Sonora outright, and it kept closing
+  on every launch until the cached session was deleted by hand. Sonora now stays open, forgets that
+  session and explains on the login screen that streaming needs Premium.
 
 ### Fixed
 

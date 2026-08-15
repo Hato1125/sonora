@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 
 use anyhow::{Context as _, Result, anyhow};
+
+use crate::{SignInFailure, SignInProblem};
 use librespot_core::authentication::Credentials;
 use librespot_core::cache::Cache;
 use librespot_core::{Session, SessionConfig};
@@ -8,6 +10,9 @@ use librespot_oauth::OAuthClientBuilder;
 
 pub const DEFAULT_CLIENT_ID: &str = "65b708073fc0480ea92a077233ca87bd";
 pub const DEFAULT_REDIRECT_URI: &str = "http://127.0.0.1:8989/login";
+
+const PRODUCT_WAIT: std::time::Duration = std::time::Duration::from_secs(5);
+const PRODUCT_POLL: std::time::Duration = std::time::Duration::from_millis(100);
 
 pub const SCOPES: &[&str] = &[
     "playlist-read-collaborative",
@@ -88,7 +93,8 @@ pub async fn restore(config: &AuthConfig) -> Result<Option<Session>> {
         return Ok(None);
     };
 
-    session.connect(credentials, true).await?;
+    session.connect(credentials, true).await.map_err(denied)?;
+    premium(&session).await?;
     Ok(Some(session))
 }
 
@@ -110,21 +116,57 @@ pub async fn login(config: &AuthConfig) -> Result<Session> {
         .connect(Credentials::with_access_token(token.access_token), true)
         .await
         .map_err(denied)?;
+    premium(&session).await?;
     Ok(session)
 }
 
+async fn premium(session: &Session) -> Result<()> {
+    let deadline = tokio::time::Instant::now() + PRODUCT_WAIT;
+    loop {
+        if let Some(account) = session.user_data().attributes.get("type") {
+            match account.as_str() {
+                "premium" => return Ok(()),
+                _ => {
+                    session.shutdown();
+                    return Err(anyhow::Error::new(SignInFailure(SignInProblem::Premium)));
+                }
+            }
+        }
+        if tokio::time::Instant::now() >= deadline {
+            return Ok(());
+        }
+        tokio::time::sleep(PRODUCT_POLL).await;
+    }
+}
+
 fn denied(error: librespot_core::Error) -> anyhow::Error {
-    anyhow::Error::new(error).context(
-        "Spotify refused the session. librespot can only open a session with one of Spotify's \
-         own client ids, not a developer-app client id",
-    )
+    let problem = classify(&error.to_string());
+    anyhow::Error::new(error).context(SignInFailure(problem))
+}
+
+fn classify(message: &str) -> SignInProblem {
+    let message = message.to_lowercase();
+    if message.contains("travel restriction") {
+        return SignInProblem::Region;
+    }
+    if message.contains("bad credentials") || message.contains("invalid credentials") {
+        return SignInProblem::Credentials;
+    }
+    if message.contains("connection")
+        || message.contains("timed out")
+        || message.contains("dns")
+        || message.contains("network")
+    {
+        return SignInProblem::Network;
+    }
+    SignInProblem::Refused
 }
 
 fn explain(error: librespot_oauth::OAuthError) -> anyhow::Error {
     let message = error.to_string();
     match callback_error(&message) {
         Some("invalid_scope") => anyhow!("Spotify rejected the requested scopes (invalid_scope)"),
-        Some("access_denied") => anyhow!("Authorization was denied in the browser"),
+        Some("access_denied") => anyhow::Error::new(SignInFailure(SignInProblem::Cancelled)),
         Some(code) => anyhow!("Spotify refused authorization ({code})"),
         None => anyhow::Error::new(error).context("browser authorization failed"),
     }

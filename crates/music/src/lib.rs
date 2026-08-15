@@ -174,6 +174,35 @@ pub enum SignIn {
     Path(PathBuf),
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SignInProblem {
+    Premium,
+    Region,
+    Credentials,
+    Network,
+    Cancelled,
+    Refused,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SignInFailure(pub SignInProblem);
+
+impl std::fmt::Display for SignInFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let reason = match self.0 {
+            SignInProblem::Premium => "the account has no Spotify Premium",
+            SignInProblem::Region => "the account is out of its home region",
+            SignInProblem::Credentials => "the stored credentials are no longer valid",
+            SignInProblem::Network => "Spotify could not be reached",
+            SignInProblem::Cancelled => "authorization was cancelled in the browser",
+            SignInProblem::Refused => "Spotify refused the session",
+        };
+        write!(f, "{reason}")
+    }
+}
+
+impl std::error::Error for SignInFailure {}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AccountChoice {
     pub id: String,

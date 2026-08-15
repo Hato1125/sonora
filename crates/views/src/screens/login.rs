@@ -383,6 +383,11 @@ impl Render for LoginView {
             })
             .collect();
 
+        let failure = match &state {
+            SessionState::Failed(failure) => Some(failure.clone()),
+            _ => None,
+        };
+
         let status = match &state {
             SessionState::SignedOut => t!("login-signed-out"),
             SessionState::Restoring => t!("login-restoring"),
@@ -391,7 +396,7 @@ impl Render for LoginView {
             }
             SessionState::Authorizing(_) => t!("login-authorizing"),
             SessionState::SignedIn(profile) => t!("login-signed-in", name = &profile.display_name),
-            SessionState::Failed(error) => SharedString::from(error.clone()),
+            SessionState::Failed(_) => t!("login-signed-out"),
         };
 
         let prompt = match &state {
@@ -409,10 +414,6 @@ impl Render for LoginView {
         };
 
         let theme = *cx.theme();
-        let status_color = match matches!(state, SessionState::Failed(_)) {
-            true => theme.danger,
-            false => theme.muted_foreground,
-        };
         let browsers = self.browsers.clone();
 
         div()
@@ -440,10 +441,13 @@ impl Render for LoginView {
                             .max_w(px(560.))
                             .text_center()
                             .text_size(theme.text(Text::Body))
-                            .text_color(status_color)
+                            .text_color(theme.muted_foreground)
                             .child(status),
                     ),
             )
+            .when_some(failure, |this, failure| {
+                this.child(crate::shared::trouble::trouble(failure, true))
+            })
             .when_some(code, |this, (code, url)| {
                 this.child(self.code_prompt(code, url, cx).into_any_element())
             })
