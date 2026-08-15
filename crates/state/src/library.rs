@@ -20,12 +20,7 @@ type Loaded = (
 
 type LoadedLocal = (anyhow::Result<Vec<Track>>, anyhow::Result<Vec<Album>>);
 
-struct PlaylistMutation {
-    action: &'static str,
-    done: &'static str,
-    name: Option<String>,
-    id: Option<String>,
-}
+type PlaylistMutation = (&'static str, &'static str, Option<String>, Option<String>);
 
 fn partial(loaded: Loaded) -> LibraryState {
     let (tracks, playlists, albums, artists) = loaded;
@@ -382,12 +377,7 @@ impl Library {
 
     pub fn create_playlist(&mut self, name: String, track: Option<String>, cx: &mut Context<Self>) {
         self.mutate_playlist(
-            PlaylistMutation {
-                action: "create playlist",
-                done: "toast-playlist-created",
-                name: None,
-                id: None,
-            },
+            ("create playlist", "toast-playlist-created", None, None),
             move |client| async move {
                 let id = client.create_playlist(&name).await?;
                 if let Some(track) = track {
@@ -417,12 +407,12 @@ impl Library {
     pub fn rename_playlist(&mut self, id: String, name: String, cx: &mut Context<Self>) {
         let renamed = (id.clone(), name.clone());
         self.mutate_playlist(
-            PlaylistMutation {
-                action: "rename playlist",
-                done: "toast-playlist-renamed",
-                name: None,
-                id: Some(id.clone()),
-            },
+            (
+                "rename playlist",
+                "toast-playlist-renamed",
+                None,
+                Some(id.clone()),
+            ),
             move |client| async move { client.rename_playlist(&id, &name).await },
             move |this, _, cx| {
                 let (id, name) = renamed;
@@ -435,12 +425,12 @@ impl Library {
     pub fn set_playlist_public(&mut self, id: String, public: bool, cx: &mut Context<Self>) {
         let changed = id.clone();
         self.mutate_playlist(
-            PlaylistMutation {
-                action: "change playlist visibility",
-                done: "toast-playlist-visibility",
-                name: None,
-                id: Some(id.clone()),
-            },
+            (
+                "change playlist visibility",
+                "toast-playlist-visibility",
+                None,
+                Some(id.clone()),
+            ),
             move |client| async move { client.set_playlist_public(&id, public).await },
             move |this, _, cx| {
                 this.amend_playlist(&changed, |playlist| playlist.public = public, cx);
@@ -461,12 +451,12 @@ impl Library {
             .playlist(&playlist_id)
             .map(|playlist| playlist.name.clone());
         self.mutate_playlist(
-            PlaylistMutation {
-                action: "add track to playlist",
-                done: "toast-track-added",
+            (
+                "add track to playlist",
+                "toast-track-added",
                 name,
-                id: Some(playlist_id.clone()),
-            },
+                Some(playlist_id.clone()),
+            ),
             move |client| async move { client.add_track_to_playlist(&playlist_id, &track_id).await },
             move |this, _, cx| {
                 this.amend_playlist(&added, |playlist| playlist.track_count += 1, cx);
@@ -481,12 +471,12 @@ impl Library {
     pub fn delete_playlist(&mut self, id: String, cx: &mut Context<Self>) {
         let deleted = id.clone();
         self.mutate_playlist(
-            PlaylistMutation {
-                action: "delete playlist",
-                done: "toast-playlist-deleted",
-                name: None,
-                id: Some(id.clone()),
-            },
+            (
+                "delete playlist",
+                "toast-playlist-deleted",
+                None,
+                Some(id.clone()),
+            ),
             move |client| async move { client.delete_playlist(&id).await },
             move |this, _, cx| this.forget_playlist(&deleted, cx),
             cx,
@@ -496,12 +486,12 @@ impl Library {
     pub fn add_playlist_to_library(&mut self, playlist: Playlist, cx: &mut Context<Self>) {
         let id = playlist.id.clone();
         self.mutate_playlist(
-            PlaylistMutation {
-                action: "add playlist to library",
-                done: "toast-playlist-added",
-                name: None,
-                id: Some(id.clone()),
-            },
+            (
+                "add playlist to library",
+                "toast-playlist-added",
+                None,
+                Some(id.clone()),
+            ),
             move |client| async move { client.add_playlist_to_library(&id).await },
             move |this, _, cx| this.insert_playlist(playlist, cx),
             cx,
@@ -511,12 +501,12 @@ impl Library {
     pub fn remove_playlist_from_library(&mut self, id: String, cx: &mut Context<Self>) {
         let removed = id.clone();
         self.mutate_playlist(
-            PlaylistMutation {
-                action: "remove playlist from library",
-                done: "toast-playlist-removed",
-                name: None,
-                id: Some(id.clone()),
-            },
+            (
+                "remove playlist from library",
+                "toast-playlist-removed",
+                None,
+                Some(id.clone()),
+            ),
             move |client| async move { client.remove_playlist_from_library(&id).await },
             move |this, _, cx| this.forget_playlist(&removed, cx),
             cx,
@@ -726,12 +716,7 @@ impl Library {
         T: Send + 'static,
         A: FnOnce(&mut Self, T, &mut Context<Self>) + 'static,
     {
-        let PlaylistMutation {
-            action,
-            done,
-            name,
-            id: invalidated,
-        } = mutation_info;
+        let (action, done, name, invalidated) = mutation_info;
         if self.playlist_task.is_some() {
             log::warn!("library: cannot {action} while another change is running");
             Toasts::show(Note::Failed, "toast-playlist-busy", cx);

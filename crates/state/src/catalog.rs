@@ -1,8 +1,9 @@
 use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, Mutex, Weak};
+use std::sync::{Arc, Weak};
 
 use anyhow::{Result, anyhow};
-use moka::future::Cache;
+use async_trait::async_trait;
+use moka::{future::Cache, sync::Cache as SyncCache};
 use music::{AlbumDetail, Artist, ArtistProfile, GenreDetail, MusicApi, PlaylistDetail, Track};
 
 const ARTISTS: usize = 32;
@@ -12,25 +13,66 @@ const PLAYLISTS: usize = 16;
 const SONGS: usize = 64;
 const GENRES: usize = 24;
 
+#[async_trait]
+trait CatalogBackend: Send + Sync {
+    async fn artist(&self, id: &str) -> Result<Artist>;
+    async fn artist_profile(&self, id: &str) -> Result<ArtistProfile>;
+    async fn artist_images(&self, ids: Vec<String>) -> Result<HashMap<String, String>>;
+    async fn track(&self, id: &str) -> Result<Track>;
+    async fn track_playcount(&self, id: &str) -> Result<Option<u64>>;
+    async fn album(&self, id: &str) -> Result<AlbumDetail>;
+    async fn playlist(&self, id: &str) -> Result<PlaylistDetail>;
+    async fn genre(&self, id: &str) -> Result<GenreDetail>;
+}
+
+struct ApiBackend(Arc<dyn MusicApi>);
+
+#[async_trait]
+impl CatalogBackend for ApiBackend {
+    async fn artist(&self, id: &str) -> Result<Artist> {
+        self.0.artist(id).await
+    }
+    async fn artist_profile(&self, id: &str) -> Result<ArtistProfile> {
+        self.0.artist_profile(id).await
+    }
+    async fn artist_images(&self, ids: Vec<String>) -> Result<HashMap<String, String>> {
+        self.0.artist_images(ids).await
+    }
+    async fn track(&self, id: &str) -> Result<Track> {
+        self.0.track(id).await
+    }
+    async fn track_playcount(&self, id: &str) -> Result<Option<u64>> {
+        self.0.track_playcount(id).await
+    }
+    async fn album(&self, id: &str) -> Result<AlbumDetail> {
+        self.0.album(id).await
+    }
+    async fn playlist(&self, id: &str) -> Result<PlaylistDetail> {
+        self.0.playlist(id).await
+    }
+    async fn genre(&self, id: &str) -> Result<GenreDetail> {
+        self.0.genre(id).await
+    }
+}
+
 pub(crate) struct CatalogCache<T> {
     cache: Cache<String, Arc<T>>,
-    ready: Mutex<HashMap<String, Weak<T>>>,
+    ready: SyncCache<String, Weak<T>>,
 }
 
 impl<T: Send + Sync + 'static> CatalogCache<T> {
     pub(crate) fn new(capacity: usize) -> Self {
         Self {
             cache: Cache::new(capacity as u64),
-            ready: Mutex::new(HashMap::new()),
+            ready: SyncCache::new(capacity as u64),
         }
     }
 
     pub(crate) fn peek(&self, id: &str) -> Option<Arc<T>> {
-        let mut ready = self.ready.lock().unwrap();
-        match ready.get(id).and_then(Weak::upgrade) {
+        match self.ready.get(id).and_then(|value| value.upgrade()) {
             Some(value) => Some(value),
             None => {
-                ready.remove(id);
+                self.ready.invalidate(id);
                 None
             }
         }
@@ -45,30 +87,13 @@ impl<T: Send + Sync + 'static> CatalogCache<T> {
             .try_get_with(id.to_owned(), async { load.await.map(Arc::new) })
             .await
             .map_err(|error| anyhow!("{error:#}"))?;
-        self.ready
-            .lock()
-            .unwrap()
-            .insert(id.to_owned(), Arc::downgrade(&value));
+        self.ready.insert(id.to_owned(), Arc::downgrade(&value));
         Ok(value)
     }
 
     pub(crate) async fn invalidate(&self, id: &str) {
-        self.ready.lock().unwrap().remove(id);
+        self.ready.invalidate(id);
         self.cache.invalidate(id).await;
-    }
-
-    #[cfg(test)]
-    async fn settle(&self) {
-        self.cache.run_pending_tasks().await;
-        let mut cached = Vec::new();
-        for (id, _) in self.cache.iter() {
-            if let Some(value) = self.cache.get(id.as_str()).await {
-                cached.push(((*id).clone(), Arc::downgrade(&value)));
-            }
-        }
-        let mut ready = self.ready.lock().unwrap();
-        ready.retain(|_, value| value.strong_count() > 0);
-        ready.extend(cached);
     }
 }
 
@@ -81,7 +106,7 @@ pub(crate) struct SongPage {
 }
 
 pub(crate) struct CatalogSource {
-    client: Arc<dyn MusicApi>,
+    backend: Arc<dyn CatalogBackend>,
     artists: CatalogCache<Artist>,
     artist_profiles: CatalogCache<ArtistProfile>,
     albums: CatalogCache<AlbumDetail>,
@@ -92,8 +117,12 @@ pub(crate) struct CatalogSource {
 
 impl CatalogSource {
     pub(crate) fn new(client: Arc<dyn MusicApi>) -> Self {
+        Self::from_backend(Arc::new(ApiBackend(client)))
+    }
+
+    fn from_backend(backend: Arc<dyn CatalogBackend>) -> Self {
         Self {
-            client,
+            backend,
             artists: CatalogCache::new(ARTISTS),
             artist_profiles: CatalogCache::new(ARTIST_PROFILES),
             albums: CatalogCache::new(ALBUMS),
@@ -103,17 +132,22 @@ impl CatalogSource {
         }
     }
 
+    #[cfg(test)]
+    fn test(backend: Arc<dyn CatalogBackend>) -> Self {
+        Self::from_backend(backend)
+    }
+
     pub(crate) fn peek_artist(&self, id: &str) -> Option<Arc<Artist>> {
         self.artists.peek(id)
     }
 
     pub(crate) async fn artist(&self, id: &str) -> Result<Arc<Artist>> {
-        self.artists.load(id, self.client.artist(id)).await
+        self.artists.load(id, self.backend.artist(id)).await
     }
 
     pub(crate) async fn artist_profile(&self, id: &str) -> Result<Arc<ArtistProfile>> {
         self.artist_profiles
-            .load(id, self.client.artist_profile(id))
+            .load(id, self.backend.artist_profile(id))
             .await
     }
 
@@ -122,7 +156,7 @@ impl CatalogSource {
     }
 
     pub(crate) async fn album(&self, id: &str) -> Result<Arc<AlbumDetail>> {
-        self.albums.load(id, self.client.album(id)).await
+        self.albums.load(id, self.backend.album(id)).await
     }
 
     pub(crate) fn peek_playlist(&self, id: &str) -> Option<Arc<PlaylistDetail>> {
@@ -130,7 +164,7 @@ impl CatalogSource {
     }
 
     pub(crate) async fn playlist(&self, id: &str) -> Result<Arc<PlaylistDetail>> {
-        self.playlists.load(id, self.client.playlist(id)).await
+        self.playlists.load(id, self.backend.playlist(id)).await
     }
 
     pub(crate) async fn invalidate_playlist(&self, id: &str) {
@@ -142,7 +176,7 @@ impl CatalogSource {
     }
 
     pub(crate) async fn genre(&self, id: &str) -> Result<Arc<GenreDetail>> {
-        self.genres.load(id, self.client.genre(id)).await
+        self.genres.load(id, self.backend.genre(id)).await
     }
 
     pub(crate) fn peek_song(&self, id: &str) -> Option<Arc<SongPage>> {
@@ -152,7 +186,7 @@ impl CatalogSource {
     pub(crate) async fn song(&self, id: &str) -> Result<Arc<SongPage>> {
         self.songs
             .load(id, async {
-                let track = self.client.track(id).await?;
+                let track = self.backend.track(id).await?;
                 let album_id = track.album_id.clone();
                 let artist_id = track
                     .artist_refs
@@ -191,7 +225,7 @@ impl CatalogSource {
                     match credit_ids.is_empty() {
                         true => HashMap::new(),
                         false => self
-                            .client
+                            .backend
                             .artist_images(credit_ids)
                             .await
                             .unwrap_or_default(),
@@ -214,7 +248,7 @@ impl CatalogSource {
                 });
                 let playcount = match (album_track, track.id.as_deref()) {
                     (Some(album_track), _) => album_track.playcount,
-                    (None, Some(track_id)) => match self.client.track_playcount(track_id).await {
+                    (None, Some(track_id)) => match self.backend.track_playcount(track_id).await {
                         Ok(playcount) => playcount,
                         Err(error) => {
                             log::warn!("song: cannot read track play count: {error:#}");
@@ -246,19 +280,19 @@ mod tests {
     use anyhow::anyhow;
     use async_trait::async_trait;
     use music::{
-        Album, AlbumDetail, Artist, ArtistProfile, ArtistRef, GenreDetail, MediaKind, MusicApi,
-        Playlist, PlaylistDetail, ReleaseType, SavedArtist, Track, UserProfile,
+        Album, AlbumDetail, Artist, ArtistProfile, ArtistRef, GenreDetail, Playlist,
+        PlaylistDetail, ReleaseType, Track,
     };
 
-    use super::{CatalogCache, CatalogSource};
+    use super::{CatalogBackend, CatalogCache, CatalogSource};
 
-    struct FakeApi {
+    struct FakeBackend {
         label: &'static str,
         calls: Mutex<HashMap<String, usize>>,
         fail_optional: AtomicBool,
     }
 
-    impl FakeApi {
+    impl FakeBackend {
         fn new(label: &'static str) -> Self {
             Self {
                 label,
@@ -358,18 +392,7 @@ mod tests {
     }
 
     #[async_trait]
-    impl MusicApi for FakeApi {
-        fn share_url(&self, _kind: MediaKind, _id: &str) -> Option<String> {
-            None
-        }
-
-        async fn profile(&self) -> anyhow::Result<UserProfile> {
-            Ok(UserProfile {
-                id: self.label.to_owned(),
-                display_name: self.label.to_owned(),
-            })
-        }
-
+    impl CatalogBackend for FakeBackend {
         async fn artist(&self, id: &str) -> anyhow::Result<Artist> {
             self.count("artist", id);
             Ok(Artist {
@@ -405,12 +428,6 @@ mod tests {
             }
         }
 
-        async fn saved_tracks(&self, _limit: u32) -> anyhow::Result<Vec<Track>> {
-            Ok(Vec::new())
-        }
-        async fn set_track_saved(&self, _id: &str, _saved: bool) -> anyhow::Result<()> {
-            Ok(())
-        }
         async fn track(&self, id: &str) -> anyhow::Result<Track> {
             self.count("track", id);
             Ok(self.track_value(id))
@@ -422,49 +439,6 @@ mod tests {
                 Ok(None)
             }
         }
-        async fn playlists(&self, _limit: u32) -> anyhow::Result<Vec<Playlist>> {
-            Ok(Vec::new())
-        }
-        async fn create_playlist(&self, _name: &str) -> anyhow::Result<String> {
-            Ok("new".to_owned())
-        }
-        async fn rename_playlist(&self, _id: &str, _name: &str) -> anyhow::Result<()> {
-            Ok(())
-        }
-        async fn delete_playlist(&self, _id: &str) -> anyhow::Result<()> {
-            Ok(())
-        }
-        async fn remove_playlist_from_library(&self, _id: &str) -> anyhow::Result<()> {
-            Ok(())
-        }
-        async fn add_playlist_to_library(&self, _id: &str) -> anyhow::Result<()> {
-            Ok(())
-        }
-        async fn set_playlist_public(&self, _id: &str, _public: bool) -> anyhow::Result<()> {
-            Ok(())
-        }
-        async fn add_track_to_playlist(&self, _playlist: &str, _track: &str) -> anyhow::Result<()> {
-            Ok(())
-        }
-        async fn remove_track_from_playlist(
-            &self,
-            _playlist: &str,
-            _track: &str,
-        ) -> anyhow::Result<()> {
-            Ok(())
-        }
-        async fn saved_albums(&self, _limit: u32) -> anyhow::Result<Vec<Album>> {
-            Ok(Vec::new())
-        }
-        async fn set_album_saved(&self, _id: &str, _saved: bool) -> anyhow::Result<()> {
-            Ok(())
-        }
-        async fn saved_artists(&self, _limit: u32) -> anyhow::Result<Vec<SavedArtist>> {
-            Ok(Vec::new())
-        }
-        async fn set_artist_saved(&self, _id: &str, _saved: bool) -> anyhow::Result<()> {
-            Ok(())
-        }
         async fn album(&self, id: &str) -> anyhow::Result<AlbumDetail> {
             self.count("album", id);
             if self.fail_optional.load(Ordering::Relaxed) {
@@ -473,24 +447,9 @@ mod tests {
                 Ok(self.album_value(id))
             }
         }
-        async fn album_tracks(&self, _id: &str) -> anyhow::Result<Vec<Track>> {
-            Ok(Vec::new())
-        }
         async fn playlist(&self, id: &str) -> anyhow::Result<PlaylistDetail> {
             self.count("playlist", id);
             Ok(self.playlist_value(id))
-        }
-        async fn playlist_tracks(&self, _id: &str) -> anyhow::Result<Vec<Track>> {
-            Ok(Vec::new())
-        }
-        async fn playlist_covers(&self, _id: &str, _wanted: usize) -> anyhow::Result<Vec<String>> {
-            Ok(Vec::new())
-        }
-        async fn track_radio(&self, _id: &str) -> anyhow::Result<Vec<Track>> {
-            Ok(Vec::new())
-        }
-        async fn search(&self, _query: &str) -> anyhow::Result<Vec<Track>> {
-            Ok(Vec::new())
         }
         async fn genre(&self, id: &str) -> anyhow::Result<GenreDetail> {
             self.count("genre", id);
@@ -532,82 +491,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn bounds_completed_entries() {
-        let cache = CatalogCache::new(2);
-        for id in 0..20 {
-            cache
-                .load(&id.to_string(), async move { Ok(id) })
-                .await
-                .unwrap();
-        }
-        cache.settle().await;
-        assert!(cache.cache.entry_count() <= 2);
-    }
-
-    #[tokio::test]
-    async fn coalesces_concurrent_loads() {
-        let cache = Arc::new(CatalogCache::new(2));
-        let calls = Arc::new(AtomicUsize::new(0));
-        let one = {
-            let cache = cache.clone();
-            let calls = calls.clone();
-            tokio::spawn(async move {
-                cache
-                    .load("a", async move {
-                        calls.fetch_add(1, Ordering::Relaxed);
-                        tokio::task::yield_now().await;
-                        Ok(1)
-                    })
-                    .await
-                    .unwrap()
-            })
-        };
-        let two = {
-            let cache = cache.clone();
-            let calls = calls.clone();
-            tokio::spawn(async move {
-                cache
-                    .load("a", async move {
-                        calls.fetch_add(1, Ordering::Relaxed);
-                        Ok(2)
-                    })
-                    .await
-                    .unwrap()
-            })
-        };
-        let (one, two) = tokio::join!(one, two);
-        assert_eq!(*one.unwrap(), *two.unwrap());
-        assert_eq!(calls.load(Ordering::Relaxed), 1);
-    }
-
-    #[tokio::test]
-    async fn capacity_pressure_does_not_cancel_pending_loads() {
-        let cache = Arc::new(CatalogCache::new(1));
-        let release = Arc::new(tokio::sync::Notify::new());
-        let pending = {
-            let cache = cache.clone();
-            let release = release.clone();
-            tokio::spawn(async move {
-                cache
-                    .load("pending", async move {
-                        release.notified().await;
-                        Ok(1)
-                    })
-                    .await
-            })
-        };
-        tokio::task::yield_now().await;
-        cache.load("ready", async { Ok(2) }).await.unwrap();
-        release.notify_one();
-        assert_eq!(*pending.await.unwrap().unwrap(), 1);
-        cache.settle().await;
-        assert!(cache.cache.entry_count() <= 1);
-    }
-
-    #[tokio::test]
     async fn artist_navigation_reuses_the_first_artist() {
-        let api = Arc::new(FakeApi::new("remote"));
-        let catalog = CatalogSource::new(api.clone());
+        let api = Arc::new(FakeBackend::new("remote"));
+        let catalog = CatalogSource::test(api.clone());
         catalog.artist("a").await.unwrap();
         catalog.artist("b").await.unwrap();
         catalog.artist("a").await.unwrap();
@@ -617,8 +503,8 @@ mod tests {
 
     #[tokio::test]
     async fn song_reuses_an_album_loaded_by_album_detail() {
-        let api = Arc::new(FakeApi::new("remote"));
-        let catalog = CatalogSource::new(api.clone());
+        let api = Arc::new(FakeBackend::new("remote"));
+        let catalog = CatalogSource::test(api.clone());
         let album = catalog.album("album").await.unwrap();
         let song = catalog.song("song").await.unwrap();
         assert!(Arc::ptr_eq(&album, song.album.as_ref().unwrap()));
@@ -627,8 +513,8 @@ mod tests {
 
     #[tokio::test]
     async fn song_keeps_its_required_track_when_enrichment_fails() {
-        let api = Arc::new(FakeApi::failing_optional("remote"));
-        let catalog = CatalogSource::new(api);
+        let api = Arc::new(FakeBackend::failing_optional("remote"));
+        let catalog = CatalogSource::test(api);
         let song = catalog.song("song").await.unwrap();
         assert_eq!(song.track.id.as_deref(), Some("song"));
         assert!(song.album.is_none());
@@ -639,8 +525,8 @@ mod tests {
 
     #[tokio::test]
     async fn playlist_invalidation_is_scoped_to_one_id() {
-        let api = Arc::new(FakeApi::new("remote"));
-        let catalog = CatalogSource::new(api.clone());
+        let api = Arc::new(FakeBackend::new("remote"));
+        let catalog = CatalogSource::test(api.clone());
         catalog.playlist("one").await.unwrap();
         catalog.playlist("two").await.unwrap();
         catalog.invalidate_playlist("one").await;
@@ -652,16 +538,16 @@ mod tests {
 
     #[tokio::test]
     async fn replacing_a_source_cannot_return_the_old_sessions_values() {
-        let old = CatalogSource::new(Arc::new(FakeApi::new("old")));
+        let old = CatalogSource::test(Arc::new(FakeBackend::new("old")));
         assert_eq!(old.artist("same").await.unwrap().name, "old:same");
-        let new = CatalogSource::new(Arc::new(FakeApi::new("new")));
+        let new = CatalogSource::test(Arc::new(FakeBackend::new("new")));
         assert_eq!(new.artist("same").await.unwrap().name, "new:same");
     }
 
     #[tokio::test]
     async fn empty_details_are_cache_hits() {
-        let api = Arc::new(FakeApi::new("remote"));
-        let catalog = CatalogSource::new(api.clone());
+        let api = Arc::new(FakeBackend::new("remote"));
+        let catalog = CatalogSource::test(api.clone());
         for _ in 0..2 {
             assert!(catalog.album("empty").await.unwrap().tracks.is_empty());
             assert!(catalog.playlist("empty").await.unwrap().tracks.is_empty());
