@@ -19,12 +19,22 @@ use crate::chrome::{Chrome, section_label};
 use crate::shared::menu::ItemMenu;
 
 const QUEUE: &str = "queue";
-const FADE: f32 = 40.;
+const FADE: f32 = 96.;
 const PINNED_SHARE: f32 = 0.25;
 const PIN: f32 = 0.3;
 const SETTLE: std::time::Duration = std::time::Duration::from_secs(4);
 
 fn shade(color: Hsla, above: bool) -> Div {
+    div()
+        .absolute()
+        .left_0()
+        .right_0()
+        .child(veil(color, above, px(FADE)))
+        .child(veil(color, above, px(FADE * 0.45)))
+        .when_else(above, |this| this.top_0(), |this| this.bottom_0())
+}
+
+fn veil(color: Hsla, above: bool, height: Pixels) -> Div {
     let (from, to) = match above {
         true => (color, color.opacity(0.)),
         false => (color.opacity(0.), color),
@@ -34,7 +44,7 @@ fn shade(color: Hsla, above: bool) -> Div {
         .absolute()
         .left_0()
         .right_0()
-        .h(px(FADE))
+        .h(height)
         .when_else(above, |this| this.top_0(), |this| this.bottom_0())
         .bg(linear_gradient(
             180.,
@@ -464,7 +474,9 @@ impl Aside {
                     cx,
                 ))
             })
-            .when(!self.titled, |this| this.justify_end())
+            .when(!self.titled, |this| {
+                this.justify_end().pr(theme.metrics.control + px(8.))
+            })
             .when(self.tab == SideTab::Queue, |this| {
                 this.child(
                     div()
@@ -795,8 +807,6 @@ impl Render for Aside {
                     .min_h_0()
                     .when(self.tab == SideTab::Lyrics, |this| {
                         this.child(self.verses(window, cx))
-                            .child(shade(theme.background, true))
-                            .child(shade(theme.background, false))
                     })
                     .when(self.tab == SideTab::Queue && empty, |this| {
                         this.child(vacant(t!("queue-empty"), cx).flex_1())
@@ -812,7 +822,7 @@ impl Render for Aside {
                                 .child(
                                     self.rows(sections, cx)
                                         .px_2()
-                                        .pb_2()
+                                        .pb(px(FADE * 0.75))
                                         .track_scroll(&self.scroll)
                                         .size_full()
                                         .on_scroll_wheel(
@@ -826,6 +836,10 @@ impl Render for Aside {
                                 )
                                 .child(self.scrollbar.clone()),
                         )
+                    })
+                    .when(self.tab == SideTab::Lyrics || !empty, |this| {
+                        this.child(shade(theme.background, true))
+                            .child(shade(theme.background, false))
                     })
                     .children(self.follow(cx)),
             )

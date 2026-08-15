@@ -51,9 +51,9 @@ pub(crate) fn transport(
 }
 
 pub(crate) fn toggle(playback: &Entity<Playback>, big: bool, cx: &App) -> Button {
-    let state = playback.read(cx).state();
-    let playing = matches!(state, PlaybackState::Playing);
-    let idle = matches!(state, PlaybackState::Idle | PlaybackState::Failed(_));
+    let held = playback.read(cx);
+    let playing = matches!(held.state(), PlaybackState::Playing);
+    let idle = held.track().is_none();
     let playback = playback.clone();
 
     let (id, icon, tooltip) = match playing {
