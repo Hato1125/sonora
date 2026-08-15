@@ -2,6 +2,7 @@ mod columns;
 mod sieve;
 mod sort;
 
+use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::rc::Rc;
 use ui::ActiveTheme as _;
@@ -61,6 +62,12 @@ pub(crate) struct TrackSource {
     menu: ItemMenu,
     table: Option<WeakEntity<GridState<TrackSource>>>,
     sieve: TrackSieve,
+    spread: RefCell<Option<Spread>>,
+}
+
+struct Spread {
+    stamp: (usize, String, bool, bool),
+    extent: Option<(f32, f32)>,
 }
 
 impl TrackSource {
@@ -80,6 +87,7 @@ impl TrackSource {
             menu: ItemMenu::new(playlist_scrollbar),
             table: None,
             sieve: TrackSieve::default(),
+            spread: RefCell::new(None),
         }
     }
 
@@ -92,13 +100,21 @@ impl TrackSource {
     }
 
     pub(crate) fn extent(&self, query: &str, cx: &App) -> Option<(f32, f32)> {
+        let tracks = self.provider.tracks(cx);
         let open = TrackSieve {
             duration: None,
             ..self.sieve
         };
+        let stamp = (tracks.len(), query.to_owned(), open.explicit, open.playable);
+        if let Some(spread) = self.spread.borrow().as_ref()
+            && spread.stamp == stamp
+        {
+            return spread.extent;
+        }
+
         let mut low = f32::MAX;
         let mut high = f32::MIN;
-        for track in self.provider.tracks(cx) {
+        for track in tracks {
             if !open.keeps(track) || !hits(track, query) {
                 continue;
             }
@@ -106,7 +122,10 @@ impl TrackSource {
             low = low.min(seconds);
             high = high.max(seconds);
         }
-        (low <= high).then_some((low, high))
+        let extent = (low <= high).then_some((low, high));
+        *self.spread.borrow_mut() = Some(Spread { stamp, extent });
+
+        extent
     }
 
     pub(crate) fn table(mut self, table: WeakEntity<GridState<TrackSource>>) -> Self {
@@ -158,9 +177,13 @@ impl TrackSource {
             false => (None, None),
             true => {
                 let playback = self.playback.clone();
-                let preload_track = track.clone();
+                let source = self.provider.clone();
+                let at = cell.row;
                 let preload: Option<cells::Tap> = Some(Box::new(move |cx| {
-                    playback.update(cx, |playback, _| playback.preload(&preload_track));
+                    let Some(track) = source.tracks(cx).get(at).cloned() else {
+                        return;
+                    };
+                    playback.update(cx, |playback, _| playback.preload(&track));
                 }));
                 let provider = self.provider.clone();
                 let table = self.table.clone();
@@ -228,7 +251,8 @@ impl TrackSource {
         let saved = state.saved(&id);
         let pending = state.pending(&id);
         let library = library.clone();
-        let track = track.clone();
+        let source = self.provider.clone();
+        let at = cell.row;
 
         Some(
             Button::new(("toggle-liked-track", cell.row))
@@ -253,7 +277,10 @@ impl TrackSource {
                 })
                 .disabled(pending)
                 .on_click(move |_, _, cx| {
-                    library.update(cx, |library, cx| library.toggle(track.clone(), cx));
+                    let Some(track) = source.tracks(cx).get(at).cloned() else {
+                        return;
+                    };
+                    library.update(cx, |library, cx| library.toggle(track, cx));
                 })
                 .into_any_element(),
         )
@@ -321,9 +348,10 @@ impl GridSource for TrackSource {
     }
 
     fn pin(&self, row: usize, cx: &App) -> Option<Pin> {
-        let track = self.at(row, cx)?;
+        let track = self.provider.tracks(cx).get(row)?;
+        let id = track.id.clone()?;
 
-        Some(Pin::new(PinKind::Song, track.id?, track.name).cover(track.cover))
+        Some(Pin::new(PinKind::Song, id, track.name.clone()).cover(track.cover.clone()))
     }
 
     fn cell(&self, cell: Cell<TrackField>, cx: &mut App) -> AnyElement {

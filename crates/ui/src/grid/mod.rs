@@ -34,6 +34,7 @@ pub const ROW_GROUP: &str = "grid-row";
 pub struct Cell<F> {
     pub field: F,
     pub width: Pixels,
+    pub height: Pixels,
     pub align: TextAlign,
     pub display: usize,
     pub row: usize,
@@ -41,11 +42,22 @@ pub struct Cell<F> {
 
 impl<F> Cell<F> {
     pub fn frame(&self) -> Div {
-        frame(self.width, self.align)
+        self.box_of(div())
+            .min_w_0()
+            .truncate()
+            .text_align(self.align)
+            .line_height(self.height)
     }
 
     pub fn middle(&self) -> Div {
-        div().w(self.width).h_full().flex().items_center()
+        self.box_of(div()).flex().items_center()
+    }
+
+    fn box_of(&self, base: Div) -> Div {
+        base.w(self.width + PADDING * 2.)
+            .flex_none()
+            .h_full()
+            .px(PADDING)
     }
 }
 
@@ -110,6 +122,7 @@ pub struct GridDelegate<S: GridSource> {
     width: Pixels,
     layout: Layout,
     heads: Vec<Pixels>,
+    measured: Option<(i18n::Language, Pixels, SharedString)>,
     selected: Option<usize>,
     sort: Option<(S::Field, Sort)>,
     filter: String,
@@ -134,6 +147,7 @@ impl<S: GridSource> GridDelegate<S> {
             width,
             layout: Layout::default(),
             heads,
+            measured: None,
             selected: None,
             sort: None,
             filter: String::new(),
@@ -144,6 +158,16 @@ impl<S: GridSource> GridDelegate<S> {
     }
 
     fn measure(&mut self, window: &Window, cx: &App) {
+        let stamp = (
+            i18n::language(),
+            window.rem_size(),
+            window.text_style().font_family,
+        );
+        if self.measured.as_ref() == Some(&stamp) {
+            return;
+        }
+        self.measured = Some(stamp);
+
         let heads: Vec<Pixels> = self
             .source
             .columns()
@@ -779,21 +803,12 @@ impl<S: GridSource> GridState<S> {
                         let cell = Cell {
                             field: column.spec.field,
                             width: self.delegate.inner_width(ix),
+                            height: row_height,
                             align: column.spec.align,
                             display,
                             row,
                         };
-                        let width = column.width;
-                        div()
-                            .flex_none()
-                            .w(width)
-                            .h_full()
-                            .px(PADDING)
-                            .overflow_hidden()
-                            .whitespace_nowrap()
-                            .line_height(row_height)
-                            .child(self.delegate.source.cell(cell, cx))
-                            .into_any_element()
+                        self.delegate.source.cell(cell, cx)
                     })
                     .collect();
 

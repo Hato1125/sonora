@@ -4,21 +4,17 @@ use gpui::SharedString;
 use music::Track;
 
 use super::TrackField;
+use crate::shared::text::{folded, holds};
 
 pub(super) fn compare(tracks: &[Track], field: TrackField, a: usize, b: usize) -> Ordering {
-    let text = |index: usize, pick: fn(&Track) -> &String| {
-        tracks
-            .get(index)
-            .map(|track| pick(track).to_lowercase())
-            .unwrap_or_default()
-    };
+    let text =
+        |index: usize, pick: fn(&Track) -> &str| tracks.get(index).map(pick).unwrap_or_default();
+    let folded = |pick: fn(&Track) -> &str| folded(text(a, pick), text(b, pick));
 
     match field {
-        TrackField::Title => text(a, |track| &track.name).cmp(&text(b, |track| &track.name)),
-        TrackField::Artists => {
-            text(a, |track| &track.artists).cmp(&text(b, |track| &track.artists))
-        }
-        TrackField::Album => text(a, |track| &track.album).cmp(&text(b, |track| &track.album)),
+        TrackField::Title => folded(|track| &track.name),
+        TrackField::Artists => folded(|track| &track.artists),
+        TrackField::Album => folded(|track| &track.album),
         TrackField::AddedAt => tracks
             .get(a)
             .and_then(|track| track.added_at)
@@ -58,8 +54,10 @@ pub(super) fn hits(track: &Track, query: &str) -> bool {
     if query.is_empty() {
         return true;
     }
-    let haystack = format!("{} {} {}", track.name, track.artists, track.album);
-    haystack.to_lowercase().contains(query)
+
+    [&track.name, &track.artists, &track.album]
+        .into_iter()
+        .any(|field| holds(field, query))
 }
 
 #[cfg(test)]

@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use gpui::prelude::*;
-use gpui::{App, Hsla, MouseButton, Pixels, SharedString, Window, div};
+use gpui::{App, ElementId, Hsla, MouseButton, Pixels, SharedString, Window, div};
 
 const RAMP: f32 = 6.;
 const DEPTH: usize = 5;
@@ -84,7 +84,6 @@ impl RenderOnce for InlineLinks {
             on_click,
         } = self;
         let empty = items.is_empty();
-        let id = id.to_string();
 
         div()
             .flex()
@@ -98,11 +97,13 @@ impl RenderOnce for InlineLinks {
                 false => this.child(fallback),
             })
             .when(!empty, |this| {
+                let lone = items.len() == 1;
                 this.children(items.into_iter().enumerate().map(|(index, item)| {
                     let InlineLink { label, value } = item;
                     let item = div()
-                        .id(SharedString::from(format!("{id}-{index}")))
+                        .id(ElementId::NamedInteger(id.clone(), index as u64))
                         .min_w_0()
+                        .when(lone, |this| this.flex().flex_shrink(1.))
                         .when(clip, |this| this.truncate());
                     let item = match value {
                         Some(value) => {
@@ -118,16 +119,20 @@ impl RenderOnce for InlineLinks {
                         None => item.child(label),
                     };
 
-                    div()
-                        .flex()
-                        .min_w_0()
-                        .when_else(
-                            clip,
-                            |this| this.flex_shrink(eagerness(index)),
-                            |this| this.flex_none(),
-                        )
-                        .when(index > 0, |this| this.child(div().flex_none().child(", ")))
-                        .child(item)
+                    match lone {
+                        true => item.into_any_element(),
+                        false => div()
+                            .flex()
+                            .min_w_0()
+                            .when_else(
+                                clip,
+                                |this| this.flex_shrink(eagerness(index)),
+                                |this| this.flex_none(),
+                            )
+                            .when(index > 0, |this| this.child(div().flex_none().child(", ")))
+                            .child(item)
+                            .into_any_element(),
+                    }
                 }))
             })
     }

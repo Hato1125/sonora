@@ -10,7 +10,11 @@ pub fn watch(cx: &mut App) {
         loop {
             cx.background_executor().timer(INTERVAL).await;
             if log::log_enabled!(log::Level::Debug) {
-                cx.update(report);
+                let probed = cx
+                    .background_executor()
+                    .spawn(async { (footprint().unwrap_or_default(), resident()) })
+                    .await;
+                cx.update(|cx| report(probed, cx));
             }
             cx.background_executor().spawn(async { release() }).detach();
         }
@@ -18,16 +22,16 @@ pub fn watch(cx: &mut App) {
     .detach();
 }
 
-fn report(cx: &mut App) {
+fn report(probed: (Footprint, Option<usize>), cx: &mut App) {
+    let (footprint, resident) = probed;
     let (entries, bytes) = ui::artwork_usage(cx).unwrap_or((0, 0));
     let queue = Sonora::global(cx).queue.read(cx);
     let past = queue.past().len();
     let ahead = queue.upcoming().len() + queue.similar().len();
-    let footprint = footprint().unwrap_or_default();
 
     log::debug!(
         "memory: rss {}, heap {}, gpu {}, file {}, artwork {entries} entries / {}, queue {past} past / {ahead} ahead",
-        resident().map_or_else(|| "unknown".to_owned(), mib),
+        resident.map_or_else(|| "unknown".to_owned(), mib),
         mib(footprint.heap),
         mib(footprint.gpu),
         mib(footprint.file),
