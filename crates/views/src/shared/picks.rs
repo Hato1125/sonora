@@ -316,7 +316,7 @@ fn pick(
 
     let artists = (!detailed || featured(track)).then(|| {
         cells::artist_links(
-            SharedString::from(format!("{id}-artist-{place}")),
+            SharedString::new_static("pick-artist"),
             track.artist_refs.clone(),
             track.artists.clone(),
             theme.muted_foreground,
