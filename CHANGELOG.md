@@ -7,6 +7,46 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Appearance settings carry a Reduce motion choice — follow the system, always or never — so you can
+  decide up front whether Sonora animates its interface.
+- Appearance settings also carry an Animation speed choice — slow, standard or quick — that stretches
+  or tightens every interface animation to taste.
+- Fullscreen is a real player now: large artwork that swaps to the album's high-resolution cover as
+  soon as it arrives, the track and its artists, a seek bar, transport controls, and a pill that
+  puts lyrics or the queue beside the artwork — the same lyrics and queue as the side panel, with
+  everything they can do. On a narrow window the chosen panel takes over the whole body instead.
+  Press `f` to go fullscreen and Escape to come back to wherever you were.
+- Lyrics read like a stage now: the lines around the one being sung are softly blurred, the line
+  under the pointer sharpens as you reach for it, and the top and bottom of the list fade out
+  instead of being cut off. Hovering a line still seeks to it.
+- Appearance settings gained an Advanced group, starting with an adaptive context menu. Turned on,
+  a track's menu leaves out what the row already shows — its album or its artist. It ships off.
+
+### Changed
+
+- Switches now slide and fade between on and off instead of snapping, at a fixed control speed that
+  the animation speed setting deliberately leaves alone.
+- Long lists, grids and the home shelves cost far less to draw, so scrolling them stays smooth
+  where it used to stutter. Sorting and filtering a large library got cheaper too.
+- A sign-in that fails now explains itself in plain words on a small card, on the login screen and in
+  account settings — being outside your account country, an expired session, no connection, a
+  cancelled browser approval — instead of showing the raw message from the streaming library. An
+  unrecognised failure is trimmed down to one readable sentence too.
+
+### Fixed
+
+- Signing in with an account that has no Spotify Premium closed Sonora outright, and it kept closing
+  on every launch until the cached session was deleted by hand. Sonora now stays open, forgets that
+  session and explains on the login screen that streaming needs Premium.
+- The volume percentage now sits above the slider handle instead of trailing the pointer, so it
+  reads as a label on the handle you are dragging.
+- A shelf on home — Your Mood Mixes — arrived from Spotify with no names and no covers and drew as a
+  row of blank cards. Those mixes are now filled in from the playlists themselves, in the background,
+  so the rest of home appears straight away.
+- The window buttons on macOS sat in the wrong place.
+
 ## [0.14.0] - 2026-08-14
 
 ### Added
@@ -21,6 +61,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - The songs, artists and albums columns in search scroll smoothly however many matches come back,
   and each column still scrolls on its own.
+
+### Fixed
+
+- Sonora sat redrawing the window as fast as the screen allowed whenever the lyrics panel was open,
+  heating the machine and draining the battery while nothing on screen was moving. It now rests when
+  there is nothing to draw.
+- When Spotify ships a new build of its web player, album, artist and search pages recover on the
+  next attempt instead of failing for hours.
 
 ## [0.13.0] - 2026-08-14
 

@@ -344,16 +344,16 @@ impl Shelves {
 
     fn card(&self, id: usize, item: &GenreItem, tile: Option<Pixels>, cx: &App) -> AnyElement {
         match item {
-            GenreItem::Playlist(playlist) => self.playlist_card(id, playlist.clone(), tile, cx),
-            GenreItem::Album(album) => self.album_card(id, album.clone(), tile, cx),
-            GenreItem::Genre(genre) => plate(self.tag("genre", id), genre.clone(), tile, cx),
+            GenreItem::Playlist(playlist) => self.playlist_card(id, playlist, tile, cx),
+            GenreItem::Album(album) => self.album_card(id, album, tile, cx),
+            GenreItem::Genre(genre) => plate(slot("genre", id), genre, tile, cx),
         }
     }
 
     fn playlist_card(
         &self,
         id: usize,
-        playlist: Playlist,
+        playlist: &Playlist,
         tile: Option<Pixels>,
         cx: &App,
     ) -> AnyElement {
@@ -368,24 +368,27 @@ impl Shelves {
             playlist.name.clone(),
         )
         .cover(playlist.cover.clone());
-        let opened = SharedString::from(playlist.id);
+        let opened = SharedString::from(playlist.id.clone());
         let playback = self.playback.clone();
 
-        Card::new(self.tag("playlist", id), SharedString::from(playlist.name))
-            .cover(playlist.cover)
-            .weight(FontWeight::SEMIBOLD)
-            .underline()
-            .meta(SharedString::from(playlist.owner))
-            .map(|card| dressed(card, tile, cx))
-            .play(playing, move |_, _, cx| {
-                playback.update(cx, |playback, cx| playback.toggle_origin(&origin, cx));
-            })
-            .press(move |_, _, cx| navigate(Destination::Playlist(opened.clone()), cx))
-            .pin(pin)
-            .into_any_element()
+        Card::new(
+            slot("playlist", id),
+            SharedString::from(playlist.name.clone()),
+        )
+        .cover(playlist.cover.clone())
+        .weight(FontWeight::SEMIBOLD)
+        .underline()
+        .meta(SharedString::from(playlist.owner.clone()))
+        .map(|card| dressed(card, tile, cx))
+        .play(playing, move |_, _, cx| {
+            playback.update(cx, |playback, cx| playback.toggle_origin(&origin, cx));
+        })
+        .press(move |_, _, cx| navigate(Destination::Playlist(opened.clone()), cx))
+        .pin(pin)
+        .into_any_element()
     }
 
-    fn album_card(&self, id: usize, album: Album, tile: Option<Pixels>, cx: &App) -> AnyElement {
+    fn album_card(&self, id: usize, album: &Album, tile: Option<Pixels>, cx: &App) -> AnyElement {
         let theme = *cx.theme();
         let origin = Origin::Album(album.id.clone());
         let playing = matches!(
@@ -394,19 +397,19 @@ impl Shelves {
         );
         let pin = Pin::new(PinKind::Album, album.id.clone(), album.name.clone())
             .cover(album.cover.clone());
-        let opened = SharedString::from(album.id);
+        let opened = SharedString::from(album.id.clone());
         let playback = self.playback.clone();
         let meta = cells::artist_links(
-            SharedString::from(format!("{}-album-artist-{id}", self.id)),
-            album.artist_refs,
-            album.artists,
+            SharedString::new_static("album-artist"),
+            album.artist_refs.clone(),
+            album.artists.clone(),
             theme.muted_foreground,
         )
         .text_size(theme.text(Text::Small))
         .truncate();
 
-        Card::new(self.tag("album", id), SharedString::from(album.name))
-            .cover(album.cover)
+        Card::new(slot("album", id), SharedString::from(album.name.clone()))
+            .cover(album.cover.clone())
             .weight(FontWeight::SEMIBOLD)
             .underline()
             .bare_meta(meta)
@@ -422,14 +425,14 @@ impl Shelves {
 
 pub(crate) fn plate(
     id: impl Into<ElementId>,
-    genre: music::Genre,
+    genre: &music::Genre,
     tile: Option<Pixels>,
     cx: &App,
 ) -> AnyElement {
-    let opened = SharedString::from(genre.id);
+    let opened = SharedString::from(genre.id.clone());
 
-    Card::new(id, SharedString::from(genre.name))
-        .cover(genre.cover)
+    Card::new(id, SharedString::from(genre.name.clone()))
+        .cover(genre.cover.clone())
         .fallback("icons/music.svg")
         .weight(FontWeight::SEMIBOLD)
         .map(|card| dressed(card, tile, cx))
@@ -456,7 +459,7 @@ pub(crate) fn grid(
         .draw(move |place, _, cx| {
             let first = place * lanes;
             let cells = (first..(first + lanes).min(genres.len()))
-                .map(|index| plate((id, index), genres[index].clone(), None, cx));
+                .map(|index| plate((id, index), &genres[index], None, cx));
 
             div()
                 .flex()
@@ -515,4 +518,8 @@ fn slide(handle: &ScrollHandle, glide: &Glide, forward: bool, window: &mut Windo
     };
 
     glide.aim(handle, point(next, at.y), window);
+}
+
+fn slot(kind: &'static str, place: usize) -> ElementId {
+    ElementId::NamedInteger(SharedString::new_static(kind), place as u64)
 }

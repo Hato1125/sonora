@@ -124,6 +124,8 @@ player-unmute = Rétablir le son
 player-previous = Titre précédent
 player-next = Titre suivant
 player-fullscreen = Plein écran
+player-fullscreen-leave = Quitter le plein écran
+fullscreen-artwork = Pochette
 
 # filters
 filter-library = Filtrer la bibliothèque
@@ -313,6 +315,10 @@ settings-opacity-value = { $percent } %
 settings-theme-config = Ouvrir la configuration
 settings-adaptive = Thème adaptatif
 settings-adaptive-detail = Teinte la palette avec la pochette de l'album en cours
+settings-motion = Réduire les animations
+settings-motion-detail = Ignorer les animations et les transitions de l'interface
+settings-pace = Vitesse des animations
+settings-pace-detail = À quelle vitesse les animations de l'interface se jouent
 settings-corners = Coins
 settings-corners-detail = Le degré d'arrondi des surfaces et des contrôles
 settings-font = Taille du texte
@@ -377,6 +383,14 @@ corners-square = Carrés
 corners-subtle = Discrets
 corners-rounded = Arrondis
 corners-round = Ronds
+
+# motion
+motion-system = Comme le système
+motion-always = Toujours
+motion-never = Jamais
+pace-slow = Lente
+pace-base = Standard
+pace-quick = Rapide
 
 toast-playlist-created = Playlist créée
 toast-playlist-renamed = Playlist renommée

@@ -49,6 +49,7 @@ pub fn bindings() -> Vec<KeyBinding> {
         KeyBinding::new("ctrl-,", OpenSettings, None),
         KeyBinding::new("cmd-,", OpenSettings, None),
         KeyBinding::new("space", TogglePlayback, Some(&away_from_text)),
+        KeyBinding::new("f", ToggleFullscreen, Some(&away_from_text)),
         KeyBinding::new("escape", Dismiss, Some(WORKSPACE_CONTEXT)),
         KeyBinding::new("backspace", Backspace, editing),
         KeyBinding::new("ctrl-backspace", BackspaceWord, editing),

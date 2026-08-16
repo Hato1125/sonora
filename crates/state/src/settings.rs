@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use gpui::{Context, Task};
 use serde::{Deserialize, Serialize};
-use ui::{Layout, Look, Mode, Pin, Rounding, Sorting, ThemeKind, ThemeOverrides};
+use ui::{Layout, Look, Mode, Pace, Pin, Rounding, Sorting, Stillness, ThemeKind, ThemeOverrides};
 
 use crate::Repeat;
 use crate::queue::{Resume, gap_target};
@@ -34,6 +34,7 @@ struct Values {
     volume: f32,
     normalisation: bool,
     gapless: bool,
+    adaptive_menu: bool,
     sidebar_width: f32,
     sidebar_open: bool,
     sidebar_right_width: f32,
@@ -66,6 +67,8 @@ struct Appearance {
     transparency: f32,
     window_controls: bool,
     controls_on_left: bool,
+    reduce_motion: String,
+    motion_pace: String,
     theme_overrides: ThemeOverrides,
 }
 
@@ -76,6 +79,7 @@ impl Default for Values {
             volume: DEFAULT_VOLUME,
             normalisation: true,
             gapless: true,
+            adaptive_menu: false,
             sidebar_width: DEFAULT_SIDEBAR_WIDTH,
             sidebar_open: true,
             sidebar_right_width: DEFAULT_SIDEBAR_RIGHT_WIDTH,
@@ -119,6 +123,8 @@ impl Default for Appearance {
             transparency: 0.15,
             window_controls: true,
             controls_on_left: false,
+            reduce_motion: Stillness::default().id().to_owned(),
+            motion_pace: Pace::default().id().to_owned(),
             theme_overrides: ThemeOverrides::default(),
         }
     }
@@ -163,6 +169,10 @@ impl AppSettings {
 
     pub fn gapless(&self) -> bool {
         self.values.gapless
+    }
+
+    pub fn adaptive_menu(&self) -> bool {
+        self.values.adaptive_menu
     }
 
     pub fn sidebar_width(&self) -> f32 {
@@ -215,6 +225,14 @@ impl AppSettings {
 
     pub fn rounding(&self) -> &str {
         &self.values.appearance.rounding
+    }
+
+    pub fn stillness(&self) -> Stillness {
+        Stillness::from_id(&self.values.appearance.reduce_motion)
+    }
+
+    pub fn pace(&self) -> Pace {
+        Pace::from_id(&self.values.appearance.motion_pace)
     }
 
     pub fn look(&self) -> Look {
@@ -277,6 +295,11 @@ impl AppSettings {
 
     pub fn set_gapless(&mut self, gapless: bool, cx: &mut Context<Self>) {
         self.values.gapless = gapless;
+        self.schedule_save(cx);
+    }
+
+    pub fn set_adaptive_menu(&mut self, adaptive_menu: bool, cx: &mut Context<Self>) {
+        self.values.adaptive_menu = adaptive_menu;
         self.schedule_save(cx);
     }
 
@@ -440,6 +463,24 @@ impl AppSettings {
 
     pub fn set_rounding(&mut self, rounding: impl Into<String>, cx: &mut Context<Self>) {
         self.values.appearance.rounding = rounding.into();
+        self.schedule_save(cx);
+    }
+
+    pub fn set_stillness(&mut self, stillness: Stillness, cx: &mut Context<Self>) {
+        if self.stillness() == stillness {
+            return;
+        }
+        self.values.appearance.reduce_motion = stillness.id().to_owned();
+        ui::motion::apply(stillness, self.pace(), cx);
+        self.schedule_save(cx);
+    }
+
+    pub fn set_pace(&mut self, pace: Pace, cx: &mut Context<Self>) {
+        if self.pace() == pace {
+            return;
+        }
+        self.values.appearance.motion_pace = pace.id().to_owned();
+        ui::motion::apply(self.stillness(), pace, cx);
         self.schedule_save(cx);
     }
 

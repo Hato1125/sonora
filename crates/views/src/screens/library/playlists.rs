@@ -10,6 +10,7 @@ use ui::{Cell, ColumnSpec, GridSource, Menu, Pin, PinKind, Width};
 
 use crate::shared::cells::{self, DATE, NUMBER, TRAILING};
 use crate::shared::menu::playlist_menu;
+use crate::shared::text::{folded, holds};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum PlaylistField {
@@ -137,10 +138,9 @@ impl GridSource for PlaylistSource {
     }
 
     fn matches(&self, row: usize, query: &str, cx: &App) -> bool {
-        self.at(row, cx).is_some_and(|playlist| {
-            let haystack = format!("{} {}", playlist.name, playlist.owner);
-            haystack.to_lowercase().contains(query)
-        })
+        self.playlists(cx)
+            .get(row)
+            .is_some_and(|playlist| holds(&playlist.name, query) || holds(&playlist.owner, query))
     }
 
     fn playing(&self, row: usize, cx: &App) -> bool {
@@ -155,9 +155,16 @@ impl GridSource for PlaylistSource {
     }
 
     fn pin(&self, row: usize, cx: &App) -> Option<Pin> {
-        let playlist = self.at(row, cx)?;
+        let playlist = self.playlists(cx).get(row)?;
 
-        Some(Pin::new(PinKind::Playlist, playlist.id, playlist.name).cover(playlist.cover))
+        Some(
+            Pin::new(
+                PinKind::Playlist,
+                playlist.id.clone(),
+                playlist.name.clone(),
+            )
+            .cover(playlist.cover.clone()),
+        )
     }
 
     fn context_menu(&self, row: usize, _visible: &[PlaylistField], cx: &App) -> Option<Menu> {
@@ -201,20 +208,19 @@ impl GridSource for PlaylistSource {
 
     fn compare(&self, field: PlaylistField, a: usize, b: usize, cx: &App) -> Ordering {
         let playlists = self.playlists(cx);
-        let text = |index: usize, pick: fn(&Playlist) -> &String| {
-            playlists
-                .get(index)
-                .map(|playlist| pick(playlist).to_lowercase())
-                .unwrap_or_default()
+        let text = |index: usize, pick: fn(&Playlist) -> &str| {
+            playlists.get(index).map(pick).unwrap_or_default()
         };
 
         match field {
-            PlaylistField::Name => {
-                text(a, |playlist| &playlist.name).cmp(&text(b, |playlist| &playlist.name))
-            }
-            PlaylistField::Owner => {
-                text(a, |playlist| &playlist.owner).cmp(&text(b, |playlist| &playlist.owner))
-            }
+            PlaylistField::Name => folded(
+                text(a, |playlist| &playlist.name),
+                text(b, |playlist| &playlist.name),
+            ),
+            PlaylistField::Owner => folded(
+                text(a, |playlist| &playlist.owner),
+                text(b, |playlist| &playlist.owner),
+            ),
             PlaylistField::TrackCount => playlists
                 .get(a)
                 .map(|playlist| playlist.track_count)

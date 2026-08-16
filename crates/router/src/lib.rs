@@ -99,6 +99,7 @@ pub enum Destination {
     Genre(SharedString),
     Search,
     Settings(SettingsTab),
+    Fullscreen,
 }
 
 impl From<&ui::Pin> for Destination {

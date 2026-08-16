@@ -10,7 +10,7 @@ use gpui::{
 use gpui::{Window, div, px};
 use i18n::t;
 use input::{ToggleFullscreen, ToggleLyrics, ToggleQueue};
-use state::{AppSettings, Library, Playback, PlaybackState, Queue, Repeat, SideTab, Sonora};
+use state::{AppSettings, Playback, Queue, SideTab, Sonora};
 use ui::{
     Artwork, Button, InlineLink, InlineLinks, Popup, Room, Scrollbar, Scrubber, ScrubberState,
     clock,
@@ -18,6 +18,7 @@ use ui::{
 
 use crate::chrome::SidebarRight;
 use crate::shared::menu::ItemMenu;
+use crate::shared::transport::{like, transport};
 
 const SEEK_MAX: f32 = 560.;
 const VOLUME_WIDTH: f32 = 110.;
@@ -30,7 +31,6 @@ const NOTCH: f32 = 0.05;
 pub(crate) struct PlayerBar {
     playback: Entity<Playback>,
     queue: Entity<Queue>,
-    library: Entity<Library>,
     settings: Entity<AppSettings>,
     track_menu: ItemMenu,
     context_menu: Option<(music::Track, Point<Pixels>)>,
@@ -60,7 +60,6 @@ impl PlayerBar {
         Self {
             playback,
             queue,
-            library,
             settings,
             track_menu: ItemMenu::new(playlist_scrollbar),
             context_menu: None,
@@ -104,62 +103,6 @@ impl PlayerBar {
         }
     }
 
-    fn transport(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        div()
-            .flex()
-            .items_center()
-            .gap_2()
-            .child(self.shuffle(cx))
-            .child(self.previous(cx))
-            .child(self.toggle(cx))
-            .child(self.next(cx))
-            .child(self.repeat(cx))
-    }
-
-    fn shuffle(&self, cx: &mut Context<Self>) -> Button {
-        let theme = *cx.theme();
-        let on = self.queue.read(cx).shuffle();
-
-        Button::new("shuffle")
-            .ghost()
-            .small()
-            .icon("icons/shuffle.svg")
-            .tooltip_above("player-shuffle")
-            .tint(match on {
-                true => theme.primary,
-                false => theme.muted_foreground,
-            })
-            .on_click(cx.listener(|this, _, _, cx| {
-                this.queue.update(cx, |queue, cx| queue.toggle_shuffle(cx));
-            }))
-    }
-
-    fn repeat(&self, cx: &mut Context<Self>) -> Button {
-        let theme = *cx.theme();
-        let repeat = self.playback.read(cx).repeat();
-
-        Button::new("repeat")
-            .ghost()
-            .small()
-            .icon(match repeat {
-                Repeat::One => "icons/repeat-one.svg",
-                _ => "icons/repeat.svg",
-            })
-            .tooltip_above(match repeat {
-                Repeat::Off => "player-repeat",
-                Repeat::All => "player-repeat-all",
-                Repeat::One => "player-repeat-one",
-            })
-            .tint(match repeat {
-                Repeat::Off => theme.muted_foreground,
-                _ => theme.primary,
-            })
-            .on_click(cx.listener(|this, _, _, cx| {
-                this.playback
-                    .update(cx, |playback, cx| playback.cycle_repeat(cx));
-            }))
-    }
-
     fn turn_volume(
         &mut self,
         event: &ScrollWheelEvent,
@@ -186,7 +129,7 @@ impl PlayerBar {
         let theme = *cx.theme();
         let empty = theme.muted_foreground.opacity(0.3);
         let level = self.playback.read(cx).volume();
-        let bubble = self.over_volume.map(|at| (at, percent(level)));
+        let bubble = self.over_volume.map(|_| (level, percent(level)));
         let restore = self.muted.unwrap_or(0.7);
 
         div()
@@ -231,35 +174,6 @@ impl PlayerBar {
                         })),
                 ),
             )
-    }
-
-    fn previous(&self, cx: &mut Context<Self>) -> Button {
-        let enabled = self.queue.read(cx).has_previous();
-
-        Button::new("previous")
-            .ghost()
-            .small()
-            .icon("icons/skip-back.svg")
-            .tooltip_above("player-previous")
-            .disabled(!enabled)
-            .on_click(cx.listener(|this, _, _, cx| {
-                this.playback
-                    .update(cx, |playback, cx| playback.previous(cx));
-            }))
-    }
-
-    fn next(&self, cx: &mut Context<Self>) -> Button {
-        let enabled = self.queue.read(cx).has_next();
-
-        Button::new("next")
-            .ghost()
-            .small()
-            .icon("icons/skip-forward.svg")
-            .tooltip_above("player-next")
-            .disabled(!enabled)
-            .on_click(cx.listener(|this, _, _, cx| {
-                this.playback.update(cx, |playback, cx| playback.next(cx));
-            }))
     }
 
     fn side_buttons(&self, cx: &mut Context<Self>) -> AnyElement {
@@ -319,60 +233,6 @@ impl PlayerBar {
             .on_click(|_, window, cx| window.dispatch_action(Box::new(ToggleFullscreen), cx))
     }
 
-    fn toggle(&self, cx: &mut Context<Self>) -> Button {
-        let state = self.playback.read(cx).state();
-        let playing = matches!(state, PlaybackState::Playing);
-        let idle = matches!(state, PlaybackState::Idle | PlaybackState::Failed(_));
-
-        let (id, icon, tooltip) = if playing {
-            ("pause", "icons/pause.svg", "play-pause")
-        } else {
-            ("play", "icons/play.svg", "play-resume")
-        };
-
-        Button::new(id)
-            .ghost()
-            .small()
-            .icon(icon)
-            .tooltip_above(tooltip)
-            .disabled(idle)
-            .on_click(cx.listener(|this, _, _, cx| {
-                this.playback
-                    .update(cx, |playback, cx| playback.toggle_play(cx));
-            }))
-    }
-
-    fn like(&self, track: Option<music::Track>, cx: &mut Context<Self>) -> Button {
-        let theme = *cx.theme();
-        let id = track.as_ref().and_then(|track| track.id.as_deref());
-        let library = self.library.read(cx);
-        let saved = id.is_some_and(|id| library.saved(id));
-
-        Button::new("toggle-liked-track")
-            .ghost()
-            .backgroundless()
-            .small()
-            .icon(match saved {
-                true => "icons/heart-filled.svg",
-                false => "icons/heart.svg",
-            })
-            .tooltip_above(match saved {
-                true => "menu-remove-from-library",
-                false => "menu-add-to-library",
-            })
-            .tint(match saved {
-                true => theme.primary,
-                false => theme.muted_foreground,
-            })
-            .disabled(id.is_none())
-            .on_click(cx.listener(move |this, _, _, cx| {
-                if let Some(track) = track.clone() {
-                    this.library
-                        .update(cx, |library, cx| library.toggle(track, cx));
-                }
-            }))
-    }
-
     fn now_playing(&self, room: bool, window: &Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
         let muted = theme.muted_foreground;
@@ -380,7 +240,7 @@ impl PlayerBar {
         let artists = theme.text(ui::Text::Small);
         let track = self.playback.read(cx).track().cloned();
         let cover = track.as_ref().and_then(|track| track.cover.clone());
-        let like = self.like(track.clone(), cx);
+        let like = like(track.clone(), cx);
 
         div()
             .flex()
@@ -592,7 +452,7 @@ impl Render for PlayerBar {
                         .gap_2()
                         .w_full()
                         .child(self.now_playing(show_track, window, cx))
-                        .child(self.transport(cx)),
+                        .child(transport(&self.playback, &self.queue, false, cx)),
                 )
                 .child(
                     div()
@@ -618,7 +478,7 @@ impl Render for PlayerBar {
                         .flex_1()
                         .min_w_0()
                         .max_w(px(SEEK_MAX))
-                        .child(self.transport(cx))
+                        .child(transport(&self.playback, &self.queue, false, cx))
                         .child(seek),
                 )
                 .child(

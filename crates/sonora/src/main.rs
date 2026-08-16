@@ -70,15 +70,18 @@ fn main() {
                 .destination()
         });
         router::init(start, cx);
-        let (look, overrides, language) = {
+        let (look, overrides, language, stillness, pace) = {
             let settings = Sonora::global(cx).settings.read(cx);
             (
                 settings.look(),
                 settings.theme_overrides().clone(),
                 settings.language().to_owned(),
+                settings.stillness(),
+                settings.pace(),
             )
         };
         i18n::set(i18n::resolve(&language));
+        ui::motion::apply(stillness, pace, cx);
         ui::Theme::init(look, &overrides, cx);
 
         actions::register(cx);
@@ -86,6 +89,7 @@ fn main() {
 
         let Sonora {
             session,
+            cover: _,
             library,
             lyrics: _,
             playback,
@@ -135,10 +139,7 @@ fn open_window(
             titlebar: Some(TitlebarOptions {
                 title: Some("Sonora".into()),
                 appears_transparent: true,
-                traffic_light_position: Some(point(
-                    px(9.),
-                    px(if cfg!(target_os = "macos") { 12. } else { 9. }),
-                )),
+                traffic_light_position: Some(point(px(9.), px(9.))),
             }),
             inactive_frame_interval: None,
             is_movable: true,

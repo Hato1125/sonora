@@ -11,12 +11,12 @@ use gpui::{ScrollHandle, prelude::*, svg};
 use i18n::{Language, t};
 use music::{AccountChoice, SignIn, SignInPrompt};
 use router::{Screen, SettingsTab};
-use state::{AppSettings, Playback, Session, SessionState, Sonora};
-use ui::{ActiveTheme as _, Scrollbar, Scroller};
+use state::{AppSettings, Failure, Playback, Session, SessionState, Sonora};
+use ui::{ActiveTheme as _, Scrollbar, Scroller, eyebrow};
 use ui::{
     Avatar, Button, InfoCard, Initials, Input, Look, MAX_FONT, MAX_TRANSPARENCY, MIN_FONT, Menu,
-    MenuItem, Modal, Popover, Popovers, Rounding, Scrubber, ScrubberState, Separator, Skeleton,
-    Switch, Text, Theme, ThemeKind,
+    MenuItem, Modal, Pace, Popover, Popovers, Rounding, Scrubber, ScrubberState, Separator,
+    Skeleton, Stillness, Switch, Text, Theme, ThemeKind,
 };
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -27,6 +27,8 @@ const THEMES: &str = "themes";
 const CORNERS: &str = "corners";
 const LANGUAGES: &str = "languages";
 const STARTUP: &str = "startup";
+const MOTION: &str = "motion";
+const PACE: &str = "pace";
 
 struct Account {
     slug: &'static str,
@@ -36,7 +38,7 @@ struct Account {
     active: bool,
     guest: bool,
     cancel: bool,
-    error: Option<SharedString>,
+    error: Option<Failure>,
 }
 
 fn offered(method: &SignIn, stored: bool, guest: bool) -> bool {
@@ -149,6 +151,8 @@ impl SettingsView {
                 self.theme_row(cx).into_any_element(),
                 self.adaptive_row(cx).into_any_element(),
                 self.opacity_row(cx).into_any_element(),
+                self.motion_row(cx).into_any_element(),
+                self.pace_row(cx).into_any_element(),
             ]
             .into_iter()
             .chain([
@@ -157,6 +161,10 @@ impl SettingsView {
             ])
             .chain(decorated().then(|| self.decorations_row(cx).into_any_element()))
             .chain(decorated().then(|| self.side_row(cx).into_any_element()))
+            .chain([
+                self.advanced_header(cx).into_any_element(),
+                self.adaptive_menu_row(cx).into_any_element(),
+            ])
             .collect(),
             SettingsTab::Playback => vec![
                 self.playback_row(cx).into_any_element(),
@@ -628,6 +636,85 @@ impl SettingsView {
         )
     }
 
+    fn motion_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+        let muted = theme.muted_foreground;
+        let small = theme.text(Text::Small);
+        let current = self.settings.read(cx).stillness();
+
+        let picker = Popover::new(MOTION, self.popovers.clone())
+            .button(
+                Button::new("motion-picker")
+                    .label(format!("{}  ▾", current.label()))
+                    .small()
+                    .outline(),
+            )
+            .menu(
+                Menu::new("motion-dropdown")
+                    .top(px(30.))
+                    .right_0()
+                    .w(px(170.))
+                    .items(Stillness::ALL.into_iter().map(|stillness| {
+                        MenuItem::new(stillness.id(), stillness.label())
+                            .selected(current == stillness)
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                this.settings.update(cx, |settings, cx| {
+                                    settings.set_stillness(stillness, cx);
+                                });
+                                this.popovers.close();
+                                cx.notify();
+                            }))
+                    })),
+            );
+
+        self.row(
+            t!("settings-motion"),
+            t!("settings-motion-detail"),
+            muted,
+            small,
+            picker.into_any_element(),
+        )
+    }
+
+    fn pace_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+        let muted = theme.muted_foreground;
+        let small = theme.text(Text::Small);
+        let current = self.settings.read(cx).pace();
+
+        let picker = Popover::new(PACE, self.popovers.clone())
+            .button(
+                Button::new("pace-picker")
+                    .label(format!("{}  ▾", current.label()))
+                    .small()
+                    .outline(),
+            )
+            .menu(
+                Menu::new("pace-dropdown")
+                    .top(px(30.))
+                    .right_0()
+                    .w(px(170.))
+                    .items(Pace::ALL.into_iter().map(|pace| {
+                        MenuItem::new(pace.id(), pace.label())
+                            .selected(current == pace)
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                this.settings
+                                    .update(cx, |settings, cx| settings.set_pace(pace, cx));
+                                this.popovers.close();
+                                cx.notify();
+                            }))
+                    })),
+            );
+
+        self.row(
+            t!("settings-pace"),
+            t!("settings-pace-detail"),
+            muted,
+            small,
+            picker.into_any_element(),
+        )
+    }
+
     fn playback_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
         let muted = theme.muted_foreground;
@@ -643,6 +730,33 @@ impl SettingsView {
                 .on_click(cx.listener(move |this, _, _, cx| {
                     this.playback
                         .update(cx, |playback, cx| playback.set_normalisation(!on, cx));
+                }))
+                .into_any_element(),
+        )
+    }
+
+    fn advanced_header(&self, cx: &gpui::App) -> impl IntoElement {
+        div()
+            .pt_5()
+            .pb_1()
+            .child(eyebrow(t!("settings-advanced"), cx))
+    }
+
+    fn adaptive_menu_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+        let muted = theme.muted_foreground;
+        let small = theme.text(Text::Small);
+        let on = self.settings.read(cx).adaptive_menu();
+
+        self.row(
+            t!("settings-adaptive-menu"),
+            t!("settings-adaptive-menu-detail"),
+            muted,
+            small,
+            Switch::new("adaptive-menu", on)
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.settings
+                        .update(cx, |settings, cx| settings.set_adaptive_menu(!on, cx));
                 }))
                 .into_any_element(),
         )
@@ -777,7 +891,7 @@ impl SettingsView {
                 active: info.active && !signed_out,
                 guest: info.active && !signed_out && guest,
                 cancel: waiting && info.pending,
-                error: info.error.map(SharedString::from),
+                error: info.error,
             })
             .collect();
         let mut cards = Vec::new();
@@ -910,12 +1024,7 @@ impl SettingsView {
                     ),
             )
             .when_some(error, |this, error| {
-                this.child(
-                    div()
-                        .text_color(theme.danger)
-                        .text_size(theme.text(Text::Small))
-                        .child(error),
-                )
+                this.child(crate::shared::trouble::trouble(error, false))
             })
             .when(!methods.is_empty(), |this| {
                 this.child(

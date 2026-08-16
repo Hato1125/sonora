@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::rc::Rc;
 
 use gpui::{App, Context, Entity, Task};
-use music::{GenreSection, Track};
+use music::{GenreItem, GenreSection, Track};
 
 use crate::{Io, Library, LibraryState, Session, SessionEvent, join};
 
@@ -18,6 +18,7 @@ pub struct Home {
     sections: Rc<Vec<GenreSection>>,
     feeding: bool,
     task: Option<Task<()>>,
+    mending: Option<Task<()>>,
 }
 
 impl Home {
@@ -34,6 +35,7 @@ impl Home {
             SessionEvent::SignedIn => this.feed(cx),
             SessionEvent::SignedOut => {
                 this.task = None;
+                this.mending = None;
                 this.sections = Rc::new(Vec::new());
                 this.feeding = false;
                 cx.notify();
@@ -65,6 +67,7 @@ impl Home {
             sections: Rc::new(Vec::new()),
             feeding: false,
             task: None,
+            mending: None,
         };
         home.feed(cx);
         home
@@ -94,9 +97,40 @@ impl Home {
             this.update(cx, |this, cx| {
                 this.feeding = false;
                 match loaded {
-                    Ok(sections) => this.sections = Rc::new(sections),
+                    Ok(sections) => {
+                        this.sections = Rc::new(pruned(&sections));
+                        this.mend(sections, cx);
+                    }
                     Err(error) => log::warn!("home: cannot load the feed: {error:#}"),
                 }
+                cx.notify();
+            })
+            .ok();
+        }));
+    }
+
+    fn mend(&mut self, sections: Vec<GenreSection>, cx: &mut Context<Self>) {
+        if !sections
+            .iter()
+            .any(|section| section.items.iter().any(blank))
+        {
+            return;
+        }
+        let Some(client) = self.session.read(cx).client() else {
+            return;
+        };
+
+        let io = self.io.clone();
+        self.mending = Some(cx.spawn(async move |this, cx| {
+            let mended = io
+                .spawn(async move { client.mend_home(sections).await })
+                .await;
+            let Ok(mended) = mended else {
+                return;
+            };
+
+            this.update(cx, |this, cx| {
+                this.sections = Rc::new(mended);
                 cx.notify();
             })
             .ok();
@@ -110,6 +144,32 @@ impl Home {
     pub fn is_loading(&self, cx: &App) -> bool {
         self.library.read(cx).is_loading()
     }
+}
+
+fn blank(item: &GenreItem) -> bool {
+    match item {
+        GenreItem::Playlist(playlist) => playlist.name.is_empty(),
+        _ => false,
+    }
+}
+
+fn pruned(sections: &[GenreSection]) -> Vec<GenreSection> {
+    sections
+        .iter()
+        .filter_map(|section| {
+            let items: Vec<GenreItem> = section
+                .items
+                .iter()
+                .filter(|item| !blank(item))
+                .cloned()
+                .collect();
+
+            (!items.is_empty()).then(|| GenreSection {
+                title: section.title.clone(),
+                items,
+            })
+        })
+        .collect()
 }
 
 fn picks(library: &Entity<Library>, seed: u64, cx: &App) -> Rc<Vec<Track>> {

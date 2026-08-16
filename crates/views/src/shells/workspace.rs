@@ -3,7 +3,6 @@ use gpui::{AnyView, App, Context, Entity, FocusHandle, Render};
 use gpui::{Window, div};
 use input::WORKSPACE_CONTEXT;
 use state::{Playback, Queue, SideTab};
-use ui::Dismiss;
 
 use crate::chrome::{Chrome, PlayerBar, SidebarLeft, SidebarRight, TitleBarOptions, ToastStack};
 use crate::shared::playlist_editor::PlaylistEditor;
@@ -72,12 +71,6 @@ impl Workspace {
     pub fn player_bar(&self) -> &Entity<PlayerBar> {
         &self.player_bar
     }
-
-    fn close_queue(&mut self, cx: &mut Context<Self>) {
-        if self.sidebar_right.read(cx).is_open() {
-            self.sidebar_right.update(cx, |panel, cx| panel.close(cx));
-        }
-    }
 }
 
 impl Shell for Workspace {
@@ -89,6 +82,7 @@ impl Shell for Workspace {
             sidebar_open: sidebar.is_open(),
             sidebar_right: Some(self.sidebar_right.read(cx).is_open()),
             offset: sidebar.occupied_width(),
+            border: true,
             content,
         }
     }
@@ -113,7 +107,6 @@ impl Render for Workspace {
             .min_h_0()
             .key_context(WORKSPACE_CONTEXT)
             .track_focus(&self.focus)
-            .on_action(cx.listener(|this, _: &Dismiss, _, cx| this.close_queue(cx)))
             .child(
                 div()
                     .relative()

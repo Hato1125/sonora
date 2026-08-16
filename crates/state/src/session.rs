@@ -4,13 +4,39 @@ use std::sync::Arc;
 use anyhow::Error;
 use gpui::{Context, Entity, EventEmitter, Task};
 use music::{
-    MusicApi, MusicProvider, PlaybackFactory, PromptSink, ProviderSession, SignIn, SignInPrompt,
-    UserProfile,
+    MusicApi, MusicProvider, PlaybackFactory, PromptSink, ProviderSession, SignIn, SignInFailure,
+    SignInProblem, SignInPrompt, UserProfile,
 };
 use tokio::sync::mpsc::UnboundedSender;
 
+use crate::catalog::CatalogSource;
 use crate::settings::AppSettings;
 use crate::{Io, join};
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Failure {
+    pub problem: Option<SignInProblem>,
+    pub summary: String,
+    pub detail: Option<String>,
+}
+
+impl Failure {
+    fn new(error: &Error) -> Self {
+        let problem = error
+            .downcast_ref::<SignInFailure>()
+            .map(|failure| failure.0);
+        let detail = error
+            .chain()
+            .skip(1)
+            .map(ToString::to_string)
+            .collect::<Vec<_>>();
+        Self {
+            problem,
+            summary: error.to_string(),
+            detail: (!detail.is_empty()).then(|| detail.join(": ")),
+        }
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SessionState {
@@ -18,7 +44,7 @@ pub enum SessionState {
     Restoring,
     Authorizing(Option<SignInPrompt>),
     SignedIn(UserProfile),
-    Failed(String),
+    Failed(Failure),
 }
 
 pub enum SessionEvent {
@@ -34,7 +60,7 @@ pub struct ProviderInfo {
     pub stored: bool,
     pub active: bool,
     pub pending: bool,
-    pub error: Option<String>,
+    pub error: Option<Failure>,
 }
 
 pub struct Session {
@@ -43,9 +69,10 @@ pub struct Session {
     active: Option<usize>,
     awaiting: Option<usize>,
     resume: Option<(usize, UserProfile)>,
-    error: Option<(usize, String)>,
+    error: Option<(usize, Failure)>,
     settings: Entity<AppSettings>,
     client: Option<Arc<dyn MusicApi>>,
+    catalog: Option<Arc<CatalogSource>>,
     playback: Option<Arc<dyn PlaybackFactory>>,
     authenticated: bool,
     playcounts: bool,
@@ -55,6 +82,7 @@ pub struct Session {
     input: Option<UnboundedSender<String>>,
     local_provider: Arc<dyn MusicProvider>,
     local_client: Option<Arc<dyn MusicApi>>,
+    local_catalog: Option<Arc<CatalogSource>>,
     local_playback: Option<Arc<dyn PlaybackFactory>>,
     local_task: Option<Task<()>>,
 }
@@ -82,6 +110,7 @@ impl Session {
             error: None,
             settings,
             client: None,
+            catalog: None,
             playback: None,
             authenticated: false,
             playcounts: false,
@@ -91,6 +120,7 @@ impl Session {
             input: None,
             local_provider,
             local_client: None,
+            local_catalog: None,
             local_playback: None,
             local_task: None,
         };
@@ -114,6 +144,13 @@ impl Session {
         self.local_client.clone()
     }
 
+    pub(crate) fn catalog(&self, id: &str) -> Option<Arc<CatalogSource>> {
+        match music::is_local_id(id) {
+            true => self.local_catalog.clone(),
+            false => self.catalog.clone(),
+        }
+    }
+
     pub fn local_playback(&self) -> Option<Arc<dyn PlaybackFactory>> {
         self.local_playback.clone()
     }
@@ -134,7 +171,7 @@ impl Session {
                 active: self.active == Some(index),
                 pending: self.awaiting == Some(index),
                 error: match &self.error {
-                    Some((failed, message)) if *failed == index => Some(message.clone()),
+                    Some((failed, failure)) if *failed == index => Some(failure.clone()),
                     _ => None,
                 },
             })
@@ -375,6 +412,7 @@ impl Session {
         self.awaiting = None;
         self.resume = None;
         self.client = None;
+        self.catalog = None;
         self.playback = None;
         self.authenticated = false;
         self.playcounts = false;
@@ -392,6 +430,7 @@ impl Session {
         self.settings.update(cx, |settings, cx| {
             settings.set_provider(slug, cx);
         });
+        self.catalog = Some(Arc::new(CatalogSource::new(session.api.clone())));
         self.client = Some(session.api);
         self.playback = Some(session.playback);
         self.authenticated = session.authenticated;
@@ -402,9 +441,9 @@ impl Session {
     }
 
     fn failed(&mut self, error: &Error, cx: &mut Context<Self>) {
-        let message = format!("{error:#}");
+        let failure = Failure::new(error);
         if let Some(failed) = self.awaiting.or(self.active) {
-            self.error = Some((failed, message.clone()));
+            self.error = Some((failed, failure.clone()));
         }
         self.awaiting = None;
         if let Some((index, profile)) = self.resume.take() {
@@ -414,8 +453,9 @@ impl Session {
             return;
         }
         self.client = None;
+        self.catalog = None;
         self.playback = None;
-        self.state = SessionState::Failed(message);
+        self.state = SessionState::Failed(failure);
         cx.notify();
         cx.emit(SessionEvent::SignedOut);
     }
@@ -458,6 +498,7 @@ impl Session {
     pub fn clear_local_folder(&mut self, cx: &mut Context<Self>) {
         self.local_provider.sign_out();
         self.local_client = None;
+        self.local_catalog = None;
         self.local_playback = None;
         self.local_task = None;
         cx.notify();
@@ -465,6 +506,7 @@ impl Session {
     }
 
     fn local_signed_in(&mut self, session: ProviderSession, cx: &mut Context<Self>) {
+        self.local_catalog = Some(Arc::new(CatalogSource::new(session.api.clone())));
         self.local_client = Some(session.api);
         self.local_playback = Some(session.playback);
         cx.notify();

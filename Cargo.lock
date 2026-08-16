@@ -1056,7 +1056,7 @@ dependencies = [
 [[package]]
 name = "collections"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/zed?rev=1b8071574557dcdd870e460529d14be4c86ed602#1b8071574557dcdd870e460529d14be4c86ed602"
+source = "git+https://github.com/nolight132/gpui?rev=25e2729939a81c127a46ff10d74d1e7be40ba03a#25e2729939a81c127a46ff10d74d1e7be40ba03a"
 dependencies = [
  "gpui_util",
  "indexmap",
@@ -1110,16 +1110,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ca0197aee26d1ae37445ee532fefce43251d24cc7c166799f4d46817f1d3973"
 dependencies = [
  "crossbeam-utils",
-]
-
-[[package]]
-name = "console_error_panic_hook"
-version = "0.1.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a06aeb73f470f66dcdbf7223caeebb85984942f22f1adb2a088cf9668146bbbc"
-dependencies = [
- "cfg-if",
- "wasm-bindgen",
 ]
 
 [[package]]
@@ -1397,6 +1387,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "crossbeam-channel"
+version = "0.5.16"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d85363c37faeca707aef026efa9f3b34d077bce547e48f770770625c6013679e"
+dependencies = [
+ "crossbeam-utils",
+]
+
+[[package]]
 name = "crossbeam-deque"
 version = "0.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1643,7 +1642,7 @@ dependencies = [
 [[package]]
 name = "derive_refineable"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/zed?rev=1b8071574557dcdd870e460529d14be4c86ed602#1b8071574557dcdd870e460529d14be4c86ed602"
+source = "git+https://github.com/nolight132/gpui?rev=25e2729939a81c127a46ff10d74d1e7be40ba03a#25e2729939a81c127a46ff10d74d1e7be40ba03a"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2511,7 +2510,7 @@ dependencies = [
 [[package]]
 name = "gpui"
 version = "0.2.2"
-source = "git+https://github.com/nolight132/zed?rev=1b8071574557dcdd870e460529d14be4c86ed602#1b8071574557dcdd870e460529d14be4c86ed602"
+source = "git+https://github.com/nolight132/gpui?rev=25e2729939a81c127a46ff10d74d1e7be40ba03a#25e2729939a81c127a46ff10d74d1e7be40ba03a"
 dependencies = [
  "accesskit",
  "anyhow",
@@ -2595,7 +2594,7 @@ dependencies = [
 [[package]]
 name = "gpui_linux"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/zed?rev=1b8071574557dcdd870e460529d14be4c86ed602#1b8071574557dcdd870e460529d14be4c86ed602"
+source = "git+https://github.com/nolight132/gpui?rev=25e2729939a81c127a46ff10d74d1e7be40ba03a#25e2729939a81c127a46ff10d74d1e7be40ba03a"
 dependencies = [
  "accesskit",
  "accesskit_unix",
@@ -2647,7 +2646,7 @@ dependencies = [
 [[package]]
 name = "gpui_macos"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/zed?rev=1b8071574557dcdd870e460529d14be4c86ed602#1b8071574557dcdd870e460529d14be4c86ed602"
+source = "git+https://github.com/nolight132/gpui?rev=25e2729939a81c127a46ff10d74d1e7be40ba03a#25e2729939a81c127a46ff10d74d1e7be40ba03a"
 dependencies = [
  "accesskit",
  "accesskit_macos",
@@ -2696,7 +2695,7 @@ dependencies = [
 [[package]]
 name = "gpui_macros"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/zed?rev=1b8071574557dcdd870e460529d14be4c86ed602#1b8071574557dcdd870e460529d14be4c86ed602"
+source = "git+https://github.com/nolight132/gpui?rev=25e2729939a81c127a46ff10d74d1e7be40ba03a#25e2729939a81c127a46ff10d74d1e7be40ba03a"
 dependencies = [
  "heck 0.5.0",
  "proc-macro2",
@@ -2707,20 +2706,18 @@ dependencies = [
 [[package]]
 name = "gpui_platform"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/zed?rev=1b8071574557dcdd870e460529d14be4c86ed602#1b8071574557dcdd870e460529d14be4c86ed602"
+source = "git+https://github.com/nolight132/gpui?rev=25e2729939a81c127a46ff10d74d1e7be40ba03a#25e2729939a81c127a46ff10d74d1e7be40ba03a"
 dependencies = [
- "console_error_panic_hook",
  "gpui",
  "gpui_linux",
  "gpui_macos",
- "gpui_web",
  "gpui_windows",
 ]
 
 [[package]]
 name = "gpui_shared_string"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/zed?rev=1b8071574557dcdd870e460529d14be4c86ed602#1b8071574557dcdd870e460529d14be4c86ed602"
+source = "git+https://github.com/nolight132/gpui?rev=25e2729939a81c127a46ff10d74d1e7be40ba03a#25e2729939a81c127a46ff10d74d1e7be40ba03a"
 dependencies = [
  "schemars",
  "serde",
@@ -2730,7 +2727,7 @@ dependencies = [
 [[package]]
 name = "gpui_util"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/zed?rev=1b8071574557dcdd870e460529d14be4c86ed602#1b8071574557dcdd870e460529d14be4c86ed602"
+source = "git+https://github.com/nolight132/gpui?rev=25e2729939a81c127a46ff10d74d1e7be40ba03a#25e2729939a81c127a46ff10d74d1e7be40ba03a"
 dependencies = [
  "anyhow",
  "log",
@@ -2738,32 +2735,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "gpui_web"
-version = "0.1.0"
-source = "git+https://github.com/nolight132/zed?rev=1b8071574557dcdd870e460529d14be4c86ed602#1b8071574557dcdd870e460529d14be4c86ed602"
-dependencies = [
- "anyhow",
- "console_error_panic_hook",
- "futures",
- "gpui",
- "gpui_wgpu",
- "http_client",
- "js-sys",
- "log",
- "parking_lot",
- "raw-window-handle",
- "uuid",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "wasm_thread",
- "web-sys",
- "web-time",
-]
-
-[[package]]
 name = "gpui_wgpu"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/zed?rev=1b8071574557dcdd870e460529d14be4c86ed602#1b8071574557dcdd870e460529d14be4c86ed602"
+source = "git+https://github.com/nolight132/gpui?rev=25e2729939a81c127a46ff10d74d1e7be40ba03a#25e2729939a81c127a46ff10d74d1e7be40ba03a"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -2793,7 +2767,7 @@ dependencies = [
 [[package]]
 name = "gpui_windows"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/zed?rev=1b8071574557dcdd870e460529d14be4c86ed602#1b8071574557dcdd870e460529d14be4c86ed602"
+source = "git+https://github.com/nolight132/gpui?rev=25e2729939a81c127a46ff10d74d1e7be40ba03a#25e2729939a81c127a46ff10d74d1e7be40ba03a"
 dependencies = [
  "accesskit",
  "accesskit_windows",
@@ -3047,7 +3021,7 @@ dependencies = [
 [[package]]
 name = "http_client"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/zed?rev=1b8071574557dcdd870e460529d14be4c86ed602#1b8071574557dcdd870e460529d14be4c86ed602"
+source = "git+https://github.com/nolight132/gpui?rev=25e2729939a81c127a46ff10d74d1e7be40ba03a#25e2729939a81c127a46ff10d74d1e7be40ba03a"
 dependencies = [
  "anyhow",
  "async-compression",
@@ -3736,7 +3710,7 @@ dependencies = [
 [[package]]
 name = "librespot-audio"
 version = "0.8.0"
-source = "git+https://github.com/nolight132/librespot?rev=81b99cf12a29ba2915894f24d67aec85a963dc06#81b99cf12a29ba2915894f24d67aec85a963dc06"
+source = "git+https://github.com/nolight132/librespot?rev=e7eb953d5848fd97bacd00e6c0e33500765eaa63#e7eb953d5848fd97bacd00e6c0e33500765eaa63"
 dependencies = [
  "aes",
  "bytes",
@@ -3755,7 +3729,7 @@ dependencies = [
 [[package]]
 name = "librespot-core"
 version = "0.8.0"
-source = "git+https://github.com/nolight132/librespot?rev=81b99cf12a29ba2915894f24d67aec85a963dc06#81b99cf12a29ba2915894f24d67aec85a963dc06"
+source = "git+https://github.com/nolight132/librespot?rev=e7eb953d5848fd97bacd00e6c0e33500765eaa63#e7eb953d5848fd97bacd00e6c0e33500765eaa63"
 dependencies = [
  "aes",
  "base64",
@@ -3811,7 +3785,7 @@ dependencies = [
 [[package]]
 name = "librespot-metadata"
 version = "0.8.0"
-source = "git+https://github.com/nolight132/librespot?rev=81b99cf12a29ba2915894f24d67aec85a963dc06#81b99cf12a29ba2915894f24d67aec85a963dc06"
+source = "git+https://github.com/nolight132/librespot?rev=e7eb953d5848fd97bacd00e6c0e33500765eaa63#e7eb953d5848fd97bacd00e6c0e33500765eaa63"
 dependencies = [
  "async-trait",
  "bytes",
@@ -3828,7 +3802,7 @@ dependencies = [
 [[package]]
 name = "librespot-oauth"
 version = "0.8.0"
-source = "git+https://github.com/nolight132/librespot?rev=81b99cf12a29ba2915894f24d67aec85a963dc06#81b99cf12a29ba2915894f24d67aec85a963dc06"
+source = "git+https://github.com/nolight132/librespot?rev=e7eb953d5848fd97bacd00e6c0e33500765eaa63#e7eb953d5848fd97bacd00e6c0e33500765eaa63"
 dependencies = [
  "log",
  "oauth2",
@@ -3841,7 +3815,7 @@ dependencies = [
 [[package]]
 name = "librespot-playback"
 version = "0.8.0"
-source = "git+https://github.com/nolight132/librespot?rev=81b99cf12a29ba2915894f24d67aec85a963dc06#81b99cf12a29ba2915894f24d67aec85a963dc06"
+source = "git+https://github.com/nolight132/librespot?rev=e7eb953d5848fd97bacd00e6c0e33500765eaa63#e7eb953d5848fd97bacd00e6c0e33500765eaa63"
 dependencies = [
  "cpal",
  "form_urlencoded",
@@ -3864,7 +3838,7 @@ dependencies = [
 [[package]]
 name = "librespot-protocol"
 version = "0.8.0"
-source = "git+https://github.com/nolight132/librespot?rev=81b99cf12a29ba2915894f24d67aec85a963dc06#81b99cf12a29ba2915894f24d67aec85a963dc06"
+source = "git+https://github.com/nolight132/librespot?rev=e7eb953d5848fd97bacd00e6c0e33500765eaa63#e7eb953d5848fd97bacd00e6c0e33500765eaa63"
 dependencies = [
  "protobuf",
  "protobuf-codegen",
@@ -4099,7 +4073,7 @@ dependencies = [
 [[package]]
 name = "media"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/zed?rev=1b8071574557dcdd870e460529d14be4c86ed602#1b8071574557dcdd870e460529d14be4c86ed602"
+source = "git+https://github.com/nolight132/gpui?rev=25e2729939a81c127a46ff10d74d1e7be40ba03a#25e2729939a81c127a46ff10d74d1e7be40ba03a"
 dependencies = [
  "anyhow",
  "bindgen",
@@ -4181,6 +4155,26 @@ dependencies = [
  "libc",
  "wasi",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "moka"
+version = "0.12.16"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4293f18e7567a1caf3c584855554377025c65e0aa445344d04171f5ad63d19b9"
+dependencies = [
+ "async-lock",
+ "crossbeam-channel",
+ "crossbeam-epoch",
+ "crossbeam-utils",
+ "equivalent",
+ "event-listener",
+ "futures-util",
+ "parking_lot",
+ "portable-atomic",
+ "smallvec",
+ "tagptr",
+ "uuid",
 ]
 
 [[package]]
@@ -5023,7 +5017,7 @@ checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 [[package]]
 name = "perf"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/zed?rev=1b8071574557dcdd870e460529d14be4c86ed602#1b8071574557dcdd870e460529d14be4c86ed602"
+source = "git+https://github.com/nolight132/gpui?rev=25e2729939a81c127a46ff10d74d1e7be40ba03a#25e2729939a81c127a46ff10d74d1e7be40ba03a"
 dependencies = [
  "collections",
  "serde",
@@ -5832,7 +5826,7 @@ dependencies = [
 [[package]]
 name = "refineable"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/zed?rev=1b8071574557dcdd870e460529d14be4c86ed602#1b8071574557dcdd870e460529d14be4c86ed602"
+source = "git+https://github.com/nolight132/gpui?rev=25e2729939a81c127a46ff10d74d1e7be40ba03a#25e2729939a81c127a46ff10d74d1e7be40ba03a"
 dependencies = [
  "derive_refineable",
 ]
@@ -6264,7 +6258,7 @@ dependencies = [
 [[package]]
 name = "scheduler"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/zed?rev=1b8071574557dcdd870e460529d14be4c86ed602#1b8071574557dcdd870e460529d14be4c86ed602"
+source = "git+https://github.com/nolight132/gpui?rev=25e2729939a81c127a46ff10d74d1e7be40ba03a#25e2729939a81c127a46ff10d74d1e7be40ba03a"
 dependencies = [
  "async-task",
  "backtrace",
@@ -6847,6 +6841,7 @@ name = "state"
 version = "0.14.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "dirs",
  "fastrand",
  "futures",
@@ -6854,6 +6849,7 @@ dependencies = [
  "i18n",
  "image",
  "log",
+ "moka",
  "music",
  "serde",
  "serde_json",
@@ -6913,7 +6909,7 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 [[package]]
 name = "sum_tree"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/zed?rev=1b8071574557dcdd870e460529d14be4c86ed602#1b8071574557dcdd870e460529d14be4c86ed602"
+source = "git+https://github.com/nolight132/gpui?rev=25e2729939a81c127a46ff10d74d1e7be40ba03a#25e2729939a81c127a46ff10d74d1e7be40ba03a"
 dependencies = [
  "heapless",
  "log",
@@ -7297,6 +7293,12 @@ dependencies = [
  "slotmap",
  "smallvec",
 ]
+
+[[package]]
+name = "tagptr"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7b2093cf4c8eb1e67749a6762251bc9cd836b6fc171623bd0a9d324d37af2417"
 
 [[package]]
 name = "tao-core-video-sys"
@@ -8040,7 +8042,7 @@ checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
 [[package]]
 name = "util_macros"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/zed?rev=1b8071574557dcdd870e460529d14be4c86ed602#1b8071574557dcdd870e460529d14be4c86ed602"
+source = "git+https://github.com/nolight132/gpui?rev=25e2729939a81c127a46ff10d74d1e7be40ba03a#25e2729939a81c127a46ff10d74d1e7be40ba03a"
 dependencies = [
  "perf",
  "quote",
@@ -8290,17 +8292,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dc1b4cb0cc549fcf58d7dfc081778139b3d283a081644e833e84682ad71cea24"
 dependencies = [
  "unicode-ident",
-]
-
-[[package]]
-name = "wasm_thread"
-version = "0.3.3"
-source = "git+https://github.com/zed-industries/wasm_thread?rev=0cf96c7708dfb97ccf3da50347e25edcf75d6937#0cf96c7708dfb97ccf3da50347e25edcf75d6937"
-dependencies = [
- "futures",
- "js-sys",
- "wasm-bindgen",
- "web-sys",
 ]
 
 [[package]]
@@ -9609,7 +9600,7 @@ dependencies = [
 [[package]]
 name = "zlog"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/zed?rev=1b8071574557dcdd870e460529d14be4c86ed602#1b8071574557dcdd870e460529d14be4c86ed602"
+source = "git+https://github.com/nolight132/gpui?rev=25e2729939a81c127a46ff10d74d1e7be40ba03a#25e2729939a81c127a46ff10d74d1e7be40ba03a"
 dependencies = [
  "anyhow",
  "chrono",
@@ -9626,7 +9617,7 @@ checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
 [[package]]
 name = "ztracing"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/zed?rev=1b8071574557dcdd870e460529d14be4c86ed602#1b8071574557dcdd870e460529d14be4c86ed602"
+source = "git+https://github.com/nolight132/gpui?rev=25e2729939a81c127a46ff10d74d1e7be40ba03a#25e2729939a81c127a46ff10d74d1e7be40ba03a"
 dependencies = [
  "tracing",
  "tracing-subscriber",
@@ -9637,7 +9628,7 @@ dependencies = [
 [[package]]
 name = "ztracing_macro"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/zed?rev=1b8071574557dcdd870e460529d14be4c86ed602#1b8071574557dcdd870e460529d14be4c86ed602"
+source = "git+https://github.com/nolight132/gpui?rev=25e2729939a81c127a46ff10d74d1e7be40ba03a#25e2729939a81c127a46ff10d74d1e7be40ba03a"
 
 [[package]]
 name = "zune-core"

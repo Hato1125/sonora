@@ -44,6 +44,7 @@ jiff = { version = "0.2", default-features = false, features = ["std"] }
 libc = "0.2"
 lofty = "0.25"
 log = "0.4"
+moka = { version = "0.12.15", features = ["future", "sync"] }
 reqwest = { version = "0.12", default-features = false, features = [
   "json",
   "rustls-tls-native-roots",
@@ -79,12 +80,12 @@ tokio = { version = "1.53", features = [
 ] }
 
 [patch.crates-io]
-librespot-audio = { git = "https://github.com/nolight132/librespot", rev = "81b99cf12a29ba2915894f24d67aec85a963dc06" }
-librespot-core = { git = "https://github.com/nolight132/librespot", rev = "81b99cf12a29ba2915894f24d67aec85a963dc06" }
-librespot-metadata = { git = "https://github.com/nolight132/librespot", rev = "81b99cf12a29ba2915894f24d67aec85a963dc06" }
-librespot-oauth = { git = "https://github.com/nolight132/librespot", rev = "81b99cf12a29ba2915894f24d67aec85a963dc06" }
-librespot-playback = { git = "https://github.com/nolight132/librespot", rev = "81b99cf12a29ba2915894f24d67aec85a963dc06" }
-librespot-protocol = { git = "https://github.com/nolight132/librespot", rev = "81b99cf12a29ba2915894f24d67aec85a963dc06" }
+librespot-audio = { git = "https://github.com/nolight132/librespot", rev = "e7eb953d5848fd97bacd00e6c0e33500765eaa63" }
+librespot-core = { git = "https://github.com/nolight132/librespot", rev = "e7eb953d5848fd97bacd00e6c0e33500765eaa63" }
+librespot-metadata = { git = "https://github.com/nolight132/librespot", rev = "e7eb953d5848fd97bacd00e6c0e33500765eaa63" }
+librespot-oauth = { git = "https://github.com/nolight132/librespot", rev = "e7eb953d5848fd97bacd00e6c0e33500765eaa63" }
+librespot-playback = { git = "https://github.com/nolight132/librespot", rev = "e7eb953d5848fd97bacd00e6c0e33500765eaa63" }
+librespot-protocol = { git = "https://github.com/nolight132/librespot", rev = "e7eb953d5848fd97bacd00e6c0e33500765eaa63" }
 
 [profile.dev]
 split-debuginfo = "unpacked"
@@ -100,3 +101,7 @@ opt-level = 2
 [profile.dev.package."*"]
 debug = false
 opt-level = 2
+
+[patch."https://github.com/nolight132/zed"]
+gpui = { git = "https://github.com/nolight132/gpui", rev = "25e2729939a81c127a46ff10d74d1e7be40ba03a" }
+gpui_platform = { git = "https://github.com/nolight132/gpui", rev = "25e2729939a81c127a46ff10d74d1e7be40ba03a" }
