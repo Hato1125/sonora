@@ -13,8 +13,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   every track was refused part-way through, and the fallback it tried next was refused outright. A
   signed-in session now streams through the YouTube Music client itself, which also hands over a
   better stream — 256 kbps instead of 128. Without an account Sonora asks as a headset would, with a
-  visitor id issued by YouTube rather than one it made up, though YouTube now turns most music away
-  from anonymous listeners regardless.
+  visitor id issued by YouTube rather than one it made up.
+- Playing without a YouTube account says so once instead of failing track after track. YouTube now
+  turns anonymous listeners away from most music, and Sonora used to work through the whole queue,
+  waiting six seconds between refusals. It now stops at the first one and asks you to sign in.
 - A signed-in YouTube session survives a restart. Sonora used to keep the cookies it copied from
   your browser the day you signed in, and YouTube rotates those every few hours, so your library
   quietly went missing. When you signed in through a browser, Sonora now re-reads its cookies each
