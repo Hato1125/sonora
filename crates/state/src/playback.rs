@@ -123,6 +123,7 @@ pub struct Playback {
     armed: Option<Duration>,
     settle: Option<Duration>,
     held: bool,
+    mending: bool,
     stored: Duration,
 }
 
@@ -142,6 +143,12 @@ impl Playback {
                 };
                 this.start_engine(playback, cx);
                 this.adopt(cx);
+            }
+            SessionEvent::Reconnected => {
+                let Some(playback) = session.read(cx).playback() else {
+                    return;
+                };
+                this.rebind(playback, cx);
             }
             SessionEvent::SignedOut => this.teardown(cx),
             SessionEvent::LocalChanged => {
@@ -190,6 +197,7 @@ impl Playback {
             armed: None,
             settle: None,
             held: false,
+            mending: false,
             stored: Duration::ZERO,
         }
     }
@@ -1010,6 +1018,31 @@ impl Playback {
         cx.notify();
     }
 
+    fn mend(&mut self, cx: &mut Context<Self>) -> bool {
+        if self.track.is_none() {
+            return false;
+        }
+        self.mending = self.session.update(cx, |session, cx| session.heal(cx));
+        self.mending
+    }
+
+    fn rebind(&mut self, playback: Arc<dyn PlaybackFactory>, cx: &mut Context<Self>) {
+        let resume = self.state == PlaybackState::Playing || self.mending;
+        self.mending = false;
+        let at = self.position;
+        self.task = None;
+        self.engine = None;
+        self.preloaded = None;
+        self.blocked_until = None;
+        if self.track.is_some() {
+            self.armed = Some(at);
+        }
+        self.start_engine(playback, cx);
+        if resume {
+            self.resume(cx);
+        }
+    }
+
     fn start_engine(&mut self, playback: Arc<dyn PlaybackFactory>, cx: &mut Context<Self>) {
         let config = PlaybackConfig {
             normalisation: self.normalisation,
@@ -1120,6 +1153,10 @@ impl Playback {
                 cx.emit(PlaybackEvent::EndedPlayback);
                 self.advance(ended, cx);
             }
+            BackendEvent::Unavailable if self.mend(cx) => {
+                self.state = PlaybackState::Loading;
+                log::warn!("playback: the provider went stale, waiting for a reconnect");
+            }
             BackendEvent::Unavailable => {
                 let failed = self.track.take();
                 let name = failed.map_or_else(|| "?".to_owned(), |track| track.name);
@@ -1167,6 +1204,7 @@ impl Playback {
             self.armed = None;
             self.settle = None;
             self.held = false;
+            self.mending = false;
             self.stored = Duration::ZERO;
         }
         cx.notify();

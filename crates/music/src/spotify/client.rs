@@ -33,6 +33,10 @@ impl LibrespotClient {
 
 #[async_trait]
 impl MusicApi for LibrespotClient {
+    fn alive(&self) -> bool {
+        !self.session.is_invalid()
+    }
+
     fn share_url(&self, kind: MediaKind, id: &str) -> Option<String> {
         let kind = match kind {
             MediaKind::Track => "track",

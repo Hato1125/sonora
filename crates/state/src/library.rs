@@ -129,6 +129,13 @@ impl Library {
                 this.state = LibraryState::Empty;
                 cx.notify();
             }
+            SessionEvent::Reconnected => {
+                if matches!(this.state, LibraryState::Failed(_))
+                    && let Some(client) = session.read(cx).client()
+                {
+                    this.load(client, cx);
+                }
+            }
             SessionEvent::LocalChanged => {
                 let client = session.read(cx).local_client();
                 match client {

@@ -71,6 +71,7 @@ impl Detail {
                     }
                 }
             }
+            SessionEvent::Reconnected => {}
             SessionEvent::LocalChanged => {
                 if let (Some(kind), Some(id)) = (
                     this.kind,
