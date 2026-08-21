@@ -410,6 +410,7 @@ toast-queued-playlist = Playlist ajoutée à la file d'attente
 toast-next-playlist = La playlist sera lue juste après
 toast-queue-failed = Impossible d'ajouter cela à la file d'attente
 toast-keys-refused = Spotify n'accorde pas de clés de lecture à ce compte
+toast-sign-in-to-play = { $name } ne diffuse qu'aux auditeurs connectés
 toast-track-unplayable = { $name } n'a pas pu être lu
 
 # lyrics

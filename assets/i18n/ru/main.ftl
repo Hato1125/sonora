@@ -423,6 +423,7 @@ toast-queued-playlist = Плейлист добавлен в очередь
 toast-next-playlist = Плейлист прозвучит следующим
 toast-queue-failed = Не удалось добавить в очередь
 toast-keys-refused = Spotify не выдаёт этому аккаунту ключи воспроизведения
+toast-sign-in-to-play = { $name } отдаёт музыку только тем, кто вошёл в аккаунт
 toast-track-unplayable = Не удалось воспроизвести { $name }
 
 # lyrics

@@ -137,6 +137,7 @@ pub enum PlaybackEvent {
     Ended,
     Unavailable,
     Refused,
+    Gated,
 }
 
 pub trait Player: Send + Sync {
