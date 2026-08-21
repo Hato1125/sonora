@@ -9,10 +9,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- YouTube Music plays again. YouTube stopped serving the client Sonora asked for — the download of
-  every track was refused part-way through — and the fallback it tried next was refused outright.
-  Sonora now asks with a client YouTube still answers and, just as importantly, uses a visitor id
-  issued by YouTube instead of one it made up, which is what the refusals were really about.
+- YouTube Music plays again. YouTube stopped serving the clients Sonora asked for: the download of
+  every track was refused part-way through, and the fallback it tried next was refused outright. A
+  signed-in session now streams through the YouTube Music client itself, which also hands over a
+  better stream — 256 kbps instead of 128. Without an account Sonora asks as a headset would, with a
+  visitor id issued by YouTube rather than one it made up, though YouTube now turns most music away
+  from anonymous listeners regardless.
 - A signed-in YouTube session survives a restart. Sonora used to keep the cookies it copied from
   your browser the day you signed in, and YouTube rotates those every few hours, so your library
   quietly went missing. When you signed in through a browser, Sonora now re-reads its cookies each

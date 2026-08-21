@@ -28,6 +28,7 @@ pub struct YouTubeProvider {
     source: PathBuf,
     guest: PathBuf,
     resolved: PathBuf,
+    player: PathBuf,
 }
 
 impl YouTubeProvider {
@@ -42,6 +43,7 @@ impl YouTubeProvider {
             source: cache.join("browser.txt"),
             guest: cache.join("guest"),
             resolved: cache.join("resolved.json"),
+            player: cache.join("player.json"),
         }
     }
 
@@ -49,12 +51,13 @@ impl YouTubeProvider {
         Arc::new(
             YtMusic::with_cookies(cookies)
                 .as_user(authuser)
-                .cache_resolutions(self.resolved.clone()),
+                .cache_resolutions(self.resolved.clone())
+                .cache_player(self.player.clone()),
         )
     }
 
     fn guest_client(&self) -> Arc<YtMusic> {
-        Arc::new(YtMusic::anonymous())
+        Arc::new(YtMusic::anonymous().cache_player(self.player.clone()))
     }
 
     fn authenticated_session(&self, api: Arc<YtMusic>, profile: UserProfile) -> ProviderSession {
