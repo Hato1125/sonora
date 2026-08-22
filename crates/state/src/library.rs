@@ -7,7 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use gpui::{Context, Entity, Task};
 use music::{Album, MusicApi, Playlist, SavedArtist, Track};
 
-use crate::{Io, Note, Session, SessionEvent, Toasts, join, mosaic};
+use crate::{Io, Outcome, Session, SessionEvent, Toasts, join, mosaic};
 
 const PAGE_LIMIT: u32 = 10000;
 
@@ -74,6 +74,149 @@ fn take<T>(
         });
         Vec::new()
     })
+}
+
+impl Library {
+    fn toggle_saved<S: Savable>(&mut self, mut item: S, cx: &mut Context<Self>) {
+        let Some(id) = item.id().map(str::to_owned) else {
+            return;
+        };
+        if S::requests(self).contains_key(&id) {
+            return;
+        }
+        let Some(client) = self.session.read(cx).client() else {
+            return;
+        };
+
+        let previous = S::saved_now(self, &id);
+        let saved = previous.is_none();
+        if saved {
+            item.stamp_added();
+        }
+        S::hold(self, item.clone(), saved);
+
+        let asked = id.clone();
+        let answered = id.clone();
+        let io = self.io.clone();
+        let task = cx.spawn(async move |this, cx| {
+            let result = join(io.spawn(S::ask(client, asked, saved))).await;
+            this.update(cx, |this, cx| {
+                S::requests(this).remove(&answered);
+                if let Err(error) = result {
+                    match previous {
+                        Some(previous) => S::hold(this, previous, true),
+                        None => S::hold(this, item, false),
+                    }
+                    log::warn!("library: cannot update the {}: {error:#}", S::TROUBLE);
+                }
+                cx.notify();
+            })
+            .ok();
+        });
+        S::requests(self).insert(id, task);
+        cx.notify();
+    }
+}
+
+trait Savable: Clone + Send + Sized + 'static {
+    const TROUBLE: &'static str;
+
+    fn id(&self) -> Option<&str>;
+    fn stamp_added(&mut self) {}
+    fn saved_now(library: &Library, id: &str) -> Option<Self>;
+    fn requests(library: &mut Library) -> &mut HashMap<String, Task<()>>;
+    fn hold(library: &mut Library, item: Self, saved: bool);
+    fn ask(
+        client: Arc<dyn MusicApi>,
+        id: String,
+        saved: bool,
+    ) -> impl Future<Output = anyhow::Result<()>> + Send;
+}
+
+impl Savable for Track {
+    const TROUBLE: &'static str = "saved track";
+
+    fn id(&self) -> Option<&str> {
+        self.id.as_deref()
+    }
+
+    fn stamp_added(&mut self) {
+        self.added_at = Some(stamp());
+    }
+
+    fn saved_now(library: &Library, id: &str) -> Option<Self> {
+        let LibraryState::Ready { tracks, .. } = &library.state else {
+            return None;
+        };
+        tracks
+            .iter()
+            .find(|track| track.id.as_deref() == Some(id))
+            .cloned()
+    }
+
+    fn requests(library: &mut Library) -> &mut HashMap<String, Task<()>> {
+        &mut library.pending
+    }
+
+    fn hold(library: &mut Library, item: Self, saved: bool) {
+        library.set_saved(item, saved);
+    }
+
+    async fn ask(client: Arc<dyn MusicApi>, id: String, saved: bool) -> anyhow::Result<()> {
+        client.set_track_saved(&id, saved).await
+    }
+}
+
+impl Savable for Album {
+    const TROUBLE: &'static str = "saved album";
+
+    fn id(&self) -> Option<&str> {
+        Some(&self.id)
+    }
+
+    fn saved_now(library: &Library, id: &str) -> Option<Self> {
+        library.album(id).cloned()
+    }
+
+    fn requests(library: &mut Library) -> &mut HashMap<String, Task<()>> {
+        &mut library.pending_albums
+    }
+
+    fn hold(library: &mut Library, item: Self, saved: bool) {
+        library.set_album_saved(item, saved);
+    }
+
+    async fn ask(client: Arc<dyn MusicApi>, id: String, saved: bool) -> anyhow::Result<()> {
+        client.set_album_saved(&id, saved).await
+    }
+}
+
+impl Savable for SavedArtist {
+    const TROUBLE: &'static str = "followed artist";
+
+    fn id(&self) -> Option<&str> {
+        Some(&self.id)
+    }
+
+    fn stamp_added(&mut self) {
+        self.added_at = Some(stamp());
+    }
+
+    fn saved_now(library: &Library, id: &str) -> Option<Self> {
+        library.artist(id).cloned()
+    }
+
+    fn requests(library: &mut Library) -> &mut HashMap<String, Task<()>> {
+        &mut library.pending_artists
+    }
+
+    fn hold(library: &mut Library, item: Self, saved: bool) {
+        library.set_artist_saved(item, saved);
+    }
+
+    async fn ask(client: Arc<dyn MusicApi>, id: String, saved: bool) -> anyhow::Result<()> {
+        client.set_artist_saved(&id, saved).await
+    }
 }
 
 pub enum LibraryEvent {
@@ -261,52 +404,8 @@ impl Library {
         self.pending.contains_key(track_id)
     }
 
-    pub fn toggle(&mut self, mut track: Track, cx: &mut Context<Self>) {
-        let Some(track_id) = track.id.clone() else {
-            return;
-        };
-        if self.pending(&track_id) {
-            return;
-        }
-        let Some(client) = self.session.read(cx).client() else {
-            return;
-        };
-        let saved = !self.saved(&track_id);
-        let previous = match &self.state {
-            LibraryState::Ready { tracks, .. } => tracks
-                .iter()
-                .find(|track| track.id.as_deref() == Some(track_id.as_str()))
-                .cloned(),
-            _ => None,
-        };
-        if saved {
-            track.added_at = Some(stamp());
-        }
-        self.set_saved(track.clone(), saved);
-
-        let io = self.io.clone();
-        let request_id = track_id.clone();
-        let pending_id = track_id.clone();
-        let task = cx.spawn(async move |this, cx| {
-            let result =
-                join(io.spawn(async move { client.set_track_saved(&request_id, saved).await }))
-                    .await;
-
-            this.update(cx, |this, cx| {
-                this.pending.remove(&pending_id);
-                if let Err(error) = result {
-                    match previous {
-                        Some(previous) => this.set_saved(previous, true),
-                        None => this.set_saved(track, false),
-                    }
-                    log::warn!("library: cannot update saved track: {error:#}");
-                }
-                cx.notify();
-            })
-            .ok();
-        });
-        self.pending.insert(track_id, task);
-        cx.notify();
+    pub fn toggle(&mut self, track: Track, cx: &mut Context<Self>) {
+        self.toggle_saved(track, cx);
     }
 
     pub fn saved_album(&self, album_id: &str) -> bool {
@@ -318,40 +417,7 @@ impl Library {
     }
 
     pub fn toggle_album(&mut self, album: Album, cx: &mut Context<Self>) {
-        let album_id = album.id.clone();
-        if self.pending_album(&album_id) {
-            return;
-        }
-        let Some(client) = self.session.read(cx).client() else {
-            return;
-        };
-        let saved = !self.saved_album(&album_id);
-        let previous = self.album(&album_id).cloned();
-        self.set_album_saved(album.clone(), saved);
-
-        let io = self.io.clone();
-        let request_id = album_id.clone();
-        let pending_id = album_id.clone();
-        let task = cx.spawn(async move |this, cx| {
-            let result =
-                join(io.spawn(async move { client.set_album_saved(&request_id, saved).await }))
-                    .await;
-
-            this.update(cx, |this, cx| {
-                this.pending_albums.remove(&pending_id);
-                if let Err(error) = result {
-                    match previous {
-                        Some(previous) => this.set_album_saved(previous, true),
-                        None => this.set_album_saved(album, false),
-                    }
-                    log::warn!("library: cannot update saved album: {error:#}");
-                }
-                cx.notify();
-            })
-            .ok();
-        });
-        self.pending_albums.insert(album_id, task);
-        cx.notify();
+        self.toggle_saved(album, cx);
     }
 
     fn set_album_saved(&mut self, album: Album, saved: bool) {
@@ -380,44 +446,8 @@ impl Library {
         artists.iter().find(|artist| artist.id == id)
     }
 
-    pub fn toggle_artist(&mut self, mut artist: SavedArtist, cx: &mut Context<Self>) {
-        let artist_id = artist.id.clone();
-        if self.pending_artist(&artist_id) {
-            return;
-        }
-        let Some(client) = self.session.read(cx).client() else {
-            return;
-        };
-        let saved = !self.saved_artist(&artist_id);
-        let previous = self.artist(&artist_id).cloned();
-        if saved {
-            artist.added_at = Some(stamp());
-        }
-        self.set_artist_saved(artist.clone(), saved);
-
-        let io = self.io.clone();
-        let request_id = artist_id.clone();
-        let pending_id = artist_id.clone();
-        let task = cx.spawn(async move |this, cx| {
-            let result =
-                join(io.spawn(async move { client.set_artist_saved(&request_id, saved).await }))
-                    .await;
-
-            this.update(cx, |this, cx| {
-                this.pending_artists.remove(&pending_id);
-                if let Err(error) = result {
-                    match previous {
-                        Some(previous) => this.set_artist_saved(previous, true),
-                        None => this.set_artist_saved(artist, false),
-                    }
-                    log::warn!("library: cannot update the followed artist: {error:#}");
-                }
-                cx.notify();
-            })
-            .ok();
-        });
-        self.pending_artists.insert(artist_id, task);
-        cx.notify();
+    pub fn toggle_artist(&mut self, artist: SavedArtist, cx: &mut Context<Self>) {
+        self.toggle_saved(artist, cx);
     }
 
     fn set_artist_saved(&mut self, artist: SavedArtist, saved: bool) {
@@ -657,7 +687,7 @@ impl Library {
             if self.mosaics.contains_key(&id) {
                 continue;
             }
-            if self.holds_tracks(&id) {
+            if self.is_editable(&id) {
                 continue;
             }
 
@@ -682,7 +712,7 @@ impl Library {
         }
     }
 
-    fn uncovered(&self, id: &str) -> Option<u32> {
+    fn mosaic_stamp(&self, id: &str) -> Option<u32> {
         let LibraryState::Ready { playlists, .. } = &self.state else {
             return None;
         };
@@ -692,7 +722,7 @@ impl Library {
             .then_some(playlist.track_count)
     }
 
-    fn holds_tracks(&self, id: &str) -> bool {
+    fn is_editable(&self, id: &str) -> bool {
         let LibraryState::Ready { playlists, .. } = &self.state else {
             return false;
         };
@@ -775,7 +805,7 @@ impl Library {
                     this.reading.remove(&key);
                     match listed {
                         Ok(tracks) => {
-                            if let Some(stamp) = this.uncovered(&key) {
+                            if let Some(stamp) = this.mosaic_stamp(&key) {
                                 let covers = music::distinct_covers(&tracks, mosaic::TILES);
                                 this.paint_mosaic(key.clone(), stamp, covers, cx);
                             }
@@ -805,7 +835,7 @@ impl Library {
         &mut self,
         mutation_info: PlaylistMutation,
         mutation: F,
-        apply: A,
+        on_done: A,
         cx: &mut Context<Self>,
     ) where
         F: FnOnce(Arc<dyn MusicApi>) -> R + Send + 'static,
@@ -816,12 +846,12 @@ impl Library {
         let (action, done, name, invalidated) = mutation_info;
         if self.playlist_task.is_some() {
             log::warn!("library: cannot {action} while another change is running");
-            Toasts::show(Note::Failed, "toast-playlist-busy", cx);
+            Toasts::show(Outcome::Failed, "toast-playlist-busy", cx);
             return;
         }
         let Some(client) = self.session.read(cx).client() else {
             log::warn!("library: cannot {action} while signed out");
-            Toasts::show(Note::Failed, "toast-playlist-signed-out", cx);
+            Toasts::show(Outcome::Failed, "toast-playlist-signed-out", cx);
             return;
         };
         let catalog = invalidated
@@ -839,15 +869,15 @@ impl Library {
                 this.playlist_task = None;
                 match result {
                     Ok(outcome) => {
-                        apply(this, outcome, cx);
+                        on_done(this, outcome, cx);
                         match name {
-                            Some(name) => Toasts::about(Note::Done, done, name, cx),
-                            None => Toasts::show(Note::Done, done, cx),
+                            Some(name) => Toasts::about(Outcome::Done, done, name, cx),
+                            None => Toasts::show(Outcome::Done, done, cx),
                         }
                     }
                     Err(error) => {
                         log::warn!("library: cannot {action}: {error:#}");
-                        Toasts::show(Note::Failed, "toast-playlist-failed", cx);
+                        Toasts::show(Outcome::Failed, "toast-playlist-failed", cx);
                     }
                 }
                 cx.notify();

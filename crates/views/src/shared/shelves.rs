@@ -8,14 +8,13 @@ use std::rc::Rc;
 
 use music::{Album, GenreItem, GenreSection, Playlist};
 use router::{Destination, navigate};
-use state::{Origin, Playback, PlaybackState};
+use state::Playback;
 use ui::{
-    ActiveTheme as _, Button, Card, Deck, Glide, Mode, Pin, PinKind, Pinnable as _, Skeleton, Text,
-    Viewport, heading, snapped,
+    ActiveTheme as _, Button, Card, Deck, Glide, Mode, Skeleton, Text, Viewport, heading, snapped,
 };
 
 use crate::shared::album_grid::CardGrid;
-use crate::shared::cells;
+use crate::shared::cards;
 
 const PLATE: Pixels = px(260.);
 const LANES: usize = 5;
@@ -70,8 +69,7 @@ impl Shelves {
                     )
                     .child(div().flex().w_full().gap_4().overflow_hidden().children(
                         (0..layout.columns).map(|place| {
-                            Card::new(self.tag("pending", shelf * 100 + place), "")
-                                .loading()
+                            Card::skeleton(self.tag("pending", shelf * 100 + place))
                                 .tile(layout.card)
                         }),
                     ))
@@ -134,16 +132,12 @@ impl Shelves {
     pub(crate) fn viewport(&self, scroll: &ScrollHandle, window: &Window) -> Viewport {
         let seen = scroll.bounds().size.height;
 
-        Viewport {
-            top: match self.above.get() {
-                Some(above) => (scroll.bounds().origin.y - above).max(Pixels::ZERO),
-                None => Pixels::ZERO,
-            },
-            height: match seen > Pixels::ZERO {
-                true => seen,
-                false => window.viewport_size().height,
-            },
-        }
+        let top = match self.above.get() {
+            Some(above) => scroll.bounds().origin.y - above,
+            None => Pixels::ZERO,
+        };
+
+        Viewport::measured(top, seen, window)
     }
 
     fn height(
@@ -357,68 +351,14 @@ impl Shelves {
         tile: Option<Pixels>,
         cx: &App,
     ) -> AnyElement {
-        let origin = Origin::Playlist(playlist.id.clone());
-        let playing = matches!(
-            self.playback.read(cx).playing_from(&origin),
-            Some(PlaybackState::Playing)
-        );
-        let pin = Pin::new(
-            PinKind::Playlist,
-            playlist.id.clone(),
-            playlist.name.clone(),
-        )
-        .cover(playlist.cover.clone());
-        let opened = SharedString::from(playlist.id.clone());
-        let playback = self.playback.clone();
-
-        Card::new(
-            slot("playlist", id),
-            SharedString::from(playlist.name.clone()),
-        )
-        .cover(playlist.cover.clone())
-        .weight(FontWeight::SEMIBOLD)
-        .underline()
-        .meta(SharedString::from(playlist.owner.clone()))
-        .map(|card| dressed(card, tile, cx))
-        .play(playing, move |_, _, cx| {
-            playback.update(cx, |playback, cx| playback.toggle_origin(&origin, cx));
-        })
-        .press(move |_, _, cx| navigate(Destination::Playlist(opened.clone()), cx))
-        .pin(pin)
-        .into_any_element()
+        cards::playlist_card(slot("playlist", id), playlist, &self.playback, cx)
+            .map(|card| dressed(card, tile, cx))
+            .into_any_element()
     }
 
     fn album_card(&self, id: usize, album: &Album, tile: Option<Pixels>, cx: &App) -> AnyElement {
-        let theme = *cx.theme();
-        let origin = Origin::Album(album.id.clone());
-        let playing = matches!(
-            self.playback.read(cx).playing_from(&origin),
-            Some(PlaybackState::Playing)
-        );
-        let pin = Pin::new(PinKind::Album, album.id.clone(), album.name.clone())
-            .cover(album.cover.clone());
-        let opened = SharedString::from(album.id.clone());
-        let playback = self.playback.clone();
-        let meta = cells::artist_links(
-            SharedString::new_static("album-artist"),
-            album.artist_refs.clone(),
-            album.artists.clone(),
-            theme.muted_foreground,
-        )
-        .text_size(theme.text(Text::Small))
-        .truncate();
-
-        Card::new(slot("album", id), SharedString::from(album.name.clone()))
-            .cover(album.cover.clone())
-            .weight(FontWeight::SEMIBOLD)
-            .underline()
-            .bare_meta(meta)
+        cards::album_card(slot("album", id), album, &self.playback, cx)
             .map(|card| dressed(card, tile, cx))
-            .play(playing, move |_, _, cx| {
-                playback.update(cx, |playback, cx| playback.toggle_origin(&origin, cx));
-            })
-            .press(move |_, _, cx| navigate(Destination::Album(opened.clone()), cx))
-            .pin(pin)
             .into_any_element()
     }
 }

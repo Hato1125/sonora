@@ -61,11 +61,5 @@ pub(crate) fn viewport(scroll: &ScrollHandle, inset: Pixels, window: &Window) ->
         .unwrap_or_default();
     let visible = scroll.bounds().size.height;
 
-    Viewport {
-        top: (scrolled(scroll) - inset - hero - FRAME).max(Pixels::ZERO),
-        height: match visible > Pixels::ZERO {
-            true => visible,
-            false => window.viewport_size().height,
-        },
-    }
+    Viewport::measured(scrolled(scroll) - inset - hero - FRAME, visible, window)
 }

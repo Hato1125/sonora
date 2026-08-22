@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use ui::ActiveTheme as _;
 
-use gpui::{AnyElement, App, Entity, SharedString, TextAlign};
+use gpui::{AnyElement, App, Entity, SharedString};
 use music::SavedArtist;
 use router::Destination;
 use state::{Library, LibraryState, Origin, Playback};
@@ -21,36 +21,11 @@ pub(super) enum ArtistField {
     AddedAt,
 }
 
-const COLUMN: ColumnSpec<ArtistField> = ColumnSpec {
-    field: ArtistField::Index,
-    key: "",
-    header: "",
-    align: TextAlign::Left,
-    width: Width::Fill(1.),
-    anchored: false,
-    sortable: true,
-    rank: ESSENTIAL,
-};
+const COLUMN: ColumnSpec<ArtistField> = ColumnSpec::filling(ArtistField::Index);
 
-const INDEX: ColumnSpec<ArtistField> = ColumnSpec {
-    field: ArtistField::Index,
-    key: "index",
-    header: "column-index",
-    align: TextAlign::Center,
-    width: Width::Fixed(NUMBER),
-    anchored: true,
-    sortable: false,
-    ..COLUMN
-};
+const INDEX: ColumnSpec<ArtistField> = ColumnSpec::numbering(ArtistField::Index, NUMBER);
 
-const COVER: ColumnSpec<ArtistField> = ColumnSpec {
-    field: ArtistField::Cover,
-    key: "cover",
-    width: Width::Thumb,
-    anchored: true,
-    sortable: false,
-    ..COLUMN
-};
+const COVER: ColumnSpec<ArtistField> = ColumnSpec::artwork(ArtistField::Cover);
 
 const NAME: ColumnSpec<ArtistField> = ColumnSpec {
     field: ArtistField::Name,

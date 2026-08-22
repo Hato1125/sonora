@@ -1,6 +1,6 @@
 use gpui::prelude::*;
 use gpui::{Context, Entity, Render, Window, div};
-use state::{Note, Toasts};
+use state::{Outcome, Toasts};
 use ui::{ActiveTheme as _, Toast};
 
 pub(crate) struct ToastStack {
@@ -48,7 +48,7 @@ impl Render for ToastStack {
 
                 Toast::new(("toast", id), message)
                     .when_some(toast.name.clone(), Toast::strong)
-                    .when(toast.note == Note::Failed, Toast::failed)
+                    .when(toast.outcome == Outcome::Failed, Toast::failed)
                     .on_dismiss(move |_, _, cx| {
                         toasts.update(cx, |this, cx| this.dismiss(id, cx));
                     })

@@ -409,6 +409,16 @@ pub struct Viewport {
 }
 
 impl Viewport {
+    pub fn measured(top: Pixels, height: Pixels, window: &Window) -> Self {
+        Self {
+            top: top.max(Pixels::ZERO),
+            height: match height > Pixels::ZERO {
+                true => height,
+                false => window.viewport_size().height,
+            },
+        }
+    }
+
     fn rows(&self, row: Pixels) -> usize {
         (self.height / row).ceil().max(0.) as usize + OVERSCAN
     }
@@ -419,13 +429,13 @@ impl Viewport {
 }
 
 #[derive(Clone)]
-struct Grip {
+struct ColumnResize {
     column: usize,
     origin: StdCell<Pixels>,
 }
 
 #[derive(Clone)]
-struct Haul {
+struct ColumnMove {
     column: usize,
     origin: StdCell<Pixels>,
 }
@@ -580,13 +590,13 @@ impl<S: GridSource> GridState<S> {
         cx.notify();
     }
 
-    fn resize(&mut self, grip: &Grip, to: Pixels, cx: &mut Context<Self>) {
+    fn resize(&mut self, resize: &ColumnResize, to: Pixels, cx: &mut Context<Self>) {
         let start = match &self.sizing {
-            Some(sizing) if sizing.column == grip.column => sizing.widths.clone(),
+            Some(sizing) if sizing.column == resize.column => sizing.widths.clone(),
             _ => {
                 let widths: Vec<Pixels> = self.delegate.columns.iter().map(|it| it.width).collect();
                 self.sizing = Some(Sizing {
-                    column: grip.column,
+                    column: resize.column,
                     widths: widths.clone(),
                 });
                 widths
@@ -607,7 +617,7 @@ impl<S: GridSource> GridState<S> {
                 floor: column.floor,
             })
             .collect();
-        let Some(widths) = stretch(&anchor, grip.column, to - grip.origin.get()) else {
+        let Some(widths) = stretch(&anchor, resize.column, to - resize.origin.get()) else {
             return;
         };
 
@@ -618,16 +628,20 @@ impl<S: GridSource> GridState<S> {
         cx.notify();
     }
 
-    fn haul(&mut self, haul: &Haul, to: Pixels, cx: &mut Context<Self>) {
-        let target = shifted(&self.delegate.columns, haul.column, to - haul.origin.get());
-        if self.moving == Some((haul.column, target)) {
+    fn move_column(&mut self, moved: &ColumnMove, to: Pixels, cx: &mut Context<Self>) {
+        let target = shifted(
+            &self.delegate.columns,
+            moved.column,
+            to - moved.origin.get(),
+        );
+        if self.moving == Some((moved.column, target)) {
             return;
         }
-        self.moving = Some((haul.column, target));
+        self.moving = Some((moved.column, target));
         cx.notify();
     }
 
-    fn settle(&mut self, cx: &mut Context<Self>) {
+    fn finish_column_drag(&mut self, cx: &mut Context<Self>) {
         self.sizing = None;
         let Some((from, to)) = self.moving.take() else {
             return;
@@ -677,7 +691,7 @@ impl<S: GridSource> GridState<S> {
                 false => self.delegate.offset(to),
             })
         });
-        let grips: Vec<(usize, Pixels)> = self
+        let handles: Vec<(usize, Pixels)> = self
             .delegate
             .columns
             .iter()
@@ -700,11 +714,11 @@ impl<S: GridSource> GridState<S> {
             .text_color(theme.table_head_foreground)
             .on_mouse_up(
                 MouseButton::Left,
-                cx.listener(|this, _: &MouseUpEvent, _, cx| this.settle(cx)),
+                cx.listener(|this, _: &MouseUpEvent, _, cx| this.finish_column_drag(cx)),
             )
             .on_mouse_up_out(
                 MouseButton::Left,
-                cx.listener(|this, _: &MouseUpEvent, _, cx| this.settle(cx)),
+                cx.listener(|this, _: &MouseUpEvent, _, cx| this.finish_column_drag(cx)),
             )
             .children(heads.into_iter().map(
                 |(ix, width, inner, align, header, sortable, direction, movable)| {
@@ -736,21 +750,21 @@ impl<S: GridSource> GridState<S> {
                         })
                         .when(movable, |this| {
                             this.on_drag_move(cx.listener(
-                                move |this, event: &DragMoveEvent<Haul>, _, cx| {
-                                    let haul = event.drag(cx).clone();
-                                    if haul.column != ix {
+                                move |this, event: &DragMoveEvent<ColumnMove>, _, cx| {
+                                    let moved = event.drag(cx).clone();
+                                    if moved.column != ix {
                                         return;
                                     }
-                                    this.haul(&haul, event.event.position.x, cx);
+                                    this.move_column(&moved, event.event.position.x, cx);
                                 },
                             ))
                             .on_drag(
-                                Haul {
+                                ColumnMove {
                                     column: ix,
                                     origin: StdCell::new(Pixels::ZERO),
                                 },
-                                |haul, _, window, cx| {
-                                    haul.origin.set(window.mouse_position().x);
+                                |moved, _, window, cx| {
+                                    moved.origin.set(window.mouse_position().x);
                                     cx.new(|_| Empty)
                                 },
                             )
@@ -770,7 +784,11 @@ impl<S: GridSource> GridState<S> {
                         })
                 },
             ))
-            .children(grips.into_iter().map(|(ix, edge)| grip(ix, edge, cx)))
+            .children(
+                handles
+                    .into_iter()
+                    .map(|(ix, edge)| resize_handle(ix, edge, cx)),
+            )
             .when_some(marker, |this, marker| {
                 this.child(
                     div()
@@ -872,7 +890,11 @@ impl<S: GridSource> GridState<S> {
     }
 }
 
-fn grip<S: GridSource>(ix: usize, edge: Pixels, cx: &mut Context<GridState<S>>) -> Stateful<Div> {
+fn resize_handle<S: GridSource>(
+    ix: usize,
+    edge: Pixels,
+    cx: &mut Context<GridState<S>>,
+) -> Stateful<Div> {
     div()
         .id(("grip", ix))
         .block_mouse_except_scroll()
@@ -883,21 +905,21 @@ fn grip<S: GridSource>(ix: usize, edge: Pixels, cx: &mut Context<GridState<S>>) 
         .w(GRIP)
         .cursor_col_resize()
         .on_drag_move(cx.listener(
-            move |this, event: &DragMoveEvent<Grip>, _, cx: &mut Context<GridState<S>>| {
-                let grip = event.drag(cx).clone();
-                if grip.column != ix {
+            move |this, event: &DragMoveEvent<ColumnResize>, _, cx: &mut Context<GridState<S>>| {
+                let resize = event.drag(cx).clone();
+                if resize.column != ix {
                     return;
                 }
-                this.resize(&grip, event.event.position.x, cx);
+                this.resize(&resize, event.event.position.x, cx);
             },
         ))
         .on_drag(
-            Grip {
+            ColumnResize {
                 column: ix,
                 origin: StdCell::new(Pixels::ZERO),
             },
-            |grip, _, window, cx| {
-                grip.origin.set(window.mouse_position().x);
+            |resize, _, window, cx| {
+                resize.origin.set(window.mouse_position().x);
                 cx.new(|_| Empty)
             },
         )

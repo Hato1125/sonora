@@ -14,6 +14,7 @@ use crate::theme::ActiveTheme as _;
 const BAR: Pixels = px(6.);
 const REACHED: Pixels = px(0.5);
 const MIN_THUMB: Pixels = px(24.);
+const TRACK_INSET: Pixels = px(4.);
 const LINGER: Duration = Duration::from_secs(2);
 const IDLE: f32 = 0.;
 const RESTING: f32 = 0.35;
@@ -139,6 +140,12 @@ impl Scrollbar {
         }
     }
 
+    pub fn inset() -> Self {
+        Self::new(ScrollHandle::new())
+            .always_visible()
+            .track_inset(TRACK_INSET)
+    }
+
     pub fn list(list: ListState) -> Self {
         let mut scrollbar = Self::new(ScrollHandle::new());
         scrollbar.list = Some(list);
@@ -155,7 +162,7 @@ impl Scrollbar {
         self
     }
 
-    pub fn settle(&mut self, offset: Pixels) {
+    pub fn remember_offset(&mut self, offset: Pixels) {
         self.seen = offset;
     }
 

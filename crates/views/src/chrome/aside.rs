@@ -3,7 +3,7 @@ use std::ops::Range;
 use gpui::prelude::*;
 
 use gpui::{
-    Context, DragMoveEvent, Entity, FontWeight, MouseButton, MouseDownEvent, Pixels, Point, Render,
+    Context, DragMoveEvent, Entity, FontWeight, MouseDownEvent, Pixels, Point, Render,
     ScrollHandle, ScrollStrategy, ScrollWheelEvent, SharedString, Task, UniformListScrollHandle,
     Window, div, ease_in_out, px, uniform_list,
 };
@@ -20,6 +20,7 @@ use crate::shared::menu::ItemMenu;
 
 const QUEUE: &str = "queue";
 const FADE: f32 = 96.;
+const TAIL_ROWS: usize = 2;
 const BLUR: f32 = 0.07;
 const PAST: f32 = 0.4;
 const PINNED_SHARE: f32 = 0.25;
@@ -120,6 +121,13 @@ impl Sections {
     }
 }
 
+#[derive(Clone, Copy)]
+struct RowLook {
+    playing: bool,
+    hovered: bool,
+    drop_line: Option<Edge>,
+}
+
 #[derive(Clone)]
 struct ContextMenuState {
     track: Track,
@@ -176,6 +184,7 @@ pub(crate) struct Aside {
     hovered: Option<usize>,
     fading: Option<usize>,
     linger: Option<Task<()>>,
+    hovered_row: Option<usize>,
 }
 
 impl Aside {
@@ -204,11 +213,7 @@ impl Aside {
 
         let scroll = UniformListScrollHandle::new();
         let scrollbar = cx.new(|_| Scrollbar::new(scroll.0.borrow().base_handle.clone()));
-        let playlist_scrollbar = cx.new(|_| {
-            Scrollbar::new(ScrollHandle::new())
-                .always_visible()
-                .track_inset(px(4.))
-        });
+        let playlist_scrollbar = cx.new(|_| Scrollbar::inset());
         let lyrics = Sonora::global(cx).lyrics.clone();
         cx.observe(&lyrics, |_, _, cx| cx.notify()).detach();
         let verse_bar = cx.new(|_| Scrollbar::new(ScrollHandle::new()));
@@ -239,6 +244,7 @@ impl Aside {
             hovered: None,
             fading: None,
             linger: None,
+            hovered_row: None,
         }
     }
 
@@ -265,17 +271,16 @@ impl Aside {
         cx.notify();
     }
 
-    /// How far the row under the cursor has travelled between blurred and sharp.
-    fn stirred(&self, window: &mut Window) -> f32 {
+    fn sharpen_progress(&self, window: &mut Window) -> f32 {
         let span = Motion::Quick.span().as_secs_f32().max(f32::EPSILON);
-        let stirred = (self.since.elapsed().as_secs_f32() / span).clamp(0., 1.);
-        if stirred < 1. {
+        let progress = (self.since.elapsed().as_secs_f32() / span).clamp(0., 1.);
+        if progress < 1. {
             window.request_animation_frame();
         }
-        ease_in_out(stirred)
+        ease_in_out(progress)
     }
 
-    fn brush(&mut self, index: usize, over: bool, cx: &mut Context<Self>) {
+    fn set_hovered(&mut self, index: usize, over: bool, cx: &mut Context<Self>) {
         if !over {
             if self.over == Some(index) {
                 self.over = None;
@@ -328,10 +333,14 @@ impl Aside {
         index: usize,
         position: QueuePosition,
         queue_revision: u64,
-        drop_line: Option<Edge>,
-        playing: bool,
+        look: RowLook,
         cx: &Context<Self>,
     ) -> gpui::Stateful<gpui::Div> {
+        let RowLook {
+            playing,
+            hovered,
+            drop_line,
+        } = look;
         let theme = *cx.theme();
         let past_index = position.past();
         let queue_index = position.upcoming();
@@ -363,6 +372,8 @@ impl Aside {
             .truncate(),
         )
         .tint(title)
+        .underline()
+        .show_play(hovered)
         .when(track.explicit, Card::explicit)
         .play(
             playing,
@@ -377,20 +388,15 @@ impl Aside {
                 });
             }),
         )
-        .on_mouse_down(
-            MouseButton::Right,
-            cx.listener(move |this, event: &MouseDownEvent, window, cx| {
-                window.prevent_default();
-                this.track_menu.reset(cx);
-                this.context_menu = Some(ContextMenuState {
-                    track: menu_track.clone(),
-                    revision: queue_revision,
-                    position: event.position,
-                });
-                cx.stop_propagation();
-                cx.notify();
-            }),
-        )
+        .menu(cx.listener(move |this, event: &MouseDownEvent, _, cx| {
+            this.track_menu.reset(cx);
+            this.context_menu = Some(ContextMenuState {
+                track: menu_track.clone(),
+                revision: queue_revision,
+                position: event.position,
+            });
+            cx.notify();
+        }))
         .when_some(past_index, |this, index| {
             this.press(cx.listener(move |this, _, _, cx| {
                 if this.queue.read(cx).revision() == queue_revision {
@@ -410,6 +416,7 @@ impl Aside {
                 Button::new(("remove-queued-track", index))
                     .ghost()
                     .small()
+                    .mr_1()
                     .icon("icons/x.svg")
                     .tooltip("menu-remove-from-queue")
                     .tint(theme.muted_foreground)
@@ -461,6 +468,7 @@ impl Aside {
                 Button::new(("remove-similar-track", index))
                     .ghost()
                     .small()
+                    .mr_1()
                     .icon("icons/x.svg")
                     .tooltip("menu-remove-from-queue")
                     .tint(theme.muted_foreground)
@@ -483,6 +491,14 @@ impl Aside {
             .id(("queue-track-container", index))
             .relative()
             .min_w_0()
+            .on_hover(cx.listener(move |this, over: &bool, _, cx| {
+                match over {
+                    true => this.hovered_row = Some(index),
+                    false if this.hovered_row == Some(index) => this.hovered_row = None,
+                    false => return,
+                }
+                cx.notify();
+            }))
             .child(card)
             .when_some(drop_line, |this, edge| this.child(drop_marker(edge, cx)))
     }
@@ -632,7 +648,7 @@ impl Aside {
                     true => verse * BLUR,
                     false => px(0.),
                 };
-                let stirred = self.stirred(window);
+                let sharpen = self.sharpen_progress(window);
 
                 lines
                     .iter()
@@ -663,7 +679,7 @@ impl Aside {
                                 this.font_weight(FontWeight::SEMIBOLD)
                             })
                             .on_hover(cx.listener(move |this, over: &bool, _, cx| {
-                                this.brush(index, *over, cx)
+                                this.set_hovered(index, *over, cx)
                             }))
                             .on_click(cx.listener(move |this, _, _, cx| {
                                 this.playback
@@ -673,8 +689,8 @@ impl Aside {
 
                         let softness = match (hazed, waking, settling) {
                             (false, _, _) => 0.,
-                            (true, true, _) => 1. - stirred,
-                            (true, false, true) => stirred,
+                            (true, true, _) => 1. - sharpen,
+                            (true, false, true) => sharpen,
                             (true, false, false) => 1.,
                         };
 
@@ -707,7 +723,7 @@ impl Aside {
             let scroll = self.verse_bar.read(cx).scroll().clone();
             scroll.set_offset(gpui::point(scroll.offset().x, px(0.)));
             self.verse_bar
-                .update(cx, |bar, _| bar.settle(scroll.offset().y));
+                .update(cx, |bar, _| bar.remember_offset(scroll.offset().y));
         }
         if let Some(lines) = &lines {
             self.pin_verse(music::lyrics::active(lines, at), window, cx);
@@ -812,17 +828,17 @@ impl Aside {
 
         uniform_list(
             "queue-rows",
-            sections.len(),
-            cx.processor(move |_, range: Range<usize>, window, cx| {
+            sections.len() + TAIL_ROWS,
+            cx.processor(move |this: &mut Self, range: Range<usize>, window, cx| {
                 let (revision, slots) = {
                     let queue = queue.read(cx);
                     let slots = range
                         .clone()
                         .map(|index| {
-                            let slot = sections.slot(index);
+                            let slot = (index < sections.len()).then(|| sections.slot(index));
                             let found = match slot {
-                                Slot::Header(_) => None,
-                                Slot::Track(position) => track(queue, position),
+                                Some(Slot::Track(position)) => track(queue, position),
+                                Some(Slot::Header(_)) | None => None,
                             };
                             (index, slot, found)
                         })
@@ -833,8 +849,11 @@ impl Aside {
                 slots
                     .into_iter()
                     .map(|(index, slot, found)| match (slot, found) {
-                        (Slot::Header(key), _) => section_label(key, window, cx).into_any_element(),
-                        (Slot::Track(position), Some(found)) => {
+                        (None, _) => div().into_any_element(),
+                        (Some(Slot::Header(key)), _) => {
+                            section_label(key, window, cx).into_any_element()
+                        }
+                        (Some(Slot::Track(position)), Some(found)) => {
                             let drop_line = match (position.upcoming(), drop_gap) {
                                 (Some(queued), Some(gap)) if gap == queued => Some(Edge::Above),
                                 (Some(queued), Some(gap))
@@ -845,10 +864,14 @@ impl Aside {
                                 _ => None,
                             };
                             let playing = audible && position == QueuePosition::Current;
-                            Self::row(found, index, position, revision, drop_line, playing, cx)
-                                .into_any_element()
+                            let look = RowLook {
+                                playing,
+                                hovered: this.hovered_row == Some(index),
+                                drop_line,
+                            };
+                            Self::row(found, index, position, revision, look, cx).into_any_element()
                         }
-                        (Slot::Track(_), None) => div().into_any_element(),
+                        (Some(Slot::Track(_)), None) => div().into_any_element(),
                     })
                     .collect()
             }),
@@ -913,21 +936,27 @@ impl Render for Aside {
                                 .relative()
                                 .flex_1()
                                 .min_h_0()
-                                .when(effects(), |this| this.fade_edges(px(FADE * 0.5), px(FADE)))
                                 .child(
-                                    self.rows(sections, cx)
-                                        .px_2()
-                                        .pb(px(FADE * 0.75))
-                                        .pt(px(FADE * 0.5))
-                                        .track_scroll(&self.scroll)
+                                    div()
                                         .size_full()
-                                        .on_scroll_wheel(
-                                            move |event: &ScrollWheelEvent, window, cx| {
-                                                if event.delta.precise() {
-                                                    return;
-                                                }
-                                                gliding.update(cx, |bar, _| bar.nudge(window));
-                                            },
+                                        .when(effects(), |this| {
+                                            this.fade_edges(px(FADE * 0.5), px(FADE))
+                                        })
+                                        .child(
+                                            self.rows(sections, cx)
+                                                .px_2()
+                                                .pt(px(FADE * 0.5))
+                                                .track_scroll(&self.scroll)
+                                                .size_full()
+                                                .on_scroll_wheel(
+                                                    move |event: &ScrollWheelEvent, window, cx| {
+                                                        if event.delta.precise() {
+                                                            return;
+                                                        }
+                                                        gliding
+                                                            .update(cx, |bar, _| bar.nudge(window));
+                                                    },
+                                                ),
                                         ),
                                 )
                                 .child(self.scrollbar.clone()),

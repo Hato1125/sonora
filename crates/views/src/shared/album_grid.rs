@@ -1,14 +1,12 @@
 use std::rc::Rc;
 
 use gpui::prelude::*;
-use gpui::{
-    AnyElement, App, Entity, FontWeight, MouseButton, Pixels, Point, RenderOnce, SharedString,
-    Window, div, px,
-};
+use gpui::{AnyElement, App, Entity, Pixels, Point, RenderOnce, SharedString, Window, div, px};
 use music::Album;
-use router::{Destination, navigate};
-use state::{Origin, Playback, PlaybackState};
-use ui::{ActiveTheme as _, Card, Pin, PinKind, Pinnable as _, Text};
+use state::Playback;
+use ui::{ActiveTheme as _, Card, Text};
+
+use crate::shared::cards;
 
 pub(crate) const CARD_MIN: Pixels = px(130.);
 pub(crate) const CARD_MAX: Pixels = px(190.);
@@ -127,20 +125,12 @@ impl RenderOnce for AlbumGrid {
             years,
         } = self;
         let cards = albums.into_iter().map(|(index, album)| {
-            let context = album.clone();
-            let card = album_card(id, index, album, playback.clone(), layout.card, years, cx);
+            let card = album_card(id, index, &album, &playback, layout.card, years, cx);
             let Some(listener) = on_context.clone() else {
-                return card;
+                return card.into_any_element();
             };
 
-            div()
-                .id(SharedString::from(format!("{id}-context-{index}")))
-                .on_mouse_down(MouseButton::Right, move |event, window, cx| {
-                    window.prevent_default();
-                    cx.stop_propagation();
-                    listener(context.clone(), event.position, cx);
-                })
-                .child(card)
+            card.menu(move |event, _, cx| listener(album.clone(), event.position, cx))
                 .into_any_element()
         });
 
@@ -157,51 +147,26 @@ impl RenderOnce for AlbumGrid {
 fn album_card(
     id: &'static str,
     index: usize,
-    album: Album,
-    playback: Entity<Playback>,
+    album: &Album,
+    playback: &Entity<Playback>,
     width: Pixels,
     years: bool,
     cx: &App,
-) -> AnyElement {
+) -> Card {
     let theme = *cx.theme();
-    let cover = album.cover_large.clone().or_else(|| album.cover.clone());
-    let meta = match years {
-        true => div()
-            .text_size(theme.text(Text::Small))
-            .text_color(theme.muted_foreground)
-            .child(year(album.year))
-            .into_any_element(),
-        false => crate::shared::cells::artist_links(
-            SharedString::from(format!("{id}-artist-{index}")),
-            album.artist_refs.clone(),
-            album.artists.clone(),
-            theme.muted_foreground,
-        )
-        .text_size(theme.text(Text::Small))
-        .truncate()
-        .into_any_element(),
-    };
-    let origin = Origin::Album(album.id.clone());
-    let playing = matches!(
-        playback.read(cx).playing_from(&origin),
-        Some(PlaybackState::Playing)
-    );
-    let pin = Pin::new(PinKind::Album, album.id.clone(), album.name.clone()).cover(cover.clone());
-    let opened = SharedString::from(album.id);
-
-    Card::new((id, index), SharedString::from(album.name))
+    let card = cards::album_card((id, index), album, playback, cx)
         .tile(width)
-        .cover(cover)
-        .weight(FontWeight::SEMIBOLD)
-        .flat()
-        .underline()
-        .bare_meta(meta)
-        .play(playing, move |_, _, cx| {
-            playback.update(cx, |playback, cx| playback.toggle_origin(&origin, cx));
-        })
-        .press(move |_, _, cx| navigate(Destination::Album(opened.clone()), cx))
-        .pin(pin)
-        .into_any_element()
+        .flat();
+
+    match years {
+        true => card.bare_meta(
+            div()
+                .text_size(theme.text(Text::Small))
+                .text_color(theme.muted_foreground)
+                .child(year(album.year)),
+        ),
+        false => card,
+    }
 }
 
 fn year(year: i32) -> SharedString {

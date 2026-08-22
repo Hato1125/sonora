@@ -97,7 +97,7 @@ impl Lyrics {
 
         if let Some(hits) = self.cache.get(&id) {
             self.hits = hits.clone();
-            self.state = settled(&self.hits);
+            self.state = state_for(&self.hits);
             cx.notify();
             return;
         }
@@ -141,7 +141,7 @@ impl Lyrics {
                     Ok(hits) => {
                         this.cache.insert(id, hits.clone());
                         this.hits = hits;
-                        this.state = settled(&this.hits);
+                        this.state = state_for(&this.hits);
                     }
                     Err(error) => {
                         log::warn!("lyrics: cannot look up {}: {error:#}", track.name);
@@ -155,7 +155,7 @@ impl Lyrics {
     }
 }
 
-fn settled(hits: &[LyricsHit]) -> LyricsState {
+fn state_for(hits: &[LyricsHit]) -> LyricsState {
     match hits.is_empty() {
         true => LyricsState::Missing,
         false => LyricsState::Ready,

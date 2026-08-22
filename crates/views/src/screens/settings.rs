@@ -14,8 +14,8 @@ use router::{Screen, SettingsTab};
 use state::{AppSettings, Failure, Playback, Session, SessionState, Sonora};
 use ui::{ActiveTheme as _, Scrollbar, Scroller, eyebrow};
 use ui::{
-    Avatar, Button, InfoCard, Initials, Input, Look, MAX_FONT, MAX_TRANSPARENCY, MIN_FONT, Menu,
-    MenuItem, Modal, Pace, Popover, Popovers, Rounding, Scrubber, ScrubberState, Separator,
+    Avatar, Button, InfoCard, Initials, Input, Look, MAX_FONT, MAX_TRANSPARENCY, MIN_FONT,
+    MenuItem, Modal, Pace, Picker, Popovers, Rounding, Scrubber, ScrubberState, Separator,
     Skeleton, Stillness, Switch, Text, Theme, ThemeKind,
 };
 
@@ -201,30 +201,17 @@ impl SettingsView {
         let chosen = Screen::from_id(self.settings.read(cx).startup()).unwrap_or(Screen::Home);
         let current = i18n::lookup(chosen.key(), None);
 
-        let picker = Popover::new(STARTUP, self.popovers.clone())
-            .button(
-                Button::new("startup-picker")
-                    .label(format!("{current}  ▾"))
-                    .small()
-                    .outline(),
-            )
-            .menu(
-                Menu::new("startup-dropdown")
-                    .top(px(30.))
-                    .right_0()
-                    .w(px(170.))
-                    .items(Screen::ALL.map(|screen| {
-                        MenuItem::new(screen.id(), i18n::lookup(screen.key(), None))
-                            .selected(screen == chosen)
-                            .on_click(cx.listener(move |this, _, _, cx| {
-                                this.settings.update(cx, |settings, cx| {
-                                    settings.set_startup(screen.id(), cx)
-                                });
-                                this.popovers.close();
-                                cx.notify();
-                            }))
-                    })),
-            );
+        let picker = Picker::new(STARTUP, &self.popovers, current)
+            .width(Picker::NARROW)
+            .items(Screen::ALL.map(|screen| {
+                MenuItem::new(screen.id(), i18n::lookup(screen.key(), None))
+                    .selected(screen == chosen)
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.settings
+                            .update(cx, |settings, cx| settings.set_startup(screen.id(), cx));
+                        cx.notify();
+                    }))
+            }));
 
         self.row(
             t!("settings-startup"),
@@ -256,36 +243,22 @@ impl SettingsView {
             .collect::<Vec<_>>();
         let barren = entries.is_empty();
 
-        let picker = Popover::new(LANGUAGES, self.popovers.clone())
-            .button(
-                Button::new("language-picker")
-                    .label(format!("{current}  ▾"))
-                    .small()
-                    .outline(),
-            )
-            .menu(
-                Menu::new("language-dropdown")
-                    .top(px(30.))
-                    .right_0()
-                    .w(px(260.))
-                    .item(MenuItem::new("language-search", "").content(self.languages.clone()))
-                    .items(entries.into_iter().map(|(id, label)| {
-                        MenuItem::new(id, label)
-                            .selected(chosen == id)
-                            .on_click(cx.listener(move |this, _, _, cx| {
-                                this.settings
-                                    .update(cx, |settings, cx| settings.set_language(id, cx));
-                                this.popovers.close();
-                                cx.notify();
-                            }))
+        let picker = Picker::new(LANGUAGES, &self.popovers, current)
+            .width(Picker::WIDE)
+            .item(MenuItem::new("language-search", "").content(self.languages.clone()))
+            .items(entries.into_iter().map(|(id, label)| {
+                MenuItem::new(id, label)
+                    .selected(chosen == id)
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.settings
+                            .update(cx, |settings, cx| settings.set_language(id, cx));
+                        cx.notify();
                     }))
-                    .when(barren, |menu| {
-                        menu.item(
-                            MenuItem::new("language-empty", t!("settings-language-none"))
-                                .disabled(),
-                        )
-                    }),
-            );
+            }))
+            .when(barren, |picker| {
+                picker
+                    .item(MenuItem::new("language-empty", t!("settings-language-none")).disabled())
+            });
 
         self.row(
             t!("settings-language"),
@@ -303,32 +276,20 @@ impl SettingsView {
         let look = self.look(cx);
         let overrides = self.settings.read(cx).theme_overrides().clone();
 
-        let picker = Popover::new(CORNERS, self.popovers.clone())
-            .button(
-                Button::new("corners-picker")
-                    .label(format!("{}  ▾", look.rounding.label()))
-                    .small()
-                    .outline(),
-            )
-            .menu(
-                Menu::new("corners-dropdown")
-                    .top(px(30.))
-                    .right_0()
-                    .w(px(170.))
-                    .items(Rounding::ALL.into_iter().map(|rounding| {
-                        let overrides = overrides.clone();
-                        MenuItem::new(rounding.id(), rounding.label())
-                            .selected(look.rounding == rounding)
-                            .on_click(cx.listener(move |this, _, _, cx| {
-                                this.settings.update(cx, |settings, cx| {
-                                    settings.set_rounding(rounding.id(), cx);
-                                });
-                                this.popovers.close();
-                                Theme::set(Look { rounding, ..look }, &overrides, cx);
-                                cx.notify();
-                            }))
-                    })),
-            );
+        let picker = Picker::new(CORNERS, &self.popovers, look.rounding.label())
+            .width(Picker::NARROW)
+            .items(Rounding::ALL.into_iter().map(|rounding| {
+                let overrides = overrides.clone();
+                MenuItem::new(rounding.id(), rounding.label())
+                    .selected(look.rounding == rounding)
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.settings.update(cx, |settings, cx| {
+                            settings.set_rounding(rounding.id(), cx);
+                        });
+                        Theme::set(Look { rounding, ..look }, &overrides, cx);
+                        cx.notify();
+                    }))
+            }));
 
         self.row(
             t!("settings-corners"),
@@ -483,36 +444,24 @@ impl SettingsView {
         let adaptive = self.settings.read(cx).adaptive_theme();
         let overrides = self.settings.read(cx).theme_overrides().clone();
 
-        let picker = Popover::new(THEMES, self.popovers.clone())
-            .button(
-                Button::new("theme-picker")
-                    .label(format!("{}  ▾", current.label()))
-                    .small()
-                    .outline(),
-            )
-            .menu(
-                Menu::new("theme-dropdown")
-                    .top(px(30.))
-                    .right_0()
-                    .w(px(170.))
-                    .items(ThemeKind::ALL.into_iter().map(|kind| {
-                        let item = MenuItem::new(kind.id(), kind.label()).selected(current == kind);
-                        match adaptive && !matches!(kind, ThemeKind::Dark | ThemeKind::Light) {
-                            true => item.disabled(),
-                            false => {
-                                let overrides = overrides.clone();
-                                item.on_click(cx.listener(move |this, _, _, cx| {
-                                    this.settings.update(cx, |settings, cx| {
-                                        settings.set_theme(kind.id(), cx);
-                                    });
-                                    this.popovers.close();
-                                    Theme::fade(Look { kind, ..look }, &overrides, cx);
-                                    cx.notify();
-                                }))
-                            }
-                        }
-                    })),
-            );
+        let picker = Picker::new(THEMES, &self.popovers, current.label())
+            .width(Picker::NARROW)
+            .items(ThemeKind::ALL.into_iter().map(|kind| {
+                let item = MenuItem::new(kind.id(), kind.label()).selected(current == kind);
+                match adaptive && !matches!(kind, ThemeKind::Dark | ThemeKind::Light) {
+                    true => item.disabled(),
+                    false => {
+                        let overrides = overrides.clone();
+                        item.on_click(cx.listener(move |this, _, _, cx| {
+                            this.settings.update(cx, |settings, cx| {
+                                settings.set_theme(kind.id(), cx);
+                            });
+                            Theme::fade(Look { kind, ..look }, &overrides, cx);
+                            cx.notify();
+                        }))
+                    }
+                }
+            }));
 
         let settings = self.settings.clone();
         let actions = div()
@@ -642,30 +591,18 @@ impl SettingsView {
         let small = theme.text(Text::Small);
         let current = self.settings.read(cx).stillness();
 
-        let picker = Popover::new(MOTION, self.popovers.clone())
-            .button(
-                Button::new("motion-picker")
-                    .label(format!("{}  ▾", current.label()))
-                    .small()
-                    .outline(),
-            )
-            .menu(
-                Menu::new("motion-dropdown")
-                    .top(px(30.))
-                    .right_0()
-                    .w(px(170.))
-                    .items(Stillness::ALL.into_iter().map(|stillness| {
-                        MenuItem::new(stillness.id(), stillness.label())
-                            .selected(current == stillness)
-                            .on_click(cx.listener(move |this, _, _, cx| {
-                                this.settings.update(cx, |settings, cx| {
-                                    settings.set_stillness(stillness, cx);
-                                });
-                                this.popovers.close();
-                                cx.notify();
-                            }))
-                    })),
-            );
+        let picker = Picker::new(MOTION, &self.popovers, current.label())
+            .width(Picker::NARROW)
+            .items(Stillness::ALL.into_iter().map(|stillness| {
+                MenuItem::new(stillness.id(), stillness.label())
+                    .selected(current == stillness)
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.settings.update(cx, |settings, cx| {
+                            settings.set_stillness(stillness, cx);
+                        });
+                        cx.notify();
+                    }))
+            }));
 
         self.row(
             t!("settings-motion"),
@@ -682,29 +619,17 @@ impl SettingsView {
         let small = theme.text(Text::Small);
         let current = self.settings.read(cx).pace();
 
-        let picker = Popover::new(PACE, self.popovers.clone())
-            .button(
-                Button::new("pace-picker")
-                    .label(format!("{}  ▾", current.label()))
-                    .small()
-                    .outline(),
-            )
-            .menu(
-                Menu::new("pace-dropdown")
-                    .top(px(30.))
-                    .right_0()
-                    .w(px(170.))
-                    .items(Pace::ALL.into_iter().map(|pace| {
-                        MenuItem::new(pace.id(), pace.label())
-                            .selected(current == pace)
-                            .on_click(cx.listener(move |this, _, _, cx| {
-                                this.settings
-                                    .update(cx, |settings, cx| settings.set_pace(pace, cx));
-                                this.popovers.close();
-                                cx.notify();
-                            }))
-                    })),
-            );
+        let picker = Picker::new(PACE, &self.popovers, current.label())
+            .width(Picker::NARROW)
+            .items(Pace::ALL.into_iter().map(|pace| {
+                MenuItem::new(pace.id(), pace.label())
+                    .selected(current == pace)
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.settings
+                            .update(cx, |settings, cx| settings.set_pace(pace, cx));
+                        cx.notify();
+                    }))
+            }));
 
         self.row(
             t!("settings-pace"),

@@ -1,7 +1,7 @@
 use gpui::prelude::*;
 use gpui::{
-    AnyElement, App, Context, ElementId, Entity, FontWeight, MouseButton, MouseDownEvent, Pixels,
-    Point, Render, ScrollHandle, SharedString, WeakEntity, Window, div, px,
+    AnyElement, App, Context, Entity, FontWeight, MouseButton, MouseDownEvent, Pixels, Point,
+    Render, ScrollHandle, SharedString, WeakEntity, Window, div,
 };
 use i18n::t;
 use music::Track;
@@ -106,11 +106,7 @@ impl SearchView {
         let asked = input.read(cx).text().to_owned();
         search.update(cx, |search, cx| search.ask(&asked, cx));
 
-        let playlist_scrollbar = cx.new(|_| {
-            Scrollbar::new(ScrollHandle::new())
-                .always_visible()
-                .track_inset(px(4.))
-        });
+        let playlist_scrollbar = cx.new(|_| Scrollbar::inset());
 
         Self {
             input,
@@ -197,12 +193,13 @@ impl SearchView {
                 Card::new(("song", place), track.name.clone())
                     .cover(track.cover.clone())
                     .tint(tint)
+                    .underline()
                     .meta(meta)
                     .play(playing, move |_, _, cx| {
                         toggled
                             .update(cx, |this, cx| {
-                                this.playback.update(cx, |playback, cx| match playing {
-                                    true => playback.pause(cx),
+                                this.playback.update(cx, |playback, cx| match current {
+                                    true => playback.toggle_play(cx),
                                     false => playback.play_radio(&played, cx),
                                 });
                             })
@@ -229,6 +226,7 @@ impl SearchView {
                 let card = Card::new(("artist", place), artist.name.clone())
                     .cover(artist.cover.clone())
                     .circle()
+                    .underline()
                     .meta(meta)
                     .when_some(origin, |card, origin| {
                         card.play(playing, move |_, _, cx| {
@@ -251,8 +249,9 @@ impl SearchView {
                 let playing = self.playback.read(cx).playing_from(&origin)
                     == Some(state::PlaybackState::Playing);
                 let toggled = me.clone();
-                Card::new(ElementId::Name(album.id.clone().into()), album.name.clone())
+                Card::new(("album", place), album.name.clone())
                     .cover(album.cover.clone())
+                    .underline()
                     .meta(meta)
                     .play(playing, move |_, _, cx| {
                         toggled
@@ -271,6 +270,7 @@ impl SearchView {
                 let toggled = me.clone();
                 Card::new(("playlist", place), list.name.clone())
                     .cover(list.cover.clone())
+                    .underline()
                     .meta(meta)
                     .play(playing, move |_, _, cx| {
                         toggled
@@ -285,9 +285,7 @@ impl SearchView {
         };
 
         card.when_some(pin(hit), Pinnable::pin)
-            .when_some(HitMenu::of(hit), |card, target| {
-                card.on_mouse_down(MouseButton::Right, menu(target, me))
-            })
+            .when_some(HitMenu::of(hit), |card, target| card.menu(menu(target, me)))
             .into_any_element()
     }
 
@@ -422,13 +420,7 @@ impl SearchView {
         let width = cells::content_width(window, pad * 2., cx);
         let scroll = self.browsing.read(cx).scroll().clone();
         let seen = scroll.bounds().size.height;
-        let viewport = Viewport {
-            top: scrolled(&scroll),
-            height: match seen > Pixels::ZERO {
-                true => seen,
-                false => window.viewport_size().height,
-            },
-        };
+        let viewport = Viewport::measured(scrolled(&scroll), seen, window);
         let plates = shelves::grid("genre", found, width, viewport, window, cx);
 
         div()
@@ -498,13 +490,7 @@ impl SearchView {
         let row = snapped(theme.metrics.list_row, window);
         let scroll = bar.read(cx).scroll().clone();
         let seen = scroll.bounds().size.height;
-        let viewport = Viewport {
-            top: scrolled(&scroll),
-            height: match seen > Pixels::ZERO {
-                true => seen,
-                false => window.viewport_size().height,
-            },
-        };
+        let viewport = Viewport::measured(scrolled(&scroll), seen, window);
         let me = cx.entity().downgrade();
         let deck = Deck::new(format!("{id}-deck"))
             .viewport(viewport)

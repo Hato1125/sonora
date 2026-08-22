@@ -92,7 +92,7 @@ impl RenderOnce for Toast {
                     .gap_2()
                     .min_w_0()
                     .child(svg().path(icon).size(ICON).flex_none().text_color(tint))
-                    .child(said(message, strong)),
+                    .child(with_name_emphasised(message, strong)),
             )
             .children(dismiss.map(|dismiss| {
                 Button::new("dismiss-toast")
@@ -105,7 +105,7 @@ impl RenderOnce for Toast {
     }
 }
 
-fn said(message: SharedString, strong: Option<SharedString>) -> Div {
+fn with_name_emphasised(message: SharedString, strong: Option<SharedString>) -> Div {
     let split = strong
         .as_ref()
         .and_then(|name| message.find(name.as_ref()).map(|at| (at, name)));

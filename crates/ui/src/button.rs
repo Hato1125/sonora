@@ -281,7 +281,7 @@ impl RenderOnce for Button {
                 this.border_1().border_color(border)
             })
             .when(interactive, |this| this.cursor_pointer())
-            .when_some(tooltip, |this, (key, perch)| {
+            .when_some(tooltip.filter(|_| interactive), |this, (key, perch)| {
                 this.tooltip(Tooltip::build(key, perch))
             })
             .when_some(hovered, |this, style| this.hover(move |_| style))

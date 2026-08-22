@@ -91,7 +91,7 @@ impl Engine {
         Ok(())
     }
 
-    fn arm(&self, track_id: &str, at: Duration) -> Result<()> {
+    fn load_paused_at(&self, track_id: &str, at: Duration) -> Result<()> {
         let uri = track_uri(track_id)?;
 
         self.flush.request();
@@ -127,8 +127,8 @@ impl MusicPlayer for Engine {
         self.load(track_id, seamless)
     }
 
-    fn arm(&self, track_id: &str, at: Duration) -> Result<()> {
-        self.arm(track_id, at)
+    fn load_paused_at(&self, track_id: &str, at: Duration) -> Result<()> {
+        self.load_paused_at(track_id, at)
     }
 
     fn preload(&self, track_id: &str) -> Result<()> {

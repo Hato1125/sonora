@@ -155,7 +155,7 @@ impl MusicApi for LibrespotClient {
         let mut sections = pathfinder::genre(&self.session, MADE_FOR_YOU)
             .await?
             .sections;
-        playlists::mend(&self.session, &mut sections).await;
+        playlists::name_blanks(&self.session, &mut sections).await;
 
         Ok(sections)
     }

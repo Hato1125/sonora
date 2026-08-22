@@ -61,7 +61,7 @@ impl Player for Engine {
             .context("cannot reach playback engine")
     }
 
-    fn arm(&self, track_id: &str, at: Duration) -> Result<()> {
+    fn load_paused_at(&self, track_id: &str, at: Duration) -> Result<()> {
         self.commands
             .send(Command::Load {
                 id: track_id.to_string(),
@@ -271,7 +271,7 @@ async fn engine_loop(
                         let position = sink.get_pos();
                         if let Some(slot) = &current {
                             slot.mute();
-                            settle(&sink).await;
+                            await_drain(&sink).await;
                             sink.pause();
                         }
                         events.send(PlaybackEvent::Paused(position)).ok();
@@ -281,7 +281,7 @@ async fn engine_loop(
                         None => {}
                         Some(slot) => {
                             slot.mute();
-                            settle(&sink).await;
+                            await_drain(&sink).await;
                             if let Err(error) = sink.try_seek(position) {
                                 log::warn!("playback: cannot seek: {error}");
                             }
@@ -399,11 +399,11 @@ async fn silence(sink: &rodio::Sink, slot: Option<&Slot>) {
         return;
     };
     slot.mute();
-    settle(sink).await;
+    await_drain(sink).await;
     sink.clear();
 }
 
-async fn settle(sink: &rodio::Sink) {
+async fn await_drain(sink: &rodio::Sink) {
     if sink.is_paused() {
         return;
     }

@@ -20,9 +20,7 @@ use gpui::{
 use i18n::t;
 use music::{Album, Playlist, Track};
 use router::{Destination, LibraryTab, navigate};
-use state::{
-    AppSettings, Library, LibraryPart, LibraryState, Origin, Playback, PlaybackState, Sonora,
-};
+use state::{AppSettings, Library, LibraryPart, LibraryState, Playback, PlaybackState, Sonora};
 use ui::{
     ActiveTheme as _, Button, Card, Deck, FlagAxis, GridDelegate, GridEvent, GridSource, GridState,
     LEADING, Menu, MenuItem, Mode, Pin, PinKind, Pinnable, Popovers, Popup, RangeAxis, Scrollbar,
@@ -36,7 +34,7 @@ use crate::shared::tracks::{
     self, LIBRARY_COLUMNS, PlaybackStatus, TrackField, TrackSieve, TrackSource, Tracks,
     playback_status,
 };
-use crate::shared::{cells, page};
+use crate::shared::{cards, cells, page};
 use albums::{AlbumField, AlbumSource};
 use artists::{ArtistField, ArtistSource};
 use playlists::{PlaylistField, PlaylistSource};
@@ -199,11 +197,7 @@ impl LibraryView {
         let scroll = scrollbar.read(cx).scroll().clone();
 
         let tracks = cx.new(|cx| {
-            let playlist_scrollbar = cx.new(|_| {
-                Scrollbar::new(ScrollHandle::new())
-                    .always_visible()
-                    .track_inset(px(4.))
-            });
+            let playlist_scrollbar = cx.new(|_| Scrollbar::inset());
             let source = TrackSource::new(
                 LIBRARY_COLUMNS,
                 LibraryTracks(library.clone()),
@@ -313,12 +307,7 @@ impl LibraryView {
         .detach();
 
         let me = cx.entity();
-        let toolbar = cx.new(|cx| {
-            let mut toolbar = Toolbar::new(cx);
-            toolbar.bind(&me, cx);
-            toolbar.wire(&me, cx);
-            toolbar
-        });
+        let toolbar = Toolbar::searchable(&me, cx);
 
         let card_scrollbar = cx.new(|_| Scrollbar::new(ScrollHandle::new()));
 
@@ -451,13 +440,7 @@ impl LibraryView {
         quantize(scroll, window);
         let visible = scroll.bounds().size.height;
 
-        Viewport {
-            top: scrolled(scroll),
-            height: match visible > Pixels::ZERO {
-                true => visible,
-                false => window.viewport_size().height,
-            },
-        }
+        Viewport::measured(scrolled(scroll), visible, window)
     }
 
     fn liked(&self, cx: &App) -> Vec<Track> {
@@ -609,13 +592,7 @@ impl LibraryView {
         }
 
         let visible = scroll.bounds().size.height;
-        let viewport = Viewport {
-            top: (scrolled(&scroll) - inset).max(Pixels::ZERO),
-            height: match visible > Pixels::ZERO {
-                true => visible,
-                false => window.viewport_size().height,
-            },
-        };
+        let viewport = Viewport::measured(scrolled(&scroll) - inset, visible, window);
         let rows = self.card_rows.clone();
         let section = self.section;
         let view = self.me.clone();
@@ -772,51 +749,23 @@ impl LibraryView {
         cx: &App,
     ) -> Option<AnyElement> {
         let playlist = self.playlists.read(cx).delegate().source().at(row, cx)?;
-        let playback = self.playback.clone();
-        let origin = Origin::Playlist(playlist.id.clone());
-        let playing = matches!(
-            self.playback.read(cx).playing_from(&origin),
-            Some(PlaybackState::Playing)
-        );
-        let opened = SharedString::from(playlist.id.clone());
-        let context = playlist.clone();
         let view = self.me.clone();
-        let pin = Pin::new(
-            PinKind::Playlist,
-            playlist.id.clone(),
-            playlist.name.clone(),
-        )
-        .cover(playlist.cover.clone());
 
         Some(
-            Card::new(
-                ("library-playlist", display),
-                SharedString::from(playlist.name),
-            )
-            .tile(card)
-            .cover(playlist.cover)
-            .weight(FontWeight::SEMIBOLD)
-            .flat()
-            .underline()
-            .meta(SharedString::from(playlist.owner))
-            .play(playing, move |_, _, cx| {
-                playback.update(cx, |playback, cx| playback.toggle_origin(&origin, cx));
-            })
-            .press(move |_, _, cx| navigate(Destination::Playlist(opened.clone()), cx))
-            .pin(pin)
-            .on_mouse_down(MouseButton::Right, move |event, window, cx| {
-                window.prevent_default();
-                cx.stop_propagation();
-                let Some(view) = view.upgrade() else {
-                    return;
-                };
-                view.update(cx, |this, cx| {
-                    this.context_menu =
-                        Some((LibraryMenu::Playlist(context.clone()), event.position));
-                    cx.notify();
-                });
-            })
-            .into_any_element(),
+            cards::playlist_card(("library-playlist", display), &playlist, &self.playback, cx)
+                .tile(card)
+                .flat()
+                .menu(move |event, _, cx| {
+                    let Some(view) = view.upgrade() else {
+                        return;
+                    };
+                    view.update(cx, |this, cx| {
+                        this.context_menu =
+                            Some((LibraryMenu::Playlist(playlist.clone()), event.position));
+                        cx.notify();
+                    });
+                })
+                .into_any_element(),
         )
     }
 
@@ -828,26 +777,14 @@ impl LibraryView {
         cx: &App,
     ) -> Option<AnyElement> {
         let artist = self.artists.read(cx).delegate().source().at(row, cx)?;
-        let opened = SharedString::from(artist.id.clone());
         let context = artist.id.clone();
         let view = self.me.clone();
-        let pin =
-            Pin::new(PinKind::Artist, artist.id, artist.name.clone()).cover(artist.cover.clone());
 
         Some(
-            Card::new(("library-artist", display), SharedString::from(artist.name))
+            cards::artist_card(("library-artist", display), &artist)
                 .tile(card)
-                .circle()
-                .cover(artist.cover)
-                .weight(FontWeight::SEMIBOLD)
                 .flat()
-                .underline()
-                .meta(i18n::lookup("artist-eyebrow", None))
-                .press(move |_, _, cx| navigate(Destination::Artist(opened.clone()), cx))
-                .pin(pin)
-                .on_mouse_down(MouseButton::Right, move |event, window, cx| {
-                    window.prevent_default();
-                    cx.stop_propagation();
+                .menu(move |event, _, cx| {
                     let Some(view) = view.upgrade() else {
                         return;
                     };

@@ -72,6 +72,41 @@ impl<F: Copy + 'static> ColumnSpec<F> {
     pub const fn ranked(&self, rank: u8) -> Self {
         Self { rank, ..*self }
     }
+
+    pub const fn filling(field: F) -> Self {
+        Self {
+            field,
+            key: "",
+            header: "",
+            align: TextAlign::Left,
+            width: Width::Fill(1.),
+            anchored: false,
+            sortable: true,
+            rank: rank::ESSENTIAL,
+        }
+    }
+
+    pub const fn numbering(field: F, width: Pixels) -> Self {
+        Self {
+            key: "index",
+            header: "column-index",
+            align: TextAlign::Center,
+            width: Width::Fixed(width),
+            anchored: true,
+            sortable: false,
+            ..Self::filling(field)
+        }
+    }
+
+    pub const fn artwork(field: F) -> Self {
+        Self {
+            key: "cover",
+            width: Width::Thumb,
+            anchored: true,
+            sortable: false,
+            ..Self::filling(field)
+        }
+    }
 }
 
 impl<F: 'static> ColumnSpec<F> {
@@ -329,7 +364,7 @@ fn fit<F: 'static>(tracks: &mut [Track<F>], available: Pixels) {
         false => grow(tracks, available - total),
     }
 
-    settle(tracks, available);
+    spread_leftover(tracks, available);
 }
 
 fn shrink<F: 'static>(tracks: &mut [Track<F>], excess: Pixels) {
@@ -394,7 +429,7 @@ fn grow<F: 'static>(tracks: &mut [Track<F>], leftover: Pixels) {
     }
 }
 
-fn settle<F: 'static>(tracks: &mut [Track<F>], available: Pixels) {
+fn spread_leftover<F: 'static>(tracks: &mut [Track<F>], available: Pixels) {
     let total = tracks
         .iter()
         .map(|track| track.width)

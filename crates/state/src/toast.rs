@@ -5,7 +5,7 @@ use gpui::{App, AppContext as _, Context, Entity, Global, SharedString};
 const LINGER: Duration = Duration::from_secs(4);
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Note {
+pub enum Outcome {
     Done,
     Failed,
 }
@@ -13,7 +13,7 @@ pub enum Note {
 #[derive(Clone)]
 pub struct Toast {
     pub id: usize,
-    pub note: Note,
+    pub outcome: Outcome,
     pub key: SharedString,
     pub name: Option<SharedString>,
 }
@@ -39,20 +39,20 @@ impl Toasts {
         cx.global::<Installed>().0.clone()
     }
 
-    pub fn show(note: Note, key: impl Into<SharedString>, cx: &mut App) {
+    pub fn show(outcome: Outcome, key: impl Into<SharedString>, cx: &mut App) {
         let toasts = Self::entity(cx);
-        toasts.update(cx, |this, cx| this.push(note, key.into(), None, cx));
+        toasts.update(cx, |this, cx| this.push(outcome, key.into(), None, cx));
     }
 
     pub fn about(
-        note: Note,
+        outcome: Outcome,
         key: impl Into<SharedString>,
         name: impl Into<SharedString>,
         cx: &mut App,
     ) {
         let toasts = Self::entity(cx);
         let name = Some(name.into());
-        toasts.update(cx, |this, cx| this.push(note, key.into(), name, cx));
+        toasts.update(cx, |this, cx| this.push(outcome, key.into(), name, cx));
     }
 
     pub fn shown(&self) -> &[Toast] {
@@ -66,7 +66,7 @@ impl Toasts {
 
     fn push(
         &mut self,
-        note: Note,
+        outcome: Outcome,
         key: SharedString,
         name: Option<SharedString>,
         cx: &mut Context<Self>,
@@ -74,7 +74,7 @@ impl Toasts {
         let showing = self
             .shown
             .iter()
-            .any(|toast| toast.note == note && toast.key == key && toast.name == name);
+            .any(|toast| toast.outcome == outcome && toast.key == key && toast.name == name);
         if showing {
             return;
         }
@@ -83,7 +83,7 @@ impl Toasts {
         self.next += 1;
         self.shown.push(Toast {
             id,
-            note,
+            outcome,
             key,
             name,
         });

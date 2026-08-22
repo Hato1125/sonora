@@ -31,11 +31,7 @@ impl HomeView {
         playback: Entity<Playback>,
         cx: &mut Context<Self>,
     ) -> Self {
-        let playlist_scrollbar = cx.new(|_| {
-            Scrollbar::new(ScrollHandle::new())
-                .always_visible()
-                .track_inset(px(4.))
-        });
+        let playlist_scrollbar = cx.new(|_| Scrollbar::inset());
         let track_menu = ItemMenu::new(playlist_scrollbar);
 
         cx.observe(&home, |this, _, cx| {
