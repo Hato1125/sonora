@@ -13,6 +13,12 @@ use music::{
 type Fetch = Pin<Box<dyn Future<Output = Result<Vec<Track>>> + Send>>;
 
 #[derive(Clone, Copy, PartialEq)]
+enum Refusal {
+    Keys,
+    SignIn,
+}
+
+#[derive(Clone, Copy, PartialEq)]
 enum Start {
     Pick,
     Skip,
@@ -119,10 +125,11 @@ pub struct Playback {
     preloaded: Option<String>,
     skipped: Option<Instant>,
     blocked_until: Option<Instant>,
-    refused: bool,
+    refused: Option<Refusal>,
     armed: Option<Duration>,
     settle: Option<Duration>,
     held: bool,
+    mending: bool,
     stored: Duration,
 }
 
@@ -142,6 +149,12 @@ impl Playback {
                 };
                 this.start_engine(playback, cx);
                 this.adopt(cx);
+            }
+            SessionEvent::Reconnected => {
+                let Some(playback) = session.read(cx).playback() else {
+                    return;
+                };
+                this.rebind(playback, cx);
             }
             SessionEvent::SignedOut => this.teardown(cx),
             SessionEvent::LocalChanged => {
@@ -186,10 +199,11 @@ impl Playback {
             preloaded: None,
             skipped: None,
             blocked_until: None,
-            refused: false,
+            refused: None,
             armed: None,
             settle: None,
             held: false,
+            mending: false,
             stored: Duration::ZERO,
         }
     }
@@ -245,8 +259,10 @@ impl Playback {
     }
 
     fn load_after(&mut self, track: &Track, start: Start, cx: &mut Context<Self>) {
-        if self.refused {
-            return self.refuse(cx);
+        match self.refused {
+            Some(Refusal::Keys) => return self.refuse(cx),
+            Some(Refusal::SignIn) => return self.gate(cx),
+            None => {}
         }
         let Some(id) = track.id.clone() else {
             return self.failed(format!("{} has no track id", track.name), cx);
@@ -1010,6 +1026,31 @@ impl Playback {
         cx.notify();
     }
 
+    fn mend(&mut self, cx: &mut Context<Self>) -> bool {
+        if self.track.is_none() {
+            return false;
+        }
+        self.mending = self.session.update(cx, |session, cx| session.heal(cx));
+        self.mending
+    }
+
+    fn rebind(&mut self, playback: Arc<dyn PlaybackFactory>, cx: &mut Context<Self>) {
+        let resume = self.state == PlaybackState::Playing || self.mending;
+        self.mending = false;
+        let at = self.position;
+        self.task = None;
+        self.engine = None;
+        self.preloaded = None;
+        self.blocked_until = None;
+        if self.track.is_some() {
+            self.armed = Some(at);
+        }
+        self.start_engine(playback, cx);
+        if resume {
+            self.resume(cx);
+        }
+    }
+
     fn start_engine(&mut self, playback: Arc<dyn PlaybackFactory>, cx: &mut Context<Self>) {
         let config = PlaybackConfig {
             normalisation: self.normalisation,
@@ -1021,6 +1062,7 @@ impl Playback {
 
         self.listen(events, false, cx);
         self.engine = Some(engine);
+        self.refused = None;
         let local_active = self
             .track
             .as_ref()
@@ -1120,6 +1162,10 @@ impl Playback {
                 cx.emit(PlaybackEvent::EndedPlayback);
                 self.advance(ended, cx);
             }
+            BackendEvent::Unavailable if self.mend(cx) => {
+                self.state = PlaybackState::Loading;
+                log::warn!("playback: the provider went stale, waiting for a reconnect");
+            }
             BackendEvent::Unavailable => {
                 let failed = self.track.take();
                 let name = failed.map_or_else(|| "?".to_owned(), |track| track.name);
@@ -1135,6 +1181,10 @@ impl Playback {
             }
             BackendEvent::Refused => {
                 self.refuse(cx);
+                cx.emit(PlaybackEvent::EndedPlayback);
+            }
+            BackendEvent::Gated => {
+                self.gate(cx);
                 cx.emit(PlaybackEvent::EndedPlayback);
             }
         }
@@ -1159,7 +1209,7 @@ impl Playback {
             self.preloaded = None;
             self.skipped = None;
             self.blocked_until = None;
-            self.refused = false;
+            self.refused = None;
             self.track = None;
             self.origin = None;
             self.state = PlaybackState::Idle;
@@ -1167,6 +1217,7 @@ impl Playback {
             self.armed = None;
             self.settle = None;
             self.held = false;
+            self.mending = false;
             self.stored = Duration::ZERO;
         }
         cx.notify();
@@ -1178,9 +1229,37 @@ impl Playback {
         cx.notify();
     }
 
+    fn gate(&mut self, cx: &mut Context<Self>) {
+        let first = self.refused.is_none();
+        self.refused = Some(Refusal::SignIn);
+        self.track = None;
+        self.blocked_until = None;
+        let provider = self
+            .session
+            .read(cx)
+            .provider_name()
+            .unwrap_or("this provider");
+        self.state = PlaybackState::Failed(format!(
+            "{provider} only streams to a signed-in listener; nothing will play until you sign in"
+        ));
+        if first {
+            log::warn!(
+                "playback: {provider} only streams to a signed-in listener, nothing will play \
+                 until you sign in"
+            );
+        }
+        Toasts::about(
+            Note::Failed,
+            "toast-sign-in-to-play",
+            provider.to_owned(),
+            cx,
+        );
+        cx.notify();
+    }
+
     fn refuse(&mut self, cx: &mut Context<Self>) {
-        let first = !self.refused;
-        self.refused = true;
+        let first = self.refused.is_none();
+        self.refused = Some(Refusal::Keys);
         self.track = None;
         self.blocked_until = None;
         self.state = PlaybackState::Failed(

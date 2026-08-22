@@ -40,7 +40,7 @@ impl Home {
                 this.feeding = false;
                 cx.notify();
             }
-            SessionEvent::LocalChanged => {}
+            SessionEvent::Reconnected | SessionEvent::LocalChanged => {}
         })
         .detach();
 

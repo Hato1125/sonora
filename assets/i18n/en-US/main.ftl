@@ -420,6 +420,7 @@ toast-queued-playlist = Playlist added to the queue
 toast-next-playlist = Playlist plays next
 toast-queue-failed = That could not be added to the queue
 toast-keys-refused = Spotify is not granting this account playback keys
+toast-sign-in-to-play = { $name } only streams to a signed-in listener
 toast-track-unplayable = { $name } could not be played
 
 # lyrics

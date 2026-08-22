@@ -54,6 +54,10 @@ pub enum MediaKind {
 
 #[async_trait]
 pub trait MusicApi: Send + Sync {
+    fn alive(&self) -> bool {
+        true
+    }
+
     fn share_url(&self, kind: MediaKind, id: &str) -> Option<String>;
     async fn profile(&self) -> Result<UserProfile>;
     async fn artist(&self, artist_id: &str) -> Result<Artist>;
@@ -133,6 +137,7 @@ pub enum PlaybackEvent {
     Ended,
     Unavailable,
     Refused,
+    Gated,
 }
 
 pub trait Player: Send + Sync {

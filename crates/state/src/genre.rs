@@ -27,7 +27,7 @@ impl Genres {
                 this.error = None;
                 cx.notify();
             }
-            SessionEvent::LocalChanged => {}
+            SessionEvent::Reconnected | SessionEvent::LocalChanged => {}
         })
         .detach();
 
@@ -136,7 +136,7 @@ impl GenreDetails {
                 this.clear();
                 cx.notify();
             }
-            SessionEvent::LocalChanged => {}
+            SessionEvent::Reconnected | SessionEvent::LocalChanged => {}
         })
         .detach();
 

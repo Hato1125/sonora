@@ -318,7 +318,7 @@ async fn engine_loop(
                             }
                             Err(error) => {
                                 log::warn!("playback: cannot load {id}: {error:#}");
-                                events.send(PlaybackEvent::Unavailable).ok();
+                                events.send(refusal(&error)).ok();
                             }
                         }
                     }
@@ -469,6 +469,13 @@ fn announce(
         false => PlaybackEvent::Paused(position),
     };
     events.send(event).ok();
+}
+
+fn refusal(error: &anyhow::Error) -> PlaybackEvent {
+    match error.downcast_ref::<ytmusic::SignInRequired>().is_some() {
+        true => PlaybackEvent::Gated,
+        false => PlaybackEvent::Unavailable,
+    }
 }
 
 async fn fetch(api: &YtMusic, id: &str) -> Result<Loaded> {

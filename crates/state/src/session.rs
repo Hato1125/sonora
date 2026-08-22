@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::Error;
 use gpui::{Context, Entity, EventEmitter, Task};
@@ -12,6 +13,15 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::catalog::CatalogSource;
 use crate::settings::AppSettings;
 use crate::{Io, join};
+
+const HEARTBEAT: Duration = Duration::from_secs(30);
+const BACKOFF: [Duration; 5] = [
+    Duration::ZERO,
+    Duration::from_secs(5),
+    Duration::from_secs(15),
+    Duration::from_secs(60),
+    Duration::from_secs(300),
+];
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Failure {
@@ -50,6 +60,7 @@ pub enum SessionState {
 pub enum SessionEvent {
     SignedIn,
     SignedOut,
+    Reconnected,
     LocalChanged,
 }
 
@@ -85,6 +96,10 @@ pub struct Session {
     local_catalog: Option<Arc<CatalogSource>>,
     local_playback: Option<Arc<dyn PlaybackFactory>>,
     local_task: Option<Task<()>>,
+    watch: Option<Task<()>>,
+    mend: Option<Task<()>>,
+    mending: bool,
+    attempt: usize,
 }
 
 impl EventEmitter<SessionEvent> for Session {}
@@ -123,6 +138,10 @@ impl Session {
             local_catalog: None,
             local_playback: None,
             local_task: None,
+            watch: None,
+            mend: None,
+            mending: false,
+            attempt: 0,
         };
         session.restore_local(cx);
         session
@@ -407,6 +426,10 @@ impl Session {
 
     fn release(&mut self, cx: &mut Context<Self>) {
         self.task = None;
+        self.watch = None;
+        self.mend = None;
+        self.mending = false;
+        self.attempt = 0;
         self.prompt_task = None;
         self.input = None;
         self.awaiting = None;
@@ -422,9 +445,15 @@ impl Session {
     }
 
     fn signed_in(&mut self, session: ProviderSession, index: usize, cx: &mut Context<Self>) {
+        let replaced = self
+            .resume
+            .take()
+            .is_some_and(|(held, profile)| held != index || profile.id != session.profile.id);
+        if replaced {
+            self.shed(cx);
+        }
         self.active = Some(index);
         self.awaiting = None;
-        self.resume = None;
         self.error = None;
         let slug = self.providers[index].slug();
         self.settings.update(cx, |settings, cx| {
@@ -436,8 +465,89 @@ impl Session {
         self.authenticated = session.authenticated;
         self.playcounts = session.playcounts;
         self.state = SessionState::SignedIn(session.profile);
+        self.attempt = 0;
+        self.guard(cx);
         cx.notify();
         cx.emit(SessionEvent::SignedIn);
+    }
+
+    fn shed(&mut self, cx: &mut Context<Self>) {
+        self.client = None;
+        self.catalog = None;
+        self.playback = None;
+        self.authenticated = false;
+        self.playcounts = false;
+        self.watch = None;
+        self.mend = None;
+        self.mending = false;
+        self.attempt = 0;
+        cx.emit(SessionEvent::SignedOut);
+    }
+
+    fn guard(&mut self, cx: &mut Context<Self>) {
+        self.watch = Some(cx.spawn(async move |this, cx| {
+            loop {
+                cx.background_executor().timer(HEARTBEAT).await;
+                if this.update(cx, |this, cx| this.heal(cx)).is_err() {
+                    return;
+                }
+            }
+        }));
+    }
+
+    pub fn heal(&mut self, cx: &mut Context<Self>) -> bool {
+        if self.mending {
+            return true;
+        }
+        if !matches!(self.state, SessionState::SignedIn(_)) {
+            return false;
+        }
+        let Some(client) = &self.client else {
+            return false;
+        };
+        if client.alive() {
+            self.attempt = 0;
+            return false;
+        }
+        let Some(active) = self.active else {
+            return false;
+        };
+        let wait = BACKOFF[self.attempt.min(BACKOFF.len() - 1)];
+        self.attempt += 1;
+        self.mending = true;
+        log::warn!(
+            "session: the {} session went stale, reconnecting in {}s",
+            self.providers[active].name(),
+            wait.as_secs()
+        );
+        let provider = self.providers[active].clone();
+        let io = self.io.clone();
+        self.mend = Some(cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(wait).await;
+            let restored = join(io.spawn(async move { provider.restore().await })).await;
+            this.update(cx, |this, cx| {
+                this.mending = false;
+                match restored {
+                    Ok(Some(session)) => this.reconnected(session, cx),
+                    Ok(None) => log::warn!("session: nothing stored to reconnect with"),
+                    Err(error) => log::warn!("session: cannot reconnect: {error:#}"),
+                }
+            })
+            .ok();
+        }));
+        true
+    }
+
+    fn reconnected(&mut self, session: ProviderSession, cx: &mut Context<Self>) {
+        self.attempt = 0;
+        self.catalog = Some(Arc::new(CatalogSource::new(session.api.clone())));
+        self.client = Some(session.api);
+        self.playback = Some(session.playback);
+        self.authenticated = session.authenticated;
+        self.playcounts = session.playcounts;
+        log::debug!("session: reconnected");
+        cx.notify();
+        cx.emit(SessionEvent::Reconnected);
     }
 
     fn failed(&mut self, error: &Error, cx: &mut Context<Self>) {
