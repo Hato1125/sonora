@@ -198,8 +198,8 @@ impl SearchView {
                     .play(playing, move |_, _, cx| {
                         toggled
                             .update(cx, |this, cx| {
-                                this.playback.update(cx, |playback, cx| match playing {
-                                    true => playback.pause(cx),
+                                this.playback.update(cx, |playback, cx| match current {
+                                    true => playback.toggle_play(cx),
                                     false => playback.play_radio(&played, cx),
                                 });
                             })

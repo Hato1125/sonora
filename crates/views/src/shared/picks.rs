@@ -307,8 +307,8 @@ fn pick(
         let on_start = on_start.clone();
         move |cx: &mut App| begin(place, &tracks, &playback, &on_start, cx)
     };
-    let transport = move |cx: &mut App| match playing {
-        true => playback.update(cx, |playback, cx| playback.pause(cx)),
+    let transport = move |cx: &mut App| match current {
+        true => playback.update(cx, |playback, cx| playback.toggle_play(cx)),
         false => begin(place, &tracks, &playback, &on_start, cx),
     };
 

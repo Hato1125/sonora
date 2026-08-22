@@ -12,7 +12,7 @@ use music::Track;
 use state::{Lyrics, LyricsState, Playback, PlaybackState, Queue, SideTab, Sonora};
 use ui::{
     ActiveTheme as _, Button, Card, DraggedPin, Edge, Motion, Pin, PinKind, Pinnable as _, Popup,
-    Scrollbar, Scroller, Spot, Text, drop_gap, drop_marker, eyebrow, snapped, vacant,
+    Scrollbar, Scroller, Spot, Text, clock, drop_gap, drop_marker, eyebrow, snapped, vacant,
 };
 
 use crate::chrome::{Chrome, section_label};
@@ -360,6 +360,14 @@ impl Aside {
         )
         .tint(title)
         .underline()
+        .trailing(
+            div()
+                .flex_none()
+                .whitespace_nowrap()
+                .text_size(theme.text(Text::Small))
+                .text_color(theme.muted_foreground)
+                .child(clock(track.duration)),
+        )
         .when(track.explicit, Card::explicit)
         .play(
             playing,
