@@ -445,9 +445,15 @@ impl Session {
     }
 
     fn signed_in(&mut self, session: ProviderSession, index: usize, cx: &mut Context<Self>) {
+        let replaced = self
+            .resume
+            .take()
+            .is_some_and(|(held, profile)| held != index || profile.id != session.profile.id);
+        if replaced {
+            self.shed(cx);
+        }
         self.active = Some(index);
         self.awaiting = None;
-        self.resume = None;
         self.error = None;
         let slug = self.providers[index].slug();
         self.settings.update(cx, |settings, cx| {
@@ -463,6 +469,19 @@ impl Session {
         self.guard(cx);
         cx.notify();
         cx.emit(SessionEvent::SignedIn);
+    }
+
+    fn shed(&mut self, cx: &mut Context<Self>) {
+        self.client = None;
+        self.catalog = None;
+        self.playback = None;
+        self.authenticated = false;
+        self.playcounts = false;
+        self.watch = None;
+        self.mend = None;
+        self.mending = false;
+        self.attempt = 0;
+        cx.emit(SessionEvent::SignedOut);
     }
 
     fn guard(&mut self, cx: &mut Context<Self>) {
