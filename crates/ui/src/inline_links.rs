@@ -103,7 +103,7 @@ impl RenderOnce for InlineLinks {
                     let item = div()
                         .id(ElementId::NamedInteger(id.clone(), index as u64))
                         .min_w_0()
-                        .when(lone, |this| this.flex().flex_shrink(1.))
+                        .when(lone, |this| this.flex_shrink(1.))
                         .when(clip, |this| this.truncate());
                     let item = match value {
                         Some(value) => {
