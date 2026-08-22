@@ -116,7 +116,9 @@ impl SidebarLeft {
             return;
         }
         self.at = current.clone();
-        (self.library_open, self.settings_open) = expanded(current);
+        let (library, settings) = expanded(current);
+        self.library_open |= library;
+        self.settings_open |= settings;
     }
 
     fn dismiss_menu(&mut self, cx: &mut Context<Self>) {
@@ -324,25 +326,14 @@ impl Render for SidebarLeft {
                 }
                 let inside = matches!(current, Destination::Library(_));
                 let text = if inside { foreground } else { muted };
-                let default_tab = if authenticated {
-                    LibraryTab::Songs
-                } else {
-                    LibraryTab::Local
-                };
-                let destination = destination.map(|_| Destination::Library(default_tab));
-                let link_destination = if inside { None } else { destination };
-                let target = link_destination.unwrap_or(current.clone());
 
                 rows.push(
                     nav_row(index, key, text, sidebar_accent)
                         .icon(icon)
                         .trailing(chevron(self.library_open))
-                        .on_click(cx.listener(move |this, _, _, cx| match inside {
-                            true => {
-                                this.library_open = !this.library_open;
-                                cx.notify();
-                            }
-                            false => navigate(target.clone(), cx),
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.library_open = !this.library_open;
+                            cx.notify();
                         }))
                         .into_any_element(),
                 );
@@ -370,19 +361,14 @@ impl Render for SidebarLeft {
             if matches!(destination, Some(Destination::Settings(_))) {
                 let inside = matches!(current, Destination::Settings(_));
                 let text = if inside { foreground } else { muted };
-                let link_destination = if inside { None } else { destination };
-                let target = link_destination.unwrap_or(current.clone());
 
                 rows.push(
                     nav_row(index, key, text, sidebar_accent)
                         .icon(icon)
                         .trailing(chevron(self.settings_open))
-                        .on_click(cx.listener(move |this, _, _, cx| match inside {
-                            true => {
-                                this.settings_open = !this.settings_open;
-                                cx.notify();
-                            }
-                            false => navigate(target.clone(), cx),
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.settings_open = !this.settings_open;
+                            cx.notify();
                         }))
                         .into_any_element(),
                 );
@@ -573,7 +559,7 @@ mod tests {
     }
 
     #[test]
-    fn leaving_through_content_collapses_both() {
+    fn content_belongs_to_neither_section() {
         let away = [
             Destination::Home,
             Destination::Search,
