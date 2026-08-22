@@ -1,8 +1,8 @@
-use gpui::TextAlign;
+use gpui::{Pixels, TextAlign, px};
 use ui::rank::{ESSENTIAL, HANDY, NICE, SPARE, USEFUL};
 use ui::{ColumnSpec, Width};
 
-use crate::shared::cells::{DATE, NUMBER, TRAILING};
+use crate::shared::cells::{DATE, NUMBER};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TrackField {
@@ -16,6 +16,10 @@ pub(crate) enum TrackField {
     Duration,
 }
 
+const LENGTH: Pixels = px(84.);
+const ALBUM_LENGTH: Pixels = px(120.);
+const ALBUM_PLAYS: Pixels = px(108.);
+
 const COLUMN: ColumnSpec<TrackField> = ColumnSpec::filling(TrackField::Index);
 
 const INDEX: ColumnSpec<TrackField> = ColumnSpec::numbering(TrackField::Index, NUMBER);
@@ -26,7 +30,7 @@ const TITLE: ColumnSpec<TrackField> = ColumnSpec {
     field: TrackField::Title,
     key: "title",
     header: "column-title",
-    width: Width::Fill(0.42),
+    width: Width::Fill(0.515),
     rank: ESSENTIAL,
     ..COLUMN
 };
@@ -35,7 +39,7 @@ const ARTISTS: ColumnSpec<TrackField> = ColumnSpec {
     field: TrackField::Artists,
     key: "artists",
     header: "column-artist",
-    width: Width::Fill(0.29),
+    width: Width::Fill(0.212),
     rank: HANDY,
     ..COLUMN
 };
@@ -44,7 +48,7 @@ const ALBUM: ColumnSpec<TrackField> = ColumnSpec {
     field: TrackField::Album,
     key: "album",
     header: "column-album",
-    width: Width::Fill(0.29),
+    width: Width::Fill(0.273),
     rank: SPARE,
     ..COLUMN
 };
@@ -72,9 +76,29 @@ const DURATION: ColumnSpec<TrackField> = ColumnSpec {
     key: "duration",
     header: "column-length",
     align: TextAlign::Right,
-    width: Width::Fixed(TRAILING),
+    width: Width::Fixed(LENGTH),
     rank: USEFUL,
     ..COLUMN
+};
+
+const ALBUM_TITLE: ColumnSpec<TrackField> = ColumnSpec {
+    width: Width::Fill(0.665),
+    ..TITLE
+};
+
+const ALBUM_ARTISTS: ColumnSpec<TrackField> = ColumnSpec {
+    width: Width::Fill(0.335),
+    ..ARTISTS
+};
+
+const ALBUM_PLAYCOUNT: ColumnSpec<TrackField> = ColumnSpec {
+    width: Width::Fixed(ALBUM_PLAYS),
+    ..PLAYS
+};
+
+const ALBUM_DURATION: ColumnSpec<TrackField> = ColumnSpec {
+    width: Width::Fixed(ALBUM_LENGTH),
+    ..DURATION
 };
 
 pub(crate) const LIBRARY_COLUMNS: &[ColumnSpec<TrackField>] =
@@ -99,10 +123,16 @@ pub(crate) const ARTIST_COLUMNS_LEAN: &[ColumnSpec<TrackField>] = &[
     DURATION,
 ];
 
-pub(crate) const ALBUM_COLUMNS: &[ColumnSpec<TrackField>] =
-    &[INDEX, TITLE, ARTISTS, PLAYS, DURATION];
+pub(crate) const ALBUM_COLUMNS: &[ColumnSpec<TrackField>] = &[
+    INDEX,
+    ALBUM_TITLE,
+    ALBUM_ARTISTS,
+    ALBUM_PLAYCOUNT,
+    ALBUM_DURATION,
+];
 
-pub(crate) const ALBUM_COLUMNS_LEAN: &[ColumnSpec<TrackField>] = &[INDEX, TITLE, ARTISTS, DURATION];
+pub(crate) const ALBUM_COLUMNS_LEAN: &[ColumnSpec<TrackField>] =
+    &[INDEX, ALBUM_TITLE, ALBUM_ARTISTS, ALBUM_DURATION];
 
 pub(crate) fn artist_columns(playcounts: bool) -> &'static [ColumnSpec<TrackField>] {
     match playcounts {
