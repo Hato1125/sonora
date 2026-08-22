@@ -7,6 +7,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Track tables start out with roomier title, artist and album columns, so a fresh install needs
+  less dragging before it reads well.
+
 ## [0.16.1] - 2026-08-22
 
 ### Added
