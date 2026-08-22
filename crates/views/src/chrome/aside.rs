@@ -20,6 +20,7 @@ use crate::shared::menu::ItemMenu;
 
 const QUEUE: &str = "queue";
 const FADE: f32 = 96.;
+const TAIL_ROWS: usize = 2;
 const BLUR: f32 = 0.07;
 const PAST: f32 = 0.4;
 const PINNED_SHARE: f32 = 0.25;
@@ -803,17 +804,17 @@ impl Aside {
 
         uniform_list(
             "queue-rows",
-            sections.len(),
+            sections.len() + TAIL_ROWS,
             cx.processor(move |_, range: Range<usize>, window, cx| {
                 let (revision, slots) = {
                     let queue = queue.read(cx);
                     let slots = range
                         .clone()
                         .map(|index| {
-                            let slot = sections.slot(index);
+                            let slot = (index < sections.len()).then(|| sections.slot(index));
                             let found = match slot {
-                                Slot::Header(_) => None,
-                                Slot::Track(position) => track(queue, position),
+                                Some(Slot::Track(position)) => track(queue, position),
+                                Some(Slot::Header(_)) | None => None,
                             };
                             (index, slot, found)
                         })
@@ -824,8 +825,11 @@ impl Aside {
                 slots
                     .into_iter()
                     .map(|(index, slot, found)| match (slot, found) {
-                        (Slot::Header(key), _) => section_label(key, window, cx).into_any_element(),
-                        (Slot::Track(position), Some(found)) => {
+                        (None, _) => div().into_any_element(),
+                        (Some(Slot::Header(key)), _) => {
+                            section_label(key, window, cx).into_any_element()
+                        }
+                        (Some(Slot::Track(position)), Some(found)) => {
                             let drop_line = match (position.upcoming(), drop_gap) {
                                 (Some(queued), Some(gap)) if gap == queued => Some(Edge::Above),
                                 (Some(queued), Some(gap))
@@ -839,7 +843,7 @@ impl Aside {
                             Self::row(found, index, position, revision, drop_line, playing, cx)
                                 .into_any_element()
                         }
-                        (Slot::Track(_), None) => div().into_any_element(),
+                        (Some(Slot::Track(_)), None) => div().into_any_element(),
                     })
                     .collect()
             }),
@@ -904,21 +908,27 @@ impl Render for Aside {
                                 .relative()
                                 .flex_1()
                                 .min_h_0()
-                                .when(effects(), |this| this.fade_edges(px(FADE * 0.5), px(FADE)))
                                 .child(
-                                    self.rows(sections, cx)
-                                        .px_2()
-                                        .pb(px(FADE * 0.75))
-                                        .pt(px(FADE * 0.5))
-                                        .track_scroll(&self.scroll)
+                                    div()
                                         .size_full()
-                                        .on_scroll_wheel(
-                                            move |event: &ScrollWheelEvent, window, cx| {
-                                                if event.delta.precise() {
-                                                    return;
-                                                }
-                                                gliding.update(cx, |bar, _| bar.nudge(window));
-                                            },
+                                        .when(effects(), |this| {
+                                            this.fade_edges(px(FADE * 0.5), px(FADE))
+                                        })
+                                        .child(
+                                            self.rows(sections, cx)
+                                                .px_2()
+                                                .pt(px(FADE * 0.5))
+                                                .track_scroll(&self.scroll)
+                                                .size_full()
+                                                .on_scroll_wheel(
+                                                    move |event: &ScrollWheelEvent, window, cx| {
+                                                        if event.delta.precise() {
+                                                            return;
+                                                        }
+                                                        gliding
+                                                            .update(cx, |bar, _| bar.nudge(window));
+                                                    },
+                                                ),
                                         ),
                                 )
                                 .child(self.scrollbar.clone()),
