@@ -30,7 +30,8 @@ const TIGHT: Pixels = px(2.);
 pub const CARD_GROUP: &str = "card";
 
 type Press = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
-type Grip = Rc<dyn Fn(&MouseDownEvent, &mut Window, &mut App) + 'static>;
+type Summon = Box<dyn Fn(&MouseDownEvent, &mut Window, &mut App) + 'static>;
+type DragStart = Rc<dyn Fn(&MouseDownEvent, &mut Window, &mut App) + 'static>;
 
 #[derive(IntoElement)]
 pub struct Card {
@@ -58,8 +59,10 @@ pub struct Card {
     play: Option<Press>,
     underline: bool,
     playing: bool,
+    show_play: bool,
     action: Option<AnyElement>,
-    grip: Option<Grip>,
+    drag_start: Option<DragStart>,
+    menu: Option<Summon>,
 }
 
 impl Card {
@@ -90,16 +93,22 @@ impl Card {
             play: None,
             underline: false,
             playing: false,
+            show_play: false,
             action: None,
-            grip: None,
+            drag_start: None,
+            menu: None,
         }
     }
 
-    pub fn grip(
+    pub fn skeleton(id: impl Into<ElementId>) -> Self {
+        Self::new(id, "").loading()
+    }
+
+    pub fn drag_start(
         mut self,
         handler: impl Fn(&MouseDownEvent, &mut Window, &mut App) + 'static,
     ) -> Self {
-        self.grip = Some(Rc::new(handler));
+        self.drag_start = Some(Rc::new(handler));
         self
     }
 
@@ -126,6 +135,11 @@ impl Card {
     ) -> Self {
         self.play = Some(Box::new(handler));
         self.playing = playing;
+        self
+    }
+
+    pub fn show_play(mut self, shown: bool) -> Self {
+        self.show_play = shown;
         self
     }
 
@@ -225,6 +239,14 @@ impl Card {
         self.press = Some(Box::new(handler));
         self
     }
+
+    pub fn menu(
+        mut self,
+        handler: impl Fn(&MouseDownEvent, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.menu = Some(Box::new(handler));
+        self
+    }
 }
 
 impl Styled for Card {
@@ -273,8 +295,10 @@ impl RenderOnce for Card {
             play,
             underline,
             playing,
+            show_play,
             action,
-            grip,
+            drag_start,
+            menu,
         } = self;
 
         let theme = *cx.theme();
@@ -324,7 +348,7 @@ impl RenderOnce for Card {
                             .absolute()
                             .right(PLAY_INSET)
                             .bottom(PLAY_INSET)
-                            .when(!playing, |this| {
+                            .when(!playing && !show_play, |this| {
                                 this.invisible()
                                     .group_hover(CARD_GROUP, |style| style.visible())
                             })
@@ -344,6 +368,7 @@ impl RenderOnce for Card {
                                         play(event, window, cx);
                                     }),
                             )
+                            .into_any_element()
                     }
                     None => {
                         let corner = match (circle, art_radius) {
@@ -354,33 +379,39 @@ impl RenderOnce for Card {
                         let size = px((art / px(1.) * SCRIM_RATIO).round()).max(SCRIM_MIN);
 
                         div()
-                            .id("card-play")
                             .absolute()
                             .inset_0()
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .rounded(corner)
-                            .cursor_pointer()
-                            .tooltip(Tooltip::build(hint, Perch::Pointer))
-                            .when(playing, |this| this.bg(theme.overlay))
-                            .group_hover(CARD_GROUP, move |style| style.bg(theme.overlay))
+                            .when(!playing && !show_play, |this| {
+                                this.invisible()
+                                    .group_hover(CARD_GROUP, |style| style.visible())
+                            })
                             .child(
-                                svg()
-                                    .path(glyph)
-                                    .size(size)
-                                    .flex_none()
-                                    .text_color(theme.overlay_foreground)
-                                    .when(!playing, |this| {
-                                        this.invisible()
-                                            .group_hover(CARD_GROUP, |style| style.visible())
+                                div()
+                                    .id("card-play")
+                                    .size_full()
+                                    .flex()
+                                    .items_center()
+                                    .justify_center()
+                                    .rounded(corner)
+                                    .cursor_pointer()
+                                    .bg(theme.overlay)
+                                    .tooltip(Tooltip::build(hint, Perch::Pointer))
+                                    .child(
+                                        svg()
+                                            .path(glyph)
+                                            .size(size)
+                                            .flex_none()
+                                            .text_color(theme.overlay_foreground),
+                                    )
+                                    .on_mouse_down(MouseButton::Left, |_, _, cx| {
+                                        cx.stop_propagation()
+                                    })
+                                    .on_click(move |event, window, cx| {
+                                        cx.stop_propagation();
+                                        play(event, window, cx);
                                     }),
                             )
-                            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                            .on_click(move |event, window, cx| {
-                                cx.stop_propagation();
-                                play(event, window, cx);
-                            })
+                            .into_any_element()
                     }
                 };
 
@@ -397,9 +428,9 @@ impl RenderOnce for Card {
         let title = div()
             .min_w_0()
             .truncate()
-            .when_some(grip.clone(), |this, grip| {
+            .when_some(drag_start.clone(), |this, drag_start| {
                 this.on_mouse_down(MouseButton::Right, move |event, window, cx| {
-                    grip(event, window, cx)
+                    drag_start(event, window, cx)
                 })
             })
             .when_some(weight, |this, weight| this.font_weight(weight))
@@ -444,11 +475,18 @@ impl RenderOnce for Card {
                 this.cursor_pointer()
                     .on_click(move |event, window, cx| press(event, window, cx))
             })
-            .child(match grip.clone() {
-                Some(grip) => div()
+            .when_some(menu, |this, menu| {
+                this.on_mouse_down(MouseButton::Right, move |event, window, cx| {
+                    window.prevent_default();
+                    cx.stop_propagation();
+                    menu(event, window, cx);
+                })
+            })
+            .child(match drag_start.clone() {
+                Some(drag_start) => div()
                     .flex_none()
                     .on_mouse_down(MouseButton::Right, move |event, window, cx| {
-                        grip(event, window, cx)
+                        drag_start(event, window, cx)
                     })
                     .child(leading)
                     .into_any_element(),

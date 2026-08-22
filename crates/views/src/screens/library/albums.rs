@@ -7,7 +7,7 @@ use i18n::t;
 use music::Album;
 use router::Destination;
 use state::{Library, LibraryState, Origin, Playback};
-use ui::rank::{ESSENTIAL, HANDY, NICE, SPARE, USEFUL};
+use ui::rank::{HANDY, NICE, SPARE, USEFUL};
 use ui::{Cell, ColumnSpec, GridSource, Menu, Pin, PinKind, Width};
 
 use crate::shared::cells::{self, DATE, NUMBER, TRAILING, YEAR};
@@ -26,36 +26,11 @@ pub(super) enum AlbumField {
     AddedAt,
 }
 
-const COLUMN: ColumnSpec<AlbumField> = ColumnSpec {
-    field: AlbumField::Index,
-    key: "",
-    header: "",
-    align: TextAlign::Left,
-    width: Width::Fill(1.),
-    anchored: false,
-    sortable: true,
-    rank: ESSENTIAL,
-};
+const COLUMN: ColumnSpec<AlbumField> = ColumnSpec::filling(AlbumField::Index);
 
-const INDEX: ColumnSpec<AlbumField> = ColumnSpec {
-    field: AlbumField::Index,
-    key: "index",
-    header: "column-index",
-    align: TextAlign::Center,
-    width: Width::Fixed(NUMBER),
-    anchored: true,
-    sortable: false,
-    ..COLUMN
-};
+const INDEX: ColumnSpec<AlbumField> = ColumnSpec::numbering(AlbumField::Index, NUMBER);
 
-const COVER: ColumnSpec<AlbumField> = ColumnSpec {
-    field: AlbumField::Cover,
-    key: "cover",
-    width: Width::Thumb,
-    anchored: true,
-    sortable: false,
-    ..COLUMN
-};
+const COVER: ColumnSpec<AlbumField> = ColumnSpec::artwork(AlbumField::Cover);
 
 const NAME: ColumnSpec<AlbumField> = ColumnSpec {
     field: AlbumField::Name,

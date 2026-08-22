@@ -44,6 +44,8 @@ library-no-artists = Пока нет отслеживаемых исполнит
 library-no-local-songs = Импортированные треки не найдены
 library-no-local-albums = Импортированные альбомы не найдены
 library-no-matches = Ничего не найдено
+library-not-loaded = Библиотека не загрузилась
+library-part-not-loaded = Этот раздел библиотеки не загрузился
 
 # app menu
 app-refresh-library = Обновить медиатеку
@@ -412,6 +414,7 @@ toast-playlist-added = Плейлист добавлен в медиатеку
 toast-playlist-removed = Плейлист удалён из медиатеки
 toast-playlist-visibility = Видимость плейлиста изменена
 toast-track-added = Добавлено в { $name }
+toast-track-removed = Удалено из { $name }
 toast-playlist-failed = Не удалось сохранить изменение
 toast-playlist-busy = Другое изменение ещё выполняется
 toast-playlist-signed-out = Войдите, чтобы менять плейлисты
@@ -423,6 +426,7 @@ toast-queued-playlist = Плейлист добавлен в очередь
 toast-next-playlist = Плейлист прозвучит следующим
 toast-queue-failed = Не удалось добавить в очередь
 toast-keys-refused = Spotify не выдаёт этому аккаунту ключи воспроизведения
+toast-sign-in-to-play = { $name } отдаёт музыку только тем, кто вошёл в аккаунт
 toast-track-unplayable = Не удалось воспроизвести { $name }
 
 # lyrics

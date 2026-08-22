@@ -138,13 +138,7 @@ impl Search {
     ) -> Self {
         cx.subscribe(&session, |this, _, event, cx| match event {
             SessionEvent::SignedOut => {
-                this.task = None;
-                this.query.clear();
-                this.served = None;
-                this.catalog.clear();
-                this.portraits.clear();
-                this.hits.clear();
-                this.loading = false;
+                this.forget_results();
                 cx.notify();
             }
             SessionEvent::SignedIn => {
@@ -152,7 +146,7 @@ impl Search {
                 this.query.clear();
                 this.ask(&pending, cx);
             }
-            SessionEvent::LocalChanged => {}
+            SessionEvent::Reconnected | SessionEvent::LocalChanged => {}
         })
         .detach();
 
@@ -196,6 +190,18 @@ impl Search {
 
     pub fn error(&self) -> Option<&str> {
         self.error.as_deref()
+    }
+
+    fn forget_results(&mut self) {
+        self.task = None;
+        self.faces = None;
+        self.query.clear();
+        self.served = None;
+        self.catalog.clear();
+        self.portraits.clear();
+        self.hits.clear();
+        self.loading = false;
+        self.error = None;
     }
 
     pub fn ask(&mut self, query: &str, cx: &mut Context<Self>) {

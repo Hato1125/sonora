@@ -43,7 +43,7 @@ impl Glide {
             drift.gliding = true;
             scroll.set_offset(drift.shown);
         }
-        self.arm(scroll, window);
+        self.schedule_frame(scroll, window);
     }
 
     pub fn aim(&self, scroll: &ScrollHandle, to: Point<Pixels>, window: &mut Window) {
@@ -52,7 +52,7 @@ impl Glide {
             drift.target = held(to, scroll);
             drift.gliding = true;
         }
-        self.arm(scroll, window);
+        self.schedule_frame(scroll, window);
     }
 
     pub fn goal(&self, scroll: &ScrollHandle) -> Point<Pixels> {
@@ -64,7 +64,7 @@ impl Glide {
         }
     }
 
-    fn arm(&self, scroll: &ScrollHandle, window: &mut Window) {
+    fn schedule_frame(&self, scroll: &ScrollHandle, window: &mut Window) {
         {
             let mut drift = self.0.borrow_mut();
             if drift.armed {
@@ -112,7 +112,7 @@ impl Glide {
 
         scroll.set_offset(landed);
         window.refresh();
-        self.arm(scroll, window);
+        self.schedule_frame(scroll, window);
     }
 }
 

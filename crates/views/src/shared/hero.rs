@@ -154,7 +154,7 @@ impl RenderOnce for HeroPlayButton {
     }
 }
 
-type Grip = Box<dyn Fn(&MouseDownEvent, &mut Window, &mut App) + 'static>;
+type DragStart = Box<dyn Fn(&MouseDownEvent, &mut Window, &mut App) + 'static>;
 
 #[derive(IntoElement)]
 pub(crate) struct PageHero {
@@ -168,7 +168,7 @@ pub(crate) struct PageHero {
     actions: Option<AnyElement>,
     circle: bool,
     explicit: bool,
-    grip: Option<Grip>,
+    drag_start: Option<DragStart>,
     pin: Option<Pin>,
 }
 
@@ -185,7 +185,7 @@ impl PageHero {
             actions: None,
             circle: false,
             explicit: false,
-            grip: None,
+            drag_start: None,
             pin: None,
         }
     }
@@ -195,11 +195,11 @@ impl PageHero {
         self
     }
 
-    pub(crate) fn grip(
+    pub(crate) fn drag_start(
         mut self,
         handler: impl Fn(&MouseDownEvent, &mut Window, &mut App) + 'static,
     ) -> Self {
-        self.grip = Some(Box::new(handler));
+        self.drag_start = Some(Box::new(handler));
         self
     }
 
@@ -249,8 +249,8 @@ impl RenderOnce for PageHero {
         let theme = *cx.theme();
 
         let art = theme.metrics.cover;
-        let grip = self.grip.map(Rc::from);
-        let held = grip.clone();
+        let drag_start = self.drag_start.map(Rc::from);
+        let starter = drag_start.clone();
 
         div()
             .id(self.id)
@@ -263,9 +263,9 @@ impl RenderOnce for PageHero {
             .child(
                 div()
                     .flex_none()
-                    .when_some(held, |this, grip: Rc<Grip>| {
+                    .when_some(starter, |this, drag_start: Rc<DragStart>| {
                         this.on_mouse_down(MouseButton::Right, move |event, window, cx| {
-                            grip(event, window, cx)
+                            drag_start(event, window, cx)
                         })
                     })
                     .child(
@@ -300,10 +300,10 @@ impl RenderOnce for PageHero {
                                 div()
                                     .min_w_0()
                                     .truncate()
-                                    .when_some(grip, |this, grip: Rc<Grip>| {
+                                    .when_some(drag_start, |this, drag_start: Rc<DragStart>| {
                                         this.on_mouse_down(
                                             MouseButton::Right,
-                                            move |event, window, cx| grip(event, window, cx),
+                                            move |event, window, cx| drag_start(event, window, cx),
                                         )
                                     })
                                     .child(self.title),

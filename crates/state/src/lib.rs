@@ -21,7 +21,7 @@ pub use cover::Cover;
 pub use detail::{Collection, Detail, Header};
 pub use genre::{GenreDetails, Genres};
 pub use home::Home;
-pub use library::{Library, LibraryEvent, LibraryState};
+pub use library::{Library, LibraryEvent, LibraryPart, LibraryState, Problem};
 pub use lyrics::{Lyrics, LyricsState};
 pub use playback::{Origin, Playback, PlaybackState, Repeat};
 pub use queue::{Named, Queue, Resume, Stub};
@@ -30,7 +30,7 @@ pub use search::{AlbumHit, ArtistHit, Hit, Kind, PlaylistHit, Search};
 pub use session::{Failure, ProviderInfo, Session, SessionEvent, SessionState};
 pub use settings::{AppSettings, SideTab};
 pub use song::SongDetail;
-pub use toast::{Note, Toast, Toasts};
+pub use toast::{Outcome, Toast, Toasts};
 
 use std::future::Future;
 use std::sync::Arc;

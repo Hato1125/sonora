@@ -33,6 +33,10 @@ impl LibrespotClient {
 
 #[async_trait]
 impl MusicApi for LibrespotClient {
+    fn alive(&self) -> bool {
+        !self.session.is_invalid()
+    }
+
     fn share_url(&self, kind: MediaKind, id: &str) -> Option<String> {
         let kind = match kind {
             MediaKind::Track => "track",
@@ -151,7 +155,7 @@ impl MusicApi for LibrespotClient {
         let mut sections = pathfinder::genre(&self.session, MADE_FOR_YOU)
             .await?
             .sections;
-        playlists::mend(&self.session, &mut sections).await;
+        playlists::name_blanks(&self.session, &mut sections).await;
 
         Ok(sections)
     }

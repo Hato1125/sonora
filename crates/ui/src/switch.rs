@@ -15,6 +15,7 @@ type Click = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 
 #[derive(IntoElement)]
 pub struct Switch {
+    id: ElementId,
     base: Stateful<Div>,
     checked: bool,
     disabled: bool,
@@ -24,8 +25,11 @@ pub struct Switch {
 impl Switch {
     #[track_caller]
     pub fn new(id: impl Into<ElementId>, checked: bool) -> Self {
+        let id = id.into();
+
         Self {
-            base: div().id(id),
+            base: div().id(id.clone()),
+            id,
             checked,
             disabled: false,
             on_click: None,
@@ -59,23 +63,25 @@ impl InteractiveElement for Switch {
 }
 
 impl RenderOnce for Switch {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let Self {
+            id,
             mut base,
             checked,
             disabled,
             on_click,
         } = self;
-        let theme = cx.theme();
-        let height = theme.metrics.control_small * SCALE;
-        let thumb = height - px(INSET * 2.);
+        let theme = *cx.theme();
+        let height = px((theme.metrics.control_small / px(1.) * SCALE).round());
+        let width = px((height / px(1.) * WIDTH).round());
+        let thumb = height - px((INSET + BORDER) * 2.);
+        let travel = width - height;
         let background = match checked {
             true => theme.primary,
             false => theme.muted,
         };
         let overrides = std::mem::take(base.style());
 
-        let travel = height * (WIDTH - 1.) - px(BORDER * 2.);
         let (from, to) = match checked {
             true => (0., 1.),
             false => (1., 0.),
@@ -97,11 +103,15 @@ impl RenderOnce for Switch {
             false => (theme.primary_foreground, theme.muted_foreground),
         };
 
+        let movement = window.use_keyed_state((id, "movement"), cx, |_, _| Movement::new(checked));
+        let animates = movement.update(cx, |movement, _| movement.moved_since_mount(checked));
+        let knob = div().size(thumb).flex_none().rounded(thumb / 2.);
+
         let mut switch = base
             .flex()
             .flex_none()
             .items_center()
-            .w(height * WIDTH)
+            .w(width)
             .h(height)
             .p(px(INSET))
             .rounded(height / 2.)
@@ -113,31 +123,69 @@ impl RenderOnce for Switch {
             })
             .when(disabled, |this| this.opacity(0.4))
             .when(!disabled, |this| this.cursor_pointer())
-            .child(div().size(thumb).flex_none().rounded(thumb / 2.).motion(
-                ("thumb", usize::from(checked)),
-                Motion::Control,
-                move |knob, t| {
-                    knob.ml(travel * (from + (to - from) * t))
-                        .bg(crate::motion::mix(knob_was, knob_is, t))
-                },
-            ));
+            .child(match animates {
+                true => knob
+                    .motion(
+                        ("thumb", usize::from(checked)),
+                        Motion::Control,
+                        move |knob, t| {
+                            knob.ml(travel * (from + (to - from) * t))
+                                .bg(crate::motion::mix(knob_was, knob_is, t))
+                        },
+                    )
+                    .into_any_element(),
+                false => knob.ml(travel * to).bg(knob_is).into_any_element(),
+            });
 
         switch.style().refine(&overrides);
         if !disabled && let Some(handler) = on_click {
             switch = switch.on_click(handler);
         }
-        switch.motion(
-            ("track", usize::from(checked)),
-            Motion::Control,
-            move |track, t| {
-                let hover = crate::motion::mix(hover_was, hover_is, t);
-                track
-                    .bg(crate::motion::mix(track_was, track_is, t))
-                    .border_color(crate::motion::mix(edge_was, edge_is, t))
-                    .when(!disabled, move |this| {
-                        this.hover(move |style| style.bg(hover))
-                    })
-            },
-        )
+
+        match animates {
+            true => switch
+                .motion(
+                    ("track", usize::from(checked)),
+                    Motion::Control,
+                    move |track, t| {
+                        let hover = crate::motion::mix(hover_was, hover_is, t);
+                        track
+                            .bg(crate::motion::mix(track_was, track_is, t))
+                            .border_color(crate::motion::mix(edge_was, edge_is, t))
+                            .when(!disabled, move |this| {
+                                this.hover(move |style| style.bg(hover))
+                            })
+                    },
+                )
+                .into_any_element(),
+            false => switch
+                .when(!disabled, move |this| {
+                    this.hover(move |style| style.bg(hover_is))
+                })
+                .into_any_element(),
+        }
+    }
+}
+
+struct Movement {
+    drawn: bool,
+    moved: bool,
+}
+
+impl Movement {
+    fn new(checked: bool) -> Self {
+        Self {
+            drawn: checked,
+            moved: false,
+        }
+    }
+
+    fn moved_since_mount(&mut self, checked: bool) -> bool {
+        if self.drawn != checked {
+            self.drawn = checked;
+            self.moved = true;
+        }
+
+        self.moved
     }
 }

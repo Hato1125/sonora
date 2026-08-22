@@ -72,11 +72,7 @@ impl SidebarLeft {
         let settings = Sonora::global(cx).settings.clone();
         let session = Sonora::global(cx).session.clone();
         let playback = Sonora::global(cx).playback.clone();
-        let playlist_scrollbar = cx.new(|_| {
-            Scrollbar::new(ScrollHandle::new())
-                .always_visible()
-                .track_inset(px(4.))
-        });
+        let playlist_scrollbar = cx.new(|_| Scrollbar::inset());
         let scrollbar = cx.new(|_| Scrollbar::new(ScrollHandle::new()));
         let width = px(settings.read(cx).sidebar_width()).clamp(MIN_WIDTH, MAX_WIDTH);
         let open = settings.read(cx).sidebar_open();
@@ -253,16 +249,11 @@ impl SidebarLeft {
             .when(active, |card| card.bg(accent))
             .hover(move |style| style.bg(accent))
             .press(move |_, _, cx| navigate(destination.clone(), cx))
-            .on_mouse_down(
-                MouseButton::Right,
-                cx.listener(move |this, event: &MouseDownEvent, window, cx| {
-                    window.prevent_default();
-                    this.track_menu.reset(cx);
-                    this.context_menu = Some((opened.clone(), event.position));
-                    cx.stop_propagation();
-                    cx.notify();
-                }),
-            )
+            .menu(cx.listener(move |this, event: &MouseDownEvent, _, cx| {
+                this.track_menu.reset(cx);
+                this.context_menu = Some((opened.clone(), event.position));
+                cx.notify();
+            }))
             .pin(pin)
             .on_drag_move(
                 cx.listener(move |this, event: &DragMoveEvent<DraggedPin>, _, cx| {

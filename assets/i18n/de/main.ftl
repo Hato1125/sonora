@@ -44,6 +44,8 @@ library-no-artists = Noch keine gefolgten Künstler
 library-no-local-songs = Keine importierten Songs gefunden
 library-no-local-albums = Keine importierten Alben gefunden
 library-no-matches = Keine Treffer
+library-not-loaded = Deine Bibliothek wurde nicht geladen
+library-part-not-loaded = Dieser Teil deiner Bibliothek wurde nicht geladen
 
 # app menu
 app-refresh-library = Bibliothek aktualisieren
@@ -399,6 +401,7 @@ toast-playlist-added = Playlist zur Bibliothek hinzugefügt
 toast-playlist-removed = Playlist aus der Bibliothek entfernt
 toast-playlist-visibility = Sichtbarkeit der Playlist geändert
 toast-track-added = Zu { $name } hinzugefügt
+toast-track-removed = Aus { $name } entfernt
 toast-playlist-failed = Diese Änderung konnte nicht gespeichert werden
 toast-playlist-busy = Eine andere Änderung läuft noch
 toast-playlist-signed-out = Melde dich an, um Playlists zu ändern
@@ -410,6 +413,7 @@ toast-queued-playlist = Playlist zur Warteschlange hinzugefügt
 toast-next-playlist = Playlist läuft als Nächstes
 toast-queue-failed = Das konnte nicht zur Warteschlange hinzugefügt werden
 toast-keys-refused = Spotify gibt diesem Konto keine Wiedergabeschlüssel
+toast-sign-in-to-play = { $name } streamt nur für angemeldete Hörer
 toast-track-unplayable = { $name } konnte nicht abgespielt werden
 
 # lyrics

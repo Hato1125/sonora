@@ -44,6 +44,8 @@ library-no-artists = No followed artists yet
 library-no-local-songs = No imported songs found
 library-no-local-albums = No imported albums found
 library-no-matches = No matches
+library-not-loaded = Your library did not load
+library-part-not-loaded = This part of your library did not load
 
 # app menu
 app-refresh-library = Refresh Library
@@ -409,6 +411,7 @@ toast-playlist-added = Playlist added to your library
 toast-playlist-removed = Playlist removed from your library
 toast-playlist-visibility = Playlist visibility changed
 toast-track-added = Added to { $name }
+toast-track-removed = Removed from { $name }
 toast-playlist-failed = That change could not be saved
 toast-playlist-busy = Another change is still running
 toast-playlist-signed-out = Sign in to change playlists
@@ -420,6 +423,7 @@ toast-queued-playlist = Playlist added to the queue
 toast-next-playlist = Playlist plays next
 toast-queue-failed = That could not be added to the queue
 toast-keys-refused = Spotify is not granting this account playback keys
+toast-sign-in-to-play = { $name } only streams to a signed-in listener
 toast-track-unplayable = { $name } could not be played
 
 # lyrics

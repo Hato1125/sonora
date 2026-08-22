@@ -59,6 +59,28 @@ impl Toolbar {
         }
     }
 
+    pub fn searchable<V: Searchable + Tooled>(
+        view: &Entity<V>,
+        cx: &mut Context<V>,
+    ) -> Entity<Self> {
+        let view = view.clone();
+        cx.new(|cx| {
+            let mut toolbar = Self::new(cx);
+            toolbar.bind(&view, cx);
+            toolbar.wire(&view, cx);
+            toolbar
+        })
+    }
+
+    pub fn tooled<V: Tooled>(view: &Entity<V>, cx: &mut Context<V>) -> Entity<Self> {
+        let view = view.clone();
+        cx.new(|cx| {
+            let mut toolbar = Self::new(cx);
+            toolbar.wire(&view, cx);
+            toolbar
+        })
+    }
+
     pub fn bind<V: Searchable>(&mut self, view: &Entity<V>, cx: &mut Context<Self>) {
         let target = view.downgrade();
         self.apply = Some(Box::new(move |query, cx| {

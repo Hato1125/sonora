@@ -4,7 +4,7 @@ use gpui::{Context, Entity, Task};
 use i18n::t;
 use music::{Album, AlbumDetail, ArtistRef, Playlist, PlaylistDetail, Track};
 
-use crate::{Io, Library, Session, SessionEvent, join, mosaic};
+use crate::{Io, Library, LibraryEvent, Session, SessionEvent, join, mosaic};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Collection {
@@ -41,7 +41,6 @@ pub struct Detail {
     library: Entity<Library>,
     io: Io,
     task: Option<Task<()>>,
-    mutation: Option<Task<()>>,
     mosaic: Option<Task<()>>,
 }
 
@@ -71,6 +70,7 @@ impl Detail {
                     }
                 }
             }
+            SessionEvent::Reconnected => {}
             SessionEvent::LocalChanged => {
                 if let (Some(kind), Some(id)) = (
                     this.kind,
@@ -83,6 +83,19 @@ impl Detail {
                     }
                 }
             }
+        })
+        .detach();
+
+        cx.subscribe(&library, |this, _, event, cx| {
+            let LibraryEvent::TrackDropped { playlist, track } = event else {
+                return;
+            };
+            if this.id.as_deref() != Some(playlist.as_str()) {
+                return;
+            }
+            this.tracks
+                .retain(|shown| shown.id.as_deref() != Some(track.as_str()));
+            cx.notify();
         })
         .detach();
 
@@ -119,7 +132,6 @@ impl Detail {
             library,
             io,
             task: None,
-            mutation: None,
             mosaic: None,
         }
     }
@@ -149,48 +161,13 @@ impl Detail {
     }
 
     pub fn remove_from_playlist(&mut self, track_id: String, cx: &mut Context<Self>) {
-        if self.mutation.is_some() {
-            log::warn!("detail: cannot remove a track while another change is running");
-            return;
-        }
         let Some(playlist_id) = self.id.clone() else {
             log::warn!("detail: cannot remove a track without a playlist");
             return;
         };
-        let Some(client) = self.session.read(cx).client() else {
-            log::warn!("detail: cannot remove a track while signed out");
-            return;
-        };
-        let catalog = self.session.read(cx).catalog(&playlist_id);
-        let io = self.io.clone();
-        self.mutation = Some(cx.spawn(async move |this, cx| {
-            let removed_id = track_id.clone();
-            let invalidated = playlist_id.clone();
-            let removed = join(io.spawn(async move {
-                client
-                    .remove_track_from_playlist(&playlist_id, &removed_id)
-                    .await?;
-                if let Some(catalog) = catalog {
-                    catalog.invalidate_playlist(&invalidated).await;
-                }
-                anyhow::Ok(())
-            }))
-            .await;
-            this.update(cx, |this, cx| {
-                this.mutation = None;
-                match removed {
-                    Ok(()) => {
-                        this.tracks
-                            .retain(|track| track.id.as_deref() != Some(&track_id));
-                        cx.notify();
-                    }
-                    Err(error) => {
-                        log::warn!("detail: cannot remove track from playlist: {error:#}")
-                    }
-                }
-            })
-            .ok();
-        }));
+        self.library.update(cx, |library, cx| {
+            library.remove_from_playlist(playlist_id, track_id, cx);
+        });
     }
 
     pub fn error(&self) -> Option<&str> {
@@ -363,7 +340,6 @@ impl Detail {
 
     fn clear(&mut self) {
         self.task = None;
-        self.mutation = None;
         self.mosaic = None;
         self.id = None;
         self.header = None;

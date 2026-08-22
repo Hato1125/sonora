@@ -144,7 +144,7 @@ pub async fn header(session: &Session, playlist_id: &str) -> Result<Playlist> {
     ))
 }
 
-pub async fn mend(session: &Session, sections: &mut Vec<GenreSection>) {
+pub async fn name_blanks(session: &Session, sections: &mut Vec<GenreSection>) {
     let blanks: Vec<String> = sections
         .iter()
         .flat_map(|section| section.items.iter())
@@ -178,11 +178,11 @@ pub async fn mend(session: &Session, sections: &mut Vec<GenreSection>) {
             if !playlist.name.is_empty() {
                 continue;
             }
-            let Some(mended) = found.get(&playlist.id) else {
+            let Some(named) = found.get(&playlist.id) else {
                 continue;
             };
-            playlist.name = mended.name.clone();
-            playlist.cover = mended.cover.clone();
+            playlist.name = named.name.clone();
+            playlist.cover = named.cover.clone();
         }
         section.items.retain(|item| match item {
             GenreItem::Playlist(playlist) => !playlist.name.is_empty(),

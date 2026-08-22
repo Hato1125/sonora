@@ -18,7 +18,7 @@ pub struct Home {
     sections: Rc<Vec<GenreSection>>,
     feeding: bool,
     task: Option<Task<()>>,
-    mending: Option<Task<()>>,
+    naming: Option<Task<()>>,
 }
 
 impl Home {
@@ -35,12 +35,12 @@ impl Home {
             SessionEvent::SignedIn => this.feed(cx),
             SessionEvent::SignedOut => {
                 this.task = None;
-                this.mending = None;
+                this.naming = None;
                 this.sections = Rc::new(Vec::new());
                 this.feeding = false;
                 cx.notify();
             }
-            SessionEvent::LocalChanged => {}
+            SessionEvent::Reconnected | SessionEvent::LocalChanged => {}
         })
         .detach();
 
@@ -67,7 +67,7 @@ impl Home {
             sections: Rc::new(Vec::new()),
             feeding: false,
             task: None,
-            mending: None,
+            naming: None,
         };
         home.feed(cx);
         home
@@ -99,7 +99,7 @@ impl Home {
                 match loaded {
                     Ok(sections) => {
                         this.sections = Rc::new(pruned(&sections));
-                        this.mend(sections, cx);
+                        this.name_playlists(sections, cx);
                     }
                     Err(error) => log::warn!("home: cannot load the feed: {error:#}"),
                 }
@@ -109,7 +109,7 @@ impl Home {
         }));
     }
 
-    fn mend(&mut self, sections: Vec<GenreSection>, cx: &mut Context<Self>) {
+    fn name_playlists(&mut self, sections: Vec<GenreSection>, cx: &mut Context<Self>) {
         if !sections
             .iter()
             .any(|section| section.items.iter().any(blank))
@@ -121,16 +121,16 @@ impl Home {
         };
 
         let io = self.io.clone();
-        self.mending = Some(cx.spawn(async move |this, cx| {
-            let mended = io
-                .spawn(async move { client.mend_home(sections).await })
+        self.naming = Some(cx.spawn(async move |this, cx| {
+            let named = io
+                .spawn(async move { client.name_home_playlists(sections).await })
                 .await;
-            let Ok(mended) = mended else {
+            let Ok(named) = named else {
                 return;
             };
 
             this.update(cx, |this, cx| {
-                this.sections = Rc::new(mended);
+                this.sections = Rc::new(named);
                 cx.notify();
             })
             .ok();

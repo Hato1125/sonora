@@ -5,7 +5,7 @@ use ui::ActiveTheme as _;
 use gpui::prelude::*;
 use gpui::{
     AnyElement, Context, Entity, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels,
-    Point, Render, ScrollHandle, ScrollWheelEvent, SharedString,
+    Point, Render, ScrollWheelEvent, SharedString,
 };
 use gpui::{Window, div, px};
 use i18n::t;
@@ -51,11 +51,7 @@ impl PlayerBar {
         cx.observe(&library, |_, _, cx| cx.notify()).detach();
         cx.observe(&settings, |_, _, cx| cx.notify()).detach();
 
-        let playlist_scrollbar = cx.new(|_| {
-            Scrollbar::new(ScrollHandle::new())
-                .always_visible()
-                .track_inset(px(4.))
-        });
+        let playlist_scrollbar = cx.new(|_| Scrollbar::inset());
 
         Self {
             playback,

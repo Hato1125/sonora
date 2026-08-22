@@ -13,6 +13,12 @@ use music::{
 type Fetch = Pin<Box<dyn Future<Output = Result<Vec<Track>>> + Send>>;
 
 #[derive(Clone, Copy, PartialEq)]
+enum Refusal {
+    Keys,
+    SignIn,
+}
+
+#[derive(Clone, Copy, PartialEq)]
 enum Start {
     Pick,
     Skip,
@@ -38,7 +44,7 @@ enum QueuePlacement {
 use crate::queue::Queue;
 use serde::{Deserialize, Serialize};
 
-use crate::{AppSettings, Io, Note, Session, SessionEvent, Toasts, join};
+use crate::{AppSettings, Io, Outcome, Session, SessionEvent, Toasts, join};
 
 const POSITION_INTERVAL: Duration = Duration::from_millis(500);
 const PRELOAD_BEFORE_END: Duration = Duration::from_secs(10);
@@ -119,10 +125,11 @@ pub struct Playback {
     preloaded: Option<String>,
     skipped: Option<Instant>,
     blocked_until: Option<Instant>,
-    refused: bool,
-    armed: Option<Duration>,
-    settle: Option<Duration>,
-    held: bool,
+    refused: Option<Refusal>,
+    resume_at: Option<Duration>,
+    seek_on_play: Option<Duration>,
+    resume_ready: bool,
+    awaiting_reconnect: bool,
     stored: Duration,
 }
 
@@ -142,6 +149,12 @@ impl Playback {
                 };
                 this.start_engine(playback, cx);
                 this.adopt(cx);
+            }
+            SessionEvent::Reconnected => {
+                let Some(playback) = session.read(cx).playback() else {
+                    return;
+                };
+                this.rebind(playback, cx);
             }
             SessionEvent::SignedOut => this.teardown(cx),
             SessionEvent::LocalChanged => {
@@ -186,10 +199,11 @@ impl Playback {
             preloaded: None,
             skipped: None,
             blocked_until: None,
-            refused: false,
-            armed: None,
-            settle: None,
-            held: false,
+            refused: None,
+            resume_at: None,
+            seek_on_play: None,
+            resume_ready: false,
+            awaiting_reconnect: false,
             stored: Duration::ZERO,
         }
     }
@@ -245,8 +259,10 @@ impl Playback {
     }
 
     fn load_after(&mut self, track: &Track, start: Start, cx: &mut Context<Self>) {
-        if self.refused {
-            return self.refuse(cx);
+        match self.refused {
+            Some(Refusal::Keys) => return self.refuse(cx),
+            Some(Refusal::SignIn) => return self.gate(cx),
+            None => {}
         }
         let Some(id) = track.id.clone() else {
             return self.failed(format!("{} has no track id", track.name), cx);
@@ -263,9 +279,9 @@ impl Playback {
         self.state = PlaybackState::Loading;
         self.position = Duration::ZERO;
         self.preloaded = None;
-        self.armed = None;
-        self.settle = None;
-        self.held = false;
+        self.resume_at = None;
+        self.seek_on_play = None;
+        self.resume_ready = false;
         cx.notify();
 
         let wait = self
@@ -333,7 +349,7 @@ impl Playback {
         }
         let name = track.name.clone();
         self.queue.update(cx, |queue, cx| queue.append(track, cx));
-        Toasts::about(Note::Done, "toast-queued-track", name, cx);
+        Toasts::about(Outcome::Done, "toast-queued-track", name, cx);
     }
 
     pub fn play_next(&mut self, track: Track, cx: &mut Context<Self>) {
@@ -343,7 +359,7 @@ impl Playback {
         }
         let name = track.name.clone();
         self.queue.update(cx, |queue, cx| queue.prepend(track, cx));
-        Toasts::about(Note::Done, "toast-next-track", name, cx);
+        Toasts::about(Outcome::Done, "toast-next-track", name, cx);
     }
 
     pub fn enqueue_all(&mut self, tracks: Vec<Track>, cx: &mut Context<Self>) {
@@ -467,12 +483,12 @@ impl Playback {
                                 QueuePlacement::Next => format!("toast-next-{source}"),
                                 QueuePlacement::End => format!("toast-queued-{source}"),
                             };
-                            Toasts::show(Note::Done, key, cx);
+                            Toasts::show(Outcome::Done, key, cx);
                         }
                     }
                     Err(error) => {
                         log::error!("playback: cannot enqueue {source}: {error:#}");
-                        Toasts::show(Note::Failed, "toast-queue-failed", cx);
+                        Toasts::show(Outcome::Failed, "toast-queue-failed", cx);
                     }
                 }
             })
@@ -768,12 +784,12 @@ impl Playback {
     }
 
     pub fn resume(&mut self, cx: &mut Context<Self>) {
-        if let Some(at) = self.armed {
-            if !self.held {
-                return self.rearm(at, cx);
+        if let Some(at) = self.resume_at {
+            if !self.resume_ready {
+                return self.reload_and_seek(at, cx);
             }
-            self.armed = None;
-            self.held = false;
+            self.resume_at = None;
+            self.resume_ready = false;
         }
         if let Some(engine) = self.active_engine() {
             engine.play();
@@ -781,7 +797,7 @@ impl Playback {
         }
     }
 
-    fn rearm(&mut self, at: Duration, cx: &mut Context<Self>) {
+    fn reload_and_seek(&mut self, at: Duration, cx: &mut Context<Self>) {
         let Some(track) = self.track.clone() else {
             return;
         };
@@ -789,12 +805,12 @@ impl Playback {
             return;
         }
         self.load_after(&track, Start::Pick, cx);
-        self.settle = Some(at);
+        self.seek_on_play = Some(at);
     }
 
-    fn hold(&mut self, cx: &mut Context<Self>) {
-        self.held = false;
-        let Some(at) = self.armed else {
+    fn prepare_resume(&mut self, cx: &mut Context<Self>) {
+        self.resume_ready = false;
+        let Some(at) = self.resume_at else {
             return;
         };
         let Some(track) = self.track.clone() else {
@@ -806,13 +822,16 @@ impl Playback {
         let Some(engine) = self.engine_for(id) else {
             return;
         };
-        match engine.arm(id, at) {
+        match engine.load_paused_at(id, at) {
             Ok(()) => {
-                self.held = true;
+                self.resume_ready = true;
                 self.state = PlaybackState::Paused;
                 self.position = at;
             }
-            Err(error) => log::warn!("playback: cannot hold {}: {error:#}", track.name),
+            Err(error) => log::warn!(
+                "playback: cannot prepare {} for resume: {error:#}",
+                track.name
+            ),
         }
         cx.notify();
     }
@@ -842,8 +861,8 @@ impl Playback {
         self.state = PlaybackState::Paused;
         self.position = at;
         self.stored = at;
-        self.armed = Some(at);
-        self.hold(cx);
+        self.resume_at = Some(at);
+        self.prepare_resume(cx);
     }
 
     fn remember(&mut self, force: bool, cx: &mut Context<Self>) {
@@ -886,9 +905,9 @@ impl Playback {
     }
 
     pub fn seek(&mut self, position: Duration, cx: &mut Context<Self>) {
-        if self.armed.is_some() {
-            self.armed = Some(position);
-            if self.held
+        if self.resume_at.is_some() {
+            self.resume_at = Some(position);
+            if self.resume_ready
                 && let Some(engine) = self.active_engine()
             {
                 engine.seek(position);
@@ -1010,6 +1029,33 @@ impl Playback {
         cx.notify();
     }
 
+    fn ask_for_reconnect(&mut self, cx: &mut Context<Self>) -> bool {
+        if self.track.is_none() {
+            return false;
+        }
+        self.awaiting_reconnect = self
+            .session
+            .update(cx, |session, cx| session.reconnect_if_stale(cx));
+        self.awaiting_reconnect
+    }
+
+    fn rebind(&mut self, playback: Arc<dyn PlaybackFactory>, cx: &mut Context<Self>) {
+        let resume = self.state == PlaybackState::Playing || self.awaiting_reconnect;
+        self.awaiting_reconnect = false;
+        let at = self.position;
+        self.task = None;
+        self.engine = None;
+        self.preloaded = None;
+        self.blocked_until = None;
+        if self.track.is_some() {
+            self.resume_at = Some(at);
+        }
+        self.start_engine(playback, cx);
+        if resume {
+            self.resume(cx);
+        }
+    }
+
     fn start_engine(&mut self, playback: Arc<dyn PlaybackFactory>, cx: &mut Context<Self>) {
         let config = PlaybackConfig {
             normalisation: self.normalisation,
@@ -1021,6 +1067,7 @@ impl Playback {
 
         self.listen(events, false, cx);
         self.engine = Some(engine);
+        self.refused = None;
         let local_active = self
             .track
             .as_ref()
@@ -1030,7 +1077,7 @@ impl Playback {
             self.state = PlaybackState::Idle;
             self.position = Duration::ZERO;
         }
-        self.hold(cx);
+        self.prepare_resume(cx);
         cx.notify();
     }
 
@@ -1045,14 +1092,14 @@ impl Playback {
 
         self.listen(events, true, cx);
         self.local_engine = Some(engine);
-        self.hold(cx);
+        self.prepare_resume(cx);
     }
 
     fn listen(&mut self, mut events: Box<dyn PlaybackEvents>, local: bool, cx: &mut Context<Self>) {
         let task = Some(cx.spawn(async move |this, cx| {
             while let Some(event) = events.next().await {
                 if this
-                    .update(cx, |this, cx| this.apply(event, local, cx))
+                    .update(cx, |this, cx| this.on_backend_event(event, local, cx))
                     .is_err()
                 {
                     break;
@@ -1065,7 +1112,7 @@ impl Playback {
         }
     }
 
-    fn apply(&mut self, event: BackendEvent, local: bool, cx: &mut Context<Self>) {
+    fn on_backend_event(&mut self, event: BackendEvent, local: bool, cx: &mut Context<Self>) {
         let active = self
             .track
             .as_ref()
@@ -1075,8 +1122,8 @@ impl Playback {
             return;
         }
         match event {
-            BackendEvent::Unavailable | BackendEvent::Refused if self.held => {
-                self.held = false;
+            BackendEvent::Unavailable | BackendEvent::Refused if self.resume_ready => {
+                self.resume_ready = false;
                 self.state = PlaybackState::Paused;
                 log::warn!("playback: cannot hold the restored track, waiting for play");
             }
@@ -1088,7 +1135,7 @@ impl Playback {
                 let started = self.state != PlaybackState::Playing;
                 self.state = PlaybackState::Playing;
                 self.position = position;
-                if let Some(at) = self.settle.take() {
+                if let Some(at) = self.seek_on_play.take() {
                     self.seek(at, cx);
                 }
                 if started {
@@ -1120,6 +1167,10 @@ impl Playback {
                 cx.emit(PlaybackEvent::EndedPlayback);
                 self.advance(ended, cx);
             }
+            BackendEvent::Unavailable if self.ask_for_reconnect(cx) => {
+                self.state = PlaybackState::Loading;
+                log::warn!("playback: the provider went stale, waiting for a reconnect");
+            }
             BackendEvent::Unavailable => {
                 let failed = self.track.take();
                 let name = failed.map_or_else(|| "?".to_owned(), |track| track.name);
@@ -1130,11 +1181,15 @@ impl Playback {
                 self.blocked_until = Some(Instant::now() + KEY_COOLDOWN);
                 self.state = PlaybackState::Idle;
                 self.position = Duration::ZERO;
-                Toasts::about(Note::Failed, "toast-track-unplayable", name, cx);
+                Toasts::about(Outcome::Failed, "toast-track-unplayable", name, cx);
                 cx.emit(PlaybackEvent::EndedPlayback);
             }
             BackendEvent::Refused => {
                 self.refuse(cx);
+                cx.emit(PlaybackEvent::EndedPlayback);
+            }
+            BackendEvent::Gated => {
+                self.gate(cx);
                 cx.emit(PlaybackEvent::EndedPlayback);
             }
         }
@@ -1159,14 +1214,15 @@ impl Playback {
             self.preloaded = None;
             self.skipped = None;
             self.blocked_until = None;
-            self.refused = false;
+            self.refused = None;
             self.track = None;
             self.origin = None;
             self.state = PlaybackState::Idle;
             self.position = Duration::ZERO;
-            self.armed = None;
-            self.settle = None;
-            self.held = false;
+            self.resume_at = None;
+            self.seek_on_play = None;
+            self.resume_ready = false;
+            self.awaiting_reconnect = false;
             self.stored = Duration::ZERO;
         }
         cx.notify();
@@ -1178,9 +1234,37 @@ impl Playback {
         cx.notify();
     }
 
+    fn gate(&mut self, cx: &mut Context<Self>) {
+        let first = self.refused.is_none();
+        self.refused = Some(Refusal::SignIn);
+        self.track = None;
+        self.blocked_until = None;
+        let provider = self
+            .session
+            .read(cx)
+            .provider_name()
+            .unwrap_or("this provider");
+        self.state = PlaybackState::Failed(format!(
+            "{provider} only streams to a signed-in listener; nothing will play until you sign in"
+        ));
+        if first {
+            log::warn!(
+                "playback: {provider} only streams to a signed-in listener, nothing will play \
+                 until you sign in"
+            );
+        }
+        Toasts::about(
+            Outcome::Failed,
+            "toast-sign-in-to-play",
+            provider.to_owned(),
+            cx,
+        );
+        cx.notify();
+    }
+
     fn refuse(&mut self, cx: &mut Context<Self>) {
-        let first = !self.refused;
-        self.refused = true;
+        let first = self.refused.is_none();
+        self.refused = Some(Refusal::Keys);
         self.track = None;
         self.blocked_until = None;
         self.state = PlaybackState::Failed(
@@ -1193,7 +1277,7 @@ impl Playback {
                  this session"
             );
         }
-        Toasts::show(Note::Failed, "toast-keys-refused", cx);
+        Toasts::show(Outcome::Failed, "toast-keys-refused", cx);
         cx.notify();
     }
 }

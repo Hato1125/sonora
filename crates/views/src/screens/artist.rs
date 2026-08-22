@@ -4,7 +4,7 @@ use std::rc::Rc;
 use gpui::prelude::*;
 use gpui::{
     AnyElement, App, Context, Entity, FontWeight, Pixels, Point, Render, ScrollHandle,
-    SharedString, WeakEntity, Window, div, px,
+    SharedString, WeakEntity, Window, div,
 };
 
 use crate::chrome::Chrome;
@@ -15,7 +15,7 @@ use state::{AppSettings, ArtistDetail, Playback, Sonora};
 use ui::ActiveTheme as _;
 use ui::Table as _;
 use ui::{
-    Button, Card, GridDelegate, GridEvent, GridState, MIN_CONTENT, Mode, Pin, PinKind, Popover,
+    Button, Card, GridDelegate, GridEvent, GridState, MIN_CONTENT, Mode, Picker, Pin, PinKind,
     Popovers, Popup, Scrollbar, Scroller, Skeleton, Text, grid, snapped,
 };
 
@@ -124,11 +124,7 @@ impl ArtistView {
     ) -> Self {
         let width = MIN_CONTENT;
         let scrollbar = cx.new(|_| Scrollbar::new(ScrollHandle::new()));
-        let playlist_scrollbar = cx.new(|_| {
-            Scrollbar::new(ScrollHandle::new())
-                .always_visible()
-                .track_inset(px(4.))
-        });
+        let playlist_scrollbar = cx.new(|_| Scrollbar::inset());
         let settings = Sonora::global(cx).settings.clone();
         let saved = settings.read(cx).table(SECTION);
         let sorting = settings.read(cx).sorting(SECTION);
@@ -138,11 +134,7 @@ impl ArtistView {
         let scroll = scrollbar.read(cx).scroll().clone();
         let shown = Rc::new(Cell::new(LISTED));
         let table = cx.new(|cx| {
-            let menu_scrollbar = cx.new(|_| {
-                Scrollbar::new(ScrollHandle::new())
-                    .always_visible()
-                    .track_inset(px(4.))
-            });
+            let menu_scrollbar = cx.new(|_| Scrollbar::inset());
             let source = TrackSource::new(
                 columns,
                 ArtistTracks {
@@ -211,11 +203,7 @@ impl ArtistView {
         .detach();
 
         let me = cx.entity();
-        let toolbar = cx.new(|cx| {
-            let mut toolbar = Toolbar::new(cx);
-            toolbar.wire(&me, cx);
-            toolbar
-        });
+        let toolbar = Toolbar::tooled(&me, cx);
 
         Self {
             popular: Rc::new(detail.read(cx).tracks().to_vec()),
@@ -283,19 +271,11 @@ impl ArtistView {
                 t!("artist-monthly-listeners", count = count, value = &value)
             });
         let overflow = self.detail.read(cx).id().map(|id| {
-            Popover::new("artist-overflow", self.popovers.clone())
-                .commands()
-                .button(
-                    Button::new("artist-overflow-button")
-                        .outline()
-                        .icon("icons/ellipsis.svg")
-                        .tooltip("common-more"),
-                )
-                .menu(
-                    artist_menu(id.to_owned())
-                        .top(cx.theme().metrics.control)
-                        .left_0(),
-                )
+            Picker::icon("artist-overflow", &self.popovers, "icons/ellipsis.svg")
+                .tooltip("common-more")
+                .large()
+                .left()
+                .menu(artist_menu(id.to_owned()))
         });
         let actions = div()
             .flex()
@@ -388,9 +368,8 @@ impl ArtistView {
                 .children((0..RELEASE_ROWS).map(|row| {
                     CardGrid::new(self.width).children((0..grid.columns).map(move |column| {
                         let index = row * grid.columns + column;
-                        Card::new(("artist-release-skeleton", index), "")
+                        Card::skeleton(("artist-release-skeleton", index))
                             .tile(grid.card)
-                            .loading()
                             .into_any_element()
                     }))
                 }))

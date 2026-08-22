@@ -3,6 +3,7 @@ pub(crate) mod accounts;
 pub(crate) mod adaptive;
 pub(crate) mod album_grid;
 pub(crate) mod browsers;
+pub(crate) mod cards;
 pub(crate) mod cells;
 pub(crate) mod hero;
 pub(crate) mod menu;

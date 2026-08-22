@@ -1,9 +1,7 @@
 use std::rc::Rc;
 
 use gpui::prelude::*;
-use gpui::{
-    App, ClickEvent, Entity, MouseButton, MouseDownEvent, Pixels, SharedString, Window, div,
-};
+use gpui::{App, ClickEvent, Entity, MouseDownEvent, Pixels, SharedString, Window, div};
 use music::Track;
 use state::{Playback, PlaybackState};
 use ui::{
@@ -276,7 +274,7 @@ fn column_shell(column: usize, border: gpui::Hsla) -> gpui::Div {
 }
 
 fn skeleton(id: &'static str, place: usize) -> impl IntoElement {
-    Card::new((id, place), "").loading()
+    Card::skeleton((id, place))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -309,8 +307,8 @@ fn pick(
         let on_start = on_start.clone();
         move |cx: &mut App| begin(place, &tracks, &playback, &on_start, cx)
     };
-    let transport = move |cx: &mut App| match playing {
-        true => playback.update(cx, |playback, cx| playback.pause(cx)),
+    let transport = move |cx: &mut App| match current {
+        true => playback.update(cx, |playback, cx| playback.toggle_play(cx)),
         false => begin(place, &tracks, &playback, &on_start, cx),
     };
 
@@ -339,10 +337,7 @@ fn pick(
         .when_some(artists, Card::bare_meta)
         .when_some(length, Card::trailing)
         .when_some(on_context_menu, |card, handler| {
-            card.on_mouse_down(MouseButton::Right, move |event, window, cx| {
-                window.prevent_default();
-                handler(place, event, window, cx);
-            })
+            card.menu(move |event, window, cx| handler(place, event, window, cx))
         })
         .play(playing, move |_, _, cx| transport(cx))
         .press(move |_, _, cx| pressed(cx))
