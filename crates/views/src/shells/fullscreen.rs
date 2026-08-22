@@ -253,7 +253,8 @@ impl FullscreenView {
                             .truncate()
                             .text_size(theme.text(Text::Title))
                             .when_some(album, |this, album| {
-                                this.hover(|style| style.underline())
+                                this.cursor_pointer()
+                                    .hover(|style| style.underline())
                                     .on_click(move |_, _, cx| open_album(&album, cx))
                             })
                             .on_mouse_down(
@@ -324,8 +325,27 @@ impl FullscreenView {
                     .justify_center()
                     .flex_1()
                     .min_w_0()
-                    .child(div().min_w_0().truncate().child(title))
-                    .when_some(track.clone(), |this, track| {
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap_2()
+                            .min_w_0()
+                            .child(
+                                div()
+                                    .id("strip-title")
+                                    .min_w_0()
+                                    .truncate()
+                                    .when_some(album, |this, album| {
+                                        this.cursor_pointer()
+                                            .hover(|style| style.underline())
+                                            .on_click(move |_, _, cx| open_album(&album, cx))
+                                    })
+                                    .child(title),
+                            )
+                            .child(like(track.clone(), cx)),
+                    )
+                    .when_some(track, |this, track| {
                         this.child(
                             InlineLinks::new(
                                 "strip-artists",
@@ -341,7 +361,6 @@ impl FullscreenView {
                         )
                     }),
             )
-            .child(like(track, cx))
     }
 
     fn seek(&self, cx: &mut Context<Self>) -> impl IntoElement {
