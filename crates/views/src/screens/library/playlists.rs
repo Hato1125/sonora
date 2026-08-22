@@ -22,36 +22,11 @@ pub(super) enum PlaylistField {
     Modified,
 }
 
-const COLUMN: ColumnSpec<PlaylistField> = ColumnSpec {
-    field: PlaylistField::Index,
-    key: "",
-    header: "",
-    align: TextAlign::Left,
-    width: Width::Fill(1.),
-    anchored: false,
-    sortable: true,
-    rank: ESSENTIAL,
-};
+const COLUMN: ColumnSpec<PlaylistField> = ColumnSpec::filling(PlaylistField::Index);
 
-const INDEX: ColumnSpec<PlaylistField> = ColumnSpec {
-    field: PlaylistField::Index,
-    key: "index",
-    header: "column-index",
-    align: TextAlign::Center,
-    width: Width::Fixed(NUMBER),
-    anchored: true,
-    sortable: false,
-    ..COLUMN
-};
+const INDEX: ColumnSpec<PlaylistField> = ColumnSpec::numbering(PlaylistField::Index, NUMBER);
 
-const COVER: ColumnSpec<PlaylistField> = ColumnSpec {
-    field: PlaylistField::Cover,
-    key: "cover",
-    width: Width::Thumb,
-    anchored: true,
-    sortable: false,
-    ..COLUMN
-};
+const COVER: ColumnSpec<PlaylistField> = ColumnSpec::artwork(PlaylistField::Cover);
 
 const NAME: ColumnSpec<PlaylistField> = ColumnSpec {
     field: PlaylistField::Name,

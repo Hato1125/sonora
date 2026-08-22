@@ -72,6 +72,41 @@ impl<F: Copy + 'static> ColumnSpec<F> {
     pub const fn ranked(&self, rank: u8) -> Self {
         Self { rank, ..*self }
     }
+
+    pub const fn filling(field: F) -> Self {
+        Self {
+            field,
+            key: "",
+            header: "",
+            align: TextAlign::Left,
+            width: Width::Fill(1.),
+            anchored: false,
+            sortable: true,
+            rank: rank::ESSENTIAL,
+        }
+    }
+
+    pub const fn numbering(field: F, width: Pixels) -> Self {
+        Self {
+            key: "index",
+            header: "column-index",
+            align: TextAlign::Center,
+            width: Width::Fixed(width),
+            anchored: true,
+            sortable: false,
+            ..Self::filling(field)
+        }
+    }
+
+    pub const fn artwork(field: F) -> Self {
+        Self {
+            key: "cover",
+            width: Width::Thumb,
+            anchored: true,
+            sortable: false,
+            ..Self::filling(field)
+        }
+    }
 }
 
 impl<F: 'static> ColumnSpec<F> {

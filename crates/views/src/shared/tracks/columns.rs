@@ -16,36 +16,11 @@ pub(crate) enum TrackField {
     Duration,
 }
 
-const COLUMN: ColumnSpec<TrackField> = ColumnSpec {
-    field: TrackField::Index,
-    key: "",
-    header: "",
-    align: TextAlign::Left,
-    width: Width::Fill(1.),
-    anchored: false,
-    sortable: true,
-    rank: ESSENTIAL,
-};
+const COLUMN: ColumnSpec<TrackField> = ColumnSpec::filling(TrackField::Index);
 
-const INDEX: ColumnSpec<TrackField> = ColumnSpec {
-    field: TrackField::Index,
-    key: "index",
-    header: "column-index",
-    align: TextAlign::Center,
-    width: Width::Fixed(NUMBER),
-    anchored: true,
-    sortable: false,
-    ..COLUMN
-};
+const INDEX: ColumnSpec<TrackField> = ColumnSpec::numbering(TrackField::Index, NUMBER);
 
-const COVER: ColumnSpec<TrackField> = ColumnSpec {
-    field: TrackField::Cover,
-    key: "cover",
-    width: Width::Thumb,
-    anchored: true,
-    sortable: false,
-    ..COLUMN
-};
+const COVER: ColumnSpec<TrackField> = ColumnSpec::artwork(TrackField::Cover);
 
 const TITLE: ColumnSpec<TrackField> = ColumnSpec {
     field: TrackField::Title,
