@@ -360,6 +360,7 @@ impl RenderOnce for Card {
                                         play(event, window, cx);
                                     }),
                             )
+                            .into_any_element()
                     }
                     None => {
                         let corner = match (circle, art_radius) {
@@ -370,32 +371,39 @@ impl RenderOnce for Card {
                         let size = px((art / px(1.) * SCRIM_RATIO).round()).max(SCRIM_MIN);
 
                         div()
-                            .id("card-play")
                             .absolute()
                             .inset_0()
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .rounded(corner)
-                            .cursor_pointer()
-                            .bg(theme.overlay)
-                            .tooltip(Tooltip::build(hint, Perch::Pointer))
                             .when(!playing, |this| {
                                 this.invisible()
                                     .group_hover(CARD_GROUP, |style| style.visible())
                             })
                             .child(
-                                svg()
-                                    .path(glyph)
-                                    .size(size)
-                                    .flex_none()
-                                    .text_color(theme.overlay_foreground),
+                                div()
+                                    .id("card-play")
+                                    .size_full()
+                                    .flex()
+                                    .items_center()
+                                    .justify_center()
+                                    .rounded(corner)
+                                    .cursor_pointer()
+                                    .bg(theme.overlay)
+                                    .tooltip(Tooltip::build(hint, Perch::Pointer))
+                                    .child(
+                                        svg()
+                                            .path(glyph)
+                                            .size(size)
+                                            .flex_none()
+                                            .text_color(theme.overlay_foreground),
+                                    )
+                                    .on_mouse_down(MouseButton::Left, |_, _, cx| {
+                                        cx.stop_propagation()
+                                    })
+                                    .on_click(move |event, window, cx| {
+                                        cx.stop_propagation();
+                                        play(event, window, cx);
+                                    }),
                             )
-                            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                            .on_click(move |event, window, cx| {
-                                cx.stop_propagation();
-                                play(event, window, cx);
-                            })
+                            .into_any_element()
                     }
                 };
 
