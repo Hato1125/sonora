@@ -1,7 +1,7 @@
 use gpui::prelude::*;
 use gpui::{
     AnyElement, App, Context, ElementId, Entity, FontWeight, MouseButton, MouseDownEvent, Pixels,
-    Point, Render, ScrollHandle, SharedString, WeakEntity, Window, div, px,
+    Point, Render, ScrollHandle, SharedString, WeakEntity, Window, div,
 };
 use i18n::t;
 use music::Track;
@@ -106,11 +106,7 @@ impl SearchView {
         let asked = input.read(cx).text().to_owned();
         search.update(cx, |search, cx| search.ask(&asked, cx));
 
-        let playlist_scrollbar = cx.new(|_| {
-            Scrollbar::new(ScrollHandle::new())
-                .always_visible()
-                .track_inset(px(4.))
-        });
+        let playlist_scrollbar = cx.new(|_| Scrollbar::inset());
 
         Self {
             input,

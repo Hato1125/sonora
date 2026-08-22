@@ -204,11 +204,7 @@ impl Aside {
 
         let scroll = UniformListScrollHandle::new();
         let scrollbar = cx.new(|_| Scrollbar::new(scroll.0.borrow().base_handle.clone()));
-        let playlist_scrollbar = cx.new(|_| {
-            Scrollbar::new(ScrollHandle::new())
-                .always_visible()
-                .track_inset(px(4.))
-        });
+        let playlist_scrollbar = cx.new(|_| Scrollbar::inset());
         let lyrics = Sonora::global(cx).lyrics.clone();
         cx.observe(&lyrics, |_, _, cx| cx.notify()).detach();
         let verse_bar = cx.new(|_| Scrollbar::new(ScrollHandle::new()));

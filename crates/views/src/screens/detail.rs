@@ -76,11 +76,7 @@ impl DetailView {
         let scroll = scrollbar.read(cx).scroll().clone();
 
         let table = cx.new(|cx| {
-            let playlist_scrollbar = cx.new(|_| {
-                Scrollbar::new(ScrollHandle::new())
-                    .always_visible()
-                    .track_inset(px(4.))
-            });
+            let playlist_scrollbar = cx.new(|_| Scrollbar::inset());
             let source = TrackSource::new(
                 columns,
                 DetailTracks(detail.clone()),

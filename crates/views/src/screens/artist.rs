@@ -4,7 +4,7 @@ use std::rc::Rc;
 use gpui::prelude::*;
 use gpui::{
     AnyElement, App, Context, Entity, FontWeight, Pixels, Point, Render, ScrollHandle,
-    SharedString, WeakEntity, Window, div, px,
+    SharedString, WeakEntity, Window, div,
 };
 
 use crate::chrome::Chrome;
@@ -124,11 +124,7 @@ impl ArtistView {
     ) -> Self {
         let width = MIN_CONTENT;
         let scrollbar = cx.new(|_| Scrollbar::new(ScrollHandle::new()));
-        let playlist_scrollbar = cx.new(|_| {
-            Scrollbar::new(ScrollHandle::new())
-                .always_visible()
-                .track_inset(px(4.))
-        });
+        let playlist_scrollbar = cx.new(|_| Scrollbar::inset());
         let settings = Sonora::global(cx).settings.clone();
         let saved = settings.read(cx).table(SECTION);
         let sorting = settings.read(cx).sorting(SECTION);
@@ -138,11 +134,7 @@ impl ArtistView {
         let scroll = scrollbar.read(cx).scroll().clone();
         let shown = Rc::new(Cell::new(LISTED));
         let table = cx.new(|cx| {
-            let menu_scrollbar = cx.new(|_| {
-                Scrollbar::new(ScrollHandle::new())
-                    .always_visible()
-                    .track_inset(px(4.))
-            });
+            let menu_scrollbar = cx.new(|_| Scrollbar::inset());
             let source = TrackSource::new(
                 columns,
                 ArtistTracks {

@@ -72,11 +72,7 @@ impl SidebarLeft {
         let settings = Sonora::global(cx).settings.clone();
         let session = Sonora::global(cx).session.clone();
         let playback = Sonora::global(cx).playback.clone();
-        let playlist_scrollbar = cx.new(|_| {
-            Scrollbar::new(ScrollHandle::new())
-                .always_visible()
-                .track_inset(px(4.))
-        });
+        let playlist_scrollbar = cx.new(|_| Scrollbar::inset());
         let scrollbar = cx.new(|_| Scrollbar::new(ScrollHandle::new()));
         let width = px(settings.read(cx).sidebar_width()).clamp(MIN_WIDTH, MAX_WIDTH);
         let open = settings.read(cx).sidebar_open();
