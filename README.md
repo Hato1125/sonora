@@ -13,15 +13,15 @@ Stream Spotify, YouTube Music, and local files all in one **native** app.
     <table>
       <tr>
         <td colspan="2">
-          <img width="1613" height="976" alt="image" src="https://github.com/user-attachments/assets/55204aaa-bf53-434b-a713-39c5ef3436e1" />
+          <img width="1762" height="1087" alt="image" src="https://github.com/user-attachments/assets/356b17e6-45dd-461c-89bb-96ee660fed5e" />
         </td>
       </tr>
       <tr>
         <td width="50%">
-          <img width="1618" height="976" alt="image" src="https://github.com/user-attachments/assets/51ff66c7-8a20-4e0f-9ebe-8ed4865c88a6" />
+          <img width="1496" height="936" alt="image" src="https://github.com/user-attachments/assets/58f88aaa-ce1f-4796-94eb-144d0ae9d677" />
         </td>
         <td width="50%">
-          <img width="1618" height="976" alt="image" src="https://github.com/user-attachments/assets/06729fc8-6281-4cb0-a85c-f8c22921b4bd" />
+          <img width="1496" height="936" alt="image" src="https://github.com/user-attachments/assets/df1e3792-245b-4b8b-83de-103c59219f74" />
         </td>
       </tr>
     </table>
