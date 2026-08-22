@@ -1096,7 +1096,7 @@ impl Playback {
         let task = Some(cx.spawn(async move |this, cx| {
             while let Some(event) = events.next().await {
                 if this
-                    .update(cx, |this, cx| this.apply(event, local, cx))
+                    .update(cx, |this, cx| this.on_backend_event(event, local, cx))
                     .is_err()
                 {
                     break;
@@ -1109,7 +1109,7 @@ impl Playback {
         }
     }
 
-    fn apply(&mut self, event: BackendEvent, local: bool, cx: &mut Context<Self>) {
+    fn on_backend_event(&mut self, event: BackendEvent, local: bool, cx: &mut Context<Self>) {
         let active = self
             .track
             .as_ref()

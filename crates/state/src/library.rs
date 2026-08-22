@@ -805,7 +805,7 @@ impl Library {
         &mut self,
         mutation_info: PlaylistMutation,
         mutation: F,
-        apply: A,
+        on_done: A,
         cx: &mut Context<Self>,
     ) where
         F: FnOnce(Arc<dyn MusicApi>) -> R + Send + 'static,
@@ -839,7 +839,7 @@ impl Library {
                 this.playlist_task = None;
                 match result {
                     Ok(outcome) => {
-                        apply(this, outcome, cx);
+                        on_done(this, outcome, cx);
                         match name {
                             Some(name) => Toasts::about(Note::Done, done, name, cx),
                             None => Toasts::show(Note::Done, done, cx),
