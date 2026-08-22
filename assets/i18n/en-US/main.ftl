@@ -44,6 +44,8 @@ library-no-artists = No followed artists yet
 library-no-local-songs = No imported songs found
 library-no-local-albums = No imported albums found
 library-no-matches = No matches
+library-not-loaded = Your library did not load
+library-part-not-loaded = This part of your library did not load
 
 # app menu
 app-refresh-library = Refresh Library

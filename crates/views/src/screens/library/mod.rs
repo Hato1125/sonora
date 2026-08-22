@@ -20,7 +20,9 @@ use gpui::{
 use i18n::t;
 use music::{Album, Playlist, Track};
 use router::{Destination, LibraryTab, navigate};
-use state::{AppSettings, Library, LibraryState, Origin, Playback, PlaybackState, Sonora};
+use state::{
+    AppSettings, Library, LibraryPart, LibraryState, Origin, Playback, PlaybackState, Sonora,
+};
 use ui::{
     ActiveTheme as _, Button, Card, Deck, FlagAxis, GridDelegate, GridEvent, GridSource, GridState,
     LEADING, Menu, MenuItem, Mode, Pin, PinKind, Pinnable, Popovers, Popup, RangeAxis, Scrollbar,
@@ -120,6 +122,15 @@ impl Section {
             Section::Albums => "library-no-albums",
             Section::Playlists => "library-no-playlists",
             Section::Artists => "library-no-artists",
+        }
+    }
+
+    fn part(self) -> LibraryPart {
+        match self {
+            Section::Tracks => LibraryPart::Tracks,
+            Section::Albums => LibraryPart::Albums,
+            Section::Playlists => LibraryPart::Playlists,
+            Section::Artists => LibraryPart::Artists,
         }
     }
 }
@@ -396,19 +407,25 @@ impl LibraryView {
     }
 
     fn note(&self, cx: &App) -> Option<SharedString> {
-        let settled = !matches!(
-            self.library.read(cx).state(),
-            LibraryState::Loading | LibraryState::Failed(_)
-        );
+        let library = self.library.read(cx);
         let table = self.table(self.section);
-        if !settled || table.row_count(cx) > 0 {
-            return None;
+        match library.state() {
+            LibraryState::Loading => return None,
+            LibraryState::Failed(_) => return Some(t!("library-not-loaded")),
+            _ if table.row_count(cx) > 0 => return None,
+            _ => {}
         }
 
-        Some(match table.filtering(cx) {
-            true => t!("library-no-matches"),
-            false => i18n::lookup(self.section.vacancy(), None),
-        })
+        Some(
+            match (
+                table.filtering(cx),
+                library.part_failed(self.section.part()),
+            ) {
+                (true, _) => t!("library-no-matches"),
+                (false, true) => t!("library-part-not-loaded"),
+                (false, false) => i18n::lookup(self.section.vacancy(), None),
+            },
+        )
     }
 
     pub fn refresh(&mut self, cx: &mut Context<Self>) {

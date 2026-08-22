@@ -30,10 +30,10 @@ fn partial(loaded: Loaded) -> LibraryState {
 
     let mut problems = Vec::new();
     LibraryState::Ready {
-        tracks: take("Songs", tracks, &mut problems),
-        playlists: take("Playlists", playlists, &mut problems),
-        albums: take("Albums", albums, &mut problems),
-        artists: take("Artists", artists, &mut problems),
+        tracks: take(LibraryPart::Tracks, tracks, &mut problems),
+        playlists: take(LibraryPart::Playlists, playlists, &mut problems),
+        albums: take(LibraryPart::Albums, albums, &mut problems),
+        artists: take(LibraryPart::Artists, artists, &mut problems),
         problems,
     }
 }
@@ -46,9 +46,9 @@ fn partial_local(loaded: LoadedLocal) -> LibraryState {
 
     let mut problems = Vec::new();
     LibraryState::Ready {
-        tracks: take("Local songs", tracks, &mut problems),
+        tracks: take(LibraryPart::Tracks, tracks, &mut problems),
         playlists: Vec::new(),
-        albums: take("Local albums", albums, &mut problems),
+        albums: take(LibraryPart::Albums, albums, &mut problems),
         artists: Vec::new(),
         problems,
     }
@@ -61,9 +61,17 @@ fn stamp() -> i64 {
         .as_secs() as i64
 }
 
-fn take<T>(label: &str, result: anyhow::Result<Vec<T>>, problems: &mut Vec<String>) -> Vec<T> {
+fn take<T>(
+    part: LibraryPart,
+    result: anyhow::Result<Vec<T>>,
+    problems: &mut Vec<Problem>,
+) -> Vec<T> {
     result.unwrap_or_else(|error| {
-        problems.push(format!("{label}: {error:#}"));
+        log::warn!("library: cannot load {}: {error:#}", part.label());
+        problems.push(Problem {
+            part,
+            reason: format!("{error:#}"),
+        });
         Vec::new()
     })
 }
@@ -71,6 +79,30 @@ fn take<T>(label: &str, result: anyhow::Result<Vec<T>>, problems: &mut Vec<Strin
 pub enum LibraryEvent {
     PlaylistGone(String),
     TrackDropped { playlist: String, track: String },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LibraryPart {
+    Tracks,
+    Playlists,
+    Albums,
+    Artists,
+}
+
+impl LibraryPart {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Tracks => "songs",
+            Self::Playlists => "playlists",
+            Self::Albums => "albums",
+            Self::Artists => "artists",
+        }
+    }
+}
+
+pub struct Problem {
+    pub part: LibraryPart,
+    pub reason: String,
 }
 
 pub enum LibraryState {
@@ -81,7 +113,7 @@ pub enum LibraryState {
         playlists: Vec<Playlist>,
         albums: Vec<Album>,
         artists: Vec<SavedArtist>,
-        problems: Vec<String>,
+        problems: Vec<Problem>,
     },
     Failed(String),
 }
@@ -180,6 +212,22 @@ impl Library {
 
     pub fn local_state(&self) -> &LibraryState {
         &self.local
+    }
+
+    pub fn part_failed(&self, part: LibraryPart) -> bool {
+        Self::failed_parts(&self.state).any(|failed| failed == part)
+    }
+
+    pub fn local_part_failed(&self, part: LibraryPart) -> bool {
+        Self::failed_parts(&self.local).any(|failed| failed == part)
+    }
+
+    fn failed_parts(state: &LibraryState) -> impl Iterator<Item = LibraryPart> + '_ {
+        let problems = match state {
+            LibraryState::Ready { problems, .. } => problems.as_slice(),
+            _ => &[],
+        };
+        problems.iter().map(|problem| problem.part)
     }
 
     pub fn rescan_local(&mut self, path: PathBuf, cx: &mut Context<Self>) {

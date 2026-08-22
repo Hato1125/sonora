@@ -44,6 +44,8 @@ library-no-artists = Пока нет отслеживаемых исполнит
 library-no-local-songs = Импортированные треки не найдены
 library-no-local-albums = Импортированные альбомы не найдены
 library-no-matches = Ничего не найдено
+library-not-loaded = Библиотека не загрузилась
+library-part-not-loaded = Этот раздел библиотеки не загрузился
 
 # app menu
 app-refresh-library = Обновить медиатеку

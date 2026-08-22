@@ -5,7 +5,7 @@ use gpui::{
 };
 use i18n::t;
 use music::{Album, Track};
-use state::{AppSettings, Library, LibraryState, Playback, Sonora};
+use state::{AppSettings, Library, LibraryPart, LibraryState, Playback, Sonora};
 use ui::{
     ActiveTheme as _, Button, FlagAxis, GridDelegate, GridEvent, GridState, Popovers, Popup,
     RangeAxis, Scrollbar, Scroller, SortAxis, Table as _, Unit, grid, vacant,
@@ -53,6 +53,13 @@ impl Section {
         match self {
             Section::Tracks => "library-no-local-songs",
             Section::Albums => "library-no-local-albums",
+        }
+    }
+
+    fn part(self) -> LibraryPart {
+        match self {
+            Section::Tracks => LibraryPart::Tracks,
+            Section::Albums => LibraryPart::Albums,
         }
     }
 }
@@ -268,18 +275,25 @@ impl LocalView {
     }
 
     fn note(&self, cx: &App) -> Option<SharedString> {
-        let settled = !matches!(
-            self.library.read(cx).local_state(),
-            LibraryState::Loading | LibraryState::Failed(_)
-        );
+        let library = self.library.read(cx);
         let table = self.table(self.section);
-        if !settled || table.row_count(cx) > 0 {
-            return None;
+        match library.local_state() {
+            LibraryState::Loading => return None,
+            LibraryState::Failed(_) => return Some(t!("library-not-loaded")),
+            _ if table.row_count(cx) > 0 => return None,
+            _ => {}
         }
-        Some(match table.filtering(cx) {
-            true => t!("library-no-matches"),
-            false => i18n::lookup(self.section.vacancy(), None),
-        })
+
+        Some(
+            match (
+                table.filtering(cx),
+                library.local_part_failed(self.section.part()),
+            ) {
+                (true, _) => t!("library-no-matches"),
+                (false, true) => t!("library-part-not-loaded"),
+                (false, false) => i18n::lookup(self.section.vacancy(), None),
+            },
+        )
     }
 
     fn albums(&self, window: &Window, cx: &App) -> AnyElement {

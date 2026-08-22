@@ -44,6 +44,8 @@ library-no-artists = Поки немає відстежуваних викона
 library-no-local-songs = Імпортовані треки не знайдено
 library-no-local-albums = Імпортовані альбоми не знайдено
 library-no-matches = Нічого не знайдено
+library-not-loaded = Бібліотека не завантажилася
+library-part-not-loaded = Цей розділ бібліотеки не завантажився
 
 # app menu
 app-refresh-library = Оновити медіатеку
