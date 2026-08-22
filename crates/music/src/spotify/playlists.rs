@@ -222,22 +222,31 @@ pub async fn covers(session: &Session, playlist_id: &str, wanted: usize) -> Resu
 }
 
 async fn tracks_from(session: &Session, content: &SelectedListContent) -> Result<Vec<Track>> {
-    let uris: Vec<String> = content
+    let added: Vec<(String, Option<i64>)> = content
         .contents
         .items
         .iter()
-        .map(|item| item.uri())
-        .filter(|uri| uri.starts_with(TRACK_PREFIX))
-        .map(str::to_owned)
+        .filter(|item| item.uri().starts_with(TRACK_PREFIX))
+        .map(|item| {
+            (
+                item.uri().to_owned(),
+                wire::seconds(item.attributes.timestamp()),
+            )
+        })
         .collect();
-    if uris.is_empty() {
+    if added.is_empty() {
         return Ok(Vec::new());
     }
 
+    let uris: Vec<String> = added.iter().map(|(uri, _)| uri.clone()).collect();
     let known = collection::metadata(session, &uris).await?;
-    Ok(uris
+    Ok(added
         .iter()
-        .filter_map(|uri| known.get(uri).cloned())
+        .filter_map(|(uri, added_at)| {
+            let mut track = known.get(uri).cloned()?;
+            track.added_at = *added_at;
+            Some(track)
+        })
         .collect())
 }
 
