@@ -124,7 +124,6 @@ impl Sections {
 #[derive(Clone, Copy)]
 struct RowLook {
     playing: bool,
-    hovered: bool,
     drop_line: Option<Edge>,
 }
 
@@ -184,7 +183,6 @@ pub(crate) struct Aside {
     hovered: Option<usize>,
     fading: Option<usize>,
     linger: Option<Task<()>>,
-    hovered_row: Option<usize>,
 }
 
 impl Aside {
@@ -244,7 +242,6 @@ impl Aside {
             hovered: None,
             fading: None,
             linger: None,
-            hovered_row: None,
         }
     }
 
@@ -336,11 +333,7 @@ impl Aside {
         look: RowLook,
         cx: &Context<Self>,
     ) -> gpui::Stateful<gpui::Div> {
-        let RowLook {
-            playing,
-            hovered,
-            drop_line,
-        } = look;
+        let RowLook { playing, drop_line } = look;
         let theme = *cx.theme();
         let past_index = position.past();
         let queue_index = position.upcoming();
@@ -373,7 +366,6 @@ impl Aside {
         )
         .tint(title)
         .underline()
-        .show_play(hovered)
         .when(track.explicit, Card::explicit)
         .play(
             playing,
@@ -491,14 +483,6 @@ impl Aside {
             .id(("queue-track-container", index))
             .relative()
             .min_w_0()
-            .on_hover(cx.listener(move |this, over: &bool, _, cx| {
-                match over {
-                    true => this.hovered_row = Some(index),
-                    false if this.hovered_row == Some(index) => this.hovered_row = None,
-                    false => return,
-                }
-                cx.notify();
-            }))
             .child(card)
             .when_some(drop_line, |this, edge| this.child(drop_marker(edge, cx)))
     }
@@ -829,7 +813,7 @@ impl Aside {
         uniform_list(
             "queue-rows",
             sections.len() + TAIL_ROWS,
-            cx.processor(move |this: &mut Self, range: Range<usize>, window, cx| {
+            cx.processor(move |_, range: Range<usize>, window, cx| {
                 let (revision, slots) = {
                     let queue = queue.read(cx);
                     let slots = range
@@ -864,11 +848,7 @@ impl Aside {
                                 _ => None,
                             };
                             let playing = audible && position == QueuePosition::Current;
-                            let look = RowLook {
-                                playing,
-                                hovered: this.hovered_row == Some(index),
-                                drop_line,
-                            };
+                            let look = RowLook { playing, drop_line };
                             Self::row(found, index, position, revision, look, cx).into_any_element()
                         }
                         (Some(Slot::Track(_)), None) => div().into_any_element(),

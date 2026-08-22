@@ -59,7 +59,6 @@ pub struct Card {
     play: Option<Press>,
     underline: bool,
     playing: bool,
-    show_play: bool,
     action: Option<AnyElement>,
     drag_start: Option<DragStart>,
     menu: Option<Summon>,
@@ -93,7 +92,6 @@ impl Card {
             play: None,
             underline: false,
             playing: false,
-            show_play: false,
             action: None,
             drag_start: None,
             menu: None,
@@ -135,11 +133,6 @@ impl Card {
     ) -> Self {
         self.play = Some(Box::new(handler));
         self.playing = playing;
-        self
-    }
-
-    pub fn show_play(mut self, shown: bool) -> Self {
-        self.show_play = shown;
         self
     }
 
@@ -295,7 +288,6 @@ impl RenderOnce for Card {
             play,
             underline,
             playing,
-            show_play,
             action,
             drag_start,
             menu,
@@ -348,7 +340,7 @@ impl RenderOnce for Card {
                             .absolute()
                             .right(PLAY_INSET)
                             .bottom(PLAY_INSET)
-                            .when(!playing && !show_play, |this| {
+                            .when(!playing, |this| {
                                 this.invisible()
                                     .group_hover(CARD_GROUP, |style| style.visible())
                             })
@@ -381,7 +373,7 @@ impl RenderOnce for Card {
                         div()
                             .absolute()
                             .inset_0()
-                            .when(!playing && !show_play, |this| {
+                            .when(!playing, |this| {
                                 this.invisible()
                                     .group_hover(CARD_GROUP, |style| style.visible())
                             })
