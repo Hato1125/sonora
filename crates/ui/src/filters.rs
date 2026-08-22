@@ -251,7 +251,7 @@ impl RenderOnce for RangeScrubber {
                 };
                 state.active.set(near);
                 if let Some(handler) = on_change.as_ref() {
-                    handler(&settle(value, near, share), window, cx);
+                    handler(&clamped_against_other(value, near, share), window, cx);
                 }
             }
         };
@@ -267,7 +267,11 @@ impl RenderOnce for RangeScrubber {
                 }
                 let share = snap(state.share_at(event.event.position.x, pad), &stops);
                 if let Some(handler) = on_change.as_ref() {
-                    handler(&settle(value, state.active.get(), share), window, cx);
+                    handler(
+                        &clamped_against_other(value, state.active.get(), share),
+                        window,
+                        cx,
+                    );
                 }
             }
         };
@@ -335,7 +339,7 @@ fn snap(share: f32, stops: &[f32]) -> f32 {
         .unwrap_or(share)
 }
 
-fn settle(value: (f32, f32), handle: Handle, share: f32) -> (f32, f32) {
+fn clamped_against_other(value: (f32, f32), handle: Handle, share: f32) -> (f32, f32) {
     match handle {
         Handle::Low => (share.min(value.1), value.1),
         Handle::High => (value.0, share.max(value.0)),

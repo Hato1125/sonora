@@ -707,7 +707,7 @@ impl Aside {
             let scroll = self.verse_bar.read(cx).scroll().clone();
             scroll.set_offset(gpui::point(scroll.offset().x, px(0.)));
             self.verse_bar
-                .update(cx, |bar, _| bar.settle(scroll.offset().y));
+                .update(cx, |bar, _| bar.remember_offset(scroll.offset().y));
         }
         if let Some(lines) = &lines {
             self.pin_verse(music::lyrics::active(lines, at), window, cx);

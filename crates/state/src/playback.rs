@@ -127,7 +127,7 @@ pub struct Playback {
     blocked_until: Option<Instant>,
     refused: Option<Refusal>,
     armed: Option<Duration>,
-    settle: Option<Duration>,
+    seek_on_play: Option<Duration>,
     held: bool,
     mending: bool,
     stored: Duration,
@@ -201,7 +201,7 @@ impl Playback {
             blocked_until: None,
             refused: None,
             armed: None,
-            settle: None,
+            seek_on_play: None,
             held: false,
             mending: false,
             stored: Duration::ZERO,
@@ -280,7 +280,7 @@ impl Playback {
         self.position = Duration::ZERO;
         self.preloaded = None;
         self.armed = None;
-        self.settle = None;
+        self.seek_on_play = None;
         self.held = false;
         cx.notify();
 
@@ -805,7 +805,7 @@ impl Playback {
             return;
         }
         self.load_after(&track, Start::Pick, cx);
-        self.settle = Some(at);
+        self.seek_on_play = Some(at);
     }
 
     fn hold(&mut self, cx: &mut Context<Self>) {
@@ -1130,7 +1130,7 @@ impl Playback {
                 let started = self.state != PlaybackState::Playing;
                 self.state = PlaybackState::Playing;
                 self.position = position;
-                if let Some(at) = self.settle.take() {
+                if let Some(at) = self.seek_on_play.take() {
                     self.seek(at, cx);
                 }
                 if started {
@@ -1215,7 +1215,7 @@ impl Playback {
             self.state = PlaybackState::Idle;
             self.position = Duration::ZERO;
             self.armed = None;
-            self.settle = None;
+            self.seek_on_play = None;
             self.held = false;
             self.mending = false;
             self.stored = Duration::ZERO;

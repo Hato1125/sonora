@@ -627,7 +627,7 @@ impl<S: GridSource> GridState<S> {
         cx.notify();
     }
 
-    fn settle(&mut self, cx: &mut Context<Self>) {
+    fn finish_column_drag(&mut self, cx: &mut Context<Self>) {
         self.sizing = None;
         let Some((from, to)) = self.moving.take() else {
             return;
@@ -700,11 +700,11 @@ impl<S: GridSource> GridState<S> {
             .text_color(theme.table_head_foreground)
             .on_mouse_up(
                 MouseButton::Left,
-                cx.listener(|this, _: &MouseUpEvent, _, cx| this.settle(cx)),
+                cx.listener(|this, _: &MouseUpEvent, _, cx| this.finish_column_drag(cx)),
             )
             .on_mouse_up_out(
                 MouseButton::Left,
-                cx.listener(|this, _: &MouseUpEvent, _, cx| this.settle(cx)),
+                cx.listener(|this, _: &MouseUpEvent, _, cx| this.finish_column_drag(cx)),
             )
             .children(heads.into_iter().map(
                 |(ix, width, inner, align, header, sortable, direction, movable)| {

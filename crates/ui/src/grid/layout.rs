@@ -329,7 +329,7 @@ fn fit<F: 'static>(tracks: &mut [Track<F>], available: Pixels) {
         false => grow(tracks, available - total),
     }
 
-    settle(tracks, available);
+    spread_leftover(tracks, available);
 }
 
 fn shrink<F: 'static>(tracks: &mut [Track<F>], excess: Pixels) {
@@ -394,7 +394,7 @@ fn grow<F: 'static>(tracks: &mut [Track<F>], leftover: Pixels) {
     }
 }
 
-fn settle<F: 'static>(tracks: &mut [Track<F>], available: Pixels) {
+fn spread_leftover<F: 'static>(tracks: &mut [Track<F>], available: Pixels) {
     let total = tracks
         .iter()
         .map(|track| track.width)

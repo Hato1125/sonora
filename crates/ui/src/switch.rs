@@ -103,8 +103,8 @@ impl RenderOnce for Switch {
             false => (theme.primary_foreground, theme.muted_foreground),
         };
 
-        let flip = window.use_keyed_state((id, "flip"), cx, |_, _| Flip::new(checked));
-        let moved = flip.update(cx, |flip, _| flip.settle(checked));
+        let movement = window.use_keyed_state((id, "movement"), cx, |_, _| Movement::new(checked));
+        let animates = movement.update(cx, |movement, _| movement.moved_since_mount(checked));
         let knob = div().size(thumb).flex_none().rounded(thumb / 2.);
 
         let mut switch = base
@@ -123,7 +123,7 @@ impl RenderOnce for Switch {
             })
             .when(disabled, |this| this.opacity(0.4))
             .when(!disabled, |this| this.cursor_pointer())
-            .child(match moved {
+            .child(match animates {
                 true => knob
                     .motion(
                         ("thumb", usize::from(checked)),
@@ -142,7 +142,7 @@ impl RenderOnce for Switch {
             switch = switch.on_click(handler);
         }
 
-        match moved {
+        match animates {
             true => switch
                 .motion(
                     ("track", usize::from(checked)),
@@ -167,22 +167,22 @@ impl RenderOnce for Switch {
     }
 }
 
-struct Flip {
-    checked: bool,
+struct Movement {
+    drawn: bool,
     moved: bool,
 }
 
-impl Flip {
+impl Movement {
     fn new(checked: bool) -> Self {
         Self {
-            checked,
+            drawn: checked,
             moved: false,
         }
     }
 
-    fn settle(&mut self, checked: bool) -> bool {
-        if self.checked != checked {
-            self.checked = checked;
+    fn moved_since_mount(&mut self, checked: bool) -> bool {
+        if self.drawn != checked {
+            self.drawn = checked;
             self.moved = true;
         }
 

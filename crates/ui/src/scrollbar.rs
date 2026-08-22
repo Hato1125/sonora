@@ -155,7 +155,7 @@ impl Scrollbar {
         self
     }
 
-    pub fn settle(&mut self, offset: Pixels) {
+    pub fn remember_offset(&mut self, offset: Pixels) {
         self.seen = offset;
     }
 
