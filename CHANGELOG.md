@@ -7,6 +7,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Playlists show when each track was added, in a sortable Date added column.
+
+### Fixed
+
+- The play overlay and cover darkening now really do appear on queue rows — the artwork was
+  painted over them.
+- Long single-artist names in a table are cut with an ellipsis instead of being sliced mid-letter.
+
 ## [0.16.0] - 2026-08-22
 
 ### Added
