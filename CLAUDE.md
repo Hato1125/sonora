@@ -494,10 +494,14 @@ library tab); it maps to a `Destination` through `Screen::destination` and is st
 `settings.json` as `startup`. `sonora/src/main.rs` resolves it at boot, and a link on the command
 line still wins over it.
 
-**Sidebar sections are derived, not remembered.** `SidebarLeft` expands Your Library or Settings from
-the current route (`expanded(&Destination)` in `sidebar_left.rs`), so every way of leaving — sidebar,
-a card, back/forward, an external `spotify:` link — collapses the group. A manual chevron toggle only
-survives until the next route change. Don't reintroduce per-event bookkeeping for this.
+**Sidebar sections only ever expand on their own.** `SidebarLeft` opens Your Library or Settings
+whenever the route enters one (`expanded(&Destination)` in `sidebar_left.rs`), but nothing collapses
+a group except the chevron — leaving through a card, back/forward or an external `spotify:` link
+keeps it open. Don't reintroduce route-driven collapsing.
+
+**The Your Library and Settings rows navigate nowhere.** They are expanders: a click toggles the
+group and nothing else, so a route change only ever comes from a tab underneath. That is also why an
+overlaid `SidebarLeft` survives opening a group — it dismisses on navigation, and there is none.
 
 **`LibraryTab::Local` is labelled "Imported".** The enum variant, the `local-songs`/`local-albums`
 settings keys and the `nav-local` i18n key all keep the old name so stored layouts survive; only the
