@@ -1,9 +1,7 @@
 use std::rc::Rc;
 
 use gpui::prelude::*;
-use gpui::{
-    App, ClickEvent, Entity, MouseButton, MouseDownEvent, Pixels, SharedString, Window, div,
-};
+use gpui::{App, ClickEvent, Entity, MouseDownEvent, Pixels, SharedString, Window, div};
 use music::Track;
 use state::{Playback, PlaybackState};
 use ui::{
@@ -339,10 +337,7 @@ fn pick(
         .when_some(artists, Card::bare_meta)
         .when_some(length, Card::trailing)
         .when_some(on_context_menu, |card, handler| {
-            card.on_mouse_down(MouseButton::Right, move |event, window, cx| {
-                window.prevent_default();
-                handler(place, event, window, cx);
-            })
+            card.menu(move |event, window, cx| handler(place, event, window, cx))
         })
         .play(playing, move |_, _, cx| transport(cx))
         .press(move |_, _, cx| pressed(cx))

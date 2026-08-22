@@ -27,6 +27,7 @@ const TIGHT: Pixels = px(2.);
 pub const CARD_GROUP: &str = "card";
 
 type Press = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
+type Summon = Box<dyn Fn(&MouseDownEvent, &mut Window, &mut App) + 'static>;
 type DragStart = Rc<dyn Fn(&MouseDownEvent, &mut Window, &mut App) + 'static>;
 
 #[derive(IntoElement)]
@@ -57,6 +58,7 @@ pub struct Card {
     playing: bool,
     action: Option<AnyElement>,
     drag_start: Option<DragStart>,
+    menu: Option<Summon>,
 }
 
 impl Card {
@@ -89,6 +91,7 @@ impl Card {
             playing: false,
             action: None,
             drag_start: None,
+            menu: None,
         }
     }
 
@@ -222,6 +225,14 @@ impl Card {
         self.press = Some(Box::new(handler));
         self
     }
+
+    pub fn menu(
+        mut self,
+        handler: impl Fn(&MouseDownEvent, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.menu = Some(Box::new(handler));
+        self
+    }
 }
 
 impl Styled for Card {
@@ -272,6 +283,7 @@ impl RenderOnce for Card {
             playing,
             action,
             drag_start,
+            menu,
         } = self;
 
         let theme = *cx.theme();
@@ -435,6 +447,13 @@ impl RenderOnce for Card {
             .when_some(press, |this, press| {
                 this.cursor_pointer()
                     .on_click(move |event, window, cx| press(event, window, cx))
+            })
+            .when_some(menu, |this, menu| {
+                this.on_mouse_down(MouseButton::Right, move |event, window, cx| {
+                    window.prevent_default();
+                    cx.stop_propagation();
+                    menu(event, window, cx);
+                })
             })
             .child(match drag_start.clone() {
                 Some(drag_start) => div()

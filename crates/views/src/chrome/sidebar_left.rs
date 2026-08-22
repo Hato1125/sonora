@@ -249,16 +249,11 @@ impl SidebarLeft {
             .when(active, |card| card.bg(accent))
             .hover(move |style| style.bg(accent))
             .press(move |_, _, cx| navigate(destination.clone(), cx))
-            .on_mouse_down(
-                MouseButton::Right,
-                cx.listener(move |this, event: &MouseDownEvent, window, cx| {
-                    window.prevent_default();
-                    this.track_menu.reset(cx);
-                    this.context_menu = Some((opened.clone(), event.position));
-                    cx.stop_propagation();
-                    cx.notify();
-                }),
-            )
+            .menu(cx.listener(move |this, event: &MouseDownEvent, _, cx| {
+                this.track_menu.reset(cx);
+                this.context_menu = Some((opened.clone(), event.position));
+                cx.notify();
+            }))
             .pin(pin)
             .on_drag_move(
                 cx.listener(move |this, event: &DragMoveEvent<DraggedPin>, _, cx| {

@@ -3,7 +3,7 @@ use std::ops::Range;
 use gpui::prelude::*;
 
 use gpui::{
-    Context, DragMoveEvent, Entity, FontWeight, MouseButton, MouseDownEvent, Pixels, Point, Render,
+    Context, DragMoveEvent, Entity, FontWeight, MouseDownEvent, Pixels, Point, Render,
     ScrollHandle, ScrollStrategy, ScrollWheelEvent, SharedString, Task, UniformListScrollHandle,
     Window, div, ease_in_out, px, uniform_list,
 };
@@ -358,6 +358,7 @@ impl Aside {
             .truncate(),
         )
         .tint(title)
+        .underline()
         .when(track.explicit, Card::explicit)
         .play(
             playing,
@@ -372,20 +373,15 @@ impl Aside {
                 });
             }),
         )
-        .on_mouse_down(
-            MouseButton::Right,
-            cx.listener(move |this, event: &MouseDownEvent, window, cx| {
-                window.prevent_default();
-                this.track_menu.reset(cx);
-                this.context_menu = Some(ContextMenuState {
-                    track: menu_track.clone(),
-                    revision: queue_revision,
-                    position: event.position,
-                });
-                cx.stop_propagation();
-                cx.notify();
-            }),
-        )
+        .menu(cx.listener(move |this, event: &MouseDownEvent, _, cx| {
+            this.track_menu.reset(cx);
+            this.context_menu = Some(ContextMenuState {
+                track: menu_track.clone(),
+                revision: queue_revision,
+                position: event.position,
+            });
+            cx.notify();
+        }))
         .when_some(past_index, |this, index| {
             this.press(cx.listener(move |this, _, _, cx| {
                 if this.queue.read(cx).revision() == queue_revision {
