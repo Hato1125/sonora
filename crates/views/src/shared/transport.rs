@@ -1,7 +1,23 @@
 use gpui::prelude::*;
-use gpui::{App, Entity, div};
+use gpui::{App, Entity, SharedString, div};
+use i18n::t;
 use state::{Playback, PlaybackState, Queue, Repeat, Sonora};
 use ui::{ActiveTheme as _, Button};
+
+pub(crate) const NOTCH: f32 = 0.05;
+
+pub(crate) fn volume_icon(level: f32) -> &'static str {
+    match level {
+        level if level <= 0.0001 => "icons/volume-x.svg",
+        level if level < 0.25 => "icons/volume.svg",
+        level if level < 0.5 => "icons/volume-1.svg",
+        _ => "icons/volume-2.svg",
+    }
+}
+
+pub(crate) fn percent(fraction: f32) -> SharedString {
+    t!("player-percent", value = (fraction * 100.).round())
+}
 
 pub(crate) fn like(track: Option<music::Track>, cx: &App) -> Button {
     let theme = *cx.theme();
