@@ -7,8 +7,33 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Removing a track from a playlist shows a confirmation toast, mirroring the one for adding.
+
+### Changed
+
+- Track rows look and behave the same everywhere — queue, search results and quick picks share
+  one entry: artwork with a play overlay on hover, a hover-underlined title, artist links, and in
+  the queue a remove button on the right.
+- Album, playlist and artist cards are built from one shared piece, so shelves, the library grid
+  and search results no longer drift apart in typography or behaviour.
+
 ### Fixed
 
+- The play overlay on track rows appears when you point at the row — including the queue, where it
+  never showed — and its tooltip no longer pops over rows that are not being pointed at.
+- Clicking the play control on a paused track resumes it from where it stopped; quick picks and
+  search used to restart the track from the beginning.
+- Queue rows no longer vanish abruptly inside the edge fade — they now dissolve with it — and the
+  queue scrollbar is no longer dimmed by that fade.
+- The library says when a section failed to load instead of presenting an empty table that looks
+  like an empty library, and it says so per section — songs can arrive while artists fail.
+- Removing a track from a playlist updates the playlist everywhere at once; the track count and
+  the "Add to playlist" menu used to keep the old state until a full reload.
+- A failed search no longer leaves its error on screen after signing out.
+- Disabled buttons no longer show tooltips.
+- Switches sit pixel-exact inside their track.
 - YouTube Music plays again. YouTube stopped serving the clients Sonora asked for: the download of
   every track was refused part-way through, and the fallback it tried next was refused outright. A
   signed-in session now streams through the YouTube Music client itself, which also hands over a
