@@ -203,11 +203,7 @@ impl ArtistView {
         .detach();
 
         let me = cx.entity();
-        let toolbar = cx.new(|cx| {
-            let mut toolbar = Toolbar::new(cx);
-            toolbar.wire(&me, cx);
-            toolbar
-        });
+        let toolbar = Toolbar::tooled(&me, cx);
 
         Self {
             popular: Rc::new(detail.read(cx).tracks().to_vec()),

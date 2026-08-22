@@ -180,12 +180,7 @@ impl LocalView {
         .detach();
 
         let me = cx.entity();
-        let toolbar = cx.new(|cx| {
-            let mut toolbar = Toolbar::new(cx);
-            toolbar.bind(&me, cx);
-            toolbar.wire(&me, cx);
-            toolbar
-        });
+        let toolbar = Toolbar::searchable(&me, cx);
 
         Self {
             library,

@@ -48,11 +48,7 @@ impl GenreView {
         cx.observe(&chrome, |_, _, cx| cx.notify()).detach();
 
         let me = cx.entity();
-        let toolbar = cx.new(|cx| {
-            let mut toolbar = Toolbar::new(cx);
-            toolbar.wire(&me, cx);
-            toolbar
-        });
+        let toolbar = Toolbar::tooled(&me, cx);
 
         Self {
             detail,

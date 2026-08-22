@@ -309,12 +309,7 @@ impl LibraryView {
         .detach();
 
         let me = cx.entity();
-        let toolbar = cx.new(|cx| {
-            let mut toolbar = Toolbar::new(cx);
-            toolbar.bind(&me, cx);
-            toolbar.wire(&me, cx);
-            toolbar
-        });
+        let toolbar = Toolbar::searchable(&me, cx);
 
         let card_scrollbar = cx.new(|_| Scrollbar::new(ScrollHandle::new()));
 
