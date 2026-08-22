@@ -56,7 +56,7 @@ serde_json = "1.0"
 souvlaki = "0.8"
 sys-locale = "0.3"
 unic-langid = { version = "0.9", features = ["macros"] }
-ytmusic = { git = "https://github.com/nolight132/ytmusic-rs", rev = "3c8174afc1a6bbe1ea71a52a61ed3a92464b425f" }
+ytmusic = { git = "https://github.com/nolight132/ytmusic-rs", rev = "f0f3298188104026b91630c1fe229f802133f9f4" }
 
 librespot-core = { version = "0.8.0", default-features = false, features = [
   "rustls-tls-native-roots",
