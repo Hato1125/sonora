@@ -15,7 +15,7 @@ use state::{AppSettings, ArtistDetail, Playback, Sonora};
 use ui::ActiveTheme as _;
 use ui::Table as _;
 use ui::{
-    Button, Card, GridDelegate, GridEvent, GridState, MIN_CONTENT, Mode, Pin, PinKind, Popover,
+    Button, Card, GridDelegate, GridEvent, GridState, MIN_CONTENT, Mode, Picker, Pin, PinKind,
     Popovers, Popup, Scrollbar, Scroller, Skeleton, Text, grid, snapped,
 };
 
@@ -271,19 +271,11 @@ impl ArtistView {
                 t!("artist-monthly-listeners", count = count, value = &value)
             });
         let overflow = self.detail.read(cx).id().map(|id| {
-            Popover::new("artist-overflow", self.popovers.clone())
-                .commands()
-                .button(
-                    Button::new("artist-overflow-button")
-                        .outline()
-                        .icon("icons/ellipsis.svg")
-                        .tooltip("common-more"),
-                )
-                .menu(
-                    artist_menu(id.to_owned())
-                        .top(cx.theme().metrics.control)
-                        .left_0(),
-                )
+            Picker::icon("artist-overflow", &self.popovers, "icons/ellipsis.svg")
+                .tooltip("common-more")
+                .large()
+                .left()
+                .menu(artist_menu(id.to_owned()))
         });
         let actions = div()
             .flex()

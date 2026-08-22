@@ -7,7 +7,7 @@ use gpui::{
 use i18n::t;
 use music::{Album, Playlist, Track};
 use state::{AppSettings, Collection, Detail, LibraryEvent, Playback, Sonora};
-use ui::{ActiveTheme as _, Button, Menu, Popover, Popovers, Popup, SortAxis};
+use ui::{ActiveTheme as _, Button, Menu, Picker, Popovers, Popup, SortAxis};
 use ui::{
     ColumnSpec, FlagAxis, GridDelegate, GridEvent, GridState, MIN_CONTENT, Pin, PinKind, RangeAxis,
     Scrollbar, Scroller, Table as _, Toggle, Unit, clock, grid,
@@ -265,15 +265,11 @@ impl DetailView {
         }
 
         let overflow = self.menu(cx).map(|menu| {
-            Popover::new("detail-overflow", self.popovers.clone())
-                .commands()
-                .button(
-                    Button::new("detail-overflow-button")
-                        .outline()
-                        .icon("icons/ellipsis.svg")
-                        .tooltip("common-more"),
-                )
-                .menu(menu.top(theme.metrics.control).left_0())
+            Picker::icon("detail-overflow", &self.popovers, "icons/ellipsis.svg")
+                .tooltip("common-more")
+                .large()
+                .left()
+                .menu(menu)
         });
         let actions = div()
             .flex()

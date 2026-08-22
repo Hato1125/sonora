@@ -2,15 +2,11 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use gpui::prelude::*;
-use gpui::{AnyElement, App, Pixels, div, px};
+use gpui::{AnyElement, App, div};
 use ui::{
-    ActiveTheme as _, Button, FlagAxis, Menu, MenuItem, Mode, Popover, Popovers, RangeAxis,
-    RangeScrubber, RangeState, Sort, SortAxis, Text, Toggle, eyebrow,
+    ActiveTheme as _, Button, FlagAxis, MenuItem, Mode, Picker, Popovers, RangeAxis, RangeScrubber,
+    RangeState, Sort, SortAxis, Text, Toggle, eyebrow,
 };
-
-const MENU_WIDTH: Pixels = px(190.);
-const FILTER_WIDTH: Pixels = px(260.);
-const MENU_DROP: Pixels = px(30.);
 
 const COLUMNS: &str = "columns";
 const FILTERS: &str = "filters";
@@ -45,28 +41,17 @@ pub(crate) fn columns(
 ) -> AnyElement {
     let switch = Rc::new(switch);
 
-    Popover::new(COLUMNS, group.clone())
-        .button(
-            Button::new("columns-toggle")
-                .icon("icons/columns-3.svg")
-                .tooltip("tool-columns")
-                .small()
-                .ghost(),
-        )
-        .menu(
-            Menu::new("columns-menu")
-                .top(MENU_DROP)
-                .right_0()
-                .w(MENU_WIDTH)
-                .items(toggles.into_iter().map(move |toggle| {
-                    let key = toggle.key;
-                    let switch = switch.clone();
+    Picker::icon(COLUMNS, group, "icons/columns-3.svg")
+        .tooltip("tool-columns")
+        .sticky()
+        .items(toggles.into_iter().map(move |toggle| {
+            let key = toggle.key;
+            let switch = switch.clone();
 
-                    MenuItem::new(key, toggle.label)
-                        .selected(toggle.visible)
-                        .on_click(move |_, _, cx| switch(key, cx))
-                })),
-        )
+            MenuItem::new(key, toggle.label)
+                .selected(toggle.visible)
+                .on_click(move |_, _, cx| switch(key, cx))
+        }))
         .into_any_element()
 }
 
@@ -80,37 +65,26 @@ pub(crate) fn sorts(
     let sorted = axes.iter().any(|axis| axis.order.is_some());
     let rank = Rc::new(rank);
 
-    Popover::new(SORTS, group.clone())
-        .button(
-            Button::new("sort-toggle")
-                .icon("icons/arrow-up-down.svg")
-                .tooltip("tool-sort")
-                .small()
-                .ghost()
-                .tint(match sorted {
-                    true => theme.primary,
-                    false => theme.muted_foreground,
-                }),
-        )
-        .menu(
-            Menu::new("sort-menu")
-                .top(MENU_DROP)
-                .right_0()
-                .w(MENU_WIDTH)
-                .items(axes.into_iter().map(move |axis| {
-                    let key = axis.key;
-                    let rank = rank.clone();
-                    let arrow = axis.order.map(|order| match order {
-                        Sort::Ascending => "icons/chevron-up.svg",
-                        Sort::Descending => "icons/chevron-down.svg",
-                    });
+    Picker::icon(SORTS, group, "icons/arrow-up-down.svg")
+        .tooltip("tool-sort")
+        .sticky()
+        .tint(match sorted {
+            true => theme.primary,
+            false => theme.muted_foreground,
+        })
+        .items(axes.into_iter().map(move |axis| {
+            let key = axis.key;
+            let rank = rank.clone();
+            let arrow = axis.order.map(|order| match order {
+                Sort::Ascending => "icons/chevron-up.svg",
+                Sort::Descending => "icons/chevron-down.svg",
+            });
 
-                    MenuItem::new(key, axis.label)
-                        .selected(axis.order.is_some())
-                        .when_some(arrow, MenuItem::icon)
-                        .on_click(move |_, _, cx| rank(key, cx))
-                })),
-        )
+            MenuItem::new(key, axis.label)
+                .selected(axis.order.is_some())
+                .when_some(arrow, MenuItem::icon)
+                .on_click(move |_, _, cx| rank(key, cx))
+        }))
         .into_any_element()
 }
 
@@ -186,30 +160,20 @@ pub(crate) fn filters(
 
     let reset = sift.clone();
 
-    Popover::new(FILTERS, group.clone())
-        .button(
-            Button::new("filters-toggle")
-                .icon("icons/funnel.svg")
-                .tooltip("tool-filters")
-                .small()
-                .ghost()
-                .tint(match narrowed {
-                    true => theme.primary,
-                    false => theme.muted_foreground,
-                }),
-        )
-        .menu(
-            Menu::new("filters-menu")
-                .top(MENU_DROP)
-                .right_0()
-                .w(FILTER_WIDTH)
-                .items(scrubbers)
-                .items(switches)
-                .item(MenuItem::separator("filters-end"))
-                .item(
-                    MenuItem::new("filters-reset", i18n::t!("filter-reset"))
-                        .on_click(move |_, _, cx| reset(Sift::Reset, cx)),
-                ),
+    Picker::icon(FILTERS, group, "icons/funnel.svg")
+        .tooltip("tool-filters")
+        .sticky()
+        .width(Picker::WIDE)
+        .tint(match narrowed {
+            true => theme.primary,
+            false => theme.muted_foreground,
+        })
+        .items(scrubbers)
+        .items(switches)
+        .item(MenuItem::separator("filters-end"))
+        .item(
+            MenuItem::new("filters-reset", i18n::t!("filter-reset"))
+                .on_click(move |_, _, cx| reset(Sift::Reset, cx)),
         )
         .into_any_element()
 }
