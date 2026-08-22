@@ -313,7 +313,7 @@ impl DetailView {
             .eyebrow(eyebrow)
             .meta(strip)
             .actions(actions)
-            .grip(move |event, window, cx| {
+            .drag_start(move |event, window, cx| {
                 window.prevent_default();
                 view.update(cx, |this, cx| {
                     this.context_menu = Some(event.position);

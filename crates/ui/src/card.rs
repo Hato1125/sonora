@@ -30,7 +30,7 @@ const TIGHT: Pixels = px(2.);
 pub const CARD_GROUP: &str = "card";
 
 type Press = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
-type Grip = Rc<dyn Fn(&MouseDownEvent, &mut Window, &mut App) + 'static>;
+type DragStart = Rc<dyn Fn(&MouseDownEvent, &mut Window, &mut App) + 'static>;
 
 #[derive(IntoElement)]
 pub struct Card {
@@ -59,7 +59,7 @@ pub struct Card {
     underline: bool,
     playing: bool,
     action: Option<AnyElement>,
-    grip: Option<Grip>,
+    drag_start: Option<DragStart>,
 }
 
 impl Card {
@@ -91,15 +91,15 @@ impl Card {
             underline: false,
             playing: false,
             action: None,
-            grip: None,
+            drag_start: None,
         }
     }
 
-    pub fn grip(
+    pub fn drag_start(
         mut self,
         handler: impl Fn(&MouseDownEvent, &mut Window, &mut App) + 'static,
     ) -> Self {
-        self.grip = Some(Rc::new(handler));
+        self.drag_start = Some(Rc::new(handler));
         self
     }
 
@@ -274,7 +274,7 @@ impl RenderOnce for Card {
             underline,
             playing,
             action,
-            grip,
+            drag_start,
         } = self;
 
         let theme = *cx.theme();
@@ -397,9 +397,9 @@ impl RenderOnce for Card {
         let title = div()
             .min_w_0()
             .truncate()
-            .when_some(grip.clone(), |this, grip| {
+            .when_some(drag_start.clone(), |this, drag_start| {
                 this.on_mouse_down(MouseButton::Right, move |event, window, cx| {
-                    grip(event, window, cx)
+                    drag_start(event, window, cx)
                 })
             })
             .when_some(weight, |this, weight| this.font_weight(weight))
@@ -444,11 +444,11 @@ impl RenderOnce for Card {
                 this.cursor_pointer()
                     .on_click(move |event, window, cx| press(event, window, cx))
             })
-            .child(match grip.clone() {
-                Some(grip) => div()
+            .child(match drag_start.clone() {
+                Some(drag_start) => div()
                     .flex_none()
                     .on_mouse_down(MouseButton::Right, move |event, window, cx| {
-                        grip(event, window, cx)
+                        drag_start(event, window, cx)
                     })
                     .child(leading)
                     .into_any_element(),
