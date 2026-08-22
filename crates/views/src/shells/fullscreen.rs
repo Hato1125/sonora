@@ -49,7 +49,7 @@ pub struct FullscreenView {
     revision: usize,
     track_menu: ItemMenu,
     context_menu: Option<(music::Track, Point<Pixels>)>,
-    stirred: Instant,
+    last_moved: Instant,
     awake: bool,
     rest: Option<Task<()>>,
     focus: FocusHandle,
@@ -83,7 +83,7 @@ impl FullscreenView {
             revision: 0,
             track_menu: ItemMenu::new(playlist_scrollbar),
             context_menu: None,
-            stirred: Instant::now(),
+            last_moved: Instant::now(),
             awake: true,
             rest: None,
             focus: cx.focus_handle(),
@@ -107,11 +107,11 @@ impl FullscreenView {
             self.awake = true;
             cx.notify();
         }
-        self.stirred = Instant::now();
+        self.last_moved = Instant::now();
         self.rest = Some(cx.spawn(async move |this, cx| {
             cx.background_executor().timer(REST).await;
             this.update(cx, |this, cx| {
-                if this.stirred.elapsed() < REST {
+                if this.last_moved.elapsed() < REST {
                     return;
                 }
                 this.awake = false;
@@ -121,8 +121,8 @@ impl FullscreenView {
         }));
     }
 
-    fn stirring(&mut self, _: &MouseMoveEvent, _: &mut Window, cx: &mut Context<Self>) {
-        if self.awake && self.stirred.elapsed() < REARM {
+    fn on_mouse_move(&mut self, _: &MouseMoveEvent, _: &mut Window, cx: &mut Context<Self>) {
+        if self.awake && self.last_moved.elapsed() < REARM {
             return;
         }
         self.stir(cx);
@@ -528,7 +528,7 @@ impl Render for FullscreenView {
             .px_8()
             .pb_6()
             .bg(theme.background)
-            .on_mouse_move(cx.listener(Self::stirring))
+            .on_mouse_move(cx.listener(Self::on_mouse_move))
             .child(
                 div()
                     .relative()

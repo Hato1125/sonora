@@ -14,7 +14,7 @@ pub(crate) fn trouble(failure: Failure, centered: bool) -> AnyElement {
 
     let message = match problem {
         Some(problem) => i18n::lookup(reason(problem), None),
-        None => SharedString::from(said(summary, detail)),
+        None => SharedString::from(sentence(summary, detail)),
     };
 
     Notice::new(t!("login-failed-title"), message)
@@ -23,15 +23,15 @@ pub(crate) fn trouble(failure: Failure, centered: bool) -> AnyElement {
         .into_any_element()
 }
 
-fn said(summary: String, detail: Option<String>) -> String {
+fn sentence(summary: String, detail: Option<String>) -> String {
     let summary = summary.trim_end_matches('.').to_owned();
-    match detail.map(|detail| tidy(&detail)) {
+    match detail.map(|detail| unwrapped_reason(&detail)) {
         Some(reason) => format!("{summary}: {reason}"),
         None => format!("{summary}."),
     }
 }
 
-fn tidy(text: &str) -> String {
+fn unwrapped_reason(text: &str) -> String {
     let inner = text
         .split_once('{')
         .and_then(|(_, rest)| rest.rsplit_once('}'))

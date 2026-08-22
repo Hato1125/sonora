@@ -265,17 +265,16 @@ impl Aside {
         cx.notify();
     }
 
-    /// How far the row under the cursor has travelled between blurred and sharp.
-    fn stirred(&self, window: &mut Window) -> f32 {
+    fn sharpen_progress(&self, window: &mut Window) -> f32 {
         let span = Motion::Quick.span().as_secs_f32().max(f32::EPSILON);
-        let stirred = (self.since.elapsed().as_secs_f32() / span).clamp(0., 1.);
-        if stirred < 1. {
+        let progress = (self.since.elapsed().as_secs_f32() / span).clamp(0., 1.);
+        if progress < 1. {
             window.request_animation_frame();
         }
-        ease_in_out(stirred)
+        ease_in_out(progress)
     }
 
-    fn brush(&mut self, index: usize, over: bool, cx: &mut Context<Self>) {
+    fn set_hovered(&mut self, index: usize, over: bool, cx: &mut Context<Self>) {
         if !over {
             if self.over == Some(index) {
                 self.over = None;
@@ -632,7 +631,7 @@ impl Aside {
                     true => verse * BLUR,
                     false => px(0.),
                 };
-                let stirred = self.stirred(window);
+                let sharpen = self.sharpen_progress(window);
 
                 lines
                     .iter()
@@ -663,7 +662,7 @@ impl Aside {
                                 this.font_weight(FontWeight::SEMIBOLD)
                             })
                             .on_hover(cx.listener(move |this, over: &bool, _, cx| {
-                                this.brush(index, *over, cx)
+                                this.set_hovered(index, *over, cx)
                             }))
                             .on_click(cx.listener(move |this, _, _, cx| {
                                 this.playback
@@ -673,8 +672,8 @@ impl Aside {
 
                         let softness = match (hazed, waking, settling) {
                             (false, _, _) => 0.,
-                            (true, true, _) => 1. - stirred,
-                            (true, false, true) => stirred,
+                            (true, true, _) => 1. - sharpen,
+                            (true, false, true) => sharpen,
                             (true, false, false) => 1.,
                         };
 
