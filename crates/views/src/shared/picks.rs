@@ -274,7 +274,7 @@ fn column_shell(column: usize, border: gpui::Hsla) -> gpui::Div {
 }
 
 fn skeleton(id: &'static str, place: usize) -> impl IntoElement {
-    Card::new((id, place), "").loading()
+    Card::skeleton((id, place))
 }
 
 #[allow(clippy::too_many_arguments)]

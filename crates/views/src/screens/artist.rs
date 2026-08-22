@@ -368,9 +368,8 @@ impl ArtistView {
                 .children((0..RELEASE_ROWS).map(|row| {
                     CardGrid::new(self.width).children((0..grid.columns).map(move |column| {
                         let index = row * grid.columns + column;
-                        Card::new(("artist-release-skeleton", index), "")
+                        Card::skeleton(("artist-release-skeleton", index))
                             .tile(grid.card)
-                            .loading()
                             .into_any_element()
                     }))
                 }))

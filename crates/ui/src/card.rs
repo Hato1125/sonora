@@ -95,6 +95,10 @@ impl Card {
         }
     }
 
+    pub fn skeleton(id: impl Into<ElementId>) -> Self {
+        Self::new(id, "").loading()
+    }
+
     pub fn drag_start(
         mut self,
         handler: impl Fn(&MouseDownEvent, &mut Window, &mut App) + 'static,

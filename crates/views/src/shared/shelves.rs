@@ -69,8 +69,7 @@ impl Shelves {
                     )
                     .child(div().flex().w_full().gap_4().overflow_hidden().children(
                         (0..layout.columns).map(|place| {
-                            Card::new(self.tag("pending", shelf * 100 + place), "")
-                                .loading()
+                            Card::skeleton(self.tag("pending", shelf * 100 + place))
                                 .tile(layout.card)
                         }),
                     ))
