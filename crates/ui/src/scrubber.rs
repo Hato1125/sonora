@@ -67,6 +67,16 @@ impl ScrubberState {
         }
         ((x - bounds.origin.x - pin / 2.) / travel).clamp(0., 1.)
     }
+
+    fn climb_at(&self, y: Pixels, pad: Pixels) -> f32 {
+        let bounds = self.bounds.get();
+        let pin = thumb(pad);
+        let travel = bounds.size.height - pin;
+        if travel <= px(0.) {
+            return 0.;
+        }
+        1. - ((y - bounds.origin.y - pin / 2.) / travel).clamp(0., 1.)
+    }
 }
 
 #[derive(IntoElement)]
@@ -78,6 +88,7 @@ pub struct Scrubber {
     empty: Hsla,
     thumb: Hsla,
     enabled: bool,
+    vertical: bool,
     bubble: Option<(f32, SharedString)>,
     lift: Pixels,
     on_move: Option<Slide>,
@@ -94,6 +105,7 @@ impl Scrubber {
             empty: gpui::black(),
             thumb: gpui::white(),
             enabled: true,
+            vertical: false,
             bubble: None,
             lift: px(12.),
             on_move: None,
@@ -120,6 +132,11 @@ impl Scrubber {
 
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
+        self
+    }
+
+    pub fn vertical(mut self) -> Self {
+        self.vertical = true;
         self
     }
 
@@ -157,6 +174,7 @@ impl RenderOnce for Scrubber {
             empty,
             thumb,
             enabled,
+            vertical,
             bubble,
             lift,
             on_move,
@@ -170,12 +188,17 @@ impl RenderOnce for Scrubber {
         let on_move = on_move.map(Rc::new);
         let on_release = on_release.map(Rc::new);
 
+        let at = move |state: &ScrubberState, position: Point<Pixels>| match vertical {
+            true => state.climb_at(position.y, pad),
+            false => state.fraction_at(position.x, pad),
+        };
+
         let down = {
             let state = state.clone();
             let on_move = on_move.clone();
             move |event: &MouseDownEvent, window: &mut Window, cx: &mut App| {
                 if let Some(handler) = on_move.as_ref() {
-                    handler(&state.fraction_at(event.position.x, pad), window, cx);
+                    handler(&at(&state, event.position), window, cx);
                 }
             }
         };
@@ -189,7 +212,7 @@ impl RenderOnce for Scrubber {
                     return;
                 }
                 if let Some(handler) = on_move.as_ref() {
-                    handler(&state.fraction_at(event.event.position.x, pad), window, cx);
+                    handler(&at(&state, event.event.position), window, cx);
                 }
             }
         };
@@ -200,17 +223,155 @@ impl RenderOnce for Scrubber {
             }
         };
 
-        let width = bounds.get().size.width;
-        let travel = (width - pin).max(Pixels::ZERO);
-        let centered = enabled && width > Pixels::ZERO;
+        let extent = match vertical {
+            true => bounds.get().size.height,
+            false => bounds.get().size.width,
+        };
+        let travel = (extent - pin).max(Pixels::ZERO);
+        let centered = enabled && extent > Pixels::ZERO;
+        let measured = extent > Pixels::ZERO;
+
+        let bar = match vertical {
+            true => div()
+                .relative()
+                .h_full()
+                .w(line)
+                .rounded_full()
+                .bg(empty)
+                .child(
+                    div()
+                        .absolute()
+                        .bottom_0()
+                        .left_0()
+                        .w_full()
+                        .rounded_full()
+                        .bg(filled)
+                        .map(|this| match centered {
+                            true => this.h(pin / 2. + travel * fraction),
+                            false => this.h(relative(fraction)),
+                        }),
+                )
+                .when(enabled, |this| {
+                    this.child(
+                        div()
+                            .absolute()
+                            .left((line - pin) / 2.)
+                            .map(|this| match measured {
+                                true => this.bottom(travel * fraction),
+                                false => {
+                                    this.bottom(relative(fraction)).mb(Pixels::ZERO - pin / 2.)
+                                }
+                            })
+                            .size(pin)
+                            .rounded_full()
+                            .bg(thumb),
+                    )
+                })
+                .when_some(bubble, |this, (at, text)| {
+                    this.child(
+                        div()
+                            .absolute()
+                            .map(|this| {
+                                if lift >= Pixels::ZERO {
+                                    this.right(line + lift)
+                                } else {
+                                    this.left(line - lift)
+                                }
+                            })
+                            .map(|this| match centered {
+                                true => this.bottom(travel * at),
+                                false => this.bottom(relative(at)).mb(Pixels::ZERO - pin / 2.),
+                            })
+                            .h(pin)
+                            .flex()
+                            .items_center()
+                            .child(
+                                div()
+                                    .px_1p5()
+                                    .rounded_md()
+                                    .bg(popover)
+                                    .border_1()
+                                    .border_color(popover_border)
+                                    .text_color(popover_text)
+                                    .text_size(text_size)
+                                    .whitespace_nowrap()
+                                    .child(text),
+                            ),
+                    )
+                }),
+            false => div()
+                .relative()
+                .w_full()
+                .h(line)
+                .rounded_full()
+                .bg(empty)
+                .child(
+                    div()
+                        .h_full()
+                        .rounded_full()
+                        .bg(filled)
+                        .map(|this| match centered {
+                            true => this.w(pin / 2. + travel * fraction),
+                            false => this.w(relative(fraction)),
+                        }),
+                )
+                .when(enabled, |this| {
+                    this.child(
+                        div()
+                            .absolute()
+                            .top((line - pin) / 2.)
+                            .map(|this| match measured {
+                                true => this.left(travel * fraction),
+                                false => this.left(relative(fraction)).ml(Pixels::ZERO - pin / 2.),
+                            })
+                            .size(pin)
+                            .rounded_full()
+                            .bg(thumb),
+                    )
+                })
+                .when_some(bubble, |this, (at, text)| {
+                    this.child(
+                        div()
+                            .absolute()
+                            .map(|this| {
+                                if lift >= Pixels::ZERO {
+                                    this.bottom(lift)
+                                } else {
+                                    this.top(Pixels::ZERO - lift)
+                                }
+                            })
+                            .map(|this| match centered {
+                                true => this.left(pin / 2. + travel * at),
+                                false => this.left(relative(at)),
+                            })
+                            .ml(Pixels::ZERO - bubble_width / 2.)
+                            .w(bubble_width)
+                            .flex()
+                            .justify_center()
+                            .child(
+                                div()
+                                    .px_1p5()
+                                    .rounded_md()
+                                    .bg(popover)
+                                    .border_1()
+                                    .border_color(popover_border)
+                                    .text_color(popover_text)
+                                    .text_size(text_size)
+                                    .child(text),
+                            ),
+                    )
+                }),
+        };
 
         div()
             .id(gpui::ElementId::Name(id.clone()))
             .relative()
             .flex()
-            .items_center()
-            .w_full()
-            .h(reach)
+            .when_else(
+                vertical,
+                |this| this.justify_center().h_full().w(reach),
+                |this| this.items_center().w_full().h(reach),
+            )
             .child(
                 canvas(move |b, _, _| bounds.set(b), |_, _, _, _| {})
                     .absolute()
@@ -224,72 +385,7 @@ impl RenderOnce for Scrubber {
                     .on_mouse_up(MouseButton::Left, released.clone())
                     .on_mouse_up_out(MouseButton::Left, released)
             })
-            .child(
-                div()
-                    .relative()
-                    .w_full()
-                    .h(line)
-                    .rounded_full()
-                    .bg(empty)
-                    .child(
-                        div()
-                            .h_full()
-                            .rounded_full()
-                            .bg(filled)
-                            .map(|this| match centered {
-                                true => this.w(pin / 2. + travel * fraction),
-                                false => this.w(relative(fraction)),
-                            }),
-                    )
-                    .when(enabled, |this| {
-                        this.child(
-                            div()
-                                .absolute()
-                                .top((line - pin) / 2.)
-                                .map(|this| match width > Pixels::ZERO {
-                                    true => this.left(travel * fraction),
-                                    false => {
-                                        this.left(relative(fraction)).ml(Pixels::ZERO - pin / 2.)
-                                    }
-                                })
-                                .size(pin)
-                                .rounded_full()
-                                .bg(thumb),
-                        )
-                    })
-                    .when_some(bubble, |this, (at, text)| {
-                        this.child(
-                            div()
-                                .absolute()
-                                .map(|this| {
-                                    if lift >= Pixels::ZERO {
-                                        this.bottom(lift)
-                                    } else {
-                                        this.top(Pixels::ZERO - lift)
-                                    }
-                                })
-                                .map(|this| match centered {
-                                    true => this.left(pin / 2. + travel * at),
-                                    false => this.left(relative(at)),
-                                })
-                                .ml(Pixels::ZERO - bubble_width / 2.)
-                                .w(bubble_width)
-                                .flex()
-                                .justify_center()
-                                .child(
-                                    div()
-                                        .px_1p5()
-                                        .rounded_md()
-                                        .bg(popover)
-                                        .border_1()
-                                        .border_color(popover_border)
-                                        .text_color(popover_text)
-                                        .text_size(text_size)
-                                        .child(text),
-                                ),
-                        )
-                    }),
-            )
+            .child(bar)
     }
 }
 

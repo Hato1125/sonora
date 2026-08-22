@@ -3,9 +3,9 @@ use std::time::{Duration, Instant};
 use gpui::prelude::*;
 use gpui::{
     AnyView, App, Context, Entity, FocusHandle, MouseButton, MouseDownEvent, MouseMoveEvent,
-    MouseUpEvent, Pixels, Point, Render, SharedString, Task,
+    MouseUpEvent, Pixels, Point, Render, ScrollWheelEvent, SharedString, Task,
 };
-use gpui::{Window, div, px};
+use gpui::{Window, div, px, relative};
 use i18n::t;
 use input::{ToggleFullscreen, WORKSPACE_CONTEXT};
 use router::{Destination, navigate};
@@ -17,7 +17,7 @@ use ui::{
 
 use crate::chrome::{Aside, TitleBarOptions};
 use crate::shared::menu::ItemMenu;
-use crate::shared::transport::{like, transport};
+use crate::shared::transport::{NOTCH, like, percent, transport, volume_icon};
 use crate::shells::Shell;
 
 const COVER_TALL: f32 = 0.46;
@@ -32,6 +32,8 @@ const PILL_GAP: f32 = 2.;
 const FROST: f32 = 16.;
 const FROSTED: f32 = 0.5;
 const SEEK_MAX: f32 = 420.;
+const VOLUME_RISE: f32 = 132.;
+const VOLUME_ZONE: f32 = 14.;
 const CLOCK_SHORT: f32 = 3.4;
 const CLOCK_LONG: f32 = 5.4;
 const REST: Duration = Duration::from_secs(3);
@@ -45,6 +47,12 @@ pub struct FullscreenView {
     panel: Option<SideTab>,
     seek: ScrubberState,
     pending: Option<f32>,
+    volume: ScrubberState,
+    over_volume: bool,
+    over_zone: bool,
+    over_panel: bool,
+    volume_held: bool,
+    muted: Option<f32>,
     large: Option<SharedString>,
     revision: usize,
     track_menu: ItemMenu,
@@ -75,6 +83,12 @@ impl FullscreenView {
             panel: Some(SideTab::Lyrics),
             seek: ScrubberState::new("fullscreen-seek"),
             pending: None,
+            volume: ScrubberState::new("fullscreen-volume-slider"),
+            over_volume: false,
+            over_zone: false,
+            over_panel: false,
+            volume_held: false,
+            muted: None,
             large: None,
             revision: 0,
             track_menu: ItemMenu::new(playlist_scrollbar),
@@ -122,6 +136,32 @@ impl FullscreenView {
             return;
         }
         self.stir(cx);
+    }
+
+    fn volume_open(&self) -> bool {
+        self.over_volume || self.over_zone || self.over_panel || self.volume_held
+    }
+
+    fn turn_volume(
+        &mut self,
+        event: &ScrollWheelEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let delta = event.delta.pixel_delta(window.line_height()).y;
+        if delta == Pixels::ZERO {
+            return;
+        }
+        cx.stop_propagation();
+
+        let notch = match delta > Pixels::ZERO {
+            true => NOTCH,
+            false => -NOTCH,
+        };
+        let level = (self.playback.read(cx).volume() + notch).clamp(0., 1.);
+        self.muted = None;
+        self.playback
+            .update(cx, |playback, cx| playback.set_volume(level, cx));
     }
 
     fn commit_seek(&mut self, cx: &mut Context<Self>) {
@@ -213,7 +253,8 @@ impl FullscreenView {
                             .truncate()
                             .text_size(theme.text(Text::Title))
                             .when_some(album, |this, album| {
-                                this.hover(|style| style.underline())
+                                this.cursor_pointer()
+                                    .hover(|style| style.underline())
                                     .on_click(move |_, _, cx| open_album(&album, cx))
                             })
                             .on_mouse_down(
@@ -284,8 +325,27 @@ impl FullscreenView {
                     .justify_center()
                     .flex_1()
                     .min_w_0()
-                    .child(div().min_w_0().truncate().child(title))
-                    .when_some(track.clone(), |this, track| {
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap_2()
+                            .min_w_0()
+                            .child(
+                                div()
+                                    .id("strip-title")
+                                    .min_w_0()
+                                    .truncate()
+                                    .when_some(album, |this, album| {
+                                        this.cursor_pointer()
+                                            .hover(|style| style.underline())
+                                            .on_click(move |_, _, cx| open_album(&album, cx))
+                                    })
+                                    .child(title),
+                            )
+                            .child(like(track.clone(), cx)),
+                    )
+                    .when_some(track, |this, track| {
                         this.child(
                             InlineLinks::new(
                                 "strip-artists",
@@ -301,7 +361,6 @@ impl FullscreenView {
                         )
                     }),
             )
-            .child(like(track, cx))
     }
 
     fn seek(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -370,7 +429,24 @@ impl FullscreenView {
             .flex_none()
             .when(inline, |this| this.child(self.pill(false, cx)))
             .child(self.seek(cx))
-            .child(transport(&self.playback, &self.queue, true, cx))
+            .child(
+                div()
+                    .relative()
+                    .w_full()
+                    .flex()
+                    .justify_center()
+                    .child(transport(&self.playback, &self.queue, true, cx))
+                    .child(
+                        div()
+                            .absolute()
+                            .right_0()
+                            .top_0()
+                            .bottom_0()
+                            .flex()
+                            .items_center()
+                            .child(self.sound(cx)),
+                    ),
+            )
     }
 
     fn pill(&self, fading: bool, cx: &mut Context<Self>) -> impl IntoElement {
@@ -380,7 +456,6 @@ impl FullscreenView {
             true => (0., 1.),
             false => (1., 0.),
         };
-
         let tab = move |id: &'static str, icon: &'static str, hint: &'static str, panel| {
             let showing = self.panel == panel;
 
@@ -432,6 +507,115 @@ impl FullscreenView {
                 Motion::Base,
                 move |pill, t| pill.opacity(from + (to - from) * t),
             )
+    }
+
+    fn sound(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+        let zone = px(VOLUME_ZONE);
+        let level = self.playback.read(cx).volume();
+        let empty = theme.muted_foreground.opacity(0.3);
+        let restore = self.muted.unwrap_or(0.7);
+        let span = theme.metrics.control_small + zone * 2.;
+        let bubble = self.over_panel.then(|| (level, percent(level)));
+
+        div()
+            .relative()
+            .flex()
+            .flex_none()
+            .on_scroll_wheel(cx.listener(Self::turn_volume))
+            .child(
+                div()
+                    .id("fullscreen-volume-hover")
+                    .on_hover(cx.listener(|this, hovering: &bool, _, cx| {
+                        this.over_volume = *hovering;
+                        cx.notify();
+                    }))
+                    .child(
+                        Button::new("fullscreen-volume")
+                            .ghost()
+                            .small()
+                            .icon(volume_icon(level))
+                            .tint(match self.volume_open() {
+                                true => theme.foreground,
+                                false => theme.muted_foreground,
+                            })
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                let wanted = match level <= 0.001 {
+                                    true => restore,
+                                    false => 0.,
+                                };
+                                this.muted = match wanted {
+                                    0. => Some(level),
+                                    _ => None,
+                                };
+                                this.playback
+                                    .update(cx, |playback, cx| playback.set_volume(wanted, cx));
+                            })),
+                    ),
+            )
+            .when(self.volume_open(), |this| {
+                this.child(
+                    div()
+                        .id("fullscreen-volume-zone")
+                        .absolute()
+                        .bottom_0()
+                        .left(relative(0.5))
+                        .ml(Pixels::ZERO - span / 2.)
+                        .w(span)
+                        .pt(zone)
+                        .pb(theme.metrics.control_small + px(PILL_GAP) * 2.)
+                        .flex()
+                        .justify_center()
+                        .on_scroll_wheel(cx.listener(Self::turn_volume))
+                        .on_hover(cx.listener(|this, hovering: &bool, _, cx| {
+                            this.over_zone = *hovering;
+                            cx.notify();
+                        }))
+                        .child(
+                            div()
+                                .id("fullscreen-volume-panel")
+                                .occlude()
+                                .flex()
+                                .justify_center()
+                                .p_1()
+                                .py_2()
+                                .rounded(theme.radius)
+                                .border_1()
+                                .border_color(theme.border)
+                                .backdrop_blur(px(FROST))
+                                .bg(theme.popover.opacity(FROSTED))
+                                .on_scroll_wheel(cx.listener(Self::turn_volume))
+                                .on_hover(cx.listener(|this, hovering: &bool, _, cx| {
+                                    this.over_panel = *hovering;
+                                    cx.notify();
+                                }))
+                                .child(
+                                    div().h(px(VOLUME_RISE)).flex().child(
+                                        Scrubber::new(&self.volume, level)
+                                            .vertical()
+                                            .colors(theme.progress_bar, empty, theme.foreground)
+                                            .when_some(bubble, |this, (at, text)| {
+                                                this.bubble(at, text)
+                                            })
+                                            .on_move(cx.listener(|this, fraction: &f32, _, cx| {
+                                                let level = *fraction;
+                                                this.volume_held = true;
+                                                this.muted = None;
+                                                this.playback.update(cx, |playback, cx| {
+                                                    playback.set_volume(level, cx)
+                                                });
+                                            }))
+                                            .on_release(cx.listener(
+                                                |this, _: &MouseUpEvent, _, cx| {
+                                                    this.volume_held = false;
+                                                    cx.notify();
+                                                },
+                                            )),
+                                    ),
+                                ),
+                        ),
+                )
+            })
     }
 
     fn floating(&self, cx: &mut Context<Self>) -> impl IntoElement {

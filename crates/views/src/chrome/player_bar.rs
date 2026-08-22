@@ -18,7 +18,7 @@ use ui::{
 
 use crate::chrome::SidebarRight;
 use crate::shared::menu::ItemMenu;
-use crate::shared::transport::{like, transport};
+use crate::shared::transport::{NOTCH, like, percent, transport, volume_icon};
 
 const SEEK_MAX: f32 = 560.;
 const VOLUME_WIDTH: f32 = 110.;
@@ -26,7 +26,6 @@ const VOLUME_TIGHT: f32 = 72.;
 const CLOCK_SHORT: f32 = 3.4;
 const CLOCK_LONG: f32 = 5.4;
 const STEP: f32 = 0.004;
-const NOTCH: f32 = 0.05;
 
 pub(crate) struct PlayerBar {
     playback: Entity<Playback>,
@@ -327,19 +326,6 @@ fn moved(before: Option<f32>, after: Option<f32>) -> bool {
         (Some(before), Some(after)) => (before - after).abs() > STEP,
         (before, after) => before.is_some() != after.is_some(),
     }
-}
-
-fn volume_icon(level: f32) -> &'static str {
-    match level {
-        level if level <= 0.0001 => "icons/volume-x.svg",
-        level if level < 0.25 => "icons/volume.svg",
-        level if level < 0.5 => "icons/volume-1.svg",
-        _ => "icons/volume-2.svg",
-    }
-}
-
-fn percent(fraction: f32) -> SharedString {
-    t!("player-percent", value = (fraction * 100.).round())
 }
 
 impl Render for PlayerBar {
