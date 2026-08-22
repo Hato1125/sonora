@@ -70,6 +70,7 @@ fn take<T>(label: &str, result: anyhow::Result<Vec<T>>, problems: &mut Vec<Strin
 
 pub enum LibraryEvent {
     PlaylistGone(String),
+    TrackDropped { playlist: String, track: String },
 }
 
 pub enum LibraryState {
@@ -470,6 +471,47 @@ impl Library {
                 if let Some(ids) = this.contents.get_mut(&added) {
                     ids.insert(held);
                 }
+            },
+            cx,
+        );
+    }
+
+    pub fn remove_from_playlist(
+        &mut self,
+        playlist_id: String,
+        track_id: String,
+        cx: &mut Context<Self>,
+    ) {
+        let emptied = playlist_id.clone();
+        let dropped = track_id.clone();
+        let name = self
+            .playlist(&playlist_id)
+            .map(|playlist| playlist.name.clone());
+        self.mutate_playlist(
+            (
+                "remove track from playlist",
+                "toast-track-removed",
+                name,
+                Some(playlist_id.clone()),
+            ),
+            move |client| async move {
+                client
+                    .remove_track_from_playlist(&playlist_id, &track_id)
+                    .await
+            },
+            move |this, _, cx| {
+                this.amend_playlist(
+                    &emptied,
+                    |playlist| playlist.track_count = playlist.track_count.saturating_sub(1),
+                    cx,
+                );
+                if let Some(ids) = this.contents.get_mut(&emptied) {
+                    ids.remove(&dropped);
+                }
+                cx.emit(LibraryEvent::TrackDropped {
+                    playlist: emptied,
+                    track: dropped,
+                });
             },
             cx,
         );

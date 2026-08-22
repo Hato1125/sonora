@@ -128,7 +128,9 @@ impl DetailView {
         if section == "playlist" {
             let library = Sonora::global(cx).library.clone();
             cx.subscribe(&library, |_, _, event, cx| {
-                let LibraryEvent::PlaylistGone(id) = event;
+                let LibraryEvent::PlaylistGone(id) = event else {
+                    return;
+                };
                 let trail = router::trail(cx);
                 if trail.read(cx).current() != router::Destination::Playlist(id.clone().into()) {
                     return;

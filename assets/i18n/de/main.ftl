@@ -399,6 +399,7 @@ toast-playlist-added = Playlist zur Bibliothek hinzugefügt
 toast-playlist-removed = Playlist aus der Bibliothek entfernt
 toast-playlist-visibility = Sichtbarkeit der Playlist geändert
 toast-track-added = Zu { $name } hinzugefügt
+toast-track-removed = Aus { $name } entfernt
 toast-playlist-failed = Diese Änderung konnte nicht gespeichert werden
 toast-playlist-busy = Eine andere Änderung läuft noch
 toast-playlist-signed-out = Melde dich an, um Playlists zu ändern

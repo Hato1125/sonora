@@ -412,6 +412,7 @@ toast-playlist-added = Плейлист добавлен в медиатеку
 toast-playlist-removed = Плейлист удалён из медиатеки
 toast-playlist-visibility = Видимость плейлиста изменена
 toast-track-added = Добавлено в { $name }
+toast-track-removed = Удалено из { $name }
 toast-playlist-failed = Не удалось сохранить изменение
 toast-playlist-busy = Другое изменение ещё выполняется
 toast-playlist-signed-out = Войдите, чтобы менять плейлисты
