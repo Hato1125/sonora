@@ -220,16 +220,6 @@ impl ImageCache for ArtworkCache {
         };
 
         self.pending.remove(resource);
-        let value = match value {
-            Ok(image) => Ok(match squared(&image) {
-                Some(square) => {
-                    cx.remove_asset::<ImgResourceLoader>(resource);
-                    square
-                }
-                None => image,
-            }),
-            Err(error) => Err(error),
-        };
         self.insert(resource.clone(), value.clone(), window, cx);
         Some(value)
     }
@@ -254,37 +244,6 @@ fn blurred(image: &RenderImage) -> Option<Arc<RenderImage>> {
         .collect();
     if frames.len() != image.frame_count() {
         log::warn!("artwork: cannot soften an image");
-        return None;
-    }
-
-    Some(Arc::new(RenderImage::new(frames)))
-}
-
-fn squared(image: &RenderImage) -> Option<Arc<RenderImage>> {
-    let widest = (0..image.frame_count())
-        .map(|frame| image.size(frame))
-        .max_by_key(|size| (size.width.0 - size.height.0).abs())?;
-    if widest.width == widest.height {
-        return None;
-    }
-
-    let frames: Vec<Frame> = (0..image.frame_count())
-        .filter_map(|index| {
-            let size = image.size(index);
-            let width = size.width.0.max(0) as u32;
-            let height = size.height.0.max(0) as u32;
-            let side = width.min(height);
-            let bytes = image.as_bytes(index)?.to_vec();
-            let whole = RgbaImage::from_raw(width, height, bytes)?;
-            let cropped =
-                imageops::crop_imm(&whole, (width - side) / 2, (height - side) / 2, side, side)
-                    .to_image();
-
-            Some(Frame::from_parts(cropped, 0, 0, image.delay(index)))
-        })
-        .collect();
-    if frames.len() != image.frame_count() {
-        log::warn!("artwork: cannot crop an image to a square");
         return None;
     }
 
