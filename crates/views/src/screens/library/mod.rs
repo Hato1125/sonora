@@ -447,13 +447,7 @@ impl LibraryView {
         quantize(scroll, window);
         let visible = scroll.bounds().size.height;
 
-        Viewport {
-            top: scrolled(scroll),
-            height: match visible > Pixels::ZERO {
-                true => visible,
-                false => window.viewport_size().height,
-            },
-        }
+        Viewport::measured(scrolled(scroll), visible, window)
     }
 
     fn liked(&self, cx: &App) -> Vec<Track> {
@@ -605,13 +599,7 @@ impl LibraryView {
         }
 
         let visible = scroll.bounds().size.height;
-        let viewport = Viewport {
-            top: (scrolled(&scroll) - inset).max(Pixels::ZERO),
-            height: match visible > Pixels::ZERO {
-                true => visible,
-                false => window.viewport_size().height,
-            },
-        };
+        let viewport = Viewport::measured(scrolled(&scroll) - inset, visible, window);
         let rows = self.card_rows.clone();
         let section = self.section;
         let view = self.me.clone();

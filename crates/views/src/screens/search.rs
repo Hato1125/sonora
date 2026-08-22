@@ -418,13 +418,7 @@ impl SearchView {
         let width = cells::content_width(window, pad * 2., cx);
         let scroll = self.browsing.read(cx).scroll().clone();
         let seen = scroll.bounds().size.height;
-        let viewport = Viewport {
-            top: scrolled(&scroll),
-            height: match seen > Pixels::ZERO {
-                true => seen,
-                false => window.viewport_size().height,
-            },
-        };
+        let viewport = Viewport::measured(scrolled(&scroll), seen, window);
         let plates = shelves::grid("genre", found, width, viewport, window, cx);
 
         div()
@@ -494,13 +488,7 @@ impl SearchView {
         let row = snapped(theme.metrics.list_row, window);
         let scroll = bar.read(cx).scroll().clone();
         let seen = scroll.bounds().size.height;
-        let viewport = Viewport {
-            top: scrolled(&scroll),
-            height: match seen > Pixels::ZERO {
-                true => seen,
-                false => window.viewport_size().height,
-            },
-        };
+        let viewport = Viewport::measured(scrolled(&scroll), seen, window);
         let me = cx.entity().downgrade();
         let deck = Deck::new(format!("{id}-deck"))
             .viewport(viewport)

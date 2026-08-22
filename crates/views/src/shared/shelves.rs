@@ -134,16 +134,12 @@ impl Shelves {
     pub(crate) fn viewport(&self, scroll: &ScrollHandle, window: &Window) -> Viewport {
         let seen = scroll.bounds().size.height;
 
-        Viewport {
-            top: match self.above.get() {
-                Some(above) => (scroll.bounds().origin.y - above).max(Pixels::ZERO),
-                None => Pixels::ZERO,
-            },
-            height: match seen > Pixels::ZERO {
-                true => seen,
-                false => window.viewport_size().height,
-            },
-        }
+        let top = match self.above.get() {
+            Some(above) => scroll.bounds().origin.y - above,
+            None => Pixels::ZERO,
+        };
+
+        Viewport::measured(top, seen, window)
     }
 
     fn height(

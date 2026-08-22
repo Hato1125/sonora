@@ -409,6 +409,16 @@ pub struct Viewport {
 }
 
 impl Viewport {
+    pub fn measured(top: Pixels, height: Pixels, window: &Window) -> Self {
+        Self {
+            top: top.max(Pixels::ZERO),
+            height: match height > Pixels::ZERO {
+                true => height,
+                false => window.viewport_size().height,
+            },
+        }
+    }
+
     fn rows(&self, row: Pixels) -> usize {
         (self.height / row).ceil().max(0.) as usize + OVERSCAN
     }
