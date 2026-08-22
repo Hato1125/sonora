@@ -129,7 +129,7 @@ pub struct Playback {
     armed: Option<Duration>,
     seek_on_play: Option<Duration>,
     held: bool,
-    mending: bool,
+    awaiting_reconnect: bool,
     stored: Duration,
 }
 
@@ -203,7 +203,7 @@ impl Playback {
             armed: None,
             seek_on_play: None,
             held: false,
-            mending: false,
+            awaiting_reconnect: false,
             stored: Duration::ZERO,
         }
     }
@@ -1026,17 +1026,19 @@ impl Playback {
         cx.notify();
     }
 
-    fn mend(&mut self, cx: &mut Context<Self>) -> bool {
+    fn ask_for_reconnect(&mut self, cx: &mut Context<Self>) -> bool {
         if self.track.is_none() {
             return false;
         }
-        self.mending = self.session.update(cx, |session, cx| session.heal(cx));
-        self.mending
+        self.awaiting_reconnect = self
+            .session
+            .update(cx, |session, cx| session.reconnect_if_stale(cx));
+        self.awaiting_reconnect
     }
 
     fn rebind(&mut self, playback: Arc<dyn PlaybackFactory>, cx: &mut Context<Self>) {
-        let resume = self.state == PlaybackState::Playing || self.mending;
-        self.mending = false;
+        let resume = self.state == PlaybackState::Playing || self.awaiting_reconnect;
+        self.awaiting_reconnect = false;
         let at = self.position;
         self.task = None;
         self.engine = None;
@@ -1162,7 +1164,7 @@ impl Playback {
                 cx.emit(PlaybackEvent::EndedPlayback);
                 self.advance(ended, cx);
             }
-            BackendEvent::Unavailable if self.mend(cx) => {
+            BackendEvent::Unavailable if self.ask_for_reconnect(cx) => {
                 self.state = PlaybackState::Loading;
                 log::warn!("playback: the provider went stale, waiting for a reconnect");
             }
@@ -1217,7 +1219,7 @@ impl Playback {
             self.armed = None;
             self.seek_on_play = None;
             self.held = false;
-            self.mending = false;
+            self.awaiting_reconnect = false;
             self.stored = Duration::ZERO;
         }
         cx.notify();

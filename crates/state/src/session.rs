@@ -97,8 +97,8 @@ pub struct Session {
     local_playback: Option<Arc<dyn PlaybackFactory>>,
     local_task: Option<Task<()>>,
     watch: Option<Task<()>>,
-    mend: Option<Task<()>>,
-    mending: bool,
+    reconnect: Option<Task<()>>,
+    reconnecting: bool,
     attempt: usize,
 }
 
@@ -139,8 +139,8 @@ impl Session {
             local_playback: None,
             local_task: None,
             watch: None,
-            mend: None,
-            mending: false,
+            reconnect: None,
+            reconnecting: false,
             attempt: 0,
         };
         session.restore_local(cx);
@@ -427,8 +427,8 @@ impl Session {
     fn release(&mut self, cx: &mut Context<Self>) {
         self.task = None;
         self.watch = None;
-        self.mend = None;
-        self.mending = false;
+        self.reconnect = None;
+        self.reconnecting = false;
         self.attempt = 0;
         self.prompt_task = None;
         self.input = None;
@@ -450,7 +450,7 @@ impl Session {
             .take()
             .is_some_and(|(held, profile)| held != index || profile.id != session.profile.id);
         if replaced {
-            self.shed(cx);
+            self.drop_previous_session(cx);
         }
         self.active = Some(index);
         self.awaiting = None;
@@ -466,37 +466,40 @@ impl Session {
         self.playcounts = session.playcounts;
         self.state = SessionState::SignedIn(session.profile);
         self.attempt = 0;
-        self.guard(cx);
+        self.start_heartbeat(cx);
         cx.notify();
         cx.emit(SessionEvent::SignedIn);
     }
 
-    fn shed(&mut self, cx: &mut Context<Self>) {
+    fn drop_previous_session(&mut self, cx: &mut Context<Self>) {
         self.client = None;
         self.catalog = None;
         self.playback = None;
         self.authenticated = false;
         self.playcounts = false;
         self.watch = None;
-        self.mend = None;
-        self.mending = false;
+        self.reconnect = None;
+        self.reconnecting = false;
         self.attempt = 0;
         cx.emit(SessionEvent::SignedOut);
     }
 
-    fn guard(&mut self, cx: &mut Context<Self>) {
+    fn start_heartbeat(&mut self, cx: &mut Context<Self>) {
         self.watch = Some(cx.spawn(async move |this, cx| {
             loop {
                 cx.background_executor().timer(HEARTBEAT).await;
-                if this.update(cx, |this, cx| this.heal(cx)).is_err() {
+                if this
+                    .update(cx, |this, cx| this.reconnect_if_stale(cx))
+                    .is_err()
+                {
                     return;
                 }
             }
         }));
     }
 
-    pub fn heal(&mut self, cx: &mut Context<Self>) -> bool {
-        if self.mending {
+    pub fn reconnect_if_stale(&mut self, cx: &mut Context<Self>) -> bool {
+        if self.reconnecting {
             return true;
         }
         if !matches!(self.state, SessionState::SignedIn(_)) {
@@ -514,7 +517,7 @@ impl Session {
         };
         let wait = BACKOFF[self.attempt.min(BACKOFF.len() - 1)];
         self.attempt += 1;
-        self.mending = true;
+        self.reconnecting = true;
         log::warn!(
             "session: the {} session went stale, reconnecting in {}s",
             self.providers[active].name(),
@@ -522,11 +525,11 @@ impl Session {
         );
         let provider = self.providers[active].clone();
         let io = self.io.clone();
-        self.mend = Some(cx.spawn(async move |this, cx| {
+        self.reconnect = Some(cx.spawn(async move |this, cx| {
             cx.background_executor().timer(wait).await;
             let restored = join(io.spawn(async move { provider.restore().await })).await;
             this.update(cx, |this, cx| {
-                this.mending = false;
+                this.reconnecting = false;
                 match restored {
                     Ok(Some(session)) => this.reconnected(session, cx),
                     Ok(None) => log::warn!("session: nothing stored to reconnect with"),
