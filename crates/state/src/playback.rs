@@ -44,7 +44,7 @@ enum QueuePlacement {
 use crate::queue::Queue;
 use serde::{Deserialize, Serialize};
 
-use crate::{AppSettings, Io, Note, Session, SessionEvent, Toasts, join};
+use crate::{AppSettings, Io, Outcome, Session, SessionEvent, Toasts, join};
 
 const POSITION_INTERVAL: Duration = Duration::from_millis(500);
 const PRELOAD_BEFORE_END: Duration = Duration::from_secs(10);
@@ -349,7 +349,7 @@ impl Playback {
         }
         let name = track.name.clone();
         self.queue.update(cx, |queue, cx| queue.append(track, cx));
-        Toasts::about(Note::Done, "toast-queued-track", name, cx);
+        Toasts::about(Outcome::Done, "toast-queued-track", name, cx);
     }
 
     pub fn play_next(&mut self, track: Track, cx: &mut Context<Self>) {
@@ -359,7 +359,7 @@ impl Playback {
         }
         let name = track.name.clone();
         self.queue.update(cx, |queue, cx| queue.prepend(track, cx));
-        Toasts::about(Note::Done, "toast-next-track", name, cx);
+        Toasts::about(Outcome::Done, "toast-next-track", name, cx);
     }
 
     pub fn enqueue_all(&mut self, tracks: Vec<Track>, cx: &mut Context<Self>) {
@@ -483,12 +483,12 @@ impl Playback {
                                 QueuePlacement::Next => format!("toast-next-{source}"),
                                 QueuePlacement::End => format!("toast-queued-{source}"),
                             };
-                            Toasts::show(Note::Done, key, cx);
+                            Toasts::show(Outcome::Done, key, cx);
                         }
                     }
                     Err(error) => {
                         log::error!("playback: cannot enqueue {source}: {error:#}");
-                        Toasts::show(Note::Failed, "toast-queue-failed", cx);
+                        Toasts::show(Outcome::Failed, "toast-queue-failed", cx);
                     }
                 }
             })
@@ -1181,7 +1181,7 @@ impl Playback {
                 self.blocked_until = Some(Instant::now() + KEY_COOLDOWN);
                 self.state = PlaybackState::Idle;
                 self.position = Duration::ZERO;
-                Toasts::about(Note::Failed, "toast-track-unplayable", name, cx);
+                Toasts::about(Outcome::Failed, "toast-track-unplayable", name, cx);
                 cx.emit(PlaybackEvent::EndedPlayback);
             }
             BackendEvent::Refused => {
@@ -1254,7 +1254,7 @@ impl Playback {
             );
         }
         Toasts::about(
-            Note::Failed,
+            Outcome::Failed,
             "toast-sign-in-to-play",
             provider.to_owned(),
             cx,
@@ -1277,7 +1277,7 @@ impl Playback {
                  this session"
             );
         }
-        Toasts::show(Note::Failed, "toast-keys-refused", cx);
+        Toasts::show(Outcome::Failed, "toast-keys-refused", cx);
         cx.notify();
     }
 }

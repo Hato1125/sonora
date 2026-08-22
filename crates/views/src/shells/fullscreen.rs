@@ -35,7 +35,7 @@ const SEEK_MAX: f32 = 420.;
 const CLOCK_SHORT: f32 = 3.4;
 const CLOCK_LONG: f32 = 5.4;
 const REST: Duration = Duration::from_secs(3);
-const REARM: Duration = Duration::from_millis(400);
+const WAKE_DEBOUNCE: Duration = Duration::from_millis(400);
 
 pub struct FullscreenView {
     playback: Entity<Playback>,
@@ -122,7 +122,7 @@ impl FullscreenView {
     }
 
     fn on_mouse_move(&mut self, _: &MouseMoveEvent, _: &mut Window, cx: &mut Context<Self>) {
-        if self.awake && self.last_moved.elapsed() < REARM {
+        if self.awake && self.last_moved.elapsed() < WAKE_DEBOUNCE {
             return;
         }
         self.stir(cx);

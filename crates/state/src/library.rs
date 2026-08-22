@@ -7,7 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use gpui::{Context, Entity, Task};
 use music::{Album, MusicApi, Playlist, SavedArtist, Track};
 
-use crate::{Io, Note, Session, SessionEvent, Toasts, join, mosaic};
+use crate::{Io, Outcome, Session, SessionEvent, Toasts, join, mosaic};
 
 const PAGE_LIMIT: u32 = 10000;
 
@@ -816,12 +816,12 @@ impl Library {
         let (action, done, name, invalidated) = mutation_info;
         if self.playlist_task.is_some() {
             log::warn!("library: cannot {action} while another change is running");
-            Toasts::show(Note::Failed, "toast-playlist-busy", cx);
+            Toasts::show(Outcome::Failed, "toast-playlist-busy", cx);
             return;
         }
         let Some(client) = self.session.read(cx).client() else {
             log::warn!("library: cannot {action} while signed out");
-            Toasts::show(Note::Failed, "toast-playlist-signed-out", cx);
+            Toasts::show(Outcome::Failed, "toast-playlist-signed-out", cx);
             return;
         };
         let catalog = invalidated
@@ -841,13 +841,13 @@ impl Library {
                     Ok(outcome) => {
                         on_done(this, outcome, cx);
                         match name {
-                            Some(name) => Toasts::about(Note::Done, done, name, cx),
-                            None => Toasts::show(Note::Done, done, cx),
+                            Some(name) => Toasts::about(Outcome::Done, done, name, cx),
+                            None => Toasts::show(Outcome::Done, done, cx),
                         }
                     }
                     Err(error) => {
                         log::warn!("library: cannot {action}: {error:#}");
-                        Toasts::show(Note::Failed, "toast-playlist-failed", cx);
+                        Toasts::show(Outcome::Failed, "toast-playlist-failed", cx);
                     }
                 }
                 cx.notify();

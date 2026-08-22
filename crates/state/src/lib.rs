@@ -30,7 +30,7 @@ pub use search::{AlbumHit, ArtistHit, Hit, Kind, PlaylistHit, Search};
 pub use session::{Failure, ProviderInfo, Session, SessionEvent, SessionState};
 pub use settings::{AppSettings, SideTab};
 pub use song::SongDetail;
-pub use toast::{Note, Toast, Toasts};
+pub use toast::{Outcome, Toast, Toasts};
 
 use std::future::Future;
 use std::sync::Arc;
