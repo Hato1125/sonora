@@ -657,7 +657,7 @@ impl Library {
             if self.mosaics.contains_key(&id) {
                 continue;
             }
-            if self.holds_tracks(&id) {
+            if self.is_editable(&id) {
                 continue;
             }
 
@@ -682,7 +682,7 @@ impl Library {
         }
     }
 
-    fn uncovered(&self, id: &str) -> Option<u32> {
+    fn mosaic_stamp(&self, id: &str) -> Option<u32> {
         let LibraryState::Ready { playlists, .. } = &self.state else {
             return None;
         };
@@ -692,7 +692,7 @@ impl Library {
             .then_some(playlist.track_count)
     }
 
-    fn holds_tracks(&self, id: &str) -> bool {
+    fn is_editable(&self, id: &str) -> bool {
         let LibraryState::Ready { playlists, .. } = &self.state else {
             return false;
         };
@@ -775,7 +775,7 @@ impl Library {
                     this.reading.remove(&key);
                     match listed {
                         Ok(tracks) => {
-                            if let Some(stamp) = this.uncovered(&key) {
+                            if let Some(stamp) = this.mosaic_stamp(&key) {
                                 let covers = music::distinct_covers(&tracks, mosaic::TILES);
                                 this.paint_mosaic(key.clone(), stamp, covers, cx);
                             }

@@ -126,9 +126,9 @@ pub struct Playback {
     skipped: Option<Instant>,
     blocked_until: Option<Instant>,
     refused: Option<Refusal>,
-    armed: Option<Duration>,
+    resume_at: Option<Duration>,
     seek_on_play: Option<Duration>,
-    held: bool,
+    resume_ready: bool,
     awaiting_reconnect: bool,
     stored: Duration,
 }
@@ -200,9 +200,9 @@ impl Playback {
             skipped: None,
             blocked_until: None,
             refused: None,
-            armed: None,
+            resume_at: None,
             seek_on_play: None,
-            held: false,
+            resume_ready: false,
             awaiting_reconnect: false,
             stored: Duration::ZERO,
         }
@@ -279,9 +279,9 @@ impl Playback {
         self.state = PlaybackState::Loading;
         self.position = Duration::ZERO;
         self.preloaded = None;
-        self.armed = None;
+        self.resume_at = None;
         self.seek_on_play = None;
-        self.held = false;
+        self.resume_ready = false;
         cx.notify();
 
         let wait = self
@@ -784,12 +784,12 @@ impl Playback {
     }
 
     pub fn resume(&mut self, cx: &mut Context<Self>) {
-        if let Some(at) = self.armed {
-            if !self.held {
-                return self.rearm(at, cx);
+        if let Some(at) = self.resume_at {
+            if !self.resume_ready {
+                return self.reload_and_seek(at, cx);
             }
-            self.armed = None;
-            self.held = false;
+            self.resume_at = None;
+            self.resume_ready = false;
         }
         if let Some(engine) = self.active_engine() {
             engine.play();
@@ -797,7 +797,7 @@ impl Playback {
         }
     }
 
-    fn rearm(&mut self, at: Duration, cx: &mut Context<Self>) {
+    fn reload_and_seek(&mut self, at: Duration, cx: &mut Context<Self>) {
         let Some(track) = self.track.clone() else {
             return;
         };
@@ -808,9 +808,9 @@ impl Playback {
         self.seek_on_play = Some(at);
     }
 
-    fn hold(&mut self, cx: &mut Context<Self>) {
-        self.held = false;
-        let Some(at) = self.armed else {
+    fn prepare_resume(&mut self, cx: &mut Context<Self>) {
+        self.resume_ready = false;
+        let Some(at) = self.resume_at else {
             return;
         };
         let Some(track) = self.track.clone() else {
@@ -822,13 +822,16 @@ impl Playback {
         let Some(engine) = self.engine_for(id) else {
             return;
         };
-        match engine.arm(id, at) {
+        match engine.load_paused_at(id, at) {
             Ok(()) => {
-                self.held = true;
+                self.resume_ready = true;
                 self.state = PlaybackState::Paused;
                 self.position = at;
             }
-            Err(error) => log::warn!("playback: cannot hold {}: {error:#}", track.name),
+            Err(error) => log::warn!(
+                "playback: cannot prepare {} for resume: {error:#}",
+                track.name
+            ),
         }
         cx.notify();
     }
@@ -858,8 +861,8 @@ impl Playback {
         self.state = PlaybackState::Paused;
         self.position = at;
         self.stored = at;
-        self.armed = Some(at);
-        self.hold(cx);
+        self.resume_at = Some(at);
+        self.prepare_resume(cx);
     }
 
     fn remember(&mut self, force: bool, cx: &mut Context<Self>) {
@@ -902,9 +905,9 @@ impl Playback {
     }
 
     pub fn seek(&mut self, position: Duration, cx: &mut Context<Self>) {
-        if self.armed.is_some() {
-            self.armed = Some(position);
-            if self.held
+        if self.resume_at.is_some() {
+            self.resume_at = Some(position);
+            if self.resume_ready
                 && let Some(engine) = self.active_engine()
             {
                 engine.seek(position);
@@ -1045,7 +1048,7 @@ impl Playback {
         self.preloaded = None;
         self.blocked_until = None;
         if self.track.is_some() {
-            self.armed = Some(at);
+            self.resume_at = Some(at);
         }
         self.start_engine(playback, cx);
         if resume {
@@ -1074,7 +1077,7 @@ impl Playback {
             self.state = PlaybackState::Idle;
             self.position = Duration::ZERO;
         }
-        self.hold(cx);
+        self.prepare_resume(cx);
         cx.notify();
     }
 
@@ -1089,7 +1092,7 @@ impl Playback {
 
         self.listen(events, true, cx);
         self.local_engine = Some(engine);
-        self.hold(cx);
+        self.prepare_resume(cx);
     }
 
     fn listen(&mut self, mut events: Box<dyn PlaybackEvents>, local: bool, cx: &mut Context<Self>) {
@@ -1119,8 +1122,8 @@ impl Playback {
             return;
         }
         match event {
-            BackendEvent::Unavailable | BackendEvent::Refused if self.held => {
-                self.held = false;
+            BackendEvent::Unavailable | BackendEvent::Refused if self.resume_ready => {
+                self.resume_ready = false;
                 self.state = PlaybackState::Paused;
                 log::warn!("playback: cannot hold the restored track, waiting for play");
             }
@@ -1216,9 +1219,9 @@ impl Playback {
             self.origin = None;
             self.state = PlaybackState::Idle;
             self.position = Duration::ZERO;
-            self.armed = None;
+            self.resume_at = None;
             self.seek_on_play = None;
-            self.held = false;
+            self.resume_ready = false;
             self.awaiting_reconnect = false;
             self.stored = Duration::ZERO;
         }

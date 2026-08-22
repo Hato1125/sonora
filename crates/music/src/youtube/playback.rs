@@ -61,7 +61,7 @@ impl Player for Engine {
             .context("cannot reach playback engine")
     }
 
-    fn arm(&self, track_id: &str, at: Duration) -> Result<()> {
+    fn load_paused_at(&self, track_id: &str, at: Duration) -> Result<()> {
         self.commands
             .send(Command::Load {
                 id: track_id.to_string(),
