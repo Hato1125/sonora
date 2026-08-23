@@ -1056,7 +1056,7 @@ dependencies = [
 [[package]]
 name = "collections"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/gpui?rev=cfacee48b397de9a318ac1825833cedab7c6341a#cfacee48b397de9a318ac1825833cedab7c6341a"
+source = "git+https://github.com/nolight132/gpui?rev=878cf2458e7a18579d79ccafa8f1d3beecefd7da#878cf2458e7a18579d79ccafa8f1d3beecefd7da"
 dependencies = [
  "gpui_util",
  "indexmap",
@@ -1642,7 +1642,7 @@ dependencies = [
 [[package]]
 name = "derive_refineable"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/gpui?rev=cfacee48b397de9a318ac1825833cedab7c6341a#cfacee48b397de9a318ac1825833cedab7c6341a"
+source = "git+https://github.com/nolight132/gpui?rev=878cf2458e7a18579d79ccafa8f1d3beecefd7da#878cf2458e7a18579d79ccafa8f1d3beecefd7da"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2510,7 +2510,7 @@ dependencies = [
 [[package]]
 name = "gpui"
 version = "0.2.2"
-source = "git+https://github.com/nolight132/gpui?rev=cfacee48b397de9a318ac1825833cedab7c6341a#cfacee48b397de9a318ac1825833cedab7c6341a"
+source = "git+https://github.com/nolight132/gpui?rev=878cf2458e7a18579d79ccafa8f1d3beecefd7da#878cf2458e7a18579d79ccafa8f1d3beecefd7da"
 dependencies = [
  "accesskit",
  "anyhow",
@@ -2518,22 +2518,13 @@ dependencies = [
  "async-task",
  "bindgen",
  "bitflags 2.13.1",
- "block",
- "cbindgen",
  "chrono",
- "cocoa 0.26.0",
- "cocoa-foundation 0.2.0",
  "collections",
- "core-foundation 0.10.0",
- "core-foundation-sys",
- "core-graphics 0.24.0",
- "core-text",
  "core-video",
  "ctor",
  "derive_more",
  "embed-resource",
  "etagere",
- "foreign-types 0.5.0",
  "futures",
  "futures-concurrency",
  "getrandom 0.3.4",
@@ -2547,14 +2538,9 @@ dependencies = [
  "itertools 0.14.0",
  "log",
  "lyon",
- "mach2 0.5.0",
- "media",
- "metal",
  "num_cpus",
- "objc",
  "parking",
  "parking_lot",
- "pathfinder_geometry",
  "pin-project",
  "pollster 0.4.0",
  "postage",
@@ -2592,9 +2578,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "gpui_apple"
+version = "0.1.0"
+source = "git+https://github.com/nolight132/gpui?rev=878cf2458e7a18579d79ccafa8f1d3beecefd7da#878cf2458e7a18579d79ccafa8f1d3beecefd7da"
+dependencies = [
+ "anyhow",
+ "block",
+ "cbindgen",
+ "cocoa 0.26.0",
+ "collections",
+ "core-foundation 0.10.0",
+ "core-video",
+ "derive_more",
+ "etagere",
+ "foreign-types 0.5.0",
+ "gpui",
+ "image",
+ "log",
+ "metal",
+ "objc",
+ "parking_lot",
+]
+
+[[package]]
 name = "gpui_linux"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/gpui?rev=cfacee48b397de9a318ac1825833cedab7c6341a#cfacee48b397de9a318ac1825833cedab7c6341a"
+source = "git+https://github.com/nolight132/gpui?rev=878cf2458e7a18579d79ccafa8f1d3beecefd7da#878cf2458e7a18579d79ccafa8f1d3beecefd7da"
 dependencies = [
  "accesskit",
  "accesskit_unix",
@@ -2612,22 +2621,16 @@ dependencies = [
  "gpui_util",
  "gpui_wgpu",
  "http_client",
- "image",
- "itertools 0.14.0",
  "libc",
  "log",
  "notify-rust",
  "oo7",
  "open",
  "parking_lot",
- "pathfinder_geometry",
- "pollster 0.4.0",
- "profiling",
  "raw-window-handle",
  "smallvec",
  "smol",
  "strum",
- "swash",
  "url",
  "uuid",
  "wayland-backend",
@@ -2646,7 +2649,7 @@ dependencies = [
 [[package]]
 name = "gpui_macos"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/gpui?rev=cfacee48b397de9a318ac1825833cedab7c6341a#cfacee48b397de9a318ac1825833cedab7c6341a"
+source = "git+https://github.com/nolight132/gpui?rev=878cf2458e7a18579d79ccafa8f1d3beecefd7da#878cf2458e7a18579d79ccafa8f1d3beecefd7da"
 dependencies = [
  "accesskit",
  "accesskit_macos",
@@ -2654,21 +2657,18 @@ dependencies = [
  "async-task",
  "block",
  "block2 0.6.2",
- "cbindgen",
  "cocoa 0.26.0",
  "collections",
  "core-foundation 0.10.0",
  "core-foundation-sys",
  "core-graphics 0.24.0",
  "core-text",
- "core-video",
  "ctor",
- "derive_more",
  "dispatch2",
- "etagere",
  "foreign-types 0.5.0",
  "futures",
  "gpui",
+ "gpui_apple",
  "gpui_util",
  "image",
  "itertools 0.14.0",
@@ -2695,7 +2695,7 @@ dependencies = [
 [[package]]
 name = "gpui_macros"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/gpui?rev=cfacee48b397de9a318ac1825833cedab7c6341a#cfacee48b397de9a318ac1825833cedab7c6341a"
+source = "git+https://github.com/nolight132/gpui?rev=878cf2458e7a18579d79ccafa8f1d3beecefd7da#878cf2458e7a18579d79ccafa8f1d3beecefd7da"
 dependencies = [
  "heck 0.5.0",
  "proc-macro2",
@@ -2706,7 +2706,7 @@ dependencies = [
 [[package]]
 name = "gpui_platform"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/gpui?rev=cfacee48b397de9a318ac1825833cedab7c6341a#cfacee48b397de9a318ac1825833cedab7c6341a"
+source = "git+https://github.com/nolight132/gpui?rev=878cf2458e7a18579d79ccafa8f1d3beecefd7da#878cf2458e7a18579d79ccafa8f1d3beecefd7da"
 dependencies = [
  "gpui",
  "gpui_linux",
@@ -2717,7 +2717,7 @@ dependencies = [
 [[package]]
 name = "gpui_shared_string"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/gpui?rev=cfacee48b397de9a318ac1825833cedab7c6341a#cfacee48b397de9a318ac1825833cedab7c6341a"
+source = "git+https://github.com/nolight132/gpui?rev=878cf2458e7a18579d79ccafa8f1d3beecefd7da#878cf2458e7a18579d79ccafa8f1d3beecefd7da"
 dependencies = [
  "schemars",
  "serde",
@@ -2727,7 +2727,7 @@ dependencies = [
 [[package]]
 name = "gpui_util"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/gpui?rev=cfacee48b397de9a318ac1825833cedab7c6341a#cfacee48b397de9a318ac1825833cedab7c6341a"
+source = "git+https://github.com/nolight132/gpui?rev=878cf2458e7a18579d79ccafa8f1d3beecefd7da#878cf2458e7a18579d79ccafa8f1d3beecefd7da"
 dependencies = [
  "anyhow",
  "log",
@@ -2737,7 +2737,7 @@ dependencies = [
 [[package]]
 name = "gpui_wgpu"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/gpui?rev=cfacee48b397de9a318ac1825833cedab7c6341a#cfacee48b397de9a318ac1825833cedab7c6341a"
+source = "git+https://github.com/nolight132/gpui?rev=878cf2458e7a18579d79ccafa8f1d3beecefd7da#878cf2458e7a18579d79ccafa8f1d3beecefd7da"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -2747,18 +2747,14 @@ dependencies = [
  "gpui",
  "gpui_util",
  "itertools 0.14.0",
- "js-sys",
  "log",
  "parking_lot",
- "pollster 0.4.0",
  "profiling",
  "raw-window-handle",
  "smallvec",
  "swash",
  "unicode-bidi",
  "unicode-segmentation",
- "wasm-bindgen",
- "wasm-bindgen-futures",
  "web-sys",
  "wgpu",
  "zed-font-kit",
@@ -2767,7 +2763,7 @@ dependencies = [
 [[package]]
 name = "gpui_windows"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/gpui?rev=cfacee48b397de9a318ac1825833cedab7c6341a#cfacee48b397de9a318ac1825833cedab7c6341a"
+source = "git+https://github.com/nolight132/gpui?rev=878cf2458e7a18579d79ccafa8f1d3beecefd7da#878cf2458e7a18579d79ccafa8f1d3beecefd7da"
 dependencies = [
  "accesskit",
  "accesskit_windows",
@@ -3021,7 +3017,7 @@ dependencies = [
 [[package]]
 name = "http_client"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/gpui?rev=cfacee48b397de9a318ac1825833cedab7c6341a#cfacee48b397de9a318ac1825833cedab7c6341a"
+source = "git+https://github.com/nolight132/gpui?rev=878cf2458e7a18579d79ccafa8f1d3beecefd7da#878cf2458e7a18579d79ccafa8f1d3beecefd7da"
 dependencies = [
  "anyhow",
  "async-compression",
@@ -3155,7 +3151,7 @@ dependencies = [
 
 [[package]]
 name = "i18n"
-version = "0.16.1"
+version = "0.16.2"
 dependencies = [
  "fluent-bundle",
  "gpui",
@@ -3366,7 +3362,7 @@ dependencies = [
 
 [[package]]
 name = "input"
-version = "0.16.1"
+version = "0.16.2"
 dependencies = [
  "gpui",
  "ui",
@@ -4073,13 +4069,12 @@ dependencies = [
 [[package]]
 name = "media"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/gpui?rev=cfacee48b397de9a318ac1825833cedab7c6341a#cfacee48b397de9a318ac1825833cedab7c6341a"
+source = "git+https://github.com/nolight132/gpui?rev=878cf2458e7a18579d79ccafa8f1d3beecefd7da#878cf2458e7a18579d79ccafa8f1d3beecefd7da"
 dependencies = [
  "anyhow",
  "bindgen",
  "core-foundation 0.10.0",
  "core-video",
- "ctor",
  "foreign-types 0.5.0",
  "metal",
  "objc",
@@ -4189,7 +4184,7 @@ dependencies = [
 
 [[package]]
 name = "music"
-version = "0.16.1"
+version = "0.16.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -5017,7 +5012,7 @@ checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 [[package]]
 name = "perf"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/gpui?rev=cfacee48b397de9a318ac1825833cedab7c6341a#cfacee48b397de9a318ac1825833cedab7c6341a"
+source = "git+https://github.com/nolight132/gpui?rev=878cf2458e7a18579d79ccafa8f1d3beecefd7da#878cf2458e7a18579d79ccafa8f1d3beecefd7da"
 dependencies = [
  "collections",
  "serde",
@@ -5826,7 +5821,7 @@ dependencies = [
 [[package]]
 name = "refineable"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/gpui?rev=cfacee48b397de9a318ac1825833cedab7c6341a#cfacee48b397de9a318ac1825833cedab7c6341a"
+source = "git+https://github.com/nolight132/gpui?rev=878cf2458e7a18579d79ccafa8f1d3beecefd7da#878cf2458e7a18579d79ccafa8f1d3beecefd7da"
 dependencies = [
  "derive_refineable",
 ]
@@ -5976,7 +5971,7 @@ dependencies = [
 
 [[package]]
 name = "router"
-version = "0.16.1"
+version = "0.16.2"
 dependencies = [
  "gpui",
  "ui",
@@ -6258,7 +6253,7 @@ dependencies = [
 [[package]]
 name = "scheduler"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/gpui?rev=cfacee48b397de9a318ac1825833cedab7c6341a#cfacee48b397de9a318ac1825833cedab7c6341a"
+source = "git+https://github.com/nolight132/gpui?rev=878cf2458e7a18579d79ccafa8f1d3beecefd7da#878cf2458e7a18579d79ccafa8f1d3beecefd7da"
 dependencies = [
  "async-task",
  "backtrace",
@@ -6709,7 +6704,7 @@ dependencies = [
 
 [[package]]
 name = "sonora"
-version = "0.16.1"
+version = "0.16.2"
 dependencies = [
  "anyhow",
  "dirs",
@@ -6838,7 +6833,7 @@ dependencies = [
 
 [[package]]
 name = "state"
-version = "0.16.1"
+version = "0.16.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6909,7 +6904,7 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 [[package]]
 name = "sum_tree"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/gpui?rev=cfacee48b397de9a318ac1825833cedab7c6341a#cfacee48b397de9a318ac1825833cedab7c6341a"
+source = "git+https://github.com/nolight132/gpui?rev=878cf2458e7a18579d79ccafa8f1d3beecefd7da#878cf2458e7a18579d79ccafa8f1d3beecefd7da"
 dependencies = [
  "heapless",
  "log",
@@ -7857,7 +7852,7 @@ dependencies = [
 
 [[package]]
 name = "ui"
-version = "0.16.1"
+version = "0.16.2"
 dependencies = [
  "gpui",
  "i18n",
@@ -8042,7 +8037,7 @@ checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
 [[package]]
 name = "util_macros"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/gpui?rev=cfacee48b397de9a318ac1825833cedab7c6341a#cfacee48b397de9a318ac1825833cedab7c6341a"
+source = "git+https://github.com/nolight132/gpui?rev=878cf2458e7a18579d79ccafa8f1d3beecefd7da#878cf2458e7a18579d79ccafa8f1d3beecefd7da"
 dependencies = [
  "perf",
  "quote",
@@ -8167,7 +8162,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "views"
-version = "0.16.1"
+version = "0.16.2"
 dependencies = [
  "gpui",
  "i18n",
@@ -9600,7 +9595,7 @@ dependencies = [
 [[package]]
 name = "zlog"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/gpui?rev=cfacee48b397de9a318ac1825833cedab7c6341a#cfacee48b397de9a318ac1825833cedab7c6341a"
+source = "git+https://github.com/nolight132/gpui?rev=878cf2458e7a18579d79ccafa8f1d3beecefd7da#878cf2458e7a18579d79ccafa8f1d3beecefd7da"
 dependencies = [
  "anyhow",
  "chrono",
@@ -9617,7 +9612,7 @@ checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
 [[package]]
 name = "ztracing"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/gpui?rev=cfacee48b397de9a318ac1825833cedab7c6341a#cfacee48b397de9a318ac1825833cedab7c6341a"
+source = "git+https://github.com/nolight132/gpui?rev=878cf2458e7a18579d79ccafa8f1d3beecefd7da#878cf2458e7a18579d79ccafa8f1d3beecefd7da"
 dependencies = [
  "tracing",
  "tracing-subscriber",
@@ -9628,7 +9623,7 @@ dependencies = [
 [[package]]
 name = "ztracing_macro"
 version = "0.1.0"
-source = "git+https://github.com/nolight132/gpui?rev=cfacee48b397de9a318ac1825833cedab7c6341a#cfacee48b397de9a318ac1825833cedab7c6341a"
+source = "git+https://github.com/nolight132/gpui?rev=878cf2458e7a18579d79ccafa8f1d3beecefd7da#878cf2458e7a18579d79ccafa8f1d3beecefd7da"
 
 [[package]]
 name = "zune-core"

@@ -7,10 +7,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.16.2] - 2026-08-23
+
+### Added
+
+- Fullscreen controls fade away after a few seconds without mouse or keyboard activity, leaving
+  only the cover, the track title and artists, and the lyrics or queue panel; the cover grows into
+  the freed space. Any activity brings them back.
+
 ### Changed
 
 - Track tables start out with roomier title, artist and album columns, so a fresh install needs
   less dragging before it reads well.
+- In fullscreen, the cover column and the lyrics or queue panel now split the window evenly, with
+  the same spacing between them as around them.
 
 ## [0.16.1] - 2026-08-22
 
@@ -577,7 +587,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Initial release: a native Spotify client with playback, an interactive queue, the saved library,
 search, album, playlist, artist and song pages, context menus and adaptive theming.
 
-[unreleased]: https://github.com/nolight132/sonora/compare/v0.16.1...HEAD
+[unreleased]: https://github.com/nolight132/sonora/compare/v0.16.2...HEAD
+[0.16.2]: https://github.com/nolight132/sonora/compare/v0.16.1...v0.16.2
 [0.16.1]: https://github.com/nolight132/sonora/compare/v0.16.0...v0.16.1
 [0.16.0]: https://github.com/nolight132/sonora/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/nolight132/sonora/compare/v0.14.0...v0.15.0
