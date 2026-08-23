@@ -7,6 +7,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- The About the artist dialog now shows the full biography in a scrollable pane that fades out at
+  the bottom, instead of only the artist's name.
+- Dialogs no longer spill past the window on narrow viewports; they always keep a margin from the
+  edges.
+
 ## [0.16.2] - 2026-08-23
 
 ### Added
