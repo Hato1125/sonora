@@ -16,6 +16,7 @@ use ui::{
 };
 
 use crate::chrome::{Chrome, section_label};
+use crate::shared::effects;
 use crate::shared::menu::ItemMenu;
 
 const QUEUE: &str = "queue";
@@ -26,11 +27,6 @@ const PAST: f32 = 0.4;
 const PINNED_SHARE: f32 = 0.25;
 const PIN: f32 = 0.3;
 const SETTLE: std::time::Duration = std::time::Duration::from_secs(4);
-
-fn effects() -> bool {
-    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *ON.get_or_init(|| std::env::var("SONORA_BLUR").as_deref() != Ok("0"))
-}
 
 fn track(queue: &Queue, position: QueuePosition) -> Option<Track> {
     match position {
