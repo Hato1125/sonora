@@ -2,8 +2,9 @@ use std::time::{Duration, Instant};
 
 use gpui::prelude::*;
 use gpui::{
-    AnyView, App, Context, Entity, FocusHandle, MouseButton, MouseDownEvent, MouseMoveEvent,
-    MouseUpEvent, Pixels, Point, Render, ScrollWheelEvent, SharedString, Task,
+    AnyView, App, Context, Entity, FocusHandle, KeyDownEvent, MouseButton, MouseDownEvent,
+    MouseMoveEvent, MouseUpEvent, Pixels, Point, Render, ScrollWheelEvent, SharedString, Task,
+    ease_in_out,
 };
 use gpui::{Window, div, px, relative};
 use i18n::t;
@@ -24,10 +25,17 @@ const COVER_TALL: f32 = 0.46;
 const COVER_WIDE: f32 = 0.34;
 const COVER_TALL_TIGHT: f32 = 0.6;
 const COVER_WIDE_TIGHT: f32 = 0.86;
+const COVER_TALL_REST: f32 = 0.56;
+const COVER_WIDE_REST: f32 = 0.4;
+const COVER_TALL_TIGHT_REST: f32 = 0.72;
 const COVER_MIN: f32 = 96.;
 const COVER_MAX: f32 = 520.;
+const COVER_MAX_REST: f32 = 560.;
 const RESERVE: f32 = 2.9;
-const PANEL: f32 = 460.;
+const RESERVE_REST: f32 = 1.3;
+const DOCK: f32 = 1.15;
+const DOCK_FULL: f32 = 1.7;
+const SINK: f32 = 24.;
 const PILL_GAP: f32 = 2.;
 const FROST: f32 = 16.;
 const FROSTED: f32 = 0.5;
@@ -36,7 +44,7 @@ const VOLUME_RISE: f32 = 132.;
 const VOLUME_ZONE: f32 = 14.;
 const CLOCK_SHORT: f32 = 3.4;
 const CLOCK_LONG: f32 = 5.4;
-const REST: Duration = Duration::from_secs(3);
+const REST: Duration = Duration::from_millis(1500);
 const WAKE_DEBOUNCE: Duration = Duration::from_millis(400);
 
 pub struct FullscreenView {
@@ -59,6 +67,8 @@ pub struct FullscreenView {
     context_menu: Option<(music::Track, Point<Pixels>)>,
     last_moved: Instant,
     awake: bool,
+    hidden_from: f32,
+    turned: Instant,
     rest: Option<Task<()>>,
     focus: FocusHandle,
 }
@@ -75,7 +85,7 @@ impl FullscreenView {
         cx.observe(&aside, |_, _, cx| cx.notify()).detach();
         let playlist_scrollbar = cx.new(|_| Scrollbar::inset());
 
-        Self {
+        let mut this = Self {
             playback,
             queue,
             cover,
@@ -95,9 +105,13 @@ impl FullscreenView {
             context_menu: None,
             last_moved: Instant::now(),
             awake: true,
+            hidden_from: 0.,
+            turned: Instant::now(),
             rest: None,
             focus: cx.focus_handle(),
-        }
+        };
+        this.stir(cx);
+        this
     }
 
     pub fn focus(&self, window: &mut Window, cx: &mut App) {
@@ -114,7 +128,7 @@ impl FullscreenView {
 
     fn stir(&mut self, cx: &mut Context<Self>) {
         if !self.awake {
-            self.awake = true;
+            self.flip(true);
             cx.notify();
         }
         self.last_moved = Instant::now();
@@ -124,18 +138,61 @@ impl FullscreenView {
                 if this.last_moved.elapsed() < REST {
                     return;
                 }
-                this.awake = false;
+                if this.busy() {
+                    this.stir(cx);
+                    return;
+                }
+                this.flip(false);
                 cx.notify();
             })
             .ok();
         }));
     }
 
-    fn on_mouse_move(&mut self, _: &MouseMoveEvent, _: &mut Window, cx: &mut Context<Self>) {
+    fn poke(&mut self, cx: &mut Context<Self>) {
         if self.awake && self.last_moved.elapsed() < WAKE_DEBOUNCE {
             return;
         }
         self.stir(cx);
+    }
+
+    fn busy(&self) -> bool {
+        self.volume_open() || self.pending.is_some() || self.context_menu.is_some()
+    }
+
+    fn flip(&mut self, awake: bool) {
+        if self.awake == awake {
+            return;
+        }
+        self.hidden_from = self.hidden_now();
+        self.awake = awake;
+        self.turned = Instant::now();
+    }
+
+    fn hidden_now(&self) -> f32 {
+        let span = Motion::Slow.span().as_secs_f32().max(f32::EPSILON);
+        let progress = (self.turned.elapsed().as_secs_f32() / span).clamp(0., 1.);
+        let target = match self.awake {
+            true => 0.,
+            false => 1.,
+        };
+
+        self.hidden_from + (target - self.hidden_from) * ease_in_out(progress)
+    }
+
+    fn hidden(&self, window: &mut Window, cx: &App) -> f32 {
+        let target = match self.awake {
+            true => 0.,
+            false => 1.,
+        };
+        if cx.reduce_motion() {
+            return target;
+        }
+        let span = Motion::Slow.span().as_secs_f32().max(f32::EPSILON);
+        if self.hidden_from != target && self.turned.elapsed().as_secs_f32() < span {
+            window.request_animation_frame();
+        }
+        self.hidden_now()
     }
 
     fn volume_open(&self) -> bool {
@@ -220,7 +277,7 @@ impl FullscreenView {
             })
     }
 
-    fn meta(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn meta(&self, hide: f32, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
         let track = self.playback.read(cx).track().cloned();
         let title = match &track {
@@ -272,7 +329,18 @@ impl FullscreenView {
                             )
                             .child(title),
                     )
-                    .child(like(track.clone(), cx)),
+                    .child(match hide < 1. {
+                        true => div()
+                            .flex()
+                            .flex_none()
+                            .opacity(1. - hide)
+                            .child(like(track.clone(), cx))
+                            .into_any_element(),
+                        false => div()
+                            .w(theme.metrics.control_small)
+                            .flex_none()
+                            .into_any_element(),
+                    }),
             )
             .when_some(track, |this, track| {
                 this.child(
@@ -293,7 +361,7 @@ impl FullscreenView {
             })
     }
 
-    fn strip(&self, window: &Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn strip(&self, hide: f32, window: &Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
         let cover = ui::snapped(theme.metrics.row, window);
         let track = self.playback.read(cx).track().cloned();
@@ -343,7 +411,15 @@ impl FullscreenView {
                                     })
                                     .child(title),
                             )
-                            .child(like(track.clone(), cx)),
+                            .when(hide < 1., |this| {
+                                this.child(
+                                    div()
+                                        .flex()
+                                        .flex_none()
+                                        .opacity(1. - hide)
+                                        .child(like(track.clone(), cx)),
+                                )
+                            }),
                     )
                     .when_some(track, |this, track| {
                         this.child(
@@ -427,7 +503,7 @@ impl FullscreenView {
             .w_full()
             .max_w(px(SEEK_MAX))
             .flex_none()
-            .when(inline, |this| this.child(self.pill(false, cx)))
+            .when(inline, |this| this.child(self.pill(cx)))
             .child(self.seek(cx))
             .child(
                 div()
@@ -449,13 +525,32 @@ impl FullscreenView {
             )
     }
 
-    fn pill(&self, fading: bool, cx: &mut Context<Self>) -> impl IntoElement {
+    fn dock(&self, cap: Pixels, hide: f32, cx: &mut Context<Self>) -> impl IntoElement {
+        div()
+            .flex()
+            .flex_none()
+            .w_full()
+            .justify_center()
+            .when(hide > 0., |this| {
+                this.max_h(cap * (1. - hide))
+                    .overflow_hidden()
+                    .opacity(1. - hide)
+            })
+            .when(hide < 1., |this| {
+                this.child(
+                    div()
+                        .w_full()
+                        .flex()
+                        .justify_center()
+                        .top(px(SINK) * hide)
+                        .child(self.controls(cx)),
+                )
+            })
+    }
+
+    fn pill(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
         let gap = px(PILL_GAP);
-        let (from, to) = match self.awake || !fading {
-            true => (0., 1.),
-            false => (1., 0.),
-        };
         let tab = move |id: &'static str, icon: &'static str, hint: &'static str, panel| {
             let showing = self.panel == panel;
 
@@ -502,11 +597,6 @@ impl FullscreenView {
                 "queue-title",
                 Some(SideTab::Queue),
             ))
-            .motion(
-                ("pill", usize::from(self.awake || !fading)),
-                Motion::Base,
-                move |pill, t| pill.opacity(from + (to - from) * t),
-            )
     }
 
     fn sound(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -618,7 +708,7 @@ impl FullscreenView {
             })
     }
 
-    fn floating(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn floating(&self, hide: f32, cx: &mut Context<Self>) -> impl IntoElement {
         div()
             .absolute()
             .bottom_3()
@@ -630,7 +720,9 @@ impl FullscreenView {
                     .flex()
                     .flex_none()
                     .block_mouse_except_scroll()
-                    .child(self.pill(true, cx)),
+                    .opacity(1. - hide)
+                    .top(px(SINK) * hide)
+                    .child(self.pill(cx)),
             )
     }
 
@@ -679,19 +771,37 @@ impl Render for FullscreenView {
         let viewport = window.viewport_size();
         let room = Room::of(viewport.width);
         let split = room.fits(Room::Wide) && self.panel.is_some();
-        let reserve = theme.metrics.title_bar + theme.metrics.player_bar * RESERVE;
-        let (tall, wide, ceiling) = match room.fits(Room::Wide) {
-            true => (COVER_TALL, COVER_WIDE, px(COVER_MAX)),
-            false => (COVER_TALL_TIGHT, COVER_WIDE_TIGHT, viewport.width),
+        let hide = self.hidden(window, cx);
+        let shown = hide < 1.;
+        let (tall, wide, ceiling, tall_rest, wide_rest, ceiling_rest) = match room.fits(Room::Wide)
+        {
+            true => (
+                COVER_TALL,
+                COVER_WIDE,
+                px(COVER_MAX),
+                COVER_TALL_REST,
+                COVER_WIDE_REST,
+                px(COVER_MAX_REST),
+            ),
+            false => (
+                COVER_TALL_TIGHT,
+                COVER_WIDE_TIGHT,
+                viewport.width,
+                COVER_TALL_TIGHT_REST,
+                COVER_WIDE_TIGHT,
+                viewport.width,
+            ),
         };
-        let side = snapped(
+        let fit = |tall: f32, wide: f32, reserve: f32, ceiling: Pixels| {
             (viewport.height * tall)
-                .min(viewport.height - reserve)
+                .min(viewport.height - theme.metrics.title_bar - theme.metrics.player_bar * reserve)
                 .min(viewport.width * wide)
                 .min(ceiling)
-                .max(px(COVER_MIN)),
-            window,
-        );
+                .max(px(COVER_MIN))
+        };
+        let near = fit(tall, wide, RESERVE, ceiling);
+        let far = fit(tall_rest, wide_rest, RESERVE_REST, ceiling_rest);
+        let side = snapped(near + (far - near) * hide, window);
         let staged = self.panel.is_none() || split;
 
         div()
@@ -708,7 +818,10 @@ impl Render for FullscreenView {
             .px_8()
             .pb_6()
             .bg(theme.background)
-            .on_mouse_move(cx.listener(Self::on_mouse_move))
+            .on_mouse_move(cx.listener(|this, _: &MouseMoveEvent, _, cx| this.poke(cx)))
+            .on_any_mouse_down(cx.listener(|this, _: &MouseDownEvent, _, cx| this.poke(cx)))
+            .on_scroll_wheel(cx.listener(|this, _: &ScrollWheelEvent, _, cx| this.poke(cx)))
+            .on_key_down(cx.listener(|this, _: &KeyDownEvent, _, cx| this.poke(cx)))
             .child(
                 div()
                     .relative()
@@ -717,7 +830,7 @@ impl Render for FullscreenView {
                     .min_h_0()
                     .w_full()
                     .items_center()
-                    .justify_center()
+                    .justify_between()
                     .gap_8()
                     .when(staged, |this| {
                         this.child(
@@ -734,8 +847,10 @@ impl Render for FullscreenView {
                                     |this| this.w_full(),
                                 )
                                 .child(self.artwork(side, cx))
-                                .child(self.meta(cx))
-                                .when(split, |this| this.child(self.controls(cx))),
+                                .child(self.meta(hide, cx))
+                                .when(split, |this| {
+                                    this.child(self.dock(theme.metrics.player_bar * DOCK, hide, cx))
+                                }),
                         )
                     })
                     .when(self.panel.is_some(), |this| {
@@ -748,25 +863,27 @@ impl Render for FullscreenView {
                                 .min_w_0()
                                 .min_h_0()
                                 .h_full()
-                                .when(split, |this| this.max_w(px(PANEL)))
                                 .child(self.aside.clone())
-                                .child(self.floating(cx)),
+                                .when(shown, |this| this.child(self.floating(hide, cx))),
                         )
                     }),
             )
             .when(!split && self.panel.is_some(), |this| {
-                this.child(self.strip(window, cx))
+                this.child(self.strip(hide, window, cx))
             })
             .when(!split, |this| {
+                this.child(self.dock(theme.metrics.player_bar * DOCK_FULL, hide, cx))
+            })
+            .when(shown, |this| {
                 this.child(
                     div()
-                        .flex()
-                        .w_full()
-                        .justify_center()
-                        .child(self.controls(cx)),
+                        .absolute()
+                        .top(px(SINK) * -hide)
+                        .right_3()
+                        .opacity(1. - hide)
+                        .child(self.leave()),
                 )
             })
-            .child(div().absolute().top_0().right_3().child(self.leave()))
             .children(self.menu(cx))
     }
 }
