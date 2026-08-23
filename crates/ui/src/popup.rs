@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use gpui::prelude::*;
-use gpui::{App, MouseButton, Pixels, Point, Window, anchored, px};
+use gpui::{App, MouseButton, Pixels, Point, StyleRefinement, Window, anchored, px};
 
 use crate::menu::Menu;
 
@@ -28,6 +28,12 @@ impl Popup {
     pub fn on_close(mut self, handler: impl Fn(&(), &mut Window, &mut App) + 'static) -> Self {
         self.close = Some(Box::new(handler));
         self
+    }
+}
+
+impl Styled for Popup {
+    fn style(&mut self) -> &mut StyleRefinement {
+        self.menu.style()
     }
 }
 

@@ -1,5 +1,5 @@
 use gpui::prelude::*;
-use gpui::{App, Hsla, Pixels, SharedString, Window, px};
+use gpui::{App, Hsla, Pixels, SharedString, StyleRefinement, Window, px};
 
 use crate::button::Button;
 use crate::menu::{Menu, MenuItem};
@@ -15,6 +15,7 @@ enum Face {
 
 #[derive(IntoElement)]
 pub struct Picker {
+    style: StyleRefinement,
     key: &'static str,
     group: Popovers,
     face: Face,
@@ -35,6 +36,7 @@ impl Picker {
 
     pub fn new(key: &'static str, group: &Popovers, current: impl Into<SharedString>) -> Self {
         Self {
+            style: StyleRefinement::default(),
             key,
             group: group.clone(),
             face: Face::Label(current.into()),
@@ -102,9 +104,16 @@ impl Picker {
     }
 }
 
+impl Styled for Picker {
+    fn style(&mut self) -> &mut StyleRefinement {
+        &mut self.style
+    }
+}
+
 impl RenderOnce for Picker {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
         let Self {
+            style,
             key,
             group,
             face,
@@ -144,9 +153,11 @@ impl RenderOnce for Picker {
             .top(drop)
             .when_else(left, |menu| menu.left_0(), |menu| menu.right_0());
 
-        Popover::new(key, group)
+        let mut popover = Popover::new(key, group)
             .button(button)
             .menu(menu)
-            .when(!sticky, Popover::commands)
+            .when(!sticky, Popover::commands);
+        *popover.style() = style;
+        popover
     }
 }

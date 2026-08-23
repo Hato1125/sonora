@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use gpui::prelude::*;
-use gpui::{App, Div, Window, div};
+use gpui::{App, Div, StyleRefinement, Window, div};
 
 use crate::button::Button;
 use crate::menu::{Menu, Trigger};
@@ -38,6 +38,7 @@ impl Popovers {
 
 #[derive(IntoElement)]
 pub struct Popover {
+    base: Div,
     key: &'static str,
     group: Popovers,
     button: Option<Button>,
@@ -48,6 +49,7 @@ pub struct Popover {
 impl Popover {
     pub fn new(key: &'static str, group: Popovers) -> Self {
         Self {
+            base: div(),
             key,
             group,
             button: None,
@@ -72,15 +74,23 @@ impl Popover {
     }
 }
 
+impl Styled for Popover {
+    fn style(&mut self) -> &mut StyleRefinement {
+        self.base.style()
+    }
+}
+
 impl RenderOnce for Popover {
     fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
         let Self {
+            mut base,
             key,
             group,
             button,
             menu,
             commands,
         } = self;
+        let overrides = std::mem::take(base.style());
 
         let open = group.shows(key);
         let trigger = group.trigger(key);
@@ -110,7 +120,9 @@ impl RenderOnce for Popover {
                 })
         });
 
-        div().relative().children(head).children(body)
+        let mut popover = base.relative().children(head).children(body);
+        popover.style().refine(&overrides);
+        popover
     }
 }
 

@@ -5,8 +5,9 @@ use std::rc::Rc;
 
 use gpui::prelude::*;
 use gpui::{
-    App, Bounds, DragMoveEvent, Empty, Hsla, MouseButton, MouseDownEvent, MouseUpEvent, Pixels,
-    Point, Render, SharedString, Window, canvas, div, px, relative,
+    App, Bounds, Div, DragMoveEvent, ElementId, Empty, Hsla, MouseButton, MouseDownEvent,
+    MouseUpEvent, Pixels, Point, Render, SharedString, Stateful, StyleRefinement, Window, canvas,
+    div, px, relative,
 };
 
 const TRACK: f32 = 0.5;
@@ -81,6 +82,7 @@ impl ScrubberState {
 
 #[derive(IntoElement)]
 pub struct Scrubber {
+    base: Stateful<Div>,
     id: SharedString,
     bounds: Rc<Cell<Bounds<Pixels>>>,
     fraction: f32,
@@ -98,6 +100,7 @@ pub struct Scrubber {
 impl Scrubber {
     pub fn new(state: &ScrubberState, fraction: f32) -> Self {
         Self {
+            base: div().id(ElementId::Name(state.id.clone())),
             id: state.id.clone(),
             bounds: state.bounds.clone(),
             fraction: fraction.clamp(0., 1.),
@@ -154,6 +157,12 @@ impl Scrubber {
     }
 }
 
+impl Styled for Scrubber {
+    fn style(&mut self) -> &mut StyleRefinement {
+        self.base.style()
+    }
+}
+
 impl RenderOnce for Scrubber {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let pad = cx.theme().metrics.pad;
@@ -167,6 +176,7 @@ impl RenderOnce for Scrubber {
         let text_size = cx.theme().text(Text::Tiny);
 
         let Self {
+            mut base,
             id,
             bounds,
             fraction,
@@ -180,6 +190,7 @@ impl RenderOnce for Scrubber {
             on_move,
             on_release,
         } = self;
+        let overrides = std::mem::take(base.style());
 
         let state = Rc::new(ScrubberState {
             id: id.clone(),
@@ -363,8 +374,7 @@ impl RenderOnce for Scrubber {
                 }),
         };
 
-        div()
-            .id(gpui::ElementId::Name(id.clone()))
+        let mut scrubber = base
             .relative()
             .flex()
             .when_else(
@@ -385,7 +395,9 @@ impl RenderOnce for Scrubber {
                     .on_mouse_up(MouseButton::Left, released.clone())
                     .on_mouse_up_out(MouseButton::Left, released)
             })
-            .child(bar)
+            .child(bar);
+        scrubber.style().refine(&overrides);
+        scrubber
     }
 }
 

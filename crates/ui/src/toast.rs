@@ -1,6 +1,7 @@
 use gpui::prelude::*;
 use gpui::{
-    App, ClickEvent, Div, ElementId, FontWeight, Pixels, SharedString, Window, div, px, svg,
+    App, ClickEvent, Div, ElementId, FontWeight, Pixels, SharedString, Stateful, StyleRefinement,
+    Window, div, px, svg,
 };
 
 use crate::button::Button;
@@ -14,7 +15,7 @@ type Press = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 
 #[derive(IntoElement)]
 pub struct Toast {
-    id: ElementId,
+    base: Stateful<Div>,
     message: SharedString,
     strong: Option<SharedString>,
     failed: bool,
@@ -25,7 +26,7 @@ impl Toast {
     #[track_caller]
     pub fn new(id: impl Into<ElementId>, message: impl Into<SharedString>) -> Self {
         Self {
-            id: id.into(),
+            base: div().id(id),
             message: message.into(),
             strong: None,
             failed: false,
@@ -52,10 +53,16 @@ impl Toast {
     }
 }
 
+impl Styled for Toast {
+    fn style(&mut self) -> &mut StyleRefinement {
+        self.base.style()
+    }
+}
+
 impl RenderOnce for Toast {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
         let Self {
-            id,
+            mut base,
             message,
             strong,
             failed,
@@ -67,9 +74,9 @@ impl RenderOnce for Toast {
             true => (theme.danger, "icons/circle-alert.svg"),
             false => (theme.primary, "icons/circle-check.svg"),
         };
+        let overrides = std::mem::take(base.style());
 
-        div()
-            .id(id)
+        let mut toast = base
             .flex()
             .items_center()
             .justify_between()
@@ -101,7 +108,9 @@ impl RenderOnce for Toast {
                     .icon("icons/x.svg")
                     .tooltip("common-dismiss")
                     .on_click(move |event, window, cx| dismiss(event, window, cx))
-            }))
+            }));
+        toast.style().refine(&overrides);
+        toast
     }
 }
 
