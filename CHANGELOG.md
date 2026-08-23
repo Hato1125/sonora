@@ -13,6 +13,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the bottom, instead of only the artist's name.
 - Dialogs no longer spill past the window on narrow viewports; they always keep a margin from the
   edges.
+- Synced lyrics hold the first and last line at the same follow position as every other line,
+  instead of leaving them stuck at the top or the bottom of the panel.
 
 ## [0.16.2] - 2026-08-23
 
