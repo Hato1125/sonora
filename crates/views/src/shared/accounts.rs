@@ -55,7 +55,7 @@ impl RenderOnce for AccountPicker {
         let dismissed = cancel.clone();
 
         Modal::new("account-picker", t!("login-account-title"))
-            .width(px(440.))
+            .w(px(440.))
             .detail(t!("login-account-detail"))
             .child(
                 div()

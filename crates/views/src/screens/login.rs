@@ -301,7 +301,7 @@ impl LoginView {
 
     fn secret_prompt(&self, cx: &mut Context<Self>) -> impl IntoElement {
         Modal::new("cookie-prompt", t!("login-cookie-title"))
-            .width(px(560.))
+            .w(px(560.))
             .detail(t!("login-cookie-detail"))
             .child(self.secret.clone())
             .action(
