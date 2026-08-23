@@ -1,7 +1,9 @@
 use std::rc::Rc;
 
 use gpui::prelude::*;
-use gpui::{AnyElement, App, ElementId, MouseButton, Pixels, SharedString, Window, div};
+use gpui::{
+    AnyElement, App, Div, ElementId, MouseButton, SharedString, StyleRefinement, Window, div,
+};
 
 use crate::label::heading;
 use crate::metrics::Text;
@@ -15,12 +17,12 @@ type Dismiss = Rc<dyn Fn(&(), &mut Window, &mut App)>;
 
 #[derive(IntoElement)]
 pub struct Modal {
+    base: Div,
     id: ElementId,
     title: SharedString,
     detail: Option<SharedString>,
     body: Vec<AnyElement>,
     actions: Vec<AnyElement>,
-    width: Option<Pixels>,
     dismiss: Option<Dismiss>,
 }
 
@@ -28,23 +30,18 @@ impl Modal {
     #[track_caller]
     pub fn new(id: impl Into<ElementId>, title: impl Into<SharedString>) -> Self {
         Self {
+            base: div(),
             id: id.into(),
             title: title.into(),
             detail: None,
             body: Vec::new(),
             actions: Vec::new(),
-            width: None,
             dismiss: None,
         }
     }
 
     pub fn detail(mut self, detail: impl Into<SharedString>) -> Self {
         self.detail = Some(detail.into());
-        self
-    }
-
-    pub fn width(mut self, width: Pixels) -> Self {
-        self.width = Some(width);
         self
     }
 
@@ -64,19 +61,26 @@ impl Modal {
     }
 }
 
+impl Styled for Modal {
+    fn style(&mut self) -> &mut StyleRefinement {
+        self.base.style()
+    }
+}
+
 impl RenderOnce for Modal {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = *cx.theme();
         let Self {
+            mut base,
             id,
             title,
             detail,
             body,
             actions,
-            width,
             dismiss,
         } = self;
         let outside = dismiss.clone();
+        let overrides = std::mem::take(base.style());
 
         div()
             .absolute()
@@ -97,11 +101,11 @@ impl RenderOnce for Modal {
                         }
                     }),
             )
-            .child(
-                div()
+            .child({
+                let mut panel = base
                     .relative()
                     .occlude()
-                    .w(width.unwrap_or(theme.metrics.cover * WIDTH))
+                    .w(theme.metrics.cover * WIDTH)
                     .flex()
                     .flex_col()
                     .gap_4()
@@ -122,7 +126,9 @@ impl RenderOnce for Modal {
                     .children(body)
                     .when(!actions.is_empty(), |this| {
                         this.child(div().flex().justify_end().gap_2().children(actions))
-                    }),
-            )
+                    });
+                panel.style().refine(&overrides);
+                panel
+            })
     }
 }

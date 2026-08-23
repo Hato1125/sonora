@@ -101,7 +101,7 @@ pub(crate) fn about_modal(
     cx: &App,
 ) -> Modal {
     Modal::new("artist-about-dialog", t!("artist-about"))
-        .width(cx.theme().metrics.cover * DIALOG)
+        .w(cx.theme().metrics.cover * DIALOG)
         .detail(name)
         .child(
             Scroller::new("artist-about-bio", bar)
