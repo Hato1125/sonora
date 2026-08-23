@@ -264,28 +264,32 @@ fn image_bytes(image: &RenderImage) -> usize {
 
 #[derive(IntoElement)]
 pub struct Avatar {
-    url: Option<SharedString>,
-    size: Pixels,
+    art: Artwork,
 }
 
 impl Avatar {
     #[track_caller]
     pub fn new(url: Option<impl Into<SharedString>>) -> Self {
         Self {
-            url: url.map(Into::into),
-            size: px(28.),
+            art: Artwork::new(url).circle().flex_none(),
         }
     }
 
     pub fn size(mut self, size: Pixels) -> Self {
-        self.size = size;
+        self.art = self.art.size(size);
         self
+    }
+}
+
+impl Styled for Avatar {
+    fn style(&mut self) -> &mut StyleRefinement {
+        self.art.style()
     }
 }
 
 impl RenderOnce for Avatar {
     fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
-        Artwork::new(self.url).size(self.size).circle().flex_none()
+        self.art
     }
 }
 

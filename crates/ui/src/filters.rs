@@ -3,8 +3,8 @@ use std::rc::Rc;
 
 use gpui::prelude::*;
 use gpui::{
-    App, Bounds, DragMoveEvent, Empty, Hsla, MouseButton, MouseDownEvent, Pixels, Render,
-    SharedString, Window, canvas, div, px,
+    App, Bounds, Div, DragMoveEvent, ElementId, Empty, Hsla, MouseButton, MouseDownEvent, Pixels,
+    Render, SharedString, Stateful, StyleRefinement, Window, canvas, div, px,
 };
 
 use crate::Sort;
@@ -166,6 +166,7 @@ impl RangeState {
 
 #[derive(IntoElement)]
 pub struct RangeScrubber {
+    base: Stateful<Div>,
     id: SharedString,
     bounds: Rc<Cell<Bounds<Pixels>>>,
     active: Rc<Cell<Handle>>,
@@ -180,6 +181,7 @@ pub struct RangeScrubber {
 impl RangeScrubber {
     pub fn new(state: &RangeState, value: (f32, f32)) -> Self {
         Self {
+            base: div().id(ElementId::Name(state.id.clone())),
             id: state.id.clone(),
             bounds: state.bounds.clone(),
             active: state.active.clone(),
@@ -213,6 +215,12 @@ impl RangeScrubber {
     }
 }
 
+impl Styled for RangeScrubber {
+    fn style(&mut self) -> &mut StyleRefinement {
+        self.base.style()
+    }
+}
+
 impl RenderOnce for RangeScrubber {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let pad = cx.theme().metrics.pad;
@@ -221,6 +229,7 @@ impl RenderOnce for RangeScrubber {
         let reach = px((pad / px(1.) * HIT).round());
 
         let Self {
+            mut base,
             id,
             bounds,
             active,
@@ -231,6 +240,7 @@ impl RenderOnce for RangeScrubber {
             thumb,
             on_change,
         } = self;
+        let overrides = std::mem::take(base.style());
 
         let state = Rc::new(RangeState {
             id: id.clone(),
@@ -280,8 +290,7 @@ impl RenderOnce for RangeScrubber {
         let travel = (width - pin).max(Pixels::ZERO);
         let measured = width > Pixels::ZERO;
 
-        div()
-            .id(gpui::ElementId::Name(id.clone()))
+        let mut scrubber = base
             .flex()
             .items_center()
             .w_full()
@@ -317,7 +326,9 @@ impl RenderOnce for RangeScrubber {
                             .absolute()
                             .size_full(),
                     ),
-            )
+            );
+        scrubber.style().refine(&overrides);
+        scrubber
     }
 }
 

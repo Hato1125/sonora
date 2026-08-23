@@ -1,5 +1,7 @@
 use gpui::prelude::*;
-use gpui::{App, MouseButton, Pixels, Window, WindowControlArea, div, px, svg};
+use gpui::{
+    App, Div, MouseButton, Pixels, StyleRefinement, Window, WindowControlArea, div, px, svg,
+};
 
 use crate::theme::ActiveTheme as _;
 
@@ -43,20 +45,31 @@ impl Control {
 
 #[derive(IntoElement)]
 pub struct WindowControls {
+    base: Div,
     leading: bool,
 }
 
 impl WindowControls {
     pub fn new(leading: bool) -> Self {
-        Self { leading }
+        Self {
+            base: div(),
+            leading,
+        }
+    }
+}
+
+impl Styled for WindowControls {
+    fn style(&mut self) -> &mut StyleRefinement {
+        self.base.style()
     }
 }
 
 impl RenderOnce for WindowControls {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let supported = window.window_controls();
         let maximized = window.is_maximized();
         let theme = *cx.theme();
+        let overrides = std::mem::take(self.base.style());
 
         let mut wanted: Vec<Control> = [
             supported.minimize.then_some(Control::Minimize),
@@ -74,7 +87,8 @@ impl RenderOnce for WindowControls {
             wanted.reverse();
         }
 
-        div()
+        let mut controls = self
+            .base
             .flex()
             .flex_none()
             .items_center()
@@ -121,6 +135,8 @@ impl RenderOnce for WindowControls {
                             Control::Close => window.remove_window(),
                         }
                     })
-            }))
+            }));
+        controls.style().refine(&overrides);
+        controls
     }
 }

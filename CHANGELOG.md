@@ -7,6 +7,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.16.3] - 2026-08-24
+
+### Fixed
+
+- The About the artist dialog now shows the full biography in a scrollable pane that fades out at
+  the bottom, instead of only the artist's name.
+- Dialogs no longer spill past the window on narrow viewports; they always keep a margin from the
+  edges.
+- Synced lyrics hold the first and last line at the same follow position as every other line,
+  instead of leaving them stuck at the top or the bottom of the panel.
+
 ## [0.16.2] - 2026-08-23
 
 ### Added
@@ -587,7 +598,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Initial release: a native Spotify client with playback, an interactive queue, the saved library,
 search, album, playlist, artist and song pages, context menus and adaptive theming.
 
-[unreleased]: https://github.com/nolight132/sonora/compare/v0.16.2...HEAD
+[unreleased]: https://github.com/nolight132/sonora/compare/v0.16.3...HEAD
+[0.16.3]: https://github.com/nolight132/sonora/compare/v0.16.2...v0.16.3
 [0.16.2]: https://github.com/nolight132/sonora/compare/v0.16.1...v0.16.2
 [0.16.1]: https://github.com/nolight132/sonora/compare/v0.16.0...v0.16.1
 [0.16.0]: https://github.com/nolight132/sonora/compare/v0.15.0...v0.16.0

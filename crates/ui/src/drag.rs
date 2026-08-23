@@ -1,5 +1,5 @@
 use gpui::prelude::*;
-use gpui::{App, Bounds, Div, Pixels, Point, SharedString, Window, div, px};
+use gpui::{App, Bounds, Div, Pixels, Point, SharedString, StyleRefinement, Window, div, px};
 
 use crate::artwork::{Artwork, Avatar};
 use crate::theme::ActiveTheme as _;
@@ -43,6 +43,7 @@ pub fn drop_marker(edge: Edge, cx: &App) -> Div {
 
 #[derive(IntoElement)]
 pub struct Ghost {
+    base: Div,
     position: Point<Pixels>,
     label: SharedString,
     cover: Option<String>,
@@ -54,6 +55,7 @@ pub struct Ghost {
 impl Ghost {
     pub fn new(position: Point<Pixels>, label: impl Into<SharedString>) -> Self {
         Self {
+            base: div(),
             position,
             label: label.into(),
             cover: None,
@@ -80,9 +82,16 @@ impl Ghost {
     }
 }
 
+impl Styled for Ghost {
+    fn style(&mut self) -> &mut StyleRefinement {
+        self.base.style()
+    }
+}
+
 impl RenderOnce for Ghost {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(mut self, _: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = *cx.theme();
+        let overrides = std::mem::take(self.base.style());
         let leading = self.art.then(|| match self.round {
             true => Avatar::new(self.cover.clone()).size(ART).into_any_element(),
             false => Artwork::new(self.cover.clone())
@@ -92,22 +101,24 @@ impl RenderOnce for Ghost {
                 .into_any_element(),
         });
 
+        let mut chip = self
+            .base
+            .flex()
+            .items_center()
+            .gap_2()
+            .max_w(CHIP)
+            .px_2()
+            .py_1()
+            .rounded(theme.radius)
+            .bg(theme.secondary)
+            .text_color(theme.foreground)
+            .children(leading)
+            .child(div().min_w_0().truncate().child(self.label));
+        chip.style().refine(&overrides);
+
         div()
             .pl(self.position.x + NUDGE)
             .pt(self.position.y + NUDGE)
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap_2()
-                    .max_w(CHIP)
-                    .px_2()
-                    .py_1()
-                    .rounded(theme.radius)
-                    .bg(theme.secondary)
-                    .text_color(theme.foreground)
-                    .children(leading)
-                    .child(div().min_w_0().truncate().child(self.label)),
-            )
+            .child(chip)
     }
 }

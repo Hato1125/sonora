@@ -3,7 +3,7 @@ use std::ops::Range;
 use gpui::prelude::*;
 
 use gpui::{
-    Context, DragMoveEvent, Entity, FontWeight, MouseDownEvent, Pixels, Point, Render,
+    App, Context, DragMoveEvent, Entity, FontWeight, MouseDownEvent, Pixels, Point, Render,
     ScrollHandle, ScrollStrategy, ScrollWheelEvent, SharedString, Task, UniformListScrollHandle,
     Window, div, ease_in_out, px, uniform_list,
 };
@@ -16,21 +16,18 @@ use ui::{
 };
 
 use crate::chrome::{Chrome, section_label};
+use crate::shared::effects;
 use crate::shared::menu::ItemMenu;
 
 const QUEUE: &str = "queue";
 const FADE: f32 = 96.;
+const REST: f32 = FADE * 0.75;
 const TAIL_ROWS: usize = 2;
 const BLUR: f32 = 0.07;
 const PAST: f32 = 0.4;
 const PINNED_SHARE: f32 = 0.25;
 const PIN: f32 = 0.3;
 const SETTLE: std::time::Duration = std::time::Duration::from_secs(4);
-
-fn effects() -> bool {
-    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *ON.get_or_init(|| std::env::var("SONORA_BLUR").as_deref() != Ok("0"))
-}
 
 fn track(queue: &Queue, position: QueuePosition) -> Option<Track> {
     match position {
@@ -713,6 +710,11 @@ impl Aside {
             self.pin_verse(music::lyrics::active(lines, at), window, cx);
         }
 
+        let (over, under) = match &lines {
+            Some(lines) => self.verse_slack(lines.len(), window, cx),
+            None => (px(REST), px(REST)),
+        };
+
         Scroller::new("lyrics", &self.verse_bar)
             .flex()
             .flex_col()
@@ -720,10 +722,28 @@ impl Aside {
             .flex_1()
             .min_h_0()
             .px_1()
-            .pt(px(FADE * 0.75))
-            .pb(px(FADE * 0.75))
+            .pt(over)
+            .pb(under)
             .when(effects(), |this| this.fade_edges(px(FADE), px(FADE)))
             .children(body)
+    }
+
+    fn verse_slack(&self, count: usize, window: &Window, cx: &App) -> (Pixels, Pixels) {
+        let scroll = self.verse_bar.read(cx).scroll().clone();
+        let view = scroll.bounds().size.height;
+        if view <= px(0.) {
+            window.request_animation_frame();
+            return (px(REST), px(REST));
+        }
+        let tail = count
+            .checked_sub(1)
+            .and_then(|last| scroll.bounds_for_item(last))
+            .map_or(px(0.), |item| item.size.height);
+
+        (
+            snapped((view * PIN).max(px(REST)), window),
+            snapped((view * (1. - PIN) - tail).max(px(REST)), window),
+        )
     }
 
     fn anchor_verse(&mut self) {

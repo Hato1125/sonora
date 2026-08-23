@@ -139,7 +139,7 @@ impl Render for PlaylistEditor {
             }))
             .child(
                 Modal::new("playlist-editor", title)
-                    .width(theme.metrics.cover * 2.8)
+                    .w(theme.metrics.cover * 2.8)
                     .when_some(detail, Modal::detail)
                     .when(!asking, |modal| modal.child(self.name.clone()))
                     .action(

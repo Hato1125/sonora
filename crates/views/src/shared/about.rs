@@ -6,10 +6,13 @@ use i18n::t;
 use router::{Destination, navigate};
 use ui::{ActiveTheme as _, Artwork, Button, Modal, Scrollbar, Scroller, eyebrow, heading};
 
+use crate::shared::effects;
+
 const PORTRAIT: Pixels = px(88.);
 const LINES: usize = 3;
 const DIALOG: f32 = 4.5;
 const BIO_HEIGHT: Pixels = px(360.);
+const FADE: Pixels = px(64.);
 
 type Open = Rc<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 
@@ -100,14 +103,48 @@ pub(crate) fn about_modal(
     bar: &Entity<Scrollbar>,
     cx: &App,
 ) -> Modal {
+    let theme = *cx.theme();
+    let biography = biography.filter(|biography| !biography.is_empty());
+
     Modal::new("artist-about-dialog", t!("artist-about"))
-        .width(cx.theme().metrics.cover * DIALOG)
+        .w(theme.metrics.cover * DIALOG)
         .detail(name)
-        .child(
-            Scroller::new("artist-about-bio", bar)
-                .max_h(BIO_HEIGHT)
-                .child(blurb(biography)),
-        )
+        .map(|modal| match biography {
+            Some(biography) => {
+                let text = SharedString::from(biography);
+                let overflows = bar.read(cx).scroll().max_offset().y > Pixels::ZERO;
+                let tail = FADE * 0.75;
+
+                modal.child(
+                    div()
+                        .relative()
+                        .max_h(BIO_HEIGHT)
+                        .min_h_0()
+                        .text_color(theme.muted_foreground)
+                        .child(
+                            div()
+                                .invisible()
+                                .when(overflows, |this| this.pb(tail))
+                                .child(text.clone()),
+                        )
+                        .child(
+                            div().absolute().inset_0().child(
+                                Scroller::new("artist-about-bio", bar)
+                                    .when(overflows, |this| this.pb(tail))
+                                    .when(overflows && effects(), |this| {
+                                        this.fade_edges(px(0.), FADE)
+                                    })
+                                    .child(text),
+                            ),
+                        ),
+                )
+            }
+            None => modal.child(
+                div()
+                    .text_color(theme.muted_foreground)
+                    .child(t!("artist-about-fallback")),
+            ),
+        })
         .when_some(artist, |modal, artist| {
             modal.action(
                 Button::new("artist-about-open")

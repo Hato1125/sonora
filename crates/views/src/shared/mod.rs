@@ -23,6 +23,11 @@ use ui::{ActiveTheme as _, Text};
 
 const NOTE: Pixels = px(14.);
 
+pub(crate) fn effects() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var("SONORA_BLUR").as_deref() != Ok("0"))
+}
+
 pub(crate) fn firefox_note(cx: &App) -> Div {
     let theme = *cx.theme();
     div()

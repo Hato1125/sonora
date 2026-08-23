@@ -1,7 +1,9 @@
 use std::rc::Rc;
 
 use gpui::prelude::*;
-use gpui::{App, ElementId, Hsla, MouseButton, Pixels, SharedString, Window, div};
+use gpui::{
+    App, Div, ElementId, Hsla, MouseButton, Pixels, SharedString, StyleRefinement, Window, div,
+};
 
 const RAMP: f32 = 6.;
 const DEPTH: usize = 5;
@@ -25,6 +27,7 @@ type ClickHandler = Rc<dyn Fn(SharedString, &mut App) + 'static>;
 
 #[derive(IntoElement)]
 pub struct InlineLinks {
+    base: Div,
     id: SharedString,
     items: Vec<InlineLink>,
     fallback: SharedString,
@@ -42,6 +45,7 @@ impl InlineLinks {
         color: Hsla,
     ) -> Self {
         Self {
+            base: div(),
             id: id.into(),
             items: items.into_iter().collect(),
             fallback: fallback.into(),
@@ -72,9 +76,16 @@ fn eagerness(index: usize) -> f32 {
     RAMP.powi(index.min(DEPTH) as i32)
 }
 
+impl Styled for InlineLinks {
+    fn style(&mut self) -> &mut StyleRefinement {
+        self.base.style()
+    }
+}
+
 impl RenderOnce for InlineLinks {
     fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
         let Self {
+            mut base,
             id,
             items,
             fallback,
@@ -84,8 +95,9 @@ impl RenderOnce for InlineLinks {
             on_click,
         } = self;
         let empty = items.is_empty();
+        let overrides = std::mem::take(base.style());
 
-        div()
+        let mut links = base
             .flex()
             .min_w_0()
             .overflow_hidden()
@@ -134,6 +146,8 @@ impl RenderOnce for InlineLinks {
                             .into_any_element(),
                     }
                 }))
-            })
+            });
+        links.style().refine(&overrides);
+        links
     }
 }

@@ -1,13 +1,15 @@
 use crate::theme::ActiveTheme as _;
 use gpui::prelude::*;
-use gpui::{App, IntoElement, RenderOnce, Window, div};
+use gpui::{App, Div, IntoElement, RenderOnce, StyleRefinement, Window, div};
 
 #[derive(IntoElement)]
-pub struct ExplicitBadge {}
+pub struct ExplicitBadge {
+    base: Div,
+}
 
 impl ExplicitBadge {
     pub fn new() -> Self {
-        Self {}
+        Self { base: div() }
     }
 }
 
@@ -17,10 +19,19 @@ impl Default for ExplicitBadge {
     }
 }
 
+impl Styled for ExplicitBadge {
+    fn style(&mut self) -> &mut StyleRefinement {
+        self.base.style()
+    }
+}
+
 impl RenderOnce for ExplicitBadge {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let Self { mut base } = self;
         let theme = *cx.theme();
-        div()
+        let overrides = std::mem::take(base.style());
+
+        let mut badge = base
             .size_4()
             .flex()
             .items_center()
@@ -29,6 +40,8 @@ impl RenderOnce for ExplicitBadge {
             .text_color(theme.muted_foreground)
             .bg(theme.muted)
             .rounded_xs()
-            .child("E")
+            .child("E");
+        badge.style().refine(&overrides);
+        badge
     }
 }
