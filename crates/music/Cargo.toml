@@ -22,5 +22,6 @@ reqwest.workspace = true
 rodio = { workspace = true, features = ["symphonia-aac", "symphonia-alac", "symphonia-isomp4", "flac", "mp3", "vorbis", "wav"] }
 serde.workspace = true
 serde_json.workspace = true
+serde_norway.workspace = true
 tokio.workspace = true
 ytmusic.workspace = true
