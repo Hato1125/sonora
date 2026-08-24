@@ -424,3 +424,5 @@ lyrics-loading = Songtext wird gesucht…
 lyrics-missing = Kein Songtext für diesen Titel
 lyrics-failed = Der Songtext-Dienst war nicht erreichbar
 lyrics-follow = Dem Song wieder folgen
+lyrics-source = Songtext von { $source }
+lyrics-writers = Geschrieben von { $writers }

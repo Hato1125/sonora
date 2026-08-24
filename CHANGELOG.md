@@ -11,11 +11,33 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - The theme picker offers a System option that follows the operating system's light or dark
   appearance, switching automatically when it changes.
+- Lyrics now also come from the AMLL community database and NetEase Cloud Music alongside LrcLib,
+  and the best match is chosen more reliably: the album is taken into account, truncated uploads
+  fall behind, duplicate uploads collapse into one entry, and word-synced lyrics win over
+  line-synced ones.
+- The lyrics panel names its source and the songwriters beneath the verses.
+- Word-synced lyrics light up word by word as they are sung, with a soft sweep across each word.
+  Line-synced lyrics keep the existing line highlight.
+- Background vocals in parentheses render as their own smaller line beneath the verse, with their
+  own timing, and standalone echo lines attach to the verse they answer.
+- Lyrics in Japanese, Chinese, Korean, Cyrillic, Greek or Arabic can show a romanized
+  pronunciation line, switchable per writing system in Settings → Playback.
+- Long instrumental breaks show notes in the lyrics panel that light up as the break plays out;
+  clicking them seeks to the start of the break.
+- Karaoke word highlighting can be turned off in Settings → Playback.
+- Word-synced lyrics appear as soon as the first provider answers instead of waiting for the
+  slowest one.
 
 ### Changed
 
 - The fullscreen panel switcher and volume popup are solid instead of translucent and frosted, so
   they read clearly over artwork.
+- Lyric matching drops hits whose title, artist or length do not fit the playing track, along with
+  sheets that are mostly stretched shouting, and section labels such as [Chorus] no longer render
+  as verses.
+- The playback clock eases toward corrections from the engine instead of snapping, so lyrics and
+  the seek bar never jump backwards mid-word.
+- The active lyric line brightens in and the previous one dims out with a short transition.
 
 ## [0.16.3] - 2026-08-24
 
