@@ -141,7 +141,33 @@ impl Lyrics {
         let providers = self.providers.clone();
         let io = self.io.clone();
         self.task = Some(cx.spawn(async move |this, cx| {
-            let found = join(io.spawn(async move { gather(providers, query).await })).await;
+            let (sender, mut incoming) = tokio::sync::mpsc::unbounded_channel();
+            let query_for_rank = query.clone();
+            let worker = io.spawn(async move { gather(providers, query, sender).await });
+            let mut hits = Vec::new();
+            let mut displayed = None;
+
+            while let Some(mut found) = incoming.recv().await {
+                hits.append(&mut found);
+                let mut ranked = music::lyrics::rank(&query_for_rank, hits.clone());
+                if displayed.is_none()
+                    && let Some(karaoke) = ranked.iter().find(|hit| hit.lyrics.worded()).cloned()
+                {
+                    displayed = Some(karaoke);
+                    keep_displayed_first(&mut ranked, displayed.as_ref());
+                    this.update(cx, |this, cx| {
+                        if this.following.as_deref() != Some(id.as_str()) {
+                            return;
+                        }
+                        this.hits = ranked;
+                        this.state = LyricsState::Ready;
+                        cx.notify();
+                    })
+                    .ok();
+                }
+            }
+
+            let found = join(worker).await;
 
             this.update(cx, |this, cx| {
                 if this.following.as_deref() != Some(id.as_str()) {
@@ -149,7 +175,9 @@ impl Lyrics {
                 }
                 this.task = None;
                 match found {
-                    Ok(hits) => {
+                    Ok(()) => {
+                        let mut hits = music::lyrics::rank(&query_for_rank, hits);
+                        keep_displayed_first(&mut hits, displayed.as_ref());
                         this.cache.insert(id, hits.clone());
                         this.hits = hits;
                         this.state = state_for(&this.hits);
@@ -164,6 +192,15 @@ impl Lyrics {
             .ok();
         }));
     }
+}
+
+fn keep_displayed_first(hits: &mut Vec<LyricsHit>, displayed: Option<&LyricsHit>) {
+    let Some(index) = displayed.and_then(|displayed| hits.iter().position(|hit| hit == displayed))
+    else {
+        return;
+    };
+    let displayed = hits.remove(index);
+    hits.insert(0, displayed);
 }
 
 fn state_for(hits: &[LyricsHit]) -> LyricsState {
@@ -186,7 +223,8 @@ fn query_for(track: &Track, key: Option<TrackKey>) -> LyricsQuery {
 async fn gather(
     providers: Vec<Arc<dyn LyricsProvider>>,
     query: LyricsQuery,
-) -> anyhow::Result<Vec<LyricsHit>> {
+    sender: tokio::sync::mpsc::UnboundedSender<Vec<LyricsHit>>,
+) -> anyhow::Result<()> {
     let mut tasks = JoinSet::new();
     for provider in providers {
         let query = query.clone();
@@ -200,9 +238,58 @@ async fn gather(
                 .unwrap_or_default()
         });
     }
-    let mut hits = Vec::new();
     while let Some(found) = tasks.join_next().await {
-        hits.extend(found.unwrap_or_default());
+        sender.send(found.unwrap_or_default()).ok();
     }
-    Ok(music::lyrics::rank(&query, hits))
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use music::{Lyrics as Sheet, LyricsHit, LyricsLine, LyricsWord};
+
+    use super::keep_displayed_first;
+
+    fn hit(source: &'static str, lyrics: Sheet) -> LyricsHit {
+        LyricsHit {
+            source,
+            trust: 0,
+            lyrics,
+            title: "title".to_owned(),
+            artist: "artist".to_owned(),
+            album: None,
+            duration: None,
+            writers: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn a_displayed_karaoke_result_stays_selected_after_final_ranking() {
+        let plain = hit("plain", Sheet::plain("line"));
+        let displayed = hit(
+            "karaoke",
+            Sheet::Synced {
+                lines: vec![LyricsLine {
+                    start: Duration::ZERO,
+                    end: Some(Duration::from_secs(1)),
+                    text: "line".to_owned(),
+                    romanized: None,
+                    words: Some(vec![LyricsWord {
+                        start: Duration::ZERO,
+                        end: Duration::from_secs(1),
+                        text: "line".to_owned(),
+                    }]),
+                    secondary: Vec::new(),
+                }]
+                .into(),
+            },
+        );
+        let mut final_ranking = vec![plain, displayed.clone()];
+
+        keep_displayed_first(&mut final_ranking, Some(&displayed));
+
+        assert_eq!(final_ranking.first(), Some(&displayed));
+    }
 }
