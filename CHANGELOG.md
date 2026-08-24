@@ -11,6 +11,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - The theme picker offers a System option that follows the operating system's light or dark
   appearance, switching automatically when it changes.
+- Lyrics now also come from the AMLL community database and NetEase Cloud Music alongside LrcLib,
+  and the best match is chosen more reliably: the album is taken into account, truncated uploads
+  fall behind, duplicate uploads collapse into one entry, and word-synced lyrics win over
+  line-synced ones.
 
 ### Changed
 
