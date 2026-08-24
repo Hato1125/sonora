@@ -129,7 +129,9 @@ fn parse(ttml: &str) -> Option<Sheet> {
                             start,
                             end: attr(&tag, b"end").as_deref().and_then(clock_of),
                             text: String::new(),
+                            romanized: None,
                             words: None,
+                            secondary: Vec::new(),
                         });
                 }
                 b"span" => {
@@ -200,8 +202,7 @@ fn parse(ttml: &str) -> Option<Sheet> {
         }
     }
 
-    sheet.lines.sort_by_key(|line| line.start);
-    lrc::close(&mut sheet.lines);
+    lrc::normalize(&mut sheet.lines);
     Some(sheet)
 }
 

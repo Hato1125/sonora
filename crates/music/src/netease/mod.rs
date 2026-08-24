@@ -247,8 +247,7 @@ fn writers(text: &str) -> Vec<String> {
 
 fn parse_yrc(yrc: &str) -> Vec<LyricsLine> {
     let mut lines: Vec<LyricsLine> = yrc.lines().filter_map(read_yrc).collect();
-    lines.sort_by_key(|line| line.start);
-    lrc::close(&mut lines);
+    lrc::normalize(&mut lines);
     lines
 }
 
@@ -292,6 +291,8 @@ fn read_yrc(line: &str) -> Option<LyricsLine> {
         end: Some(start + span),
         words: (!words.is_empty()).then_some(words),
         text,
+        romanized: None,
+        secondary: Vec::new(),
     })
 }
 
@@ -354,12 +355,14 @@ mod tests {
     }
 
     #[test]
-    fn literal_parens_stay_in_the_text() {
+    fn untimed_parentheses_become_a_background_lane() {
         let lines = parse_yrc("[1000,2000](1000,500,0)la （la） (1500,500,0)again\n");
 
-        assert_eq!(lines[0].text, "la （la） again");
+        assert_eq!(lines[0].text, "la again");
         let words = lines[0].words.as_ref().expect("the line is worded");
-        assert_eq!(words[0].text, "la （la） ");
+        assert_eq!(words[0].text.trim(), "la");
+        assert_eq!(lines[0].secondary[0].text, "la");
+        assert_eq!(lines[0].secondary[0].start, Duration::from_millis(1000));
     }
 
     #[test]

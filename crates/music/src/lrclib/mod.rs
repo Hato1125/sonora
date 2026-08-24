@@ -122,7 +122,7 @@ fn hit(found: Found) -> Option<LyricsHit> {
                 .as_deref()
                 .map(str::trim)
                 .filter(|text| !text.is_empty())
-                .map(|text| Lyrics::Plain(text.to_owned()))
+                .map(Lyrics::plain)
         })?;
 
     Some(LyricsHit {
@@ -149,10 +149,11 @@ fn filed(text: &str) -> Option<Vec<LyricsLine>> {
             end: line.end_ms.map(Duration::from_millis),
             words: worded(&line.words),
             text: line.text,
+            romanized: None,
+            secondary: Vec::new(),
         })
         .collect();
-    lines.sort_by_key(|line| line.start);
-    lrc::close(&mut lines);
+    lrc::normalize(&mut lines);
     (!lines.is_empty()).then_some(lines)
 }
 
@@ -227,6 +228,18 @@ mod tests {
         };
         assert_eq!(lines[0].text, "Hello world");
         assert_eq!(lines[0].end, Some(Duration::from_millis(2800)));
+    }
+
+    #[test]
+    fn an_empty_lyricsfile_line_preserves_an_instrumental_pause() {
+        let lines = filed(
+            "lines:\n- text: sung\n  start_ms: 9360\n  end_ms: 11970\n- text: ''\n  start_ms: 11970\n  end_ms: 24160\n- text: next\n  start_ms: 24160\n  end_ms: 27050\n",
+        )
+        .expect("the lyricsfile is valid");
+
+        assert_eq!(lines.len(), 2);
+        assert_eq!(lines[0].end, Some(Duration::from_millis(11_970)));
+        assert_eq!(lines[1].start, Duration::from_millis(24_160));
     }
 
     #[test]

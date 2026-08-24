@@ -1,4 +1,5 @@
 pub mod lrc;
+pub(crate) mod romanize;
 
 use std::collections::HashSet;
 use std::time::Duration;
@@ -84,10 +85,20 @@ fn fingerprint(lyrics: &Lyrics) -> String {
             .collect::<String>()
     };
     match lyrics {
-        Lyrics::Plain(text) => format!("plain:{}", trim(text)),
+        Lyrics::Plain { text, .. } => format!("plain:{}", trim(text)),
         Lyrics::Synced { lines } => {
             let worded = lines.iter().any(LyricsLine::worded);
-            let text: String = lines.iter().map(|line| trim(&line.text)).collect();
+            let text: String = lines
+                .iter()
+                .flat_map(|line| {
+                    std::iter::once(line.text.as_str()).chain(
+                        line.secondary
+                            .iter()
+                            .map(|secondary| secondary.text.as_str()),
+                    )
+                })
+                .map(trim)
+                .collect();
             format!("synced:{worded}:{text}")
         }
     }
@@ -132,7 +143,7 @@ pub fn active(lines: &[LyricsLine], at: Duration) -> Option<usize> {
     lines
         .iter()
         .rposition(|line| line.start <= at)
-        .filter(|index| match lines[*index].end {
+        .filter(|index| match lines[*index].sung_end() {
             Some(end) => at < end,
             None => true,
         })
@@ -158,7 +169,7 @@ mod tests {
                 true => Lyrics::Synced {
                     lines: vec![line(0, seconds.saturating_sub(2), title)].into(),
                 },
-                false => Lyrics::Plain(format!("la {title}")),
+                false => Lyrics::plain(format!("la {title}")),
             },
             title: title.to_owned(),
             artist: artist.to_owned(),
@@ -173,7 +184,9 @@ mod tests {
             start: Duration::from_secs(start),
             end: Some(Duration::from_secs(end)),
             text: text.to_owned(),
+            romanized: None,
             words: None,
+            secondary: Vec::new(),
         }
     }
 
@@ -319,6 +332,29 @@ mod tests {
         assert_eq!(active(&lines, Duration::from_secs(2)), Some(0));
         assert_eq!(active(&lines, Duration::from_secs(6)), Some(1));
         assert_eq!(active(&lines, Duration::from_secs(30)), None);
+    }
+
+    #[test]
+    fn a_worded_line_ends_when_its_singing_ends() {
+        let mut padded = line(0, 12, "one");
+        padded.words = Some(vec![LyricsWord {
+            start: Duration::ZERO,
+            end: Duration::from_secs(5),
+            text: "one".to_owned(),
+        }]);
+
+        assert_eq!(
+            active(std::slice::from_ref(&padded), Duration::from_secs(4)),
+            Some(0)
+        );
+        assert_eq!(
+            active(&[line(0, 12, "one")], Duration::from_secs(8)),
+            Some(0)
+        );
+        assert_eq!(
+            active(std::slice::from_ref(&padded), Duration::from_secs(8)),
+            None
+        );
     }
 
     #[test]
