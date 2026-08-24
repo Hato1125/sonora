@@ -1,3 +1,5 @@
+pub mod lrc;
+
 use std::time::Duration;
 
 use crate::{LyricsHit, LyricsLine, LyricsQuery};
