@@ -7,6 +7,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- The fullscreen panel switcher and volume popup are solid instead of translucent and frosted, so
+  they read clearly over artwork.
+
 ## [0.16.3] - 2026-08-24
 
 ### Fixed

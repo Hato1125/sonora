@@ -37,8 +37,6 @@ const DOCK: f32 = 1.15;
 const DOCK_FULL: f32 = 1.7;
 const SINK: f32 = 24.;
 const PILL_GAP: f32 = 2.;
-const FROST: f32 = 16.;
-const FROSTED: f32 = 0.5;
 const SEEK_MAX: f32 = 420.;
 const VOLUME_RISE: f32 = 132.;
 const VOLUME_ZONE: f32 = 14.;
@@ -577,8 +575,7 @@ impl FullscreenView {
             .rounded(theme.radius + gap)
             .border_1()
             .border_color(theme.border)
-            .backdrop_blur(px(FROST))
-            .bg(theme.popover.opacity(FROSTED))
+            .bg(theme.popover)
             .child(tab(
                 "fullscreen-artwork-tab",
                 "icons/disc-3.svg",
@@ -672,8 +669,7 @@ impl FullscreenView {
                                 .rounded(theme.radius)
                                 .border_1()
                                 .border_color(theme.border)
-                                .backdrop_blur(px(FROST))
-                                .bg(theme.popover.opacity(FROSTED))
+                                .bg(theme.popover)
                                 .on_scroll_wheel(cx.listener(Self::turn_volume))
                                 .on_hover(cx.listener(|this, hovering: &bool, _, cx| {
                                     this.over_panel = *hovering;
