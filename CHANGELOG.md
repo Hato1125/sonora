@@ -15,6 +15,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and the best match is chosen more reliably: the album is taken into account, truncated uploads
   fall behind, duplicate uploads collapse into one entry, and word-synced lyrics win over
   line-synced ones.
+- The lyrics panel names its source and the songwriters beneath the verses.
 
 ### Changed
 
