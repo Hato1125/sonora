@@ -243,6 +243,9 @@ fn placeholder(lines: &[LyricsLine]) -> bool {
 }
 
 fn headed(lines: &mut Vec<LyricsLine>, song: &Song) -> bool {
+    while lines.first().is_some_and(|line| labelled(&line.text)) {
+        lines.remove(0);
+    }
     let Some(first) = lines.first().map(|line| line.text.clone()) else {
         return true;
     };
@@ -251,10 +254,6 @@ fn headed(lines: &mut Vec<LyricsLine>, song: &Song) -> bool {
         .iter()
         .filter_map(|artist| artist.name.clone())
         .collect();
-    if labelled(&first) {
-        lines.remove(0);
-        return true;
-    }
     let named = artists
         .iter()
         .any(|artist| artist.len() > 3 && loosely(&first, artist));
