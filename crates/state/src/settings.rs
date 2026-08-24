@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use gpui::{Context, Task};
+use music::WritingSystem;
 use serde::{Deserialize, Serialize};
 use ui::{Layout, Look, Mode, Pace, Pin, Rounding, Sorting, Stillness, ThemeKind, ThemeOverrides};
 
@@ -16,6 +17,58 @@ pub enum SideTab {
     #[default]
     Queue,
     Lyrics,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct RomanizationScripts {
+    japanese: bool,
+    chinese: bool,
+    korean: bool,
+    cyrillic: bool,
+    greek: bool,
+    arabic: bool,
+    other: bool,
+}
+
+impl RomanizationScripts {
+    pub fn contains(self, writing_system: WritingSystem) -> bool {
+        match writing_system {
+            WritingSystem::Japanese => self.japanese,
+            WritingSystem::Chinese => self.chinese,
+            WritingSystem::Korean => self.korean,
+            WritingSystem::Cyrillic => self.cyrillic,
+            WritingSystem::Greek => self.greek,
+            WritingSystem::Arabic => self.arabic,
+            WritingSystem::Other => self.other,
+        }
+    }
+
+    fn set(&mut self, writing_system: WritingSystem, enabled: bool) {
+        match writing_system {
+            WritingSystem::Japanese => self.japanese = enabled,
+            WritingSystem::Chinese => self.chinese = enabled,
+            WritingSystem::Korean => self.korean = enabled,
+            WritingSystem::Cyrillic => self.cyrillic = enabled,
+            WritingSystem::Greek => self.greek = enabled,
+            WritingSystem::Arabic => self.arabic = enabled,
+            WritingSystem::Other => self.other = enabled,
+        }
+    }
+}
+
+impl Default for RomanizationScripts {
+    fn default() -> Self {
+        Self {
+            japanese: true,
+            chinese: true,
+            korean: true,
+            cyrillic: true,
+            greek: true,
+            arabic: true,
+            other: true,
+        }
+    }
 }
 
 const SAVE_DELAY: Duration = Duration::from_millis(300);
@@ -34,6 +87,9 @@ struct Values {
     volume: f32,
     normalisation: bool,
     gapless: bool,
+    karaoke_lyrics: bool,
+    romanized_lyrics: bool,
+    romanization_scripts: RomanizationScripts,
     adaptive_menu: bool,
     sidebar_width: f32,
     sidebar_open: bool,
@@ -79,6 +135,9 @@ impl Default for Values {
             volume: DEFAULT_VOLUME,
             normalisation: true,
             gapless: true,
+            karaoke_lyrics: true,
+            romanized_lyrics: false,
+            romanization_scripts: RomanizationScripts::default(),
             adaptive_menu: false,
             sidebar_width: DEFAULT_SIDEBAR_WIDTH,
             sidebar_open: true,
@@ -169,6 +228,18 @@ impl AppSettings {
 
     pub fn gapless(&self) -> bool {
         self.values.gapless
+    }
+
+    pub fn karaoke_lyrics(&self) -> bool {
+        self.values.karaoke_lyrics
+    }
+
+    pub fn romanized_lyrics(&self) -> bool {
+        self.values.romanized_lyrics
+    }
+
+    pub fn romanization_scripts(&self) -> RomanizationScripts {
+        self.values.romanization_scripts
     }
 
     pub fn adaptive_menu(&self) -> bool {
@@ -295,6 +366,28 @@ impl AppSettings {
 
     pub fn set_gapless(&mut self, gapless: bool, cx: &mut Context<Self>) {
         self.values.gapless = gapless;
+        self.schedule_save(cx);
+    }
+
+    pub fn set_karaoke_lyrics(&mut self, karaoke: bool, cx: &mut Context<Self>) {
+        self.values.karaoke_lyrics = karaoke;
+        self.schedule_save(cx);
+    }
+
+    pub fn set_romanized_lyrics(&mut self, romanized: bool, cx: &mut Context<Self>) {
+        self.values.romanized_lyrics = romanized;
+        self.schedule_save(cx);
+    }
+
+    pub fn set_romanization_script(
+        &mut self,
+        writing_system: WritingSystem,
+        enabled: bool,
+        cx: &mut Context<Self>,
+    ) {
+        self.values
+            .romanization_scripts
+            .set(writing_system, enabled);
         self.schedule_save(cx);
     }
 
@@ -621,6 +714,37 @@ mod tests {
             }),
             ..Resume::default()
         }
+    }
+
+    #[test]
+    fn new_lyric_preferences_have_backward_compatible_defaults() {
+        let values: Values = serde_json::from_str("{}").expect("empty settings use defaults");
+
+        assert!(values.karaoke_lyrics);
+        assert!(!values.romanized_lyrics);
+        assert!(
+            WritingSystem::ALL
+                .into_iter()
+                .all(|system| values.romanization_scripts.contains(system))
+        );
+    }
+
+    #[test]
+    fn one_saved_romanization_choice_keeps_the_other_defaults() {
+        let values: Values = serde_json::from_str(
+            r#"{
+                "romanization_scripts": { "japanese": false }
+            }"#,
+        )
+        .expect("partial script preferences use defaults");
+
+        assert!(
+            !values
+                .romanization_scripts
+                .contains(WritingSystem::Japanese)
+        );
+        assert!(values.romanization_scripts.contains(WritingSystem::Chinese));
+        assert!(values.romanization_scripts.contains(WritingSystem::Other));
     }
 
     #[test]
