@@ -5,14 +5,18 @@ use gpui::prelude::*;
 use gpui::{
     App, Context, Div, DragMoveEvent, Entity, FontWeight, MouseDownEvent, Pixels, Point, Render,
     ScrollHandle, ScrollStrategy, ScrollWheelEvent, SharedString, Task, UniformListScrollHandle,
-    Window, div, ease_in_out, px, relative, uniform_list,
+    Window, div, ease_in_out, px, relative, svg, uniform_list,
 };
 use i18n::t;
 use music::Track;
-use state::{Lyrics, LyricsState, Playback, PlaybackState, Queue, SideTab, Sonora};
+use state::{
+    AppSettings, Lyrics, LyricsState, Playback, PlaybackState, Queue, RomanizationScripts, SideTab,
+    Sonora,
+};
 use ui::{
-    ActiveTheme as _, Button, Card, DraggedPin, Edge, Motion, Pin, PinKind, Pinnable as _, Popup,
-    Scrollbar, Scroller, Spot, Text, drop_gap, drop_marker, eyebrow, snapped, vacant,
+    ActiveTheme as _, Button, Card, DraggedPin, Edge, Motion, Motioned as _, Pin, PinKind,
+    Pinnable as _, Popup, Scrollbar, Scroller, Spot, Text, drop_gap, drop_marker, eyebrow, mix,
+    snapped, vacant,
 };
 
 use crate::chrome::{Chrome, section_label};
@@ -29,6 +33,7 @@ const REVEAL: f32 = 0.6;
 const PINNED_SHARE: f32 = 0.25;
 const PIN: f32 = 0.3;
 const SETTLE: std::time::Duration = std::time::Duration::from_secs(4);
+const INSTRUMENTAL_BREAK: std::time::Duration = std::time::Duration::from_secs(5);
 
 fn track(queue: &Queue, position: QueuePosition) -> Option<Track> {
     match position {
@@ -159,6 +164,7 @@ pub(crate) struct Aside {
     queue: Entity<Queue>,
     playback: Entity<Playback>,
     lyrics: Entity<Lyrics>,
+    settings: Entity<AppSettings>,
     tab: SideTab,
     verse_bar: Entity<Scrollbar>,
     followed: Option<usize>,
@@ -181,6 +187,9 @@ pub(crate) struct Aside {
     hovered: Option<usize>,
     fading: Option<usize>,
     linger: Option<Task<()>>,
+    previous_active_line: Option<usize>,
+    departing_line: Option<usize>,
+    line_revision: u64,
 }
 
 impl Aside {
@@ -212,12 +221,15 @@ impl Aside {
         let playlist_scrollbar = cx.new(|_| Scrollbar::inset());
         let lyrics = Sonora::global(cx).lyrics.clone();
         cx.observe(&lyrics, |_, _, cx| cx.notify()).detach();
+        let settings = Sonora::global(cx).settings.clone();
+        cx.observe(&settings, |_, _, cx| cx.notify()).detach();
         let verse_bar = cx.new(|_| Scrollbar::new(ScrollHandle::new()));
 
         Self {
             queue,
             playback,
             lyrics,
+            settings,
             tab,
             verse_bar,
             followed: None,
@@ -240,6 +252,9 @@ impl Aside {
             hovered: None,
             fading: None,
             linger: None,
+            previous_active_line: None,
+            departing_line: None,
+            line_revision: 0,
         }
     }
 
@@ -601,7 +616,7 @@ impl Aside {
 
     fn verses(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
-        let at = self.playback.read(cx).live_position();
+        let position = self.playback.read(cx).live_position();
         let singing = matches!(self.playback.read(cx).state(), PlaybackState::Playing);
         let lyrics = self.lyrics.read(cx);
         let state = lyrics.state().clone();
@@ -610,6 +625,27 @@ impl Aside {
             .current()
             .map(|hit| (hit.source, hit.writers.clone()));
         let following = lyrics.following().map(str::to_owned);
+        let (karaoke_lyrics, romanization_scripts) = {
+            let settings = self.settings.read(cx);
+            (
+                settings.karaoke_lyrics(),
+                settings
+                    .romanized_lyrics()
+                    .then(|| settings.romanization_scripts()),
+            )
+        };
+        let karaoke_effects = karaoke_lyrics && effects();
+
+        if self.verse_of != following {
+            self.verse_of = following;
+            self.previous_active_line = None;
+            self.departing_line = None;
+            self.anchor_verse();
+            let scroll = self.verse_bar.read(cx).scroll().clone();
+            scroll.set_offset(gpui::point(scroll.offset().x, px(0.)));
+            self.verse_bar
+                .update(cx, |bar, _| bar.remember_offset(scroll.offset().y));
+        }
 
         let empty = |key: &'static str, cx: &mut Context<Self>| {
             vacant(i18n::lookup(key, None), cx)
@@ -628,82 +664,165 @@ impl Aside {
 
         let mut body: Vec<gpui::AnyElement> = match (&lines, &state) {
             (Some(lines), _) => {
-                let sung = music::lyrics::active(lines, at);
-                let ahead = sung.unwrap_or(0);
+                if singing && karaoke_effects && lines.iter().any(|line| line.worded()) {
+                    window.request_animation_frame();
+                }
+                let active_line = music::lyrics::active(lines, position);
+                if self.previous_active_line != active_line {
+                    self.departing_line = self.previous_active_line;
+                    self.previous_active_line = active_line;
+                    self.line_revision = self.line_revision.wrapping_add(1);
+                }
+                let instrumental_line = active_instrumental(lines, position);
+                let focus_line = active_line.or(instrumental_line).unwrap_or(0);
+                let animations = ui::motion::animates(cx);
                 let blur = match effects() {
                     true => verse * BLUR,
                     false => px(0.),
                 };
                 let sharpen = self.sharpen_progress(window);
+                let mut rendered = Vec::with_capacity(lyric_row_count(lines));
 
-                lines
-                    .iter()
-                    .enumerate()
-                    .map(|(index, line)| {
-                        let seek = line.start;
-                        let text = SharedString::from(line.text.clone());
-                        let near = index == ahead || index == ahead + 1;
-                        let hazed = !near;
-                        let waking = self.hovered == Some(index);
-                        let settling = self.fading == Some(index);
-                        let karaoke = Some(index) == sung && line.worded() && effects();
-                        let tint = match (Some(index) == sung, index < ahead) {
-                            (true, _) if karaoke => theme.muted_foreground,
-                            (true, _) => theme.foreground,
-                            (false, true) => theme.muted_foreground.opacity(PAST),
-                            (false, false) => theme.muted_foreground,
-                        };
+                for (index, line) in lines.iter().enumerate() {
+                    let seek = line.start;
+                    let gap = instrumental_gap_before(lines, index);
+                    let instrumental_start = line.start.saturating_sub(gap);
+                    let has_instrumental = gap >= INSTRUMENTAL_BREAK;
+                    let instrumental_progress = if has_instrumental {
+                        progress_between(instrumental_start, line.start, position)
+                    } else {
+                        0.
+                    };
+                    let instrumental_has_passed = position >= line.start;
 
-                        if karaoke && singing {
+                    if has_instrumental {
+                        if singing && instrumental_line == Some(index) {
                             window.request_animation_frame();
                         }
+                        let notes = instrumental_row(
+                            instrumental_progress,
+                            instrumental_has_passed,
+                            verse,
+                            &theme,
+                        )
+                        .id(("instrumental", index))
+                        .px_2()
+                        .rounded(theme.radius)
+                        .cursor_pointer()
+                        .hover(|style| style.bg(theme.table_hover))
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            this.seek_lyrics(instrumental_start, cx);
+                        }));
+                        rendered.push(notes.into_any_element());
+                    }
 
-                        let verse_line = div()
-                            .id(("verse", index))
-                            .px_2()
-                            .py_1()
-                            .rounded(theme.radius)
-                            .cursor_pointer()
-                            .hover(|style| style.bg(theme.table_hover))
-                            .text_size(verse)
-                            .text_color(tint)
-                            .when(Some(index) == sung, |this| {
-                                this.font_weight(FontWeight::SEMIBOLD)
+                    let text = SharedString::from(line.text.clone());
+                    let near = index == focus_line || index == focus_line + 1;
+                    let hazed = !near;
+                    let waking = self.hovered == Some(index);
+                    let settling = self.fading == Some(index);
+                    let karaoke = Some(index) == active_line && line.worded() && karaoke_effects;
+                    let primary_karaoke = karaoke && line.words.is_some();
+                    let line_has_ended = line_has_passed(line, position);
+                    let tint = match (Some(index) == active_line, line_has_ended) {
+                        (true, _) if primary_karaoke => theme.muted_foreground,
+                        (true, _) => theme.foreground,
+                        (false, true) => theme.muted_foreground.opacity(PAST),
+                        (false, false) => theme.muted_foreground,
+                    };
+
+                    let primary = match (primary_karaoke, line.words.as_ref()) {
+                        (true, Some(words)) => {
+                            karaoke_lane(&line.text, line.start, words, position, verse, &theme)
+                                .into_any_element()
+                        }
+                        _ => div().child(text).into_any_element(),
+                    };
+                    let content = div()
+                        .flex()
+                        .flex_col()
+                        .gap_1()
+                        .child(primary)
+                        .when_some(
+                            selected_romanization(&line.romanized, romanization_scripts),
+                            |this, text| this.child(romanized_lyrics_lane(text, &theme)),
+                        )
+                        .children(line.secondary.iter().map(|lane| {
+                            secondary_lyrics_lane(
+                                lane,
+                                Some(index) == active_line,
+                                position,
+                                karaoke_effects,
+                                romanization_scripts,
+                                &theme,
+                            )
+                        }));
+
+                    let verse_line = div()
+                        .id(("verse", index))
+                        .px_2()
+                        .py_1()
+                        .rounded(theme.radius)
+                        .cursor_pointer()
+                        .hover(|style| style.bg(theme.table_hover))
+                        .text_size(verse)
+                        .text_color(tint)
+                        .when(Some(index) == active_line, |this| {
+                            this.font_weight(FontWeight::SEMIBOLD)
+                        })
+                        .on_hover(cx.listener(move |this, over: &bool, _, cx| {
+                            this.set_hovered(index, *over, cx)
+                        }))
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            this.seek_lyrics(seek, cx);
+                        }))
+                        .child(content);
+
+                    let softness = match (hazed, waking, settling) {
+                        (false, _, _) => 0.,
+                        (true, true, _) => 1. - sharpen,
+                        (true, false, true) => sharpen,
+                        (true, false, false) => 1.,
+                    };
+
+                    let verse_line =
+                        verse_line.when(softness > 0., |this| this.blur(blur * softness));
+                    let glowing = animations && Some(index) == active_line && !karaoke;
+                    let departing = animations && Some(index) == self.departing_line;
+                    let unsung = theme.muted_foreground;
+                    let lit = theme.foreground;
+                    let verse_line = match (glowing, departing) {
+                        (true, _) => verse_line
+                            .motion(("verse-glow", self.line_revision as usize), Motion::Base, {
+                                move |this, t| this.text_color(mix(unsung, lit, t))
                             })
-                            .on_hover(cx.listener(move |this, over: &bool, _, cx| {
-                                this.set_hovered(index, *over, cx)
-                            }))
-                            .on_click(cx.listener(move |this, _, _, cx| {
-                                this.playback
-                                    .update(cx, |playback, cx| playback.seek(seek, cx));
-                            }))
-                            .map(|this| match (karaoke, line.words.as_ref()) {
-                                (true, Some(words)) => {
-                                    this.child(karaoke_line(words, at, verse, &theme))
-                                }
-                                _ => this.child(text),
-                            });
+                            .into_any_element(),
+                        (_, true) => verse_line
+                            .motion(("verse-dim", self.line_revision as usize), Motion::Base, {
+                                move |this, t| this.text_color(mix(lit, tint, t))
+                            })
+                            .into_any_element(),
+                        _ => verse_line.into_any_element(),
+                    };
+                    rendered.push(verse_line);
+                }
 
-                        let softness = match (hazed, waking, settling) {
-                            (false, _, _) => 0.,
-                            (true, true, _) => 1. - sharpen,
-                            (true, false, true) => sharpen,
-                            (true, false, false) => 1.,
-                        };
-
-                        verse_line
-                            .when(softness > 0., |this| this.blur(blur * softness))
-                            .into_any_element()
-                    })
-                    .collect()
+                rendered
             }
             (None, LyricsState::Ready) => match &shown {
-                Some(music::Lyrics::Plain(text)) => vec![
+                Some(music::Lyrics::Plain { text, romanized }) => vec![
                     div()
                         .px_2()
+                        .flex()
+                        .flex_col()
+                        .gap_1()
                         .text_size(theme.text(Text::Body))
                         .text_color(theme.muted_foreground)
                         .child(SharedString::from(text.clone()))
+                        .when_some(
+                            selected_romanization(romanized, romanization_scripts),
+                            |this, text| this.child(romanized_lyrics_lane(text, &theme)),
+                        )
                         .into_any_element(),
                 ],
                 _ => vec![empty("lyrics-missing", cx)],
@@ -734,20 +853,13 @@ impl Aside {
             );
         }
 
-        if self.verse_of != following {
-            self.verse_of = following;
-            self.anchor_verse();
-            let scroll = self.verse_bar.read(cx).scroll().clone();
-            scroll.set_offset(gpui::point(scroll.offset().x, px(0.)));
-            self.verse_bar
-                .update(cx, |bar, _| bar.remember_offset(scroll.offset().y));
-        }
         if let Some(lines) = &lines {
-            self.pin_verse(music::lyrics::active(lines, at), window, cx);
+            let focus = active_lyrics_row(lines, position);
+            self.pin_verse(focus, window, cx);
         }
 
         let (over, under) = match &lines {
-            Some(lines) => self.verse_slack(lines.len(), window, cx),
+            Some(lines) => self.verse_slack(lyric_row_count(lines), window, cx),
             None => (px(REST), px(REST)),
         };
 
@@ -789,6 +901,13 @@ impl Aside {
         self.followed = None;
         self.goal = None;
         self.nudged = None;
+    }
+
+    fn seek_lyrics(&mut self, position: std::time::Duration, cx: &mut Context<Self>) {
+        self.anchor_verse();
+        self.playback
+            .update(cx, |playback, cx| playback.seek(position, cx));
+        cx.notify();
     }
 
     fn pin_verse(&mut self, sung: Option<usize>, window: &mut Window, cx: &mut Context<Self>) {
@@ -835,8 +954,12 @@ impl Aside {
         };
         self.aiming = false;
         let view = scroll.bounds();
-        let rest = view.origin.y - item.origin.y + view.size.height * PIN;
-        let goal = rest.clamp(-scroll.max_offset().y, px(0.));
+        let goal = anchored_lyrics_offset(
+            view.origin.y,
+            item.origin.y,
+            view.size.height,
+            scroll.max_offset().y,
+        );
         self.verse_bar.update(cx, |bar, _| bar.aim(goal, window));
         self.goal = Some(self.verse_bar.read(cx).goal());
     }
@@ -1004,50 +1127,285 @@ impl Render for Aside {
     }
 }
 
-fn karaoke_line(
+fn karaoke_lane(
+    line: &str,
+    line_start: std::time::Duration,
     words: &[music::LyricsWord],
-    at: std::time::Duration,
+    position: std::time::Duration,
     verse: Pixels,
     theme: &ui::Theme,
 ) -> Div {
-    let soft = verse * REVEAL;
-    div().flex().flex_wrap().children(words.iter().map(|word| {
-        let text = SharedString::from(word.text.clone());
-        let swept = sweep(word, at);
-        div()
-            .relative()
-            .child(text.clone())
-            .when(swept > 0., |this| {
-                this.child(
-                    div()
-                        .absolute()
-                        .left_0()
-                        .top_0()
-                        .bottom_0()
-                        .w(relative(swept))
-                        .overflow_hidden()
-                        .text_color(theme.foreground)
-                        .when(swept < 1., |this| this.fade_sides(px(0.), soft))
-                        .child(div().whitespace_nowrap().child(text)),
-                )
-            })
-    }))
+    let edge_fade = verse * REVEAL;
+    div()
+        .flex()
+        .flex_wrap()
+        .children(karaoke_fragments(line, words).into_iter().enumerate().map(
+            |(index, fragment)| {
+                let text = SharedString::from(fragment);
+                let (highlight_start, highlight_end) = karaoke_window(line_start, words, index);
+                let highlighted = progress_between(highlight_start, highlight_end, position);
+                div()
+                    .relative()
+                    .whitespace_nowrap()
+                    .child(text.clone())
+                    .when(highlighted > 0., |this| {
+                        this.child(
+                            div()
+                                .absolute()
+                                .left_0()
+                                .top_0()
+                                .bottom_0()
+                                .w(relative(highlighted))
+                                .overflow_hidden()
+                                .text_color(theme.foreground)
+                                .when(highlighted < 1., |this| this.fade_sides(px(0.), edge_fade))
+                                .child(div().whitespace_nowrap().child(text)),
+                        )
+                    })
+            },
+        ))
 }
 
-fn sweep(word: &music::LyricsWord, at: std::time::Duration) -> f32 {
-    if at < word.start {
+fn secondary_lyrics_lane(
+    lane: &music::LyricsLane,
+    line_active: bool,
+    position: std::time::Duration,
+    karaoke_enabled: bool,
+    romanization_scripts: Option<RomanizationScripts>,
+    theme: &ui::Theme,
+) -> Div {
+    let active =
+        line_active && position >= lane.start && lane.sung_end().is_none_or(|end| position < end);
+    let passed = lane.sung_end().is_some_and(|end| position >= end);
+    let karaoke = active && karaoke_enabled && lane.worded();
+    let tint = match (active, passed, karaoke) {
+        (_, _, true) => theme.muted_foreground,
+        (true, _, false) => theme.foreground,
+        (false, true, false) => theme.muted_foreground.opacity(PAST),
+        (false, false, false) => theme.muted_foreground,
+    };
+    let size = theme.text(Text::Body);
+    let lyrics =
+        div()
+            .text_size(size)
+            .text_color(tint)
+            .map(|this| match (karaoke, lane.words.as_ref()) {
+                (true, Some(words)) => this.child(karaoke_lane(
+                    &lane.text, lane.start, words, position, size, theme,
+                )),
+                _ => this.child(SharedString::from(lane.text.clone())),
+            });
+    div().flex().flex_col().child(lyrics).when_some(
+        selected_romanization(&lane.romanized, romanization_scripts),
+        |this, text| this.child(romanized_lyrics_lane(text, theme)),
+    )
+}
+
+fn selected_romanization(
+    romanized: &Option<music::RomanizedText>,
+    scripts: Option<RomanizationScripts>,
+) -> Option<String> {
+    let romanized = romanized.as_ref()?;
+    scripts?
+        .contains(romanized.writing_system)
+        .then(|| romanized.text.clone())
+}
+
+fn romanized_lyrics_lane(text: String, theme: &ui::Theme) -> Div {
+    div()
+        .text_size(theme.text(Text::Body))
+        .text_color(theme.muted_foreground)
+        .child(SharedString::from(text))
+}
+
+fn karaoke_window(
+    line_start: std::time::Duration,
+    words: &[music::LyricsWord],
+    index: usize,
+) -> (std::time::Duration, std::time::Duration) {
+    let word = &words[index];
+    let start = match index {
+        0 => line_start.min(word.start),
+        _ => word.start,
+    };
+    let end = words
+        .get(index + 1)
+        .map(|next| next.start.max(start))
+        .unwrap_or_else(|| word.end.max(start));
+    (start, end)
+}
+
+fn karaoke_fragments(line: &str, words: &[music::LyricsWord]) -> Vec<String> {
+    let mut starts = Vec::with_capacity(words.len());
+    let mut cursor = 0;
+    for word in words {
+        if word.text.is_empty() {
+            return spaced_words(words);
+        }
+        let Some(remainder) = line.get(cursor..) else {
+            return spaced_words(words);
+        };
+        let Some(relative) = remainder.find(&word.text) else {
+            return spaced_words(words);
+        };
+        let start = cursor + relative;
+        starts.push(start);
+        cursor = start + word.text.len();
+    }
+
+    starts
+        .iter()
+        .enumerate()
+        .map(|(index, start)| {
+            let start = match index {
+                0 => 0,
+                _ => *start,
+            };
+            let end = starts.get(index + 1).copied().unwrap_or(line.len());
+            line[start..end].to_owned()
+        })
+        .collect()
+}
+
+fn spaced_words(words: &[music::LyricsWord]) -> Vec<String> {
+    words
+        .iter()
+        .enumerate()
+        .map(|(index, word)| {
+            let mut text = word.text.clone();
+            if words
+                .get(index + 1)
+                .is_some_and(|next| needs_space(&word.text, &next.text))
+            {
+                text.push(' ');
+            }
+            text
+        })
+        .collect()
+}
+
+fn needs_space(left: &str, right: &str) -> bool {
+    let Some(last) = left.chars().next_back() else {
+        return false;
+    };
+    let Some(first) = right.chars().next() else {
+        return false;
+    };
+    if last.is_whitespace() || first.is_whitespace() {
+        return false;
+    }
+    !matches!(last, '(' | '[' | '{' | '\'' | '’' | '-' | '—')
+        && !matches!(
+            first,
+            ')' | ']' | '}' | ',' | '.' | '!' | '?' | ';' | ':' | '%' | '\'' | '’' | '-' | '—'
+        )
+}
+
+fn anchored_lyrics_offset(view: Pixels, item: Pixels, height: Pixels, reach: Pixels) -> Pixels {
+    let delta = view - item + height * PIN;
+    delta.clamp(-reach, px(0.))
+}
+
+fn progress_between(
+    start: std::time::Duration,
+    end: std::time::Duration,
+    position: std::time::Duration,
+) -> f32 {
+    if position < start {
         return 0.;
     }
-    if at >= word.end {
+    if position >= end {
         return 1.;
     }
-    let span = (word.end - word.start).as_secs_f32();
-    ((at - word.start).as_secs_f32() / span).clamp(0., 1.)
+    let span = (end - start).as_secs_f32();
+    ((position - start).as_secs_f32() / span).clamp(0., 1.)
+}
+
+fn instrumental_gap_before(lines: &[music::LyricsLine], index: usize) -> std::time::Duration {
+    let start = lines[index].start;
+    match index {
+        0 => start,
+        _ => {
+            let previous = &lines[index - 1];
+            start.saturating_sub(previous.sung_end().unwrap_or(previous.start))
+        }
+    }
+}
+
+fn active_instrumental(
+    lines: &[music::LyricsLine],
+    position: std::time::Duration,
+) -> Option<usize> {
+    let next_line = lines.iter().position(|line| line.start > position)?;
+    let gap = instrumental_gap_before(lines, next_line);
+    let start = lines[next_line].start.saturating_sub(gap);
+    (gap >= INSTRUMENTAL_BREAK && position >= start).then_some(next_line)
+}
+
+fn lyric_row_count(lines: &[music::LyricsLine]) -> usize {
+    lines.len()
+        + (0..lines.len())
+            .filter(|index| instrumental_gap_before(lines, *index) >= INSTRUMENTAL_BREAK)
+            .count()
+}
+
+fn line_row(lines: &[music::LyricsLine], index: usize) -> usize {
+    index
+        + (0..=index)
+            .filter(|line| instrumental_gap_before(lines, *line) >= INSTRUMENTAL_BREAK)
+            .count()
+}
+
+fn active_lyrics_row(lines: &[music::LyricsLine], position: std::time::Duration) -> Option<usize> {
+    if let Some(index) = music::lyrics::active(lines, position) {
+        return Some(line_row(lines, index));
+    }
+    let index = active_instrumental(lines, position)?;
+    line_row(lines, index).checked_sub(1)
+}
+
+fn line_has_passed(line: &music::LyricsLine, position: std::time::Duration) -> bool {
+    line.sung_end().is_some_and(|end| position >= end)
+}
+
+fn instrumental_row(progress: f32, past: bool, verse: Pixels, theme: &ui::Theme) -> Div {
+    let note_size = verse * 1.;
+    div()
+        .flex()
+        .items_center()
+        .gap_2()
+        .py(verse * 0.45)
+        .children((0..3).map(|index| {
+            let note_progress = (progress * 3. - index as f32).clamp(0., 1.);
+            let tint = match past {
+                true => theme.muted_foreground.opacity(PAST),
+                false => mix(theme.muted_foreground, theme.primary, note_progress),
+            };
+            div()
+                .size(note_size)
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(
+                    svg()
+                        .path("icons/music-2.svg")
+                        .size(note_size)
+                        .text_color(tint),
+                )
+        }))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{QueuePosition, Sections, Slot};
+    use std::time::Duration;
+
+    use music::{LyricsLine, LyricsWord};
+
+    use super::{
+        QueuePosition, Sections, Slot, active_lyrics_row, anchored_lyrics_offset,
+        karaoke_fragments, karaoke_window, line_has_passed, line_row, lyric_row_count,
+    };
+    use gpui::px;
 
     fn slots(sections: Sections) -> Vec<Slot> {
         (0..sections.len()).map(|i| sections.slot(i)).collect()
@@ -1152,5 +1510,136 @@ mod tests {
 
         assert_eq!(sections.len(), 0);
         assert_eq!(sections.current_index(), None);
+    }
+
+    #[test]
+    fn a_long_instrumental_pause_gets_its_own_lyrics_row() {
+        let lines = [
+            LyricsLine {
+                start: Duration::from_secs(2),
+                end: Some(Duration::from_secs(5)),
+                text: "first".to_owned(),
+                romanized: None,
+                words: None,
+                secondary: Vec::new(),
+            },
+            LyricsLine {
+                start: Duration::from_secs(12),
+                end: Some(Duration::from_secs(15)),
+                text: "second".to_owned(),
+                romanized: None,
+                words: None,
+                secondary: Vec::new(),
+            },
+        ];
+
+        assert_eq!(lyric_row_count(&lines), 3);
+        assert_eq!(line_row(&lines, 0), 0);
+        assert_eq!(line_row(&lines, 1), 2);
+        assert_eq!(active_lyrics_row(&lines, Duration::from_secs(8)), Some(1));
+        assert_eq!(active_lyrics_row(&lines, Duration::from_secs(13)), Some(2));
+    }
+
+    #[test]
+    fn word_timing_exposes_a_pause_hidden_by_the_line_end() {
+        let lines = [
+            LyricsLine {
+                start: Duration::from_secs(2),
+                end: Some(Duration::from_secs(12)),
+                text: "first".to_owned(),
+                romanized: None,
+                words: Some(vec![LyricsWord {
+                    start: Duration::from_secs(2),
+                    end: Duration::from_secs(5),
+                    text: "first".to_owned(),
+                }]),
+                secondary: Vec::new(),
+            },
+            LyricsLine {
+                start: Duration::from_secs(12),
+                end: Some(Duration::from_secs(15)),
+                text: "second".to_owned(),
+                romanized: None,
+                words: None,
+                secondary: Vec::new(),
+            },
+        ];
+
+        assert_eq!(lyric_row_count(&lines), 3);
+        assert_eq!(active_lyrics_row(&lines, Duration::from_secs(8)), Some(1));
+        assert!(line_has_passed(&lines[0], Duration::from_secs(8)));
+    }
+
+    #[test]
+    fn lyrics_follow_uses_unscrolled_item_bounds() {
+        let offset = anchored_lyrics_offset(px(0.), px(200.), px(100.), px(500.));
+
+        assert_eq!(offset, px(-170.));
+    }
+
+    #[test]
+    fn karaoke_uses_spacing_from_the_complete_line() {
+        let text = "I said oooh I'm drowning in the night";
+        let words = ["I", "said", "oooh", "I'm", "drowning", "in", "the", "night"]
+            .into_iter()
+            .enumerate()
+            .map(|(index, text)| LyricsWord {
+                start: Duration::from_millis(index as u64 * 100),
+                end: Duration::from_millis(index as u64 * 100 + 100),
+                text: text.to_owned(),
+            })
+            .collect::<Vec<_>>();
+
+        let fragments = karaoke_fragments(text, &words);
+
+        assert_eq!(fragments.concat(), text);
+        assert_eq!(
+            fragments,
+            [
+                "I ",
+                "said ",
+                "oooh ",
+                "I'm ",
+                "drowning ",
+                "in ",
+                "the ",
+                "night"
+            ]
+        );
+    }
+
+    #[test]
+    fn a_late_first_word_uses_the_whole_lead_in() {
+        let words = vec![
+            LyricsWord {
+                start: Duration::from_millis(1500),
+                end: Duration::from_millis(1900),
+                text: "first".to_owned(),
+            },
+            LyricsWord {
+                start: Duration::from_millis(2000),
+                end: Duration::from_millis(2400),
+                text: "second".to_owned(),
+            },
+        ];
+
+        assert_eq!(
+            karaoke_window(Duration::from_millis(1000), &words, 0),
+            (Duration::from_millis(1000), Duration::from_millis(2000))
+        );
+    }
+
+    #[test]
+    fn a_finished_line_stays_past_during_a_gap() {
+        let line = LyricsLine {
+            start: Duration::from_secs(2),
+            end: Some(Duration::from_secs(5)),
+            text: "line".to_owned(),
+            romanized: None,
+            words: None,
+            secondary: Vec::new(),
+        };
+
+        assert!(line_has_passed(&line, Duration::from_secs(8)));
     }
 }
