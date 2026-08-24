@@ -118,30 +118,32 @@ fn parse(ttml: &str) -> Option<Sheet> {
                     sheet.duration = attr(&tag, b"dur").as_deref().and_then(clock_of);
                 }
                 b"p" => {
-                    line = attr(&tag, b"begin").as_deref().and_then(clock_of).map(
-                        |start| LyricsLine {
+                    line = attr(&tag, b"begin")
+                        .as_deref()
+                        .and_then(clock_of)
+                        .map(|start| LyricsLine {
                             start,
                             end: attr(&tag, b"end").as_deref().and_then(clock_of),
                             text: String::new(),
                             words: None,
-                        },
-                    );
+                        });
                 }
                 b"span" => {
                     if attr(&tag, b"ttm:role").is_some() {
                         hush += 1;
                         continue;
                     }
-                    word = attr(&tag, b"begin").as_deref().and_then(clock_of).map(
-                        |start| LyricsWord {
+                    word = attr(&tag, b"begin")
+                        .as_deref()
+                        .and_then(clock_of)
+                        .map(|start| LyricsWord {
                             start,
                             end: attr(&tag, b"end")
                                 .as_deref()
                                 .and_then(clock_of)
                                 .unwrap_or(start),
                             text: String::new(),
-                        },
-                    );
+                        });
                 }
                 _ => {}
             },

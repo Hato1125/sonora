@@ -105,7 +105,15 @@ pub fn init(
     let library = cx.new(|cx| Library::new(session.clone(), io.clone(), cx));
     let queue = cx.new(|cx| Queue::new(session.clone(), settings.clone(), cx));
     let playback = cx.new(|cx| Playback::new(session.clone(), queue.clone(), settings.clone(), cx));
-    let lyrics = cx.new(|cx| Lyrics::new(playback.clone(), lyrics_providers, io.clone(), cx));
+    let lyrics = cx.new(|cx| {
+        Lyrics::new(
+            playback.clone(),
+            session.clone(),
+            lyrics_providers,
+            io.clone(),
+            cx,
+        )
+    });
     let cover = cx.new(|cx| Cover::new(session.clone(), playback.clone(), io, cx));
 
     cx.set_global(Sonora {

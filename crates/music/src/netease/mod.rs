@@ -128,10 +128,7 @@ impl LyricsProvider for NetEase {
             .json()
             .await
             .context("cannot read the netease search response")?;
-        let songs = answer
-            .result
-            .map(|result| result.songs)
-            .unwrap_or_default();
+        let songs = answer.result.map(|result| result.songs).unwrap_or_default();
 
         let mut tasks = JoinSet::new();
         for song in shortlist(songs, query.duration) {
@@ -276,10 +273,7 @@ fn stamp_of(stamp: &str) -> Option<(Duration, Duration)> {
     let start: u64 = parts.next()?.trim().parse().ok()?;
     let span: u64 = parts.next()?.trim().parse().ok()?;
     parts.next()?;
-    Some((
-        Duration::from_millis(start),
-        Duration::from_millis(span),
-    ))
+    Some((Duration::from_millis(start), Duration::from_millis(span)))
 }
 
 #[cfg(test)]

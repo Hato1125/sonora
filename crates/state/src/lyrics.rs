@@ -2,10 +2,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use gpui::{Context, Entity, Task};
-use music::{LyricsHit, LyricsProvider, LyricsQuery, Track};
+use music::{LyricsHit, LyricsProvider, LyricsQuery, Track, TrackKey};
 use tokio::task::JoinSet;
 
-use crate::{Io, Playback, join};
+use crate::{Io, Playback, Session, join};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LyricsState {
@@ -24,6 +24,7 @@ pub struct Lyrics {
     cache: HashMap<String, Vec<LyricsHit>>,
     providers: Vec<Arc<dyn LyricsProvider>>,
     playback: Entity<Playback>,
+    session: Entity<Session>,
     io: Io,
     task: Option<Task<()>>,
 }
@@ -31,6 +32,7 @@ pub struct Lyrics {
 impl Lyrics {
     pub fn new(
         playback: Entity<Playback>,
+        session: Entity<Session>,
         providers: Vec<Arc<dyn LyricsProvider>>,
         io: Io,
         cx: &mut Context<Self>,
@@ -45,6 +47,7 @@ impl Lyrics {
             cache: HashMap::new(),
             providers,
             playback,
+            session,
             io,
             task: None,
         }
@@ -126,7 +129,15 @@ impl Lyrics {
         self.state = LyricsState::Loading;
         cx.notify();
 
-        let query = query_for(&track);
+        let key = self
+            .session
+            .read(cx)
+            .slug_for(&id)
+            .map(|provider| TrackKey {
+                provider,
+                id: id.clone(),
+            });
+        let query = query_for(&track, key);
         let providers = self.providers.clone();
         let io = self.io.clone();
         self.task = Some(cx.spawn(async move |this, cx| {
@@ -162,13 +173,13 @@ fn state_for(hits: &[LyricsHit]) -> LyricsState {
     }
 }
 
-fn query_for(track: &Track) -> LyricsQuery {
+fn query_for(track: &Track, key: Option<TrackKey>) -> LyricsQuery {
     LyricsQuery {
         title: track.name.clone(),
         artist: track.artists.clone(),
         album: (!track.album.is_empty()).then(|| track.album.clone()),
         duration: track.duration,
-        track: None,
+        track: key,
     }
 }
 

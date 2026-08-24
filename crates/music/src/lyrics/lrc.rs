@@ -90,7 +90,10 @@ fn shifted(words: Vec<LyricsWord>, start: Duration) -> Vec<LyricsWord> {
 
 fn spoken(body: &str) -> (String, Option<Vec<LyricsWord>>) {
     let segments = cut(body);
-    let whole: String = segments.iter().map(|segment| segment.text.as_str()).collect();
+    let whole: String = segments
+        .iter()
+        .map(|segment| segment.text.as_str())
+        .collect();
     let timed: Vec<&Segment> = segments
         .iter()
         .filter(|segment| segment.at.is_some())
