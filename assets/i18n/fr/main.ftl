@@ -424,3 +424,5 @@ lyrics-loading = Recherche des paroles…
 lyrics-missing = Aucune parole pour ce titre
 lyrics-failed = Le service de paroles est injoignable
 lyrics-follow = Suivre à nouveau le titre
+lyrics-source = Paroles fournies par { $source }
+lyrics-writers = Écrit par { $writers }

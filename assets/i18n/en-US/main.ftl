@@ -434,3 +434,5 @@ lyrics-loading = Looking for lyrics…
 lyrics-missing = No lyrics for this track
 lyrics-failed = Could not reach the lyrics service
 lyrics-follow = Follow the song again
+lyrics-source = Lyrics from { $source }
+lyrics-writers = Written by { $writers }

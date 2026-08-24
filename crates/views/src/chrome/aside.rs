@@ -604,6 +604,9 @@ impl Aside {
         let lyrics = self.lyrics.read(cx);
         let state = lyrics.state().clone();
         let shown = lyrics.current().map(|hit| hit.lyrics.clone());
+        let credit = lyrics
+            .current()
+            .map(|hit| (hit.source, hit.writers.clone()));
         let following = lyrics.following().map(str::to_owned);
 
         let empty = |key: &'static str, cx: &mut Context<Self>| {
@@ -621,7 +624,7 @@ impl Aside {
             false => theme.text(Text::Title),
         };
 
-        let body: Vec<gpui::AnyElement> = match (&lines, &state) {
+        let mut body: Vec<gpui::AnyElement> = match (&lines, &state) {
             (Some(lines), _) => {
                 let sung = music::lyrics::active(lines, at);
                 let ahead = sung.unwrap_or(0);
@@ -697,6 +700,26 @@ impl Aside {
             (None, LyricsState::Missing) => vec![empty("lyrics-missing", cx)],
             (None, LyricsState::Failed(_)) => vec![empty("lyrics-failed", cx)],
         };
+
+        if state == LyricsState::Ready
+            && let Some((source, writers)) = &credit
+        {
+            body.push(
+                div()
+                    .px_2()
+                    .pt_2()
+                    .flex()
+                    .flex_col()
+                    .text_size(theme.text(Text::Small))
+                    .text_color(theme.muted_foreground)
+                    .child(t!("lyrics-source", source = *source))
+                    .when(!writers.is_empty(), |this| {
+                        let writers = writers.join(", ");
+                        this.child(t!("lyrics-writers", writers = writers.as_str()))
+                    })
+                    .into_any_element(),
+            );
+        }
 
         if self.verse_of != following {
             self.verse_of = following;

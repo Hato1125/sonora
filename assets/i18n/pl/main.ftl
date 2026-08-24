@@ -437,3 +437,5 @@ lyrics-loading = Szukamy tekstu…
 lyrics-missing = Brak tekstu dla tego utworu
 lyrics-failed = Nie udało się połączyć z serwisem tekstów
 lyrics-follow = Znów podążaj za utworem
+lyrics-source = Tekst z { $source }
+lyrics-writers = Autorzy: { $writers }
