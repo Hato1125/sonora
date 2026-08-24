@@ -3,9 +3,9 @@ use std::ops::Range;
 use gpui::prelude::*;
 
 use gpui::{
-    App, Context, DragMoveEvent, Entity, FontWeight, MouseDownEvent, Pixels, Point, Render,
+    App, Context, Div, DragMoveEvent, Entity, FontWeight, MouseDownEvent, Pixels, Point, Render,
     ScrollHandle, ScrollStrategy, ScrollWheelEvent, SharedString, Task, UniformListScrollHandle,
-    Window, div, ease_in_out, px, uniform_list,
+    Window, div, ease_in_out, px, relative, uniform_list,
 };
 use i18n::t;
 use music::Track;
@@ -25,6 +25,7 @@ const REST: f32 = FADE * 0.75;
 const TAIL_ROWS: usize = 2;
 const BLUR: f32 = 0.07;
 const PAST: f32 = 0.4;
+const REVEAL: f32 = 0.6;
 const PINNED_SHARE: f32 = 0.25;
 const PIN: f32 = 0.3;
 const SETTLE: std::time::Duration = std::time::Duration::from_secs(4);
@@ -600,7 +601,8 @@ impl Aside {
 
     fn verses(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
-        let at = self.playback.read(cx).position();
+        let at = self.playback.read(cx).live_position();
+        let singing = matches!(self.playback.read(cx).state(), PlaybackState::Playing);
         let lyrics = self.lyrics.read(cx);
         let state = lyrics.state().clone();
         let shown = lyrics.current().map(|hit| hit.lyrics.clone());
@@ -644,11 +646,17 @@ impl Aside {
                         let hazed = !near;
                         let waking = self.hovered == Some(index);
                         let settling = self.fading == Some(index);
+                        let karaoke = Some(index) == sung && line.worded() && effects();
                         let tint = match (Some(index) == sung, index < ahead) {
+                            (true, _) if karaoke => theme.muted_foreground,
                             (true, _) => theme.foreground,
                             (false, true) => theme.muted_foreground.opacity(PAST),
                             (false, false) => theme.muted_foreground,
                         };
+
+                        if karaoke && singing {
+                            window.request_animation_frame();
+                        }
 
                         let verse_line = div()
                             .id(("verse", index))
@@ -669,7 +677,12 @@ impl Aside {
                                 this.playback
                                     .update(cx, |playback, cx| playback.seek(seek, cx));
                             }))
-                            .child(text);
+                            .map(|this| match (karaoke, line.words.as_ref()) {
+                                (true, Some(words)) => {
+                                    this.child(karaoke_line(words, at, verse, &theme))
+                                }
+                                _ => this.child(text),
+                            });
 
                         let softness = match (hazed, waking, settling) {
                             (false, _, _) => 0.,
@@ -989,6 +1002,47 @@ impl Render for Aside {
             )
             .children(self.menu(cx))
     }
+}
+
+fn karaoke_line(
+    words: &[music::LyricsWord],
+    at: std::time::Duration,
+    verse: Pixels,
+    theme: &ui::Theme,
+) -> Div {
+    let soft = verse * REVEAL;
+    div().flex().flex_wrap().children(words.iter().map(|word| {
+        let text = SharedString::from(word.text.clone());
+        let swept = sweep(word, at);
+        div()
+            .relative()
+            .child(text.clone())
+            .when(swept > 0., |this| {
+                this.child(
+                    div()
+                        .absolute()
+                        .left_0()
+                        .top_0()
+                        .bottom_0()
+                        .w(relative(swept))
+                        .overflow_hidden()
+                        .text_color(theme.foreground)
+                        .when(swept < 1., |this| this.fade_sides(px(0.), soft))
+                        .child(div().whitespace_nowrap().child(text)),
+                )
+            })
+    }))
+}
+
+fn sweep(word: &music::LyricsWord, at: std::time::Duration) -> f32 {
+    if at < word.start {
+        return 0.;
+    }
+    if at >= word.end {
+        return 1.;
+    }
+    let span = (word.end - word.start).as_secs_f32();
+    ((at - word.start).as_secs_f32() / span).clamp(0., 1.)
 }
 
 #[cfg(test)]
