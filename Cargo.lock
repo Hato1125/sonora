@@ -4199,6 +4199,7 @@ dependencies = [
  "lofty",
  "log",
  "protobuf",
+ "quick-xml 0.38.4",
  "reqwest",
  "rodio",
  "serde",

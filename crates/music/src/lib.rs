@@ -1,3 +1,4 @@
+pub mod amll;
 mod audio;
 pub mod local;
 pub mod lrclib;
