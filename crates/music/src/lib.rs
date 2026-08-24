@@ -4,6 +4,7 @@ pub mod local;
 pub mod lrclib;
 pub mod lyrics;
 mod models;
+pub mod netease;
 pub mod spotify;
 pub mod youtube;
 
