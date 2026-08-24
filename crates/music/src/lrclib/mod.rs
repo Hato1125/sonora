@@ -39,6 +39,8 @@ struct Found {
     track_name: Option<String>,
     #[serde(rename = "artistName")]
     artist_name: Option<String>,
+    #[serde(rename = "albumName")]
+    album_name: Option<String>,
     duration: Option<f64>,
     #[serde(rename = "plainLyrics")]
     plain: Option<String>,
@@ -96,9 +98,11 @@ fn hit(found: Found) -> Option<LyricsHit> {
 
     Some(LyricsHit {
         source: SOURCE,
+        trust: 0,
         lyrics,
         title: found.track_name.unwrap_or_default(),
         artist: found.artist_name.unwrap_or_default(),
+        album: found.album_name.filter(|name| !name.is_empty()),
         duration: found.duration.map(Duration::from_secs_f64),
     })
 }
@@ -112,6 +116,7 @@ mod tests {
         let found = Found {
             track_name: Some("Jaded".to_owned()),
             artist_name: Some("Spiritbox".to_owned()),
+            album_name: Some("Jaded".to_owned()),
             duration: Some(263.),
             plain: Some("plain".to_owned()),
             synced: Some("[00:01.00] synced".to_owned()),
@@ -125,6 +130,7 @@ mod tests {
         let found = Found {
             track_name: Some("Jaded".to_owned()),
             artist_name: Some("Spiritbox".to_owned()),
+            album_name: None,
             duration: Some(263.),
             plain: Some("   ".to_owned()),
             synced: None,

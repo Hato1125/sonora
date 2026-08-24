@@ -169,11 +169,28 @@ impl Lyrics {
         matches!(self, Self::Synced { .. })
     }
 
+    pub fn worded(&self) -> bool {
+        match self {
+            Self::Plain(_) => false,
+            Self::Synced { lines } => lines.iter().any(LyricsLine::worded),
+        }
+    }
+
     pub fn is_empty(&self) -> bool {
         match self {
             Self::Plain(text) => text.trim().is_empty(),
             Self::Synced { lines } => lines.is_empty(),
         }
+    }
+
+    pub fn span(&self) -> Option<Duration> {
+        let Self::Synced { lines } = self else {
+            return None;
+        };
+        lines
+            .iter()
+            .map(|line| line.end.unwrap_or(line.start))
+            .max()
     }
 }
 
@@ -185,6 +202,12 @@ pub struct LyricsLine {
     pub words: Option<Vec<LyricsWord>>,
 }
 
+impl LyricsLine {
+    pub fn worded(&self) -> bool {
+        self.words.as_ref().is_some_and(|words| !words.is_empty())
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LyricsWord {
     pub start: Duration,
@@ -193,18 +216,36 @@ pub struct LyricsWord {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TrackKey {
+    pub provider: &'static str,
+    pub id: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LyricsQuery {
     pub title: String,
     pub artist: String,
     pub album: Option<String>,
     pub duration: Duration,
+    pub track: Option<TrackKey>,
+}
+
+impl LyricsQuery {
+    pub fn id_for(&self, provider: &str) -> Option<&str> {
+        self.track
+            .as_ref()
+            .filter(|track| track.provider == provider)
+            .map(|track| track.id.as_str())
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LyricsHit {
     pub source: &'static str,
+    pub trust: u32,
     pub lyrics: Lyrics,
     pub title: String,
     pub artist: String,
+    pub album: Option<String>,
     pub duration: Option<Duration>,
 }

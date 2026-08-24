@@ -1,45 +1,131 @@
 pub mod lrc;
 
+use std::collections::HashSet;
 use std::time::Duration;
 
-use crate::{LyricsHit, LyricsLine, LyricsQuery};
+use crate::{Lyrics, LyricsHit, LyricsLine, LyricsQuery, LyricsWord};
 
 const CLOSE_ENOUGH: u64 = 3;
+const WAY_OFF: u64 = 10;
+const TITLE: u32 = 40;
+const ARTIST: u32 = 30;
+const ALBUM: u32 = 15;
+const SYNCED: u32 = 20;
+const WORDED: u32 = 60;
+const DRIFTED: u32 = 50;
+const TRUNCATED: u32 = 40;
 
-pub fn rank(query: &LyricsQuery, mut hits: Vec<LyricsHit>) -> Vec<LyricsHit> {
-    hits.sort_by_key(|hit| std::cmp::Reverse(score(query, hit)));
-    hits
+pub fn rank(query: &LyricsQuery, hits: Vec<LyricsHit>) -> Vec<LyricsHit> {
+    let mut scored: Vec<(i64, LyricsHit)> = hits
+        .into_iter()
+        .map(|hit| (score(query, &hit), hit))
+        .collect();
+    scored.sort_by(|(left_score, left), (right_score, right)| {
+        right_score
+            .cmp(left_score)
+            .then_with(|| left.source.cmp(right.source))
+            .then_with(|| left.title.cmp(&right.title))
+    });
+
+    let mut seen = HashSet::new();
+    scored
+        .into_iter()
+        .map(|(_, hit)| hit)
+        .filter(|hit| seen.insert(fingerprint(&hit.lyrics)))
+        .collect()
 }
 
-fn score(query: &LyricsQuery, hit: &LyricsHit) -> u32 {
-    let mut score = 0;
+fn score(query: &LyricsQuery, hit: &LyricsHit) -> i64 {
+    let mut score: i64 = i64::from(hit.trust);
     if let Some(duration) = hit.duration {
         let drift = duration.as_secs().abs_diff(query.duration.as_secs());
         if drift <= CLOSE_ENOUGH {
-            score += 100 - (drift as u32) * 10;
+            score += i64::from(100 - (drift as u32) * 10);
+        } else if drift > WAY_OFF {
+            score -= i64::from(DRIFTED);
         }
     }
     if alike(&hit.title, &query.title) {
-        score += 40;
+        score += i64::from(TITLE);
     }
     if alike(&hit.artist, &query.artist) {
-        score += 30;
+        score += i64::from(ARTIST);
+    }
+    if let Some(album) = &query.album
+        && let Some(named) = &hit.album
+        && alike(named, album)
+    {
+        score += i64::from(ALBUM);
     }
     if hit.lyrics.synced() {
-        score += 20;
+        score += i64::from(SYNCED);
+    }
+    if hit.lyrics.worded() {
+        score += i64::from(WORDED);
+    }
+    if truncated(&hit.lyrics, query.duration) {
+        score -= i64::from(TRUNCATED);
     }
     score
 }
 
-fn alike(left: &str, right: &str) -> bool {
+fn truncated(lyrics: &Lyrics, duration: Duration) -> bool {
+    let Some(span) = lyrics.span() else {
+        return false;
+    };
+    !duration.is_zero() && span.as_secs_f64() < duration.as_secs_f64() * 0.6
+}
+
+fn fingerprint(lyrics: &Lyrics) -> String {
     let trim = |text: &str| {
-        text.to_lowercase()
-            .chars()
+        text.chars()
             .filter(|letter| letter.is_alphanumeric())
+            .flat_map(char::to_lowercase)
             .collect::<String>()
     };
-    let (left, right) = (trim(left), trim(right));
-    !left.is_empty() && (left == right || left.contains(&right) || right.contains(&left))
+    match lyrics {
+        Lyrics::Plain(text) => format!("plain:{}", trim(text)),
+        Lyrics::Synced { lines } => {
+            let worded = lines.iter().any(LyricsLine::worded);
+            let text: String = lines.iter().map(|line| trim(&line.text)).collect();
+            format!("synced:{worded}:{text}")
+        }
+    }
+}
+
+fn alike(left: &str, right: &str) -> bool {
+    let (left, right) = (undecorated(left), undecorated(right));
+    if left.is_empty() || right.is_empty() {
+        return false;
+    }
+    if left == right {
+        return true;
+    }
+    let (short, long) = match left.len() <= right.len() {
+        true => (&left, &right),
+        false => (&right, &left),
+    };
+    long.contains(short.as_str()) && short.len() * 2 >= long.len()
+}
+
+fn undecorated(text: &str) -> String {
+    let text = text.split(" - ").next().unwrap_or(text);
+    let mut depth = 0usize;
+    text.chars()
+        .filter(|letter| match letter {
+            '(' | '[' => {
+                depth += 1;
+                false
+            }
+            ')' | ']' => {
+                depth = depth.saturating_sub(1);
+                false
+            }
+            _ => depth == 0,
+        })
+        .filter(|letter| letter.is_alphanumeric())
+        .flat_map(char::to_lowercase)
+        .collect()
 }
 
 pub fn active(lines: &[LyricsLine], at: Duration) -> Option<usize> {
@@ -52,6 +138,13 @@ pub fn active(lines: &[LyricsLine], at: Duration) -> Option<usize> {
         })
 }
 
+pub fn active_word(words: &[LyricsWord], at: Duration) -> Option<usize> {
+    words
+        .iter()
+        .rposition(|word| word.start <= at)
+        .filter(|index| at < words[*index].end)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -60,15 +153,26 @@ mod tests {
     fn hit(title: &str, artist: &str, seconds: u64, synced: bool) -> LyricsHit {
         LyricsHit {
             source: "test",
+            trust: 0,
             lyrics: match synced {
                 true => Lyrics::Synced {
-                    lines: Vec::new().into(),
+                    lines: vec![line(0, seconds.saturating_sub(2), title)].into(),
                 },
-                false => Lyrics::Plain("la".to_owned()),
+                false => Lyrics::Plain(format!("la {title}")),
             },
             title: title.to_owned(),
             artist: artist.to_owned(),
+            album: None,
             duration: Some(Duration::from_secs(seconds)),
+        }
+    }
+
+    fn line(start: u64, end: u64, text: &str) -> LyricsLine {
+        LyricsLine {
+            start: Duration::from_secs(start),
+            end: Some(Duration::from_secs(end)),
+            text: text.to_owned(),
+            words: None,
         }
     }
 
@@ -78,6 +182,7 @@ mod tests {
             artist: "Spiritbox".to_owned(),
             album: None,
             duration: Duration::from_secs(263),
+            track: None,
         }
     }
 
@@ -112,30 +217,125 @@ mod tests {
     }
 
     #[test]
-    fn punctuation_does_not_break_a_match() {
+    fn worded_beats_merely_synced() {
+        let mut worded = hit("Jaded", "Spiritbox", 263, true);
+        let Lyrics::Synced { lines } = &worded.lyrics else {
+            unreachable!()
+        };
+        let mut lines = lines.to_vec();
+        lines[0].text = "another take".to_owned();
+        lines[0].words = Some(vec![LyricsWord {
+            start: Duration::ZERO,
+            end: Duration::from_secs(1),
+            text: "another take".to_owned(),
+        }]);
+        worded.lyrics = Lyrics::Synced {
+            lines: lines.into(),
+        };
+
+        let ranked = rank(&query(), vec![hit("Jaded", "Spiritbox", 263, true), worded]);
+        assert!(ranked[0].lyrics.worded());
+    }
+
+    #[test]
+    fn a_matching_album_pulls_ahead() {
+        let mut named = hit("Jaded", "Spiritbox", 263, true);
+        named.album = Some("Eternal Blue".to_owned());
+        let mut plain = hit("Jaded", "Spiritbox", 263, true);
+        plain.lyrics = Lyrics::Synced {
+            lines: vec![line(0, 261, "a different upload")].into(),
+        };
+
+        let mut query = query();
+        query.album = Some("Eternal Blue".to_owned());
+        let ranked = rank(&query, vec![plain, named]);
+        assert_eq!(ranked[0].album.as_deref(), Some("Eternal Blue"));
+    }
+
+    #[test]
+    fn a_truncated_sync_falls_behind() {
+        let mut cut = hit("Jaded", "Spiritbox", 263, true);
+        cut.lyrics = Lyrics::Synced {
+            lines: vec![line(0, 40, "stops far too early")].into(),
+        };
+
+        let ranked = rank(&query(), vec![cut, hit("Jaded", "Spiritbox", 263, true)]);
+        assert!(ranked[0].lyrics.span() > Some(Duration::from_secs(200)));
+    }
+
+    #[test]
+    fn equal_hits_keep_a_stable_order() {
+        let mut left = hit("Jaded", "Spiritbox", 263, true);
+        left.source = "Beta";
+        let mut right = left.clone();
+        right.source = "Alpha";
+        right.lyrics = Lyrics::Synced {
+            lines: vec![line(0, 261, "a different upload")].into(),
+        };
+
+        let ranked = rank(&query(), vec![left.clone(), right.clone()]);
+        let reversed = rank(&query(), vec![right, left]);
+        assert_eq!(ranked[0].source, "Alpha");
+        assert_eq!(reversed[0].source, "Alpha");
+    }
+
+    #[test]
+    fn twin_uploads_collapse_into_one() {
+        let hits = vec![
+            hit("Jaded", "Spiritbox", 263, true),
+            hit("Jaded", "Spiritbox", 263, true),
+        ];
+        assert_eq!(rank(&query(), hits).len(), 1);
+    }
+
+    #[test]
+    fn trust_settles_an_otherwise_even_match() {
+        let mut direct = hit("Jaded", "Spiritbox", 263, true);
+        direct.trust = 25;
+        direct.lyrics = Lyrics::Synced {
+            lines: vec![line(0, 261, "a different upload")].into(),
+        };
+        direct.source = "Direct";
+
+        let ranked = rank(&query(), vec![hit("Jaded", "Spiritbox", 263, true), direct]);
+        assert_eq!(ranked[0].source, "Direct");
+    }
+
+    #[test]
+    fn a_short_title_does_not_match_a_long_one() {
         assert!(alike("Don't Stop", "dont stop"));
         assert!(alike("Jaded", "JADED"));
         assert!(!alike("Jaded", "Rotoscope"));
+        assert!(!alike("Love", "Love Story (Taylor's Version)"));
+        assert!(alike("Jaded", "Jaded - Single"));
+        assert!(alike("Jaded (Remastered 2024)", "Jaded"));
+        assert!(alike("Love Story", "Love Story (Taylor's Version)"));
     }
 
     #[test]
     fn the_active_line_follows_the_clock() {
-        let lines = vec![
-            LyricsLine {
-                start: Duration::from_secs(0),
-                end: Some(Duration::from_secs(5)),
-                text: "one".to_owned(),
-                words: None,
-            },
-            LyricsLine {
-                start: Duration::from_secs(5),
-                end: Some(Duration::from_secs(9)),
-                text: "two".to_owned(),
-                words: None,
-            },
-        ];
+        let lines = vec![line(0, 5, "one"), line(5, 9, "two")];
         assert_eq!(active(&lines, Duration::from_secs(2)), Some(0));
         assert_eq!(active(&lines, Duration::from_secs(6)), Some(1));
         assert_eq!(active(&lines, Duration::from_secs(30)), None);
+    }
+
+    #[test]
+    fn the_active_word_follows_the_clock() {
+        let words = vec![
+            LyricsWord {
+                start: Duration::from_millis(0),
+                end: Duration::from_millis(400),
+                text: "one ".to_owned(),
+            },
+            LyricsWord {
+                start: Duration::from_millis(400),
+                end: Duration::from_millis(900),
+                text: "two".to_owned(),
+            },
+        ];
+        assert_eq!(active_word(&words, Duration::from_millis(100)), Some(0));
+        assert_eq!(active_word(&words, Duration::from_millis(500)), Some(1));
+        assert_eq!(active_word(&words, Duration::from_millis(2000)), None);
     }
 }

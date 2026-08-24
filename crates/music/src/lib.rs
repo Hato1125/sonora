@@ -17,7 +17,7 @@ use async_trait::async_trait;
 pub use models::{
     Album, AlbumDetail, Artist, ArtistProfile, ArtistRef, Credit, Genre, GenreDetail, GenreItem,
     GenreSection, Lyrics, LyricsHit, LyricsLine, LyricsQuery, LyricsWord, Playlist, PlaylistDetail,
-    ReleaseType, SavedArtist, Track, UserProfile,
+    ReleaseType, SavedArtist, Track, TrackKey, UserProfile,
 };
 
 pub const LOCAL_TRACK_PREFIX: &str = "local:";

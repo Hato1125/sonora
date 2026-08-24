@@ -168,6 +168,7 @@ fn query_for(track: &Track) -> LyricsQuery {
         artist: track.artists.clone(),
         album: (!track.album.is_empty()).then(|| track.album.clone()),
         duration: track.duration,
+        track: None,
     }
 }
 
