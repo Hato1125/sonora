@@ -183,11 +183,17 @@ fn hit(song: &Song, sheet: &Sheet) -> Option<LyricsHit> {
                 .map(|text| lrc::parse(&text))
                 .filter(|lines| !lines.is_empty())
         });
-    let lyrics = match (lines, sheet.pure_music) {
-        (Some(lines), _) => Lyrics::Synced {
-            lines: lines.into(),
-        },
-        (None, true) => Lyrics::plain(""),
+    let quiet = sheet.pure_music || lines.as_deref().is_some_and(placeholder);
+    let lyrics = match (lines, quiet) {
+        (_, true) => Lyrics::plain(""),
+        (Some(mut lines), false) => {
+            if !headed(&mut lines, song) {
+                return None;
+            }
+            Lyrics::Synced {
+                lines: lines.into(),
+            }
+        }
         (None, false) => return None,
     };
 
@@ -195,7 +201,7 @@ fn hit(song: &Song, sheet: &Sheet) -> Option<LyricsHit> {
         source: SOURCE,
         trust: 0,
         lyrics,
-        instrumental: sheet.pure_music,
+        instrumental: quiet,
         title: song.name.clone(),
         artist: song
             .artists
@@ -227,6 +233,66 @@ struct Credit {
 #[derive(Deserialize)]
 struct Piece {
     tx: Option<String>,
+}
+
+fn placeholder(lines: &[LyricsLine]) -> bool {
+    !lines.is_empty()
+        && lines
+            .iter()
+            .all(|line| line.text.contains("纯音乐") || line.text.trim().is_empty())
+}
+
+fn headed(lines: &mut Vec<LyricsLine>, song: &Song) -> bool {
+    let Some(first) = lines.first().map(|line| line.text.clone()) else {
+        return true;
+    };
+    let artists: Vec<String> = song
+        .artists
+        .iter()
+        .filter_map(|artist| artist.name.clone())
+        .collect();
+    if labelled(&first) {
+        lines.remove(0);
+        return true;
+    }
+    let named = artists
+        .iter()
+        .any(|artist| artist.len() > 3 && loosely(&first, artist));
+    if !named {
+        return true;
+    }
+    let claimed = first
+        .split(['-', '–', '—'])
+        .map(str::trim)
+        .filter(|part| !part.is_empty() && !artists.iter().any(|artist| loosely(part, artist)))
+        .max_by_key(|part| part.len());
+    match claimed {
+        Some(claimed) if !crate::lyrics::alike(claimed, &song.name) => false,
+        _ => {
+            lines.remove(0);
+            true
+        }
+    }
+}
+
+fn labelled(text: &str) -> bool {
+    let text = text.trim().to_ascii_lowercase();
+    [
+        "artist:", "title:", "album:", "song:", "作词", "作曲", "编曲", "制作",
+    ]
+    .iter()
+    .any(|label| text.starts_with(label))
+}
+
+fn loosely(haystack: &str, needle: &str) -> bool {
+    let plain = |text: &str| {
+        text.chars()
+            .filter(|letter| letter.is_alphanumeric())
+            .flat_map(char::to_lowercase)
+            .collect::<String>()
+    };
+    let needle = plain(needle);
+    !needle.is_empty() && plain(haystack).contains(&needle)
 }
 
 fn writers(text: &str) -> Vec<String> {

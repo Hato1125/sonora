@@ -4,6 +4,57 @@ use std::time::Duration;
 use crate::{LyricsLane, LyricsLine, LyricsWord};
 
 use super::romanize;
+const HOMOGLYPHS: &[(char, char)] = &[
+    ('а', 'a'),
+    ('в', 'b'),
+    ('е', 'e'),
+    ('к', 'k'),
+    ('м', 'm'),
+    ('н', 'h'),
+    ('о', 'o'),
+    ('р', 'p'),
+    ('с', 'c'),
+    ('т', 't'),
+    ('у', 'y'),
+    ('х', 'x'),
+    ('і', 'i'),
+    ('ј', 'j'),
+    ('ѕ', 's'),
+    ('ԁ', 'd'),
+    ('А', 'A'),
+    ('В', 'B'),
+    ('Е', 'E'),
+    ('К', 'K'),
+    ('М', 'M'),
+    ('Н', 'H'),
+    ('О', 'O'),
+    ('Р', 'P'),
+    ('С', 'C'),
+    ('Т', 'T'),
+    ('У', 'Y'),
+    ('Х', 'X'),
+    ('І', 'I'),
+    ('Ј', 'J'),
+    ('Ѕ', 'S'),
+    ('Α', 'A'),
+    ('Β', 'B'),
+    ('Ε', 'E'),
+    ('Ζ', 'Z'),
+    ('Η', 'H'),
+    ('Ι', 'I'),
+    ('Κ', 'K'),
+    ('Μ', 'M'),
+    ('Ν', 'N'),
+    ('Ο', 'O'),
+    ('Ρ', 'P'),
+    ('Τ', 'T'),
+    ('Υ', 'Y'),
+    ('Χ', 'X'),
+    ('ο', 'o'),
+    ('ρ', 'p'),
+    ('τ', 't'),
+    ('ι', 'i'),
+];
 
 pub fn parse(lrc: &str) -> Vec<LyricsLine> {
     let mut lines: Vec<LyricsLine> = lrc.lines().flat_map(read).collect();
@@ -39,8 +90,93 @@ pub fn normalize(lines: &mut Vec<LyricsLine>) {
         }
         normalized.push(line);
     }
+    collapse(&mut normalized);
+    unspoof(&mut normalized);
     romanize::apply(&mut normalized);
     *lines = normalized;
+}
+
+fn collapse(lines: &mut [LyricsLine]) {
+    for line in lines.iter_mut() {
+        let spaced = line.words.as_ref().is_some_and(|words| {
+            words
+                .iter()
+                .any(|word| word.text.contains(char::is_whitespace))
+        });
+        match line.words.as_mut() {
+            Some(words) if spaced => {
+                for word in words.iter_mut() {
+                    word.text = squeezed(&word.text);
+                }
+                line.text = words.iter().map(|word| word.text.as_str()).collect();
+                line.text = line.text.trim().to_owned();
+            }
+            _ => line.text = squeezed(&line.text),
+        }
+        for lane in &mut line.secondary {
+            lane.text = squeezed(&lane.text);
+        }
+    }
+}
+
+fn squeezed(text: &str) -> String {
+    let mut squeezed = String::with_capacity(text.len());
+    let mut spacing = false;
+    for letter in text.chars() {
+        match letter.is_whitespace() {
+            true => spacing = true,
+            false => {
+                if spacing && !squeezed.is_empty() {
+                    squeezed.push(' ');
+                }
+                spacing = false;
+                squeezed.push(letter);
+            }
+        }
+    }
+    if spacing && !squeezed.is_empty() {
+        squeezed.push(' ');
+    }
+    squeezed
+}
+
+fn unspoof(lines: &mut [LyricsLine]) {
+    let letters = lines
+        .iter()
+        .flat_map(|line| line.text.chars())
+        .filter(|letter| letter.is_alphabetic());
+    let (latin, foreign) = letters.fold((0usize, 0usize), |(latin, foreign), letter| match letter
+        .is_ascii_alphabetic()
+    {
+        true => (latin + 1, foreign),
+        false => (latin, foreign + 1),
+    });
+    if latin < foreign.saturating_mul(4) {
+        return;
+    }
+    for line in lines.iter_mut() {
+        line.text = latinized(&line.text);
+        if let Some(words) = line.words.as_mut() {
+            for word in words.iter_mut() {
+                word.text = latinized(&word.text);
+            }
+        }
+        for lane in &mut line.secondary {
+            lane.text = latinized(&lane.text);
+        }
+    }
+}
+
+fn latinized(text: &str) -> String {
+    text.chars()
+        .map(|letter| {
+            HOMOGLYPHS
+                .iter()
+                .find(|(from, _)| *from == letter)
+                .map(|(_, to)| *to)
+                .unwrap_or(letter)
+        })
+        .collect()
 }
 
 fn structural(text: &str) -> bool {

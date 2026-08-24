@@ -10,7 +10,7 @@ use crate::{Lyrics, LyricsHit, LyricsLine, LyricsProvider, LyricsQuery, LyricsWo
 
 const SOURCE: &str = "AMLL";
 const ENDPOINT: &str = "https://raw.githubusercontent.com/amll-dev/amll-ttml-db/refs/heads/main";
-const TRUST: u32 = 50;
+const TRUST: u32 = 1000;
 const AGENT: &str = concat!(
     "sonora/",
     env!("CARGO_PKG_VERSION"),

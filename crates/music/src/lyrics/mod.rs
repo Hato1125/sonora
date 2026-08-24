@@ -162,7 +162,7 @@ fn fingerprint(lyrics: &Lyrics) -> String {
     }
 }
 
-fn alike(left: &str, right: &str) -> bool {
+pub(crate) fn alike(left: &str, right: &str) -> bool {
     let (left, right) = (undecorated(left), undecorated(right));
     if left.is_empty() || right.is_empty() {
         return false;
