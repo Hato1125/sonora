@@ -16,6 +16,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   fall behind, duplicate uploads collapse into one entry, and word-synced lyrics win over
   line-synced ones.
 - The lyrics panel names its source and the songwriters beneath the verses.
+- Word-synced lyrics light up word by word as they are sung, with a soft sweep across each word.
+  Line-synced lyrics keep the existing line highlight.
 
 ### Changed
 
