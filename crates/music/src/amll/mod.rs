@@ -73,6 +73,7 @@ struct Sheet {
     artist: String,
     album: Option<String>,
     duration: Option<Duration>,
+    writers: Vec<String>,
 }
 
 fn hit(ttml: &str) -> Option<LyricsHit> {
@@ -87,6 +88,7 @@ fn hit(ttml: &str) -> Option<LyricsHit> {
         artist: sheet.artist,
         album: sheet.album,
         duration: sheet.duration,
+        writers: sheet.writers,
     })
 }
 
@@ -100,9 +102,11 @@ fn parse(ttml: &str) -> Option<Sheet> {
         artist: String::new(),
         album: None,
         duration: None,
+        writers: Vec::new(),
     };
     let mut line: Option<LyricsLine> = None;
     let mut word: Option<LyricsWord> = None;
+    let mut writer: Option<String> = None;
     let mut hush = 0usize;
 
     loop {
@@ -145,19 +149,26 @@ fn parse(ttml: &str) -> Option<Sheet> {
                             text: String::new(),
                         });
                 }
+                b"songwriter" => writer = Some(String::new()),
                 _ => {}
             },
             Event::Text(text) if hush == 0 => {
                 let Ok(text) = text.xml_content() else {
                     continue;
                 };
-                spell(&text, &mut word, &mut line);
+                match &mut writer {
+                    Some(writer) => writer.push_str(&text),
+                    None => spell(&text, &mut word, &mut line),
+                }
             }
             Event::GeneralRef(name) if hush == 0 => {
                 let Some(letter) = unref(name.as_ref()) else {
                     continue;
                 };
-                spell(letter, &mut word, &mut line);
+                match &mut writer {
+                    Some(writer) => writer.push_str(letter),
+                    None => spell(letter, &mut word, &mut line),
+                }
             }
             Event::End(tag) => match tag.name().as_ref() {
                 b"span" => {
@@ -165,6 +176,14 @@ fn parse(ttml: &str) -> Option<Sheet> {
                         && !sung.text.is_empty()
                     {
                         line.words.get_or_insert_default().push(sung);
+                    }
+                }
+                b"songwriter" => {
+                    if let Some(named) = writer.take() {
+                        let named = named.trim().to_owned();
+                        if !named.is_empty() && !sheet.writers.contains(&named) {
+                            sheet.writers.push(named);
+                        }
                     }
                 }
                 b"p" => {
@@ -251,7 +270,7 @@ fn clock_of(stamp: &str) -> Option<Duration> {
 mod tests {
     use super::*;
 
-    const SAMPLE: &str = r#"<tt xmlns="http://www.w3.org/ns/ttml" xmlns:amll="http://www.example.com/ns/amll" xmlns:itunes="http://music.apple.com/lyric-ttml-internal" xmlns:ttm="http://www.w3.org/ns/ttml#metadata" itunes:timing="Word"><head><metadata><ttm:agent type="person" xml:id="v1"/><amll:meta key="musicName" value="Blinding Lights"/><amll:meta key="artists" value="The Weeknd"/><amll:meta key="album" value="After Hours"/><amll:meta key="spotifyId" value="0VjIjW4GlUZAMYd2vXMi3b"/></metadata></head><body dur="3:14.571"><div begin="27.173" end="3:14.571"><p begin="27.173" end="28.516" itunes:key="L1" ttm:agent="v1"><span begin="27.173" end="27.407">I&apos;ve</span> <span begin="27.407" end="27.510">been</span> <span begin="27.510" end="27.899">tryna</span> <span begin="27.899" end="28.516">call</span><span ttm:role="x-translation" xml:lang="zh-CN">我一直心存向往</span></p><p begin="29.988" end="32.075" itunes:key="L2" ttm:agent="v1"><span begin="29.988" end="30.117">I&apos;ve</span> <span begin="30.117" end="30.236">been</span></p></div></body></tt>"#;
+    const SAMPLE: &str = r#"<tt xmlns="http://www.w3.org/ns/ttml" xmlns:amll="http://www.example.com/ns/amll" xmlns:itunes="http://music.apple.com/lyric-ttml-internal" xmlns:ttm="http://www.w3.org/ns/ttml#metadata" itunes:timing="Word"><head><metadata><ttm:agent type="person" xml:id="v1"/><iTunesMetadata xmlns="http://music.apple.com/lyric-ttml-internal"><songwriters><songwriter>Abel Tesfaye</songwriter><songwriter>Max Martin</songwriter></songwriters></iTunesMetadata><amll:meta key="musicName" value="Blinding Lights"/><amll:meta key="artists" value="The Weeknd"/><amll:meta key="album" value="After Hours"/><amll:meta key="spotifyId" value="0VjIjW4GlUZAMYd2vXMi3b"/></metadata></head><body dur="3:14.571"><div begin="27.173" end="3:14.571"><p begin="27.173" end="28.516" itunes:key="L1" ttm:agent="v1"><span begin="27.173" end="27.407">I&apos;ve</span> <span begin="27.407" end="27.510">been</span> <span begin="27.510" end="27.899">tryna</span> <span begin="27.899" end="28.516">call</span><span ttm:role="x-translation" xml:lang="zh-CN">我一直心存向往</span></p><p begin="29.988" end="32.075" itunes:key="L2" ttm:agent="v1"><span begin="29.988" end="30.117">I&apos;ve</span> <span begin="30.117" end="30.236">been</span></p></div></body></tt>"#;
 
     #[test]
     fn reads_a_clock() {
@@ -269,6 +288,10 @@ mod tests {
         assert_eq!(hit.artist, "The Weeknd");
         assert_eq!(hit.album.as_deref(), Some("After Hours"));
         assert_eq!(hit.duration, Some(Duration::from_millis(194_571)));
+        assert_eq!(
+            hit.writers,
+            vec!["Abel Tesfaye".to_owned(), "Max Martin".to_owned()]
+        );
 
         let Lyrics::Synced { lines } = &hit.lyrics else {
             unreachable!()

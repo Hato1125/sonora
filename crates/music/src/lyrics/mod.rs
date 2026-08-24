@@ -164,6 +164,7 @@ mod tests {
             artist: artist.to_owned(),
             album: None,
             duration: Some(Duration::from_secs(seconds)),
+            writers: Vec::new(),
         }
     }
 

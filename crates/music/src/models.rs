@@ -248,4 +248,5 @@ pub struct LyricsHit {
     pub artist: String,
     pub album: Option<String>,
     pub duration: Option<Duration>,
+    pub writers: Vec<String>,
 }

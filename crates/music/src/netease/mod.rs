@@ -197,7 +197,52 @@ fn hit(song: &Song, sheet: &Sheet) -> Option<LyricsHit> {
             .join(", "),
         album: song.album.as_ref().and_then(|album| album.name.clone()),
         duration: (song.duration > 0).then(|| Duration::from_millis(song.duration)),
+        writers: [&sheet.yrc, &sheet.lrc]
+            .into_iter()
+            .filter_map(lyric)
+            .flat_map(|text| writers(&text))
+            .fold(Vec::new(), |mut writers, name| {
+                if !writers.contains(&name) {
+                    writers.push(name);
+                }
+                writers
+            }),
     })
+}
+
+#[derive(Deserialize)]
+struct Credit {
+    #[serde(default)]
+    c: Vec<Piece>,
+}
+
+#[derive(Deserialize)]
+struct Piece {
+    tx: Option<String>,
+}
+
+fn writers(text: &str) -> Vec<String> {
+    let mut writers = Vec::new();
+    for line in text.lines().filter(|line| line.starts_with('{')) {
+        let Ok(credit) = serde_json::from_str::<Credit>(line) else {
+            continue;
+        };
+        let credit: String = credit.c.into_iter().filter_map(|piece| piece.tx).collect();
+        let Some((label, names)) = credit.split_once(':').or_else(|| credit.split_once('：'))
+        else {
+            continue;
+        };
+        if !label.contains("作词") && !label.contains("作曲") {
+            continue;
+        }
+        for name in names.split('/') {
+            let name = name.trim().to_owned();
+            if !name.is_empty() && !writers.contains(&name) {
+                writers.push(name);
+            }
+        }
+    }
+    writers
 }
 
 fn parse_yrc(yrc: &str) -> Vec<LyricsLine> {
@@ -296,6 +341,16 @@ mod tests {
         assert_eq!(words[0].text, "I've ");
         assert_eq!(words[1].start, Duration::from_millis(27_600));
         assert_eq!(words[3].end, Duration::from_millis(28_650));
+    }
+
+    #[test]
+    fn credit_headers_name_the_writers() {
+        let text = "{\"t\":0,\"c\":[{\"tx\":\"作词: \"},{\"tx\":\"Abel Tesfaye\"},{\"tx\":\"/\"},{\"tx\":\"Max Martin\"}]}\n{\"t\":1,\"c\":[{\"tx\":\"作曲: \"},{\"tx\":\"Max Martin\"}]}\n{\"t\":2,\"c\":[{\"tx\":\"制作人: \"},{\"tx\":\"Oscar Holter\"}]}\n[1000,2000](1000,500,0)la\n";
+
+        assert_eq!(
+            writers(text),
+            vec!["Abel Tesfaye".to_owned(), "Max Martin".to_owned()]
+        );
     }
 
     #[test]

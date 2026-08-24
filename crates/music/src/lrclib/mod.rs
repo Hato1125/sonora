@@ -133,6 +133,7 @@ fn hit(found: Found) -> Option<LyricsHit> {
         artist: found.artist_name.unwrap_or_default(),
         album: found.album_name.filter(|name| !name.is_empty()),
         duration: found.duration.map(Duration::from_secs_f64),
+        writers: Vec::new(),
     })
 }
 
