@@ -324,6 +324,7 @@ pub struct LyricsHit {
     pub source: &'static str,
     pub trust: u32,
     pub lyrics: Lyrics,
+    pub instrumental: bool,
     pub title: String,
     pub artist: String,
     pub album: Option<String>,

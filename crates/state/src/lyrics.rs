@@ -12,6 +12,7 @@ pub enum LyricsState {
     Idle,
     Loading,
     Ready,
+    Instrumental,
     Missing,
     Failed(String),
 }
@@ -21,7 +22,7 @@ pub struct Lyrics {
     hits: Vec<LyricsHit>,
     chosen: usize,
     following: Option<String>,
-    cache: HashMap<String, Vec<LyricsHit>>,
+    cache: HashMap<String, Found>,
     providers: Vec<Arc<dyn LyricsProvider>>,
     playback: Entity<Playback>,
     session: Entity<Session>,
@@ -98,9 +99,9 @@ impl Lyrics {
         self.following = Some(id.clone());
         self.chosen = 0;
 
-        if let Some(hits) = self.cache.get(&id) {
-            self.hits = hits.clone();
-            self.state = state_for(&self.hits);
+        if let Some(found) = self.cache.get(&id) {
+            self.hits = found.hits.clone();
+            self.state = state_for(&self.hits, found.instrumental);
             cx.notify();
             return;
         }
@@ -176,11 +177,18 @@ impl Lyrics {
                 this.task = None;
                 match found {
                     Ok(()) => {
+                        let instrumental = music::lyrics::instrumental(&query_for_rank, &hits);
                         let mut hits = music::lyrics::rank(&query_for_rank, hits);
                         keep_displayed_first(&mut hits, displayed.as_ref());
-                        this.cache.insert(id, hits.clone());
+                        this.cache.insert(
+                            id,
+                            Found {
+                                hits: hits.clone(),
+                                instrumental,
+                            },
+                        );
                         this.hits = hits;
-                        this.state = state_for(&this.hits);
+                        this.state = state_for(&this.hits, instrumental);
                     }
                     Err(error) => {
                         log::warn!("lyrics: cannot look up {}: {error:#}", track.name);
@@ -203,10 +211,16 @@ fn keep_displayed_first(hits: &mut Vec<LyricsHit>, displayed: Option<&LyricsHit>
     hits.insert(0, displayed);
 }
 
-fn state_for(hits: &[LyricsHit]) -> LyricsState {
-    match hits.is_empty() {
-        true => LyricsState::Missing,
-        false => LyricsState::Ready,
+struct Found {
+    hits: Vec<LyricsHit>,
+    instrumental: bool,
+}
+
+fn state_for(hits: &[LyricsHit], instrumental: bool) -> LyricsState {
+    match (hits.is_empty(), instrumental) {
+        (false, _) => LyricsState::Ready,
+        (true, true) => LyricsState::Instrumental,
+        (true, false) => LyricsState::Missing,
     }
 }
 
@@ -257,6 +271,7 @@ mod tests {
             source,
             trust: 0,
             lyrics,
+            instrumental: false,
             title: "title".to_owned(),
             artist: "artist".to_owned(),
             album: None,

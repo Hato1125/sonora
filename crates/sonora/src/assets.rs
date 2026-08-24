@@ -71,6 +71,7 @@ const ICONS: &[(&str, &[u8])] = icons![
     "list-plus",
     "log-out",
     "maximize",
+    "mic-off",
     "mic-vocal",
     "music",
     "music-2",

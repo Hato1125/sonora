@@ -81,6 +81,7 @@ fn hit(ttml: &str) -> Option<LyricsHit> {
     (!sheet.lines.is_empty()).then(|| LyricsHit {
         source: SOURCE,
         trust: TRUST,
+        instrumental: false,
         lyrics: Lyrics::Synced {
             lines: sheet.lines.into(),
         },

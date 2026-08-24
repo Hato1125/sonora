@@ -46,6 +46,8 @@ struct Found {
     plain: Option<String>,
     #[serde(rename = "syncedLyrics")]
     synced: Option<String>,
+    #[serde(default)]
+    instrumental: bool,
     lyricsfile: Option<String>,
 }
 
@@ -102,7 +104,7 @@ impl LyricsProvider for LrcLib {
 }
 
 fn hit(found: Found) -> Option<LyricsHit> {
-    let lyrics = found
+    let sheet = found
         .lyricsfile
         .as_deref()
         .and_then(filed)
@@ -123,12 +125,18 @@ fn hit(found: Found) -> Option<LyricsHit> {
                 .map(str::trim)
                 .filter(|text| !text.is_empty())
                 .map(Lyrics::plain)
-        })?;
+        });
+    let lyrics = match (sheet, found.instrumental) {
+        (Some(lyrics), _) => lyrics,
+        (None, true) => Lyrics::plain(""),
+        (None, false) => return None,
+    };
 
     Some(LyricsHit {
         source: SOURCE,
         trust: 0,
         lyrics,
+        instrumental: found.instrumental,
         title: found.track_name.unwrap_or_default(),
         artist: found.artist_name.unwrap_or_default(),
         album: found.album_name.filter(|name| !name.is_empty()),
@@ -186,6 +194,7 @@ mod tests {
             plain: Some("plain".to_owned()),
             synced: Some("[00:01.00] synced".to_owned()),
             lyricsfile: None,
+            instrumental: false,
         };
 
         assert!(hit(found).unwrap().lyrics.synced());
@@ -201,6 +210,7 @@ mod tests {
             plain: Some("   ".to_owned()),
             synced: None,
             lyricsfile: None,
+            instrumental: false,
         };
 
         assert!(hit(found).is_none());
@@ -215,6 +225,7 @@ mod tests {
             duration: Some(263.),
             plain: None,
             synced: Some("[00:01.00] line only".to_owned()),
+            instrumental: false,
             lyricsfile: Some(
                 "version: '1.0'\nmetadata:\n  title: Jaded\n  artist: Spiritbox\nlines:\n- text: 'Hello world'\n  start_ms: 1200\n  end_ms: 2800\n  words:\n  - text: 'Hello '\n    start_ms: 1200\n    end_ms: 1900\n  - text: 'world'\n    start_ms: 1900\n    end_ms: 2800\n"
                     .to_owned(),
@@ -252,6 +263,7 @@ mod tests {
             plain: None,
             synced: Some("[00:01.00] line only".to_owned()),
             lyricsfile: Some(": not yaml [".to_owned()),
+            instrumental: false,
         };
 
         let lyrics = hit(found).unwrap().lyrics;
