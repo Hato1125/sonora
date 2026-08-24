@@ -104,6 +104,7 @@ pub struct Playback {
     state: PlaybackState,
     origin: Option<Origin>,
     position: Duration,
+    moved_at: Option<Instant>,
     track: Option<Track>,
     engine: Option<Box<dyn Player>>,
     local_engine: Option<Box<dyn Player>>,
@@ -178,6 +179,7 @@ impl Playback {
             state: PlaybackState::Idle,
             origin: None,
             position: Duration::ZERO,
+            moved_at: None,
             track: None,
             engine: None,
             local_engine: None,
@@ -920,6 +922,7 @@ impl Playback {
         if let Some(engine) = self.active_engine() {
             engine.seek(position);
             self.position = position;
+            self.moved_at = Some(Instant::now());
             cx.notify();
         }
     }
@@ -944,6 +947,20 @@ impl Playback {
 
     pub fn position(&self) -> Duration {
         self.position
+    }
+
+    pub fn live_position(&self) -> Duration {
+        let Some(moved_at) = self.moved_at else {
+            return self.position;
+        };
+        if self.state != PlaybackState::Playing {
+            return self.position;
+        }
+        let live = self.position + moved_at.elapsed().min(POSITION_INTERVAL);
+        match self.track.as_ref().map(|track| track.duration) {
+            Some(total) if !total.is_zero() => live.min(total),
+            _ => live,
+        }
     }
 
     pub fn track(&self) -> Option<&Track> {
@@ -1135,6 +1152,7 @@ impl Playback {
                 let started = self.state != PlaybackState::Playing;
                 self.state = PlaybackState::Playing;
                 self.position = position;
+                self.moved_at = Some(Instant::now());
                 if let Some(at) = self.seek_on_play.take() {
                     self.seek(at, cx);
                 }
@@ -1149,6 +1167,7 @@ impl Playback {
             }
             BackendEvent::Position(position) => {
                 self.position = position;
+                self.moved_at = Some(Instant::now());
                 self.remember(false, cx);
                 self.preload_next(position, cx);
             }
