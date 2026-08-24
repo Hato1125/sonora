@@ -56,6 +56,7 @@ const ICONS: &[(&str, &[u8])] = icons![
     "circle-alert",
     "circle-check",
     "copy",
+    "guitar",
     "heart",
     "heart-filled",
     "heart-off",
