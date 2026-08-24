@@ -7,6 +7,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Japanese romanized lyrics now read as words rather than as fragments: kanji keep their word
+  readings (君 is "kimi", not "kun"), verb endings stay attached to their stem ("oshietekureta"
+  instead of "oshie tekureta"), particles are romanized as they are spoken ("wa" for は, "o" for
+  を), and small つ doubles the next consonant instead of appearing as "tsu".
+
 ## [0.17.0] - 2026-08-24
 
 ### Added

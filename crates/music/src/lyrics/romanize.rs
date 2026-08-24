@@ -1,5 +1,4 @@
 use deunicode::deunicode_char;
-use kakasi::IsJapanese;
 
 use crate::{LyricsLine, RomanizedText, WritingSystem};
 
@@ -25,7 +24,7 @@ pub(crate) fn plain(text: &str) -> Option<RomanizedText> {
 
 fn detect<'a>(texts: impl Iterator<Item = &'a str>) -> Option<WritingSystem> {
     let text = texts.collect::<Vec<_>>().join("\n");
-    if kakasi::is_japanese(&text) == IsJapanese::True {
+    if text.chars().any(super::japanese::kana) {
         return Some(WritingSystem::Japanese);
     }
     dominant_system(&text)
@@ -33,7 +32,7 @@ fn detect<'a>(texts: impl Iterator<Item = &'a str>) -> Option<WritingSystem> {
 
 fn convert(text: &str, system: WritingSystem) -> Option<RomanizedText> {
     let romanized = match system {
-        WritingSystem::Japanese => kakasi::convert(text).romaji,
+        WritingSystem::Japanese => super::japanese::romanize(text),
         _ => universal(text),
     };
     let romanized = tidy(&romanized);
@@ -133,7 +132,7 @@ mod tests {
             convert("こんにちは世界", system)
                 .as_ref()
                 .map(|text| text.text.as_str()),
-            Some("konnichiha sekai")
+            Some("konnichiwa sekai")
         );
     }
 

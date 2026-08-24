@@ -1,3 +1,4 @@
+mod japanese;
 pub mod lrc;
 pub(crate) mod romanize;
 
