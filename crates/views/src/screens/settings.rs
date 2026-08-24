@@ -448,7 +448,9 @@ impl SettingsView {
             .width(Picker::NARROW)
             .items(ThemeKind::ALL.into_iter().map(|kind| {
                 let item = MenuItem::new(kind.id(), kind.label()).selected(current == kind);
-                match adaptive && !matches!(kind, ThemeKind::Dark | ThemeKind::Light) {
+                match adaptive
+                    && !matches!(kind, ThemeKind::System | ThemeKind::Dark | ThemeKind::Light)
+                {
                     true => item.disabled(),
                     false => {
                         let overrides = overrides.clone();
@@ -566,8 +568,10 @@ impl SettingsView {
                 .on_click(cx.listener(move |this, _, _, cx| {
                     let adaptive = !on;
                     let kind = match adaptive
-                        && !matches!(look.kind, ThemeKind::Dark | ThemeKind::Light)
-                    {
+                        && !matches!(
+                            look.kind,
+                            ThemeKind::System | ThemeKind::Dark | ThemeKind::Light
+                        ) {
                         true => ThemeKind::Dark,
                         false => look.kind,
                     };

@@ -10,7 +10,7 @@ use state::{
     ArtistDetail, Detail, GenreDetails, Genres, Home, Io, Library, Playback, Queue, Search,
     Session, SessionState, SideTab, SongDetail, Sonora,
 };
-use ui::{ActiveTheme as _, Dismiss};
+use ui::{ActiveTheme as _, Dismiss, Look, Theme, ThemeKind};
 
 use crate::chrome::{TitleBar, TitleBarEvent, TitleBarOptions, Toolbar, Tooled};
 use crate::screens::search::SearchView;
@@ -146,6 +146,22 @@ impl Root {
                 .update(cx, |workspace, cx| workspace.toggle_sidebar_right(cx)),
         })
         .detach();
+
+        window
+            .observe_window_appearance(|_, cx| {
+                let settings = Sonora::global(cx).settings.clone();
+                let settings = settings.read(cx);
+                if ThemeKind::from_id(settings.theme()) != ThemeKind::System {
+                    return;
+                }
+                let look = Look {
+                    tint: cx.theme().tint,
+                    ..settings.look()
+                };
+                let overrides = settings.theme_overrides().clone();
+                Theme::fade(look, &overrides, cx);
+            })
+            .detach();
 
         let adaptive = cx.new(|cx| Adaptive::new(playback.clone(), cx));
 

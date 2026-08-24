@@ -7,6 +7,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- The theme picker offers a System option that follows the operating system's light or dark
+  appearance, switching automatically when it changes.
+
 ### Changed
 
 - The fullscreen panel switcher and volume popup are solid instead of translucent and frosted, so

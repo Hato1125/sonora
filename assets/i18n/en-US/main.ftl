@@ -381,6 +381,7 @@ settings-role-contributor = Contributor
 settings-notice = Copyright © 2026 Sonora Contributors. Sonora comes with absolutely no warranty. It is free software, and you are welcome to redistribute it under the terms of the GNU General Public License version 3 or later. Sonora is unofficial and is not affiliated with Spotify AB.
 
 # themes
+theme-system = System
 theme-dark = Dark
 theme-light = Light
 theme-midnight = Midnight
