@@ -267,12 +267,30 @@ fn headed(lines: &mut Vec<LyricsLine>, song: &Song) -> bool {
         .filter(|part| !part.is_empty() && !artists.iter().any(|artist| loosely(part, artist)))
         .max_by_key(|part| part.len());
     match claimed {
-        Some(claimed) if !crate::lyrics::alike(claimed, &song.name) => false,
+        Some(claimed) if !related(claimed, &song.name) => false,
         _ => {
             lines.remove(0);
             true
         }
     }
+}
+
+fn related(claimed: &str, name: &str) -> bool {
+    let words = |text: &str| {
+        text.split(|letter: char| !letter.is_alphanumeric())
+            .map(|word| word.to_lowercase())
+            .filter(|word| word.chars().count() >= 4)
+            .collect::<Vec<_>>()
+    };
+    let (left, right) = (words(claimed), words(name));
+    if left.is_empty() || right.is_empty() {
+        return true;
+    }
+    left.iter().any(|left| {
+        right
+            .iter()
+            .any(|right| left.starts_with(right.as_str()) || right.starts_with(left.as_str()))
+    })
 }
 
 fn labelled(text: &str) -> bool {

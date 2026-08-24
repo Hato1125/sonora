@@ -141,30 +141,38 @@ fn squeezed(text: &str) -> String {
 }
 
 fn unspoof(lines: &mut [LyricsLine]) {
-    let letters = lines
-        .iter()
-        .flat_map(|line| line.text.chars())
-        .filter(|letter| letter.is_alphabetic());
-    let (latin, foreign) = letters.fold((0usize, 0usize), |(latin, foreign), letter| match letter
-        .is_ascii_alphabetic()
-    {
-        true => (latin + 1, foreign),
-        false => (latin, foreign + 1),
-    });
-    if latin < foreign.saturating_mul(4) {
-        return;
-    }
     for line in lines.iter_mut() {
+        if !spoofed(&line.text) {
+            continue;
+        }
         line.text = latinized(&line.text);
         if let Some(words) = line.words.as_mut() {
             for word in words.iter_mut() {
                 word.text = latinized(&word.text);
             }
         }
-        for lane in &mut line.secondary {
+    }
+    for lane in lines.iter_mut().flat_map(|line| line.secondary.iter_mut()) {
+        if spoofed(&lane.text) {
             lane.text = latinized(&lane.text);
         }
     }
+}
+
+fn spoofed(text: &str) -> bool {
+    let mut latin = false;
+    let mut masked = false;
+    for letter in text.chars().filter(|letter| letter.is_alphabetic()) {
+        if letter.is_ascii_alphabetic() {
+            latin = true;
+            continue;
+        }
+        match HOMOGLYPHS.iter().any(|(from, _)| *from == letter) {
+            true => masked = true,
+            false => return false,
+        }
+    }
+    latin && masked
 }
 
 fn latinized(text: &str) -> String {
