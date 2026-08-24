@@ -7,6 +7,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-08-24
+
 ### Added
 
 - The theme picker offers a System option that follows the operating system's light or dark
@@ -27,6 +29,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Karaoke word highlighting can be turned off in Settings → Playback.
 - Word-synced lyrics appear as soon as the first provider answers instead of waiting for the
   slowest one.
+- Windows releases ship an installer alongside the portable binary.
 
 ### Changed
 
@@ -38,6 +41,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The playback clock eases toward corrections from the engine instead of snapping, so lyrics and
   the seek bar never jump backwards mid-word.
 - The active lyric line brightens in and the previous one dims out with a short transition.
+
+### Fixed
+
+- Audio opens with the device's own output configuration, so devices that reject the previously
+  assumed format play again.
+- The volume bubble stays put while dragging, and fullscreen seeks preview the target position
+  instead of waiting for the engine to catch up.
 
 ## [0.16.3] - 2026-08-24
 
@@ -630,7 +640,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Initial release: a native Spotify client with playback, an interactive queue, the saved library,
 search, album, playlist, artist and song pages, context menus and adaptive theming.
 
-[unreleased]: https://github.com/nolight132/sonora/compare/v0.16.3...HEAD
+[unreleased]: https://github.com/nolight132/sonora/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/nolight132/sonora/compare/v0.16.3...v0.17.0
 [0.16.3]: https://github.com/nolight132/sonora/compare/v0.16.2...v0.16.3
 [0.16.2]: https://github.com/nolight132/sonora/compare/v0.16.1...v0.16.2
 [0.16.1]: https://github.com/nolight132/sonora/compare/v0.16.0...v0.16.1
