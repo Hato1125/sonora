@@ -18,7 +18,7 @@ use ui::{
 
 use crate::chrome::{Aside, TitleBarOptions};
 use crate::shared::menu::ItemMenu;
-use crate::shared::transport::{NOTCH, like, percent, transport, volume_icon};
+use crate::shared::transport::{NOTCH, like, moved, percent, transport, volume_icon};
 use crate::shells::Shell;
 
 const COVER_TALL: f32 = 0.46;
@@ -53,6 +53,7 @@ pub struct FullscreenView {
     panel: Option<SideTab>,
     seek: ScrubberState,
     pending: Option<f32>,
+    over_seek: Option<f32>,
     volume: ScrubberState,
     over_volume: bool,
     over_zone: bool,
@@ -91,6 +92,7 @@ impl FullscreenView {
             panel: Some(SideTab::Lyrics),
             seek: ScrubberState::new("fullscreen-seek"),
             pending: None,
+            over_seek: None,
             volume: ScrubberState::new("fullscreen-volume-slider"),
             over_volume: false,
             over_zone: false,
@@ -145,6 +147,16 @@ impl FullscreenView {
             })
             .ok();
         }));
+    }
+
+    fn hover(&mut self, event: &MouseMoveEvent, _: &mut Window, cx: &mut Context<Self>) {
+        let pad = cx.theme().metrics.pad;
+        let seek = self.seek.hovered(event.position, pad);
+        if moved(self.over_seek, seek) {
+            self.over_seek = seek;
+            cx.notify();
+        }
+        self.poke(cx);
     }
 
     fn poke(&mut self, cx: &mut Context<Self>) {
@@ -456,6 +468,11 @@ impl FullscreenView {
                 false => CLOCK_SHORT,
             };
 
+        let bubble = self
+            .over_seek
+            .or(self.pending)
+            .map(|at| (at, clock(total.mul_f32(at))));
+
         let label = move |value: Duration, align_end: bool| {
             div()
                 .child(clock(value))
@@ -478,6 +495,7 @@ impl FullscreenView {
                     Scrubber::new(&self.seek, progress)
                         .colors(theme.progress_bar, empty, theme.foreground)
                         .enabled(seekable)
+                        .when_some(bubble, |this, (at, text)| this.bubble(at, text))
                         .on_move(cx.listener(|this, fraction: &f32, _, cx| {
                             this.pending = Some(*fraction);
                             cx.notify();
@@ -603,7 +621,7 @@ impl FullscreenView {
         let empty = theme.muted_foreground.opacity(0.3);
         let restore = self.muted.unwrap_or(0.7);
         let span = theme.metrics.control_small + zone * 2.;
-        let bubble = self.over_panel.then(|| (level, percent(level)));
+        let bubble = (self.over_panel || self.volume_held).then(|| (level, percent(level)));
 
         div()
             .relative()
@@ -814,7 +832,7 @@ impl Render for FullscreenView {
             .px_8()
             .pb_6()
             .bg(theme.background)
-            .on_mouse_move(cx.listener(|this, _: &MouseMoveEvent, _, cx| this.poke(cx)))
+            .on_mouse_move(cx.listener(Self::hover))
             .on_any_mouse_down(cx.listener(|this, _: &MouseDownEvent, _, cx| this.poke(cx)))
             .on_scroll_wheel(cx.listener(|this, _: &ScrollWheelEvent, _, cx| this.poke(cx)))
             .on_key_down(cx.listener(|this, _: &KeyDownEvent, _, cx| this.poke(cx)))
