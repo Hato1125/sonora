@@ -1,0 +1,544 @@
+use std::ops::Range;
+use std::time::Duration;
+
+use crate::{LyricsLane, LyricsLine, LyricsWord};
+
+use super::romanize;
+
+pub fn parse(lrc: &str) -> Vec<LyricsLine> {
+    let mut lines: Vec<LyricsLine> = lrc.lines().flat_map(read).collect();
+    normalize(&mut lines);
+    lines
+}
+
+pub fn normalize(lines: &mut Vec<LyricsLine>) {
+    lines.sort_by_key(|line| line.start);
+    close(lines);
+    lines.retain(|line| !structural(&line.text));
+    if lines.iter().any(LyricsLine::worded) {
+        for line in lines.iter_mut() {
+            separate_background(line);
+        }
+    }
+
+    let mut normalized: Vec<LyricsLine> = Vec::with_capacity(lines.len());
+    let mut leading = Vec::new();
+    for mut line in lines.drain(..) {
+        if line.text.trim().is_empty() {
+            if line.secondary.is_empty() {
+                continue;
+            }
+            match normalized.last_mut() {
+                Some(previous) => previous.secondary.append(&mut line.secondary),
+                None => leading.append(&mut line.secondary),
+            }
+            continue;
+        }
+        if !leading.is_empty() {
+            line.secondary.append(&mut leading);
+        }
+        normalized.push(line);
+    }
+    romanize::apply(&mut normalized);
+    *lines = normalized;
+}
+
+fn structural(text: &str) -> bool {
+    let text = text.trim();
+    if text.is_empty() || !text.chars().any(char::is_alphanumeric) {
+        return true;
+    }
+    let label = text
+        .trim_matches(|letter: char| {
+            letter.is_whitespace() || matches!(letter, '[' | ']' | '-' | '—')
+        })
+        .to_ascii_lowercase();
+    let wrapped = (text.starts_with('[') && text.ends_with(']'))
+        || (text.starts_with('-') && text.ends_with('-'));
+    wrapped
+        && matches!(
+            label.as_str(),
+            "intro"
+                | "verse"
+                | "pre-chorus"
+                | "chorus"
+                | "refrain"
+                | "hook"
+                | "bridge"
+                | "breakdown"
+                | "solo"
+                | "instrumental"
+                | "outro"
+        )
+}
+
+fn separate_background(line: &mut LyricsLine) {
+    let original = line.text.clone();
+    let spans = parenthetical_spans(&original);
+    if spans.is_empty() {
+        return;
+    }
+    let placements = line
+        .words
+        .as_deref()
+        .and_then(|words| place_words(&original, words));
+    let mut lanes = Vec::with_capacity(spans.len());
+
+    for span in &spans {
+        let text = original[span.inner.clone()].trim().to_owned();
+        if text.is_empty() {
+            continue;
+        }
+        let words = placements.as_ref().and_then(|placements| {
+            let words: Vec<LyricsWord> = line
+                .words
+                .as_ref()?
+                .iter()
+                .zip(placements)
+                .filter_map(|(word, placed)| {
+                    let start = placed.start.max(span.inner.start);
+                    let end = placed.end.min(span.inner.end);
+                    let text = (start < end).then(|| original[start..end].to_owned())?;
+                    (!text.trim().is_empty()).then_some(LyricsWord {
+                        start: word.start,
+                        end: word.end,
+                        text,
+                    })
+                })
+                .collect();
+            (!words.is_empty()).then_some(words)
+        });
+        let start = words
+            .as_ref()
+            .and_then(|words| words.first())
+            .map(|word| word.start)
+            .unwrap_or(line.start);
+        let end = words
+            .as_ref()
+            .and_then(|words| words.last())
+            .map(|word| word.end)
+            .or(line.end);
+        lanes.push(LyricsLane {
+            start,
+            end,
+            text,
+            romanized: None,
+            words,
+        });
+    }
+
+    if lanes.is_empty() {
+        return;
+    }
+    if let (Some(words), Some(placements)) = (&mut line.words, placements) {
+        let kept: Vec<LyricsWord> = words
+            .drain(..)
+            .zip(placements)
+            .filter_map(|(mut word, placed)| {
+                word.text = word_without_spans(&original, &placed, &spans);
+                (!word.text.trim().is_empty()).then_some(word)
+            })
+            .collect();
+        *words = kept;
+        if words.is_empty() {
+            line.words = None;
+        }
+    }
+    line.text = without_spans(&original, &spans);
+    line.secondary.extend(lanes);
+}
+
+struct Parenthetical {
+    outer: Range<usize>,
+    inner: Range<usize>,
+}
+
+fn parenthetical_spans(text: &str) -> Vec<Parenthetical> {
+    let mut spans = Vec::new();
+    let mut opened: Option<(usize, usize)> = None;
+    let mut depth = 0usize;
+    for (index, letter) in text.char_indices() {
+        match letter {
+            '(' | '（' => {
+                if depth == 0 {
+                    opened = Some((index, index + letter.len_utf8()));
+                }
+                depth += 1;
+            }
+            ')' | '）' if depth > 0 => {
+                depth -= 1;
+                if depth == 0
+                    && let Some((outer, inner)) = opened.take()
+                {
+                    spans.push(Parenthetical {
+                        outer: outer..index + letter.len_utf8(),
+                        inner: inner..index,
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
+    spans
+}
+
+fn place_words(text: &str, words: &[LyricsWord]) -> Option<Vec<Range<usize>>> {
+    let mut placed = Vec::with_capacity(words.len());
+    let mut cursor = 0;
+    for word in words {
+        let remainder = text.get(cursor..)?;
+        let relative = remainder.find(&word.text)?;
+        let start = cursor + relative;
+        let end = start + word.text.len();
+        placed.push(start..end);
+        cursor = end;
+    }
+    Some(placed)
+}
+
+fn without_spans(text: &str, spans: &[Parenthetical]) -> String {
+    let mut primary = String::new();
+    let mut cursor = 0;
+    for span in spans {
+        primary.push_str(&text[cursor..span.outer.start]);
+        cursor = span.outer.end;
+    }
+    primary.push_str(&text[cursor..]);
+    primary.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn word_without_spans(text: &str, placed: &Range<usize>, spans: &[Parenthetical]) -> String {
+    let mut primary = String::new();
+    let mut cursor = placed.start;
+    for span in spans
+        .iter()
+        .filter(|span| span.outer.start < placed.end && span.outer.end > placed.start)
+    {
+        let end = span.outer.start.min(placed.end);
+        if cursor < end {
+            primary.push_str(&text[cursor..end]);
+        }
+        cursor = cursor.max(span.outer.end.min(placed.end));
+    }
+    if cursor < placed.end {
+        primary.push_str(&text[cursor..placed.end]);
+    }
+    primary
+}
+
+fn close(lines: &mut [LyricsLine]) {
+    for index in 0..lines.len().saturating_sub(1) {
+        let next = lines[index + 1].start;
+        if lines[index].end.is_none() {
+            lines[index].end = Some(next);
+        }
+    }
+    for line in lines.iter_mut() {
+        let Some(end) = line.end else { continue };
+        let Some(words) = line.words.as_mut() else {
+            continue;
+        };
+        if let Some(last) = words.last_mut()
+            && last.end <= last.start
+        {
+            last.end = end.max(last.start);
+        }
+    }
+}
+
+pub fn stamp_of(stamp: &str) -> Option<Duration> {
+    let (minutes, rest) = stamp.split_once(':')?;
+    let minutes: u64 = minutes.trim().parse().ok()?;
+    let seconds: f64 = rest.replace(',', ".").parse().ok()?;
+    if !seconds.is_finite() || seconds < 0. {
+        return None;
+    }
+    Some(Duration::from_secs_f64(minutes as f64 * 60. + seconds))
+}
+
+struct Segment {
+    at: Option<Duration>,
+    text: String,
+}
+
+fn read(line: &str) -> Vec<LyricsLine> {
+    let mut rest = line.trim();
+    let mut stamps = Vec::new();
+    while let Some(body) = rest.strip_prefix('[') {
+        let Some((stamp, tail)) = body.split_once(']') else {
+            break;
+        };
+        let Some(at) = stamp_of(stamp) else { break };
+        stamps.push(at);
+        rest = tail.trim_start();
+    }
+
+    let (text, words) = spoken(rest);
+    stamps
+        .into_iter()
+        .map(|start| LyricsLine {
+            start,
+            end: None,
+            text: text.clone(),
+            romanized: None,
+            words: words.clone().map(|words| shifted(words, start)),
+            secondary: Vec::new(),
+        })
+        .collect()
+}
+
+fn shifted(words: Vec<LyricsWord>, start: Duration) -> Vec<LyricsWord> {
+    let Some(first) = words.first() else {
+        return words;
+    };
+    let Some(drift) = start.checked_sub(first.start) else {
+        return words;
+    };
+    match drift.is_zero() {
+        true => words,
+        false => words
+            .into_iter()
+            .map(|word| LyricsWord {
+                start: word.start + drift,
+                end: word.end + drift,
+                text: word.text,
+            })
+            .collect(),
+    }
+}
+
+fn spoken(body: &str) -> (String, Option<Vec<LyricsWord>>) {
+    let segments = cut(body);
+    let whole: String = segments
+        .iter()
+        .map(|segment| segment.text.as_str())
+        .collect();
+    let timed: Vec<&Segment> = segments
+        .iter()
+        .filter(|segment| segment.at.is_some())
+        .collect();
+    if timed.is_empty() {
+        return (whole.trim().to_owned(), None);
+    }
+
+    let mut words = Vec::new();
+    for (index, segment) in timed.iter().enumerate() {
+        let start = segment.at.expect("a timed segment carries a stamp");
+        if segment.text.is_empty() {
+            if let Some(last) = words.last_mut() {
+                let last: &mut LyricsWord = last;
+                last.end = start.max(last.start);
+            }
+            continue;
+        }
+        let end = timed
+            .get(index + 1)
+            .and_then(|next| next.at)
+            .filter(|next| *next > start)
+            .unwrap_or(start);
+        words.push(LyricsWord {
+            start,
+            end,
+            text: segment.text.clone(),
+        });
+    }
+
+    let whole = whole.trim_end().to_owned();
+    (whole, (!words.is_empty()).then_some(words))
+}
+
+fn cut(body: &str) -> Vec<Segment> {
+    let mut segments = vec![Segment {
+        at: None,
+        text: String::new(),
+    }];
+    let mut rest = body;
+    while let Some(open) = rest.find('<') {
+        let tail = &rest[open + 1..];
+        let Some(shut) = tail.find('>') else { break };
+        let last = segments.last_mut().expect("a segment is always open");
+        match stamp_of(&tail[..shut]) {
+            Some(at) => {
+                last.text.push_str(&rest[..open]);
+                segments.push(Segment {
+                    at: Some(at),
+                    text: String::new(),
+                });
+            }
+            None => last.text.push_str(&rest[..open + shut + 2]),
+        }
+        rest = &tail[shut + 1..];
+    }
+    segments
+        .last_mut()
+        .expect("a segment is always open")
+        .text
+        .push_str(rest);
+    segments
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reads_a_stamp() {
+        assert_eq!(stamp_of("01:02.50"), Some(Duration::from_millis(62_500)));
+        assert_eq!(stamp_of("00:09"), Some(Duration::from_secs(9)));
+        assert_eq!(stamp_of("bogus"), None);
+    }
+
+    #[test]
+    fn parses_lrc_and_closes_every_line() {
+        let lines = parse("[00:10.00] first\n[00:14.50] second\n[bad] skipped\n");
+
+        assert_eq!(lines.len(), 2);
+        assert_eq!(lines[0].text, "first");
+        assert_eq!(lines[0].end, Some(Duration::from_millis(14_500)));
+        assert_eq!(lines[1].end, None);
+    }
+
+    #[test]
+    fn an_empty_timed_line_becomes_a_gap_between_lyrics() {
+        let lines = parse("[00:09.36] sung\n[00:11.97]\n[00:24.16] next\n");
+
+        assert_eq!(lines.len(), 2);
+        assert_eq!(lines[0].end, Some(Duration::from_millis(11_970)));
+        assert_eq!(lines[1].start, Duration::from_millis(24_160));
+    }
+
+    #[test]
+    fn parenthetical_words_become_an_independently_timed_background_lane() {
+        let mut lines = vec![LyricsLine {
+            start: Duration::from_secs(1),
+            end: Some(Duration::from_secs(4)),
+            text: "Lead (echo) after".to_owned(),
+            romanized: None,
+            words: Some(vec![
+                LyricsWord {
+                    start: Duration::from_secs(1),
+                    end: Duration::from_secs(3),
+                    text: "Lead ".to_owned(),
+                },
+                LyricsWord {
+                    start: Duration::from_millis(1500),
+                    end: Duration::from_millis(2500),
+                    text: "(echo)".to_owned(),
+                },
+                LyricsWord {
+                    start: Duration::from_secs(3),
+                    end: Duration::from_secs(4),
+                    text: " after".to_owned(),
+                },
+            ]),
+            secondary: Vec::new(),
+        }];
+
+        normalize(&mut lines);
+
+        assert_eq!(lines[0].text, "Lead after");
+        assert_eq!(lines[0].words.as_ref().map(Vec::len), Some(2));
+        assert_eq!(lines[0].secondary.len(), 1);
+        assert_eq!(lines[0].secondary[0].text, "echo");
+        assert_eq!(lines[0].secondary[0].start, Duration::from_millis(1500));
+        assert_eq!(
+            lines[0].secondary[0].sung_end(),
+            Some(Duration::from_millis(2500))
+        );
+    }
+
+    #[test]
+    fn a_standalone_parenthetical_line_attaches_to_the_previous_verse() {
+        let mut lines = vec![
+            LyricsLine {
+                start: Duration::from_secs(1),
+                end: Some(Duration::from_secs(2)),
+                text: "Lead".to_owned(),
+                romanized: None,
+                words: Some(vec![LyricsWord {
+                    start: Duration::from_secs(1),
+                    end: Duration::from_secs(2),
+                    text: "Lead".to_owned(),
+                }]),
+                secondary: Vec::new(),
+            },
+            LyricsLine {
+                start: Duration::from_secs(2),
+                end: Some(Duration::from_secs(3)),
+                text: "(echo)".to_owned(),
+                romanized: None,
+                words: Some(vec![LyricsWord {
+                    start: Duration::from_secs(2),
+                    end: Duration::from_secs(3),
+                    text: "(echo)".to_owned(),
+                }]),
+                secondary: Vec::new(),
+            },
+        ];
+
+        normalize(&mut lines);
+
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0].secondary[0].text, "echo");
+        assert_eq!(lines[0].sung_end(), Some(Duration::from_secs(3)));
+    }
+
+    #[test]
+    fn section_labels_and_decorative_marks_are_not_lyrics() {
+        let lines = parse(
+            "[00:01.00][Chorus]\n[00:02.00].\n[00:03.00]∮\n[00:04.00]- solo -\n[00:08.00]Actual lyric",
+        );
+
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0].text, "Actual lyric");
+    }
+
+    #[test]
+    fn reads_word_tags() {
+        let lines = parse("[00:12.50]<00:12.50>I <00:12.80>see <00:13.10>trees\n[00:15.00]next");
+
+        let words = lines[0].words.as_ref().expect("the line is worded");
+        assert_eq!(words.len(), 3);
+        assert_eq!(words[0].text, "I ");
+        assert_eq!(words[1].start, Duration::from_millis(12_800));
+        assert_eq!(words[2].end, Duration::from_secs(15));
+        assert_eq!(lines[0].text, "I see trees");
+    }
+
+    #[test]
+    fn a_bare_end_tag_closes_the_last_word() {
+        let lines = parse("[00:01.00]<00:01.00>one <00:01.50>two<00:02.00>");
+
+        let words = lines[0].words.as_ref().expect("the line is worded");
+        assert_eq!(words.len(), 2);
+        assert_eq!(words[1].end, Duration::from_secs(2));
+        assert_eq!(lines[0].text, "one two");
+    }
+
+    #[test]
+    fn angle_brackets_that_are_not_stamps_stay_in_the_text() {
+        let lines = parse("[00:01.00]a <3 b");
+
+        assert_eq!(lines[0].text, "a <3 b");
+        assert!(lines[0].words.is_none());
+    }
+
+    #[test]
+    fn one_line_can_carry_several_stamps() {
+        let lines = parse("[00:01.00][00:31.00]chorus");
+
+        assert_eq!(lines.len(), 2);
+        assert_eq!(lines[0].start, Duration::from_secs(1));
+        assert_eq!(lines[1].start, Duration::from_secs(31));
+        assert_eq!(lines[1].text, "chorus");
+    }
+
+    #[test]
+    fn a_repeated_worded_line_moves_its_words_along() {
+        let lines = parse("[00:01.00][00:31.00]<00:01.00>one <00:01.50>two");
+
+        let words = lines[1].words.as_ref().expect("the line is worded");
+        assert_eq!(words[0].start, Duration::from_secs(31));
+        assert_eq!(words[1].start, Duration::from_millis(31_500));
+    }
+}

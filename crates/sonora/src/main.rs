@@ -61,7 +61,11 @@ fn main() {
                     .unwrap_or_else(std::env::temp_dir)
                     .join("sonora"),
             ));
-        let lyrics: Vec<Arc<dyn LyricsProvider>> = vec![Arc::new(music::lrclib::LrcLib::new())];
+        let lyrics: Vec<Arc<dyn LyricsProvider>> = vec![
+            Arc::new(music::lrclib::LrcLib::new()),
+            Arc::new(music::amll::AmllDb::new()),
+            Arc::new(music::netease::NetEase::new()),
+        ];
         state::init(cx, io, providers, local_provider, lyrics);
         let start = opened_start.unwrap_or_else(|| {
             let startup = Sonora::global(cx).settings.read(cx).startup().to_owned();

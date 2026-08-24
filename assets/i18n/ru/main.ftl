@@ -384,6 +384,7 @@ settings-role-contributor = Контрибьютор
 settings-notice = Copyright © 2026 Sonora Contributors. Sonora поставляется без каких-либо гарантий. Это свободное программное обеспечение, и вы можете распространять его на условиях GNU General Public License версии 3 или новее. Sonora — неофициальный клиент и не связан со Spotify AB.
 
 # themes
+theme-system = Системная
 theme-dark = Тёмная
 theme-light = Светлая
 theme-midnight = Полночь
@@ -436,3 +437,5 @@ lyrics-loading = Ищем текст…
 lyrics-missing = Для этого трека текста нет
 lyrics-failed = Не удалось связаться со службой текстов
 lyrics-follow = Снова следовать за песней
+lyrics-source = Текст из { $source }
+lyrics-writers = Авторы: { $writers }

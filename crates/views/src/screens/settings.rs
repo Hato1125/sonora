@@ -9,7 +9,7 @@ use gpui::{
 };
 use gpui::{ScrollHandle, prelude::*, svg};
 use i18n::{Language, t};
-use music::{AccountChoice, SignIn, SignInPrompt};
+use music::{AccountChoice, SignIn, SignInPrompt, WritingSystem};
 use router::{Screen, SettingsTab};
 use state::{AppSettings, Failure, Playback, Session, SessionState, Sonora};
 use ui::{ActiveTheme as _, Scrollbar, Scroller, eyebrow};
@@ -169,6 +169,8 @@ impl SettingsView {
             SettingsTab::Playback => vec![
                 self.playback_row(cx).into_any_element(),
                 self.gapless_row(cx).into_any_element(),
+                self.karaoke_lyrics_row(cx).into_any_element(),
+                self.romanized_lyrics_row(cx).into_any_element(),
             ],
             SettingsTab::About => vec![
                 self.version_row(cx).into_any_element(),
@@ -448,7 +450,9 @@ impl SettingsView {
             .width(Picker::NARROW)
             .items(ThemeKind::ALL.into_iter().map(|kind| {
                 let item = MenuItem::new(kind.id(), kind.label()).selected(current == kind);
-                match adaptive && !matches!(kind, ThemeKind::Dark | ThemeKind::Light) {
+                match adaptive
+                    && !matches!(kind, ThemeKind::System | ThemeKind::Dark | ThemeKind::Light)
+                {
                     true => item.disabled(),
                     false => {
                         let overrides = overrides.clone();
@@ -566,8 +570,10 @@ impl SettingsView {
                 .on_click(cx.listener(move |this, _, _, cx| {
                     let adaptive = !on;
                     let kind = match adaptive
-                        && !matches!(look.kind, ThemeKind::Dark | ThemeKind::Light)
-                    {
+                        && !matches!(
+                            look.kind,
+                            ThemeKind::System | ThemeKind::Dark | ThemeKind::Light
+                        ) {
                         true => ThemeKind::Dark,
                         false => look.kind,
                     };
@@ -704,6 +710,73 @@ impl SettingsView {
                         .update(cx, |playback, cx| playback.set_gapless(!on, cx));
                 }))
                 .into_any_element(),
+        )
+    }
+
+    fn karaoke_lyrics_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+        let muted = theme.muted_foreground;
+        let small = theme.text(Text::Small);
+        let on = self.settings.read(cx).karaoke_lyrics();
+
+        self.row(
+            t!("settings-karaoke-lyrics"),
+            t!("settings-karaoke-lyrics-detail"),
+            muted,
+            small,
+            Switch::new("karaoke-lyrics", on)
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.settings
+                        .update(cx, |settings, cx| settings.set_karaoke_lyrics(!on, cx));
+                }))
+                .into_any_element(),
+        )
+    }
+
+    fn romanized_lyrics_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+        let muted = theme.muted_foreground;
+        let small = theme.text(Text::Small);
+        let settings = self.settings.read(cx);
+        let on = settings.romanized_lyrics();
+        let scripts = settings.romanization_scripts();
+        let picker = Picker::new(
+            "romanization-scripts",
+            &self.popovers,
+            t!("settings-romanization-writing-systems"),
+        )
+        .width(Picker::REGULAR)
+        .sticky()
+        .items(WritingSystem::ALL.map(|writing_system| {
+            let (id, label) = romanization_script_copy(writing_system);
+            let selected = scripts.contains(writing_system);
+            MenuItem::new(id, i18n::lookup(label, None))
+                .selected(selected)
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.settings.update(cx, |settings, cx| {
+                        settings.set_romanization_script(writing_system, !selected, cx);
+                    });
+                }))
+        }));
+        let action = div()
+            .flex()
+            .items_center()
+            .gap_2()
+            .when(on, |this| this.child(picker))
+            .child(Switch::new("romanized-lyrics", on).on_click(cx.listener(
+                move |this, _, _, cx| {
+                    this.settings.update(cx, |settings, cx| {
+                        settings.set_romanized_lyrics(!on, cx);
+                    });
+                },
+            )));
+
+        self.row(
+            t!("settings-romanized-lyrics"),
+            t!("settings-romanized-lyrics-detail"),
+            muted,
+            small,
+            action.into_any_element(),
         )
     }
 
@@ -1281,6 +1354,18 @@ impl SettingsView {
                 this.session
                     .update(cx, |session, cx| session.cancel_sign_in(cx));
             }))
+    }
+}
+
+fn romanization_script_copy(writing_system: WritingSystem) -> (&'static str, &'static str) {
+    match writing_system {
+        WritingSystem::Japanese => ("romanization-japanese", "settings-romanization-japanese"),
+        WritingSystem::Chinese => ("romanization-chinese", "settings-romanization-chinese"),
+        WritingSystem::Korean => ("romanization-korean", "settings-romanization-korean"),
+        WritingSystem::Cyrillic => ("romanization-cyrillic", "settings-romanization-cyrillic"),
+        WritingSystem::Greek => ("romanization-greek", "settings-romanization-greek"),
+        WritingSystem::Arabic => ("romanization-arabic", "settings-romanization-arabic"),
+        WritingSystem::Other => ("romanization-other", "settings-romanization-other"),
     }
 }
 

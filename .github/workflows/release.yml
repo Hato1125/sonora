@@ -102,6 +102,27 @@ jobs:
               ;;
           esac
 
+      - name: install Inno Setup
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress
+
+      - name: build the Windows installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          $number = $env:VERSION.TrimStart("v")
+          if ($number -notmatch '^\d+\.\d+\.\d+([.-][0-9A-Za-z.-]+)?$') {
+            $number = "0.0.0"
+          }
+          $env:SONORA_VERSION = $number
+          $env:SONORA_EXE = (Resolve-Path "target/$env:TARGET/release/sonora.exe").Path
+          $env:SONORA_DIST = (Resolve-Path "dist").Path
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "scripts/windows/sonora.iss"
+
       - uses: actions/upload-artifact@v4
         with:
           name: "${{ runner.os == 'macOS' && format('darwin-{0}', matrix.target) || format('release-{0}', matrix.target) }}"

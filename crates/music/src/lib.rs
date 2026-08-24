@@ -1,8 +1,10 @@
+pub mod amll;
 mod audio;
 pub mod local;
 pub mod lrclib;
 pub mod lyrics;
 mod models;
+pub mod netease;
 pub mod spotify;
 pub mod youtube;
 
@@ -16,8 +18,9 @@ use async_trait::async_trait;
 
 pub use models::{
     Album, AlbumDetail, Artist, ArtistProfile, ArtistRef, Credit, Genre, GenreDetail, GenreItem,
-    GenreSection, Lyrics, LyricsHit, LyricsLine, LyricsQuery, LyricsWord, Playlist, PlaylistDetail,
-    ReleaseType, SavedArtist, Track, UserProfile,
+    GenreSection, Lyrics, LyricsHit, LyricsLane, LyricsLine, LyricsQuery, LyricsWord, Playlist,
+    PlaylistDetail, ReleaseType, RomanizedText, SavedArtist, Track, TrackKey, UserProfile,
+    WritingSystem,
 };
 
 pub const LOCAL_TRACK_PREFIX: &str = "local:";

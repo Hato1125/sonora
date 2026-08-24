@@ -47,12 +47,79 @@ use serde::{Deserialize, Serialize};
 use crate::{AppSettings, Io, Outcome, Session, SessionEvent, Toasts, join};
 
 const POSITION_INTERVAL: Duration = Duration::from_millis(500);
+const CLOCK_SETTLE: Duration = Duration::from_secs(1);
 const PRELOAD_BEFORE_END: Duration = Duration::from_secs(10);
 const SKIP_DEBOUNCE: Duration = Duration::from_millis(250);
 const KEY_COOLDOWN: Duration = Duration::from_secs(6);
 const RESUME_STEP: Duration = Duration::from_secs(5);
 const TAPER_DB: f32 = 50.;
 const SIMILAR_LIMIT: usize = 20;
+
+struct LiveClock {
+    base: Duration,
+    since: Option<Instant>,
+    correction: f64,
+    settle: f64,
+}
+
+impl LiveClock {
+    fn new() -> Self {
+        Self {
+            base: Duration::ZERO,
+            since: None,
+            correction: 0.,
+            settle: CLOCK_SETTLE.as_secs_f64(),
+        }
+    }
+
+    fn reset(&mut self, at: Duration, running: bool) {
+        self.base = at;
+        self.since = running.then(Instant::now);
+        self.correction = 0.;
+        self.settle = CLOCK_SETTLE.as_secs_f64();
+    }
+
+    fn correct(&mut self, toward: Duration) {
+        self.correct_at(toward, Instant::now());
+    }
+
+    fn correct_at(&mut self, toward: Duration, now: Instant) {
+        let shown = self.at(now);
+        self.base = shown;
+        self.since = Some(now);
+        self.correction = signed_gap(toward, shown);
+        // A negative correction is spread over longer than the discrepancy itself, which keeps
+        // the clock moving forward while it converges instead of ever snapping back.
+        self.settle = CLOCK_SETTLE.as_secs_f64() + self.correction.abs();
+    }
+
+    fn now(&self) -> Duration {
+        self.at(Instant::now())
+    }
+
+    fn at(&self, now: Instant) -> Duration {
+        let Some(since) = self.since else {
+            return self.base;
+        };
+        let elapsed = now.saturating_duration_since(since).as_secs_f64();
+        let blend = (elapsed / self.settle).clamp(0., 1.);
+        shifted(self.base, elapsed + self.correction * blend)
+    }
+}
+
+fn signed_gap(to: Duration, from: Duration) -> f64 {
+    match to >= from {
+        true => (to - from).as_secs_f64(),
+        false => -(from - to).as_secs_f64(),
+    }
+}
+
+fn shifted(base: Duration, seconds: f64) -> Duration {
+    match seconds >= 0. {
+        true => base.saturating_add(Duration::from_secs_f64(seconds)),
+        false => base.saturating_sub(Duration::from_secs_f64(-seconds)),
+    }
+}
 
 fn gain(level: f32) -> f32 {
     match level.clamp(0., 1.) {
@@ -104,6 +171,7 @@ pub struct Playback {
     state: PlaybackState,
     origin: Option<Origin>,
     position: Duration,
+    clock: LiveClock,
     track: Option<Track>,
     engine: Option<Box<dyn Player>>,
     local_engine: Option<Box<dyn Player>>,
@@ -178,6 +246,7 @@ impl Playback {
             state: PlaybackState::Idle,
             origin: None,
             position: Duration::ZERO,
+            clock: LiveClock::new(),
             track: None,
             engine: None,
             local_engine: None,
@@ -278,6 +347,7 @@ impl Playback {
         self.track = Some(track.clone());
         self.state = PlaybackState::Loading;
         self.position = Duration::ZERO;
+        self.clock.reset(Duration::ZERO, false);
         self.preloaded = None;
         self.resume_at = None;
         self.seek_on_play = None;
@@ -827,6 +897,7 @@ impl Playback {
                 self.resume_ready = true;
                 self.state = PlaybackState::Paused;
                 self.position = at;
+                self.clock.reset(at, false);
             }
             Err(error) => log::warn!(
                 "playback: cannot prepare {} for resume: {error:#}",
@@ -860,6 +931,7 @@ impl Playback {
         self.track = Some(track);
         self.state = PlaybackState::Paused;
         self.position = at;
+        self.clock.reset(at, false);
         self.stored = at;
         self.resume_at = Some(at);
         self.prepare_resume(cx);
@@ -913,6 +985,7 @@ impl Playback {
                 engine.seek(position);
             }
             self.position = position;
+            self.clock.reset(position, false);
             self.remember(true, cx);
             cx.notify();
             return;
@@ -920,6 +993,8 @@ impl Playback {
         if let Some(engine) = self.active_engine() {
             engine.seek(position);
             self.position = position;
+            self.clock
+                .reset(position, self.state == PlaybackState::Playing);
             cx.notify();
         }
     }
@@ -944,6 +1019,17 @@ impl Playback {
 
     pub fn position(&self) -> Duration {
         self.position
+    }
+
+    pub fn live_position(&self) -> Duration {
+        let live = match self.state == PlaybackState::Playing {
+            true => self.clock.now(),
+            false => self.position,
+        };
+        match self.track.as_ref().map(|track| track.duration) {
+            Some(total) if !total.is_zero() => live.min(total),
+            _ => live,
+        }
     }
 
     pub fn track(&self) -> Option<&Track> {
@@ -1076,6 +1162,7 @@ impl Playback {
         if !local_active {
             self.state = PlaybackState::Idle;
             self.position = Duration::ZERO;
+            self.clock.reset(Duration::ZERO, false);
         }
         self.prepare_resume(cx);
         cx.notify();
@@ -1130,11 +1217,13 @@ impl Playback {
             BackendEvent::Loading(position) => {
                 self.state = PlaybackState::Loading;
                 self.position = position;
+                self.clock.reset(position, false);
             }
             BackendEvent::Playing(position) => {
                 let started = self.state != PlaybackState::Playing;
                 self.state = PlaybackState::Playing;
                 self.position = position;
+                self.clock.reset(position, true);
                 if let Some(at) = self.seek_on_play.take() {
                     self.seek(at, cx);
                 }
@@ -1145,10 +1234,15 @@ impl Playback {
             BackendEvent::Paused(position) => {
                 self.state = PlaybackState::Paused;
                 self.position = position;
+                self.clock.reset(position, false);
                 self.remember(true, cx);
             }
             BackendEvent::Position(position) => {
                 self.position = position;
+                match self.state == PlaybackState::Playing {
+                    true => self.clock.correct(position),
+                    false => self.clock.reset(position, false),
+                }
                 self.remember(false, cx);
                 self.preload_next(position, cx);
             }
@@ -1164,6 +1258,7 @@ impl Playback {
                 let ended = self.track.take();
                 self.state = PlaybackState::Idle;
                 self.position = Duration::ZERO;
+                self.clock.reset(Duration::ZERO, false);
                 cx.emit(PlaybackEvent::EndedPlayback);
                 self.advance(ended, cx);
             }
@@ -1181,6 +1276,7 @@ impl Playback {
                 self.blocked_until = Some(Instant::now() + KEY_COOLDOWN);
                 self.state = PlaybackState::Idle;
                 self.position = Duration::ZERO;
+                self.clock.reset(Duration::ZERO, false);
                 Toasts::about(Outcome::Failed, "toast-track-unplayable", name, cx);
                 cx.emit(PlaybackEvent::EndedPlayback);
             }
@@ -1219,6 +1315,7 @@ impl Playback {
             self.origin = None;
             self.state = PlaybackState::Idle;
             self.position = Duration::ZERO;
+            self.clock.reset(Duration::ZERO, false);
             self.resume_at = None;
             self.seek_on_play = None;
             self.resume_ready = false;
@@ -1284,7 +1381,9 @@ impl Playback {
 
 #[cfg(test)]
 mod tests {
-    use super::gain;
+    use std::time::{Duration, Instant};
+
+    use super::{LiveClock, gain};
 
     #[test]
     fn never_amplifies_past_unity() {
@@ -1315,5 +1414,42 @@ mod tests {
     fn halves_the_slider_to_the_taper_midpoint() {
         let expected = 10f32.powf(-super::TAPER_DB / 40.);
         assert!((gain(0.5) - expected).abs() < 1e-6);
+    }
+
+    #[test]
+    fn live_clock_does_not_jump_when_corrected() {
+        let began = Instant::now();
+        let mut clock = LiveClock {
+            base: Duration::from_secs(10),
+            since: Some(began),
+            correction: 0.,
+            settle: 1.,
+        };
+        let corrected = began + Duration::from_millis(500);
+        let before = clock.at(corrected);
+
+        clock.correct_at(Duration::from_secs(10), corrected);
+
+        assert_eq!(clock.at(corrected), before);
+    }
+
+    #[test]
+    fn live_clock_slews_backward_corrections_without_reversing() {
+        let began = Instant::now();
+        let corrected = began + Duration::from_secs(1);
+        let mut clock = LiveClock {
+            base: Duration::from_secs(10),
+            since: Some(began),
+            correction: 0.,
+            settle: 1.,
+        };
+        clock.correct_at(Duration::from_secs(9), corrected);
+
+        let samples = (0..=30).map(|step| clock.at(corrected + Duration::from_millis(step * 100)));
+        let mut previous = Duration::ZERO;
+        for sample in samples {
+            assert!(sample >= previous);
+            previous = sample;
+        }
     }
 }

@@ -160,20 +160,48 @@ pub struct Artist {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Lyrics {
-    Plain(String),
-    Synced { lines: Arc<[LyricsLine]> },
+    Plain {
+        text: String,
+        romanized: Option<RomanizedText>,
+    },
+    Synced {
+        lines: Arc<[LyricsLine]>,
+    },
 }
 
 impl Lyrics {
+    pub fn plain(text: impl Into<String>) -> Self {
+        let text = text.into();
+        let romanized = crate::lyrics::romanize::plain(&text);
+        Self::Plain { text, romanized }
+    }
+
     pub fn synced(&self) -> bool {
         matches!(self, Self::Synced { .. })
     }
 
+    pub fn worded(&self) -> bool {
+        match self {
+            Self::Plain { .. } => false,
+            Self::Synced { lines } => lines.iter().any(LyricsLine::worded),
+        }
+    }
+
     pub fn is_empty(&self) -> bool {
         match self {
-            Self::Plain(text) => text.trim().is_empty(),
+            Self::Plain { text, .. } => text.trim().is_empty(),
             Self::Synced { lines } => lines.is_empty(),
         }
+    }
+
+    pub fn span(&self) -> Option<Duration> {
+        let Self::Synced { lines } = self else {
+            return None;
+        };
+        lines
+            .iter()
+            .map(|line| line.end.unwrap_or(line.start))
+            .max()
     }
 }
 
@@ -182,7 +210,82 @@ pub struct LyricsLine {
     pub start: Duration,
     pub end: Option<Duration>,
     pub text: String,
+    pub romanized: Option<RomanizedText>,
     pub words: Option<Vec<LyricsWord>>,
+    pub secondary: Vec<LyricsLane>,
+}
+
+impl LyricsLine {
+    pub fn worded(&self) -> bool {
+        self.words.as_ref().is_some_and(|words| !words.is_empty())
+            || self.secondary.iter().any(LyricsLane::worded)
+    }
+
+    pub fn sung_end(&self) -> Option<Duration> {
+        let primary = self
+            .words
+            .as_ref()
+            .and_then(|words| words.iter().rev().find(|word| !word.text.trim().is_empty()))
+            .map(|word| word.end.max(word.start).max(self.start))
+            .or(self.end);
+        self.secondary
+            .iter()
+            .filter_map(LyricsLane::sung_end)
+            .chain(primary)
+            .max()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LyricsLane {
+    pub start: Duration,
+    pub end: Option<Duration>,
+    pub text: String,
+    pub romanized: Option<RomanizedText>,
+    pub words: Option<Vec<LyricsWord>>,
+}
+
+impl LyricsLane {
+    pub fn worded(&self) -> bool {
+        self.words.as_ref().is_some_and(|words| !words.is_empty())
+    }
+
+    pub fn sung_end(&self) -> Option<Duration> {
+        self.words
+            .as_ref()
+            .and_then(|words| words.iter().rev().find(|word| !word.text.trim().is_empty()))
+            .map(|word| word.end.max(word.start).max(self.start))
+            .or(self.end)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RomanizedText {
+    pub text: String,
+    pub writing_system: WritingSystem,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WritingSystem {
+    Japanese,
+    Chinese,
+    Korean,
+    Cyrillic,
+    Greek,
+    Arabic,
+    Other,
+}
+
+impl WritingSystem {
+    pub const ALL: [Self; 7] = [
+        Self::Japanese,
+        Self::Chinese,
+        Self::Korean,
+        Self::Cyrillic,
+        Self::Greek,
+        Self::Arabic,
+        Self::Other,
+    ];
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -193,18 +296,37 @@ pub struct LyricsWord {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TrackKey {
+    pub provider: &'static str,
+    pub id: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LyricsQuery {
     pub title: String,
     pub artist: String,
     pub album: Option<String>,
     pub duration: Duration,
+    pub track: Option<TrackKey>,
+}
+
+impl LyricsQuery {
+    pub fn id_for(&self, provider: &str) -> Option<&str> {
+        self.track
+            .as_ref()
+            .filter(|track| track.provider == provider)
+            .map(|track| track.id.as_str())
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LyricsHit {
     pub source: &'static str,
+    pub trust: u32,
     pub lyrics: Lyrics,
     pub title: String,
     pub artist: String,
+    pub album: Option<String>,
     pub duration: Option<Duration>,
+    pub writers: Vec<String>,
 }

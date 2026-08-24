@@ -50,26 +50,30 @@ impl Output {
             device.name().unwrap_or_else(|_| "unknown".to_owned())
         );
 
-        let mut builder = OutputStreamBuilder::default().with_device(device.clone());
-        if let Some(wanted) = wanted {
-            let default = device
-                .default_output_config()
-                .map_err(|error| anyhow::anyhow!("cannot read the output config: {error}"))?;
-            let config = device
-                .supported_output_configs()
-                .map_err(|error| anyhow::anyhow!("cannot list the output configs: {error}"))?
-                .find(|config| config.channels() == wanted.channels)
-                .and_then(|config| {
-                    config
-                        .try_with_sample_rate(cpal::SampleRate(wanted.sample_rate))
-                        .or_else(|| config.try_with_sample_rate(default.sample_rate()))
-                })
-                .unwrap_or(default);
-            let format = (wanted.format)(config.sample_format());
-            builder = builder
-                .with_config(&config.config())
-                .with_sample_format(format);
-        }
+        let default = device
+            .default_output_config()
+            .map_err(|error| anyhow::anyhow!("cannot read the output config: {error}"))?;
+        let (config, format) = match wanted {
+            Some(wanted) => {
+                let config = device
+                    .supported_output_configs()
+                    .map_err(|error| anyhow::anyhow!("cannot list the output configs: {error}"))?
+                    .find(|config| config.channels() == wanted.channels)
+                    .and_then(|config| {
+                        config
+                            .try_with_sample_rate(cpal::SampleRate(wanted.sample_rate))
+                            .or_else(|| config.try_with_sample_rate(default.sample_rate()))
+                    })
+                    .unwrap_or(default);
+                let format = (wanted.format)(config.sample_format());
+                (config.config(), format)
+            }
+            None => (default.config(), default.sample_format()),
+        };
+        let builder = OutputStreamBuilder::default()
+            .with_device(device)
+            .with_config(&config)
+            .with_sample_format(format);
         let mut stream = builder
             .open_stream()
             .map_err(|error| anyhow::anyhow!("cannot open the audio output: {error}"))?;

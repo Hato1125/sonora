@@ -371,6 +371,7 @@ settings-role-contributor = Mitwirkender
 settings-notice = Copyright © 2026 Sonora Contributors. Sonora kommt ohne jede Gewährleistung. Es ist freie Software, und du darfst es unter den Bedingungen der GNU General Public License Version 3 oder später weitergeben. Sonora ist inoffiziell und steht in keiner Verbindung zu Spotify AB.
 
 # themes
+theme-system = System
 theme-dark = Dunkel
 theme-light = Hell
 theme-midnight = Mitternacht
@@ -423,3 +424,5 @@ lyrics-loading = Songtext wird gesucht…
 lyrics-missing = Kein Songtext für diesen Titel
 lyrics-failed = Der Songtext-Dienst war nicht erreichbar
 lyrics-follow = Dem Song wieder folgen
+lyrics-source = Songtext von { $source }
+lyrics-writers = Geschrieben von { $writers }

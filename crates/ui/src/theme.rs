@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use gpui::{App, Global, Hsla, Pixels, Rgba, SharedString, Task, px, rgb, rgba};
+use gpui::{App, Global, Hsla, Pixels, Rgba, SharedString, Task, WindowAppearance, px, rgb, rgba};
 use i18n::t;
 use serde::{Deserialize, Serialize};
 
@@ -32,6 +32,7 @@ pub struct Look {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ThemeKind {
+    System,
     Dark,
     Light,
     Midnight,
@@ -43,7 +44,8 @@ pub enum ThemeKind {
 }
 
 impl ThemeKind {
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 9] = [
+        Self::System,
         Self::Dark,
         Self::Light,
         Self::Midnight,
@@ -56,6 +58,7 @@ impl ThemeKind {
 
     pub fn id(self) -> &'static str {
         match self {
+            Self::System => "system",
             Self::Dark => "dark",
             Self::Light => "light",
             Self::Midnight => "midnight",
@@ -69,6 +72,7 @@ impl ThemeKind {
 
     pub fn label(self) -> SharedString {
         match self {
+            Self::System => t!("theme-system"),
             Self::Dark => t!("theme-dark"),
             Self::Light => t!("theme-light"),
             Self::Midnight => t!("theme-midnight"),
@@ -82,6 +86,7 @@ impl ThemeKind {
 
     pub fn from_id(id: &str) -> Self {
         match id {
+            "system" => Self::System,
             "light" => Self::Light,
             "midnight" => Self::Midnight,
             "forest" => Self::Forest,
@@ -90,6 +95,16 @@ impl ThemeKind {
             "lavender" => Self::Lavender,
             "amber" => Self::Amber,
             _ => Self::Dark,
+        }
+    }
+
+    pub fn resolved(self, cx: &App) -> Self {
+        match self {
+            Self::System => match cx.window_appearance() {
+                WindowAppearance::Light | WindowAppearance::VibrantLight => Self::Light,
+                WindowAppearance::Dark | WindowAppearance::VibrantDark => Self::Dark,
+            },
+            kind => kind,
         }
     }
 }
@@ -453,7 +468,7 @@ impl Theme {
 
     pub fn for_kind(kind: ThemeKind) -> Self {
         match kind {
-            ThemeKind::Dark => Self::dark(),
+            ThemeKind::System | ThemeKind::Dark => Self::dark(),
             ThemeKind::Light => Self::light(),
             ThemeKind::Midnight => Self::midnight(),
             ThemeKind::Forest => Self::forest(),
@@ -645,18 +660,18 @@ impl Theme {
     }
 
     pub fn init(look: Look, overrides: &ThemeOverrides, cx: &mut App) {
-        cx.set_global(Self::for_look(look, overrides));
+        cx.set_global(Self::for_look(resolve(look, cx), overrides));
     }
 
     pub fn set(look: Look, overrides: &ThemeOverrides, cx: &mut App) {
         cx.default_global::<Transition>().task = None;
-        cx.set_global(Self::for_look(look, overrides));
+        cx.set_global(Self::for_look(resolve(look, cx), overrides));
         cx.refresh_windows();
     }
 
     pub fn fade(look: Look, overrides: &ThemeOverrides, cx: &mut App) {
         let from = *cx.theme();
-        let to = Self::for_look(look, overrides);
+        let to = Self::for_look(resolve(look, cx), overrides);
 
         cx.default_global::<Transition>().task = None;
         cx.set_global(from.mixed(&to, 0.));
@@ -683,6 +698,13 @@ impl Theme {
             }
         });
         cx.default_global::<Transition>().task = Some(task);
+    }
+}
+
+fn resolve(look: Look, cx: &App) -> Look {
+    Look {
+        kind: look.kind.resolved(cx),
+        ..look
     }
 }
 
