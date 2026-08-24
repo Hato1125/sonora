@@ -5,6 +5,7 @@ use state::{Playback, PlaybackState, Queue, Repeat, Sonora};
 use ui::{ActiveTheme as _, Button};
 
 pub(crate) const NOTCH: f32 = 0.05;
+const STEP: f32 = 0.004;
 
 pub(crate) fn volume_icon(level: f32) -> &'static str {
     match level {
@@ -161,4 +162,11 @@ fn next(playback: &Entity<Playback>, queue: &Entity<Queue>, cx: &App) -> Button 
         .on_click(move |_, _, cx| {
             playback.update(cx, |playback, cx| playback.next(cx));
         })
+}
+
+pub(crate) fn moved(before: Option<f32>, after: Option<f32>) -> bool {
+    match (before, after) {
+        (Some(before), Some(after)) => (before - after).abs() > STEP,
+        (before, after) => before.is_some() != after.is_some(),
+    }
 }

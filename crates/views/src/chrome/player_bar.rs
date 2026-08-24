@@ -18,14 +18,13 @@ use ui::{
 
 use crate::chrome::SidebarRight;
 use crate::shared::menu::ItemMenu;
-use crate::shared::transport::{NOTCH, like, percent, transport, volume_icon};
+use crate::shared::transport::{NOTCH, like, moved, percent, transport, volume_icon};
 
 const SEEK_MAX: f32 = 560.;
 const VOLUME_WIDTH: f32 = 110.;
 const VOLUME_TIGHT: f32 = 72.;
 const CLOCK_SHORT: f32 = 3.4;
 const CLOCK_LONG: f32 = 5.4;
-const STEP: f32 = 0.004;
 
 pub(crate) struct PlayerBar {
     playback: Entity<Playback>,
@@ -38,6 +37,7 @@ pub(crate) struct PlayerBar {
     pending: Option<f32>,
     over_seek: Option<f32>,
     over_volume: Option<f32>,
+    volume_held: bool,
     muted: Option<f32>,
 }
 
@@ -63,6 +63,7 @@ impl PlayerBar {
             pending: None,
             over_seek: None,
             over_volume: None,
+            volume_held: false,
             muted: None,
         }
     }
@@ -124,7 +125,8 @@ impl PlayerBar {
         let theme = *cx.theme();
         let empty = theme.muted_foreground.opacity(0.3);
         let level = self.playback.read(cx).volume();
-        let bubble = self.over_volume.map(|_| (level, percent(level)));
+        let showing = self.over_volume.is_some() || self.volume_held;
+        let bubble = showing.then(|| (level, percent(level)));
         let restore = self.muted.unwrap_or(0.7);
 
         div()
@@ -163,9 +165,14 @@ impl PlayerBar {
                         .when_some(bubble, |this, (at, text)| this.bubble(at, text))
                         .on_move(cx.listener(|this, fraction: &f32, _, cx| {
                             let level = *fraction;
+                            this.volume_held = true;
                             this.muted = None;
                             this.playback
                                 .update(cx, |playback, cx| playback.set_volume(level, cx));
+                        }))
+                        .on_release(cx.listener(|this, _: &MouseUpEvent, _, cx| {
+                            this.volume_held = false;
+                            cx.notify();
                         })),
                 ),
             )
@@ -318,13 +325,6 @@ impl PlayerBar {
                         }),
                 )
             })
-    }
-}
-
-fn moved(before: Option<f32>, after: Option<f32>) -> bool {
-    match (before, after) {
-        (Some(before), Some(after)) => (before - after).abs() > STEP,
-        (before, after) => before.is_some() != after.is_some(),
     }
 }
 
