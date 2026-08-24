@@ -19,6 +19,7 @@ const TRUNCATED: u32 = 40;
 pub fn rank(query: &LyricsQuery, hits: Vec<LyricsHit>) -> Vec<LyricsHit> {
     let mut scored: Vec<(i64, LyricsHit)> = hits
         .into_iter()
+        .filter(|hit| eligible(query, hit))
         .map(|hit| (score(query, &hit), hit))
         .collect();
     scored.sort_by(|(left_score, left), (right_score, right)| {
@@ -36,6 +37,18 @@ pub fn rank(query: &LyricsQuery, hits: Vec<LyricsHit>) -> Vec<LyricsHit> {
         .collect()
 }
 
+fn eligible(query: &LyricsQuery, hit: &LyricsHit) -> bool {
+    if !alike(&hit.title, &query.title)
+        || !artists_alike(&hit.artist, &query.artist)
+        || low_quality(&hit.lyrics)
+    {
+        return false;
+    }
+    hit.duration.is_none_or(|duration| {
+        query.duration.is_zero() || duration.as_secs().abs_diff(query.duration.as_secs()) <= WAY_OFF
+    })
+}
+
 fn score(query: &LyricsQuery, hit: &LyricsHit) -> i64 {
     let mut score: i64 = i64::from(hit.trust);
     if let Some(duration) = hit.duration {
@@ -49,7 +62,7 @@ fn score(query: &LyricsQuery, hit: &LyricsHit) -> i64 {
     if alike(&hit.title, &query.title) {
         score += i64::from(TITLE);
     }
-    if alike(&hit.artist, &query.artist) {
+    if artists_alike(&hit.artist, &query.artist) {
         score += i64::from(ARTIST);
     }
     if let Some(album) = &query.album
@@ -75,6 +88,44 @@ fn truncated(lyrics: &Lyrics, duration: Duration) -> bool {
         return false;
     };
     !duration.is_zero() && span.as_secs_f64() < duration.as_secs_f64() * 0.6
+}
+
+fn low_quality(lyrics: &Lyrics) -> bool {
+    let Lyrics::Synced { lines } = lyrics else {
+        return false;
+    };
+    let texts = lines.iter().flat_map(|line| {
+        std::iter::once(line.text.as_str()).chain(
+            line.secondary
+                .iter()
+                .map(|secondary| secondary.text.as_str()),
+        )
+    });
+    let (total, noisy) = texts.fold((0usize, 0usize), |(total, noisy), text| {
+        (total + 1, noisy + usize::from(stretched_shout(text)))
+    });
+    noisy >= 3 && noisy.saturating_mul(6) >= total
+}
+
+fn stretched_shout(text: &str) -> bool {
+    let mut uppercase = false;
+    let mut lowercase = false;
+    let mut previous = None;
+    let mut run = 0usize;
+    let mut longest = 0usize;
+    for letter in text.chars().filter(|letter| letter.is_alphabetic()) {
+        uppercase |= letter.is_uppercase();
+        lowercase |= letter.is_lowercase();
+        let folded = letter.to_lowercase().next().unwrap_or(letter);
+        if previous == Some(folded) {
+            run += 1;
+        } else {
+            previous = Some(folded);
+            run = 1;
+        }
+        longest = longest.max(run);
+    }
+    uppercase && !lowercase && longest >= 3
 }
 
 fn fingerprint(lyrics: &Lyrics) -> String {
@@ -117,6 +168,18 @@ fn alike(left: &str, right: &str) -> bool {
         false => (&right, &left),
     };
     long.contains(short.as_str()) && short.len() * 2 >= long.len()
+}
+
+fn artists_alike(left: &str, right: &str) -> bool {
+    alike(left, right)
+        || artist_names(left).any(|left| artist_names(right).any(|right| alike(left, right)))
+}
+
+fn artist_names(artists: &str) -> impl Iterator<Item = &str> {
+    artists
+        .split([',', '&', ';'])
+        .map(str::trim)
+        .filter(|artist| !artist.is_empty())
 }
 
 fn undecorated(text: &str) -> String {
@@ -228,6 +291,119 @@ mod tests {
         ];
         let ranked = rank(&query(), hits);
         assert_eq!(ranked[0].title, "Jaded");
+        assert_eq!(ranked.len(), 1);
+    }
+
+    #[test]
+    fn karaoke_cannot_rescue_the_wrong_artist() {
+        let mut wrong = hit("Jaded", "Aerosmith", 263, true);
+        let Lyrics::Synced { lines } = &wrong.lyrics else {
+            unreachable!()
+        };
+        let mut lines = lines.to_vec();
+        lines[0].words = Some(vec![LyricsWord {
+            start: Duration::ZERO,
+            end: Duration::from_secs(1),
+            text: "wrong song".to_owned(),
+        }]);
+        wrong.lyrics = Lyrics::Synced {
+            lines: lines.into(),
+        };
+
+        let ranked = rank(&query(), vec![wrong, hit("Jaded", "Spiritbox", 263, false)]);
+
+        assert_eq!(ranked.len(), 1);
+        assert_eq!(ranked[0].artist, "Spiritbox");
+    }
+
+    #[test]
+    fn noisy_karaoke_cannot_beat_clean_lyrics() {
+        let mut noisy = hit("In Waves", "Trivium", 302, true);
+        let mut lines: Vec<LyricsLine> = (0..12)
+            .map(|index| line(index, index + 1, "Pulling everyone down with me"))
+            .collect();
+        for text in ["IN WAVESSSSS!", "PERPETUALLYYY!!!", "AHHHHHHH!!!!!"] {
+            let mut shouted = line(lines.len() as u64, lines.len() as u64 + 1, text);
+            shouted.words = Some(vec![LyricsWord {
+                start: shouted.start,
+                end: shouted.end.expect("the test line has an end"),
+                text: text.to_owned(),
+            }]);
+            lines.push(shouted);
+        }
+        noisy.lyrics = Lyrics::Synced {
+            lines: lines.into(),
+        };
+
+        let query = LyricsQuery {
+            title: "In Waves".to_owned(),
+            artist: "Trivium".to_owned(),
+            album: Some("In Waves".to_owned()),
+            duration: Duration::from_secs(302),
+            track: None,
+        };
+        let ranked = rank(&query, vec![noisy, hit("In Waves", "Trivium", 302, true)]);
+
+        assert_eq!(ranked.len(), 1);
+        assert!(!low_quality(&ranked[0].lyrics));
+    }
+
+    #[test]
+    fn one_stylized_shout_does_not_reject_an_otherwise_clean_sheet() {
+        let mut lines: Vec<LyricsLine> = (0..12)
+            .map(|index| line(index, index + 1, "ordinary line"))
+            .collect();
+        lines.push(line(12, 13, "NOOO!!!"));
+
+        assert!(!low_quality(&Lyrics::Synced {
+            lines: lines.into()
+        }));
+    }
+
+    #[test]
+    fn a_same_length_song_by_the_same_artist_is_still_rejected() {
+        let query = LyricsQuery {
+            title: "Versailles".to_owned(),
+            artist: "Pinback".to_owned(),
+            album: Some("Nautical Antiques".to_owned()),
+            duration: Duration::from_secs(213),
+            track: None,
+        };
+
+        let ranked = rank(
+            &query,
+            vec![
+                hit("Loro", "Pinback", 214, true),
+                hit("Versailles", "Pinback", 213, false),
+            ],
+        );
+
+        assert_eq!(ranked.len(), 1);
+        assert_eq!(ranked[0].title, "Versailles");
+    }
+
+    #[test]
+    fn a_different_recording_is_not_treated_as_the_same_track() {
+        let ranked = rank(
+            &query(),
+            vec![
+                hit("Jaded", "Spiritbox", 220, true),
+                hit("Jaded", "Spiritbox", 263, false),
+            ],
+        );
+
+        assert_eq!(ranked.len(), 1);
+        assert_eq!(ranked[0].duration, Some(Duration::from_secs(263)));
+    }
+
+    #[test]
+    fn one_shared_artist_is_enough_for_a_collaboration() {
+        let mut query = query();
+        query.artist = "Spiritbox, Megan Thee Stallion".to_owned();
+
+        let ranked = rank(&query, vec![hit("Jaded", "Spiritbox", 263, false)]);
+
+        assert_eq!(ranked.len(), 1);
     }
 
     #[test]
