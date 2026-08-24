@@ -43,8 +43,8 @@ fn eligible(query: &LyricsQuery, hit: &LyricsHit) -> bool {
 }
 
 pub fn instrumental(query: &LyricsQuery, hits: &[LyricsHit]) -> bool {
-    hits.iter()
-        .any(|hit| hit.instrumental && matched(query, hit))
+    let matching = || hits.iter().filter(|hit| matched(query, hit));
+    matching().any(|hit| hit.instrumental) && !matching().any(|hit| !hit.lyrics.is_empty())
 }
 
 fn matched(query: &LyricsQuery, hit: &LyricsHit) -> bool {
