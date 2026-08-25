@@ -440,3 +440,13 @@ lyrics-failed = Не удалось связаться со службой те�
 lyrics-follow = Снова следовать за песней
 lyrics-source = Текст из { $source }
 lyrics-writers = Авторы: { $writers }
+
+update-available = Вышла Sonora { $version }
+update-detail = У вас { $running }. Посмотрите, что изменилось, или обновитесь сейчас.
+update-notes = Что нового
+update-now = Обновить
+update-later = Позже
+update-working = Загружаем обновление…
+update-failed = Не удалось установить обновление. Попробуйте со страницы релизов.
+settings-check-updates = Проверять обновления
+settings-check-updates-detail = Один раз при запуске спрашивать GitHub, вышла ли новая версия

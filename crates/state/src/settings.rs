@@ -94,6 +94,7 @@ struct Values {
     romanized_lyrics: bool,
     romanization_scripts: RomanizationScripts,
     adaptive_menu: bool,
+    check_updates: bool,
     sidebar_width: f32,
     sidebar_open: bool,
     sidebar_right_width: f32,
@@ -143,6 +144,7 @@ impl Default for Values {
             romanized_lyrics: false,
             romanization_scripts: RomanizationScripts::default(),
             adaptive_menu: false,
+            check_updates: true,
             sidebar_width: DEFAULT_SIDEBAR_WIDTH,
             sidebar_open: true,
             sidebar_right_width: DEFAULT_SIDEBAR_RIGHT_WIDTH,
@@ -252,6 +254,10 @@ impl AppSettings {
 
     pub fn adaptive_menu(&self) -> bool {
         self.values.adaptive_menu
+    }
+
+    pub fn check_updates(&self) -> bool {
+        self.values.check_updates
     }
 
     pub fn sidebar_width(&self) -> f32 {
@@ -409,6 +415,11 @@ impl AppSettings {
 
     pub fn set_adaptive_menu(&mut self, adaptive_menu: bool, cx: &mut Context<Self>) {
         self.values.adaptive_menu = adaptive_menu;
+        self.schedule_save(cx);
+    }
+
+    pub fn set_check_updates(&mut self, check_updates: bool, cx: &mut Context<Self>) {
+        self.values.check_updates = check_updates;
         self.schedule_save(cx);
     }
 
