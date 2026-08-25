@@ -15,9 +15,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- Lyrics come from LrcLib and NetEase Cloud Music. The AMLL community database is no longer
-  queried: it held a matching sheet for one track in a 255-track library while costing a request
-  for every track played.
+- Karaoke lyrics now come from Kugou as well as NetEase Cloud Music, and Spotify hands over its
+  own lyrics for the track it is playing, matched by track rather than by title. Across a
+  255-track library that lifts word-by-word coverage from 55% to 78% and leaves NetEase supplying
+  a fifth of it rather than nearly all.
+- The AMLL community database is no longer queried: it held a matching sheet for one track in a
+  255-track library while costing a request for every track played.
 
 ### Fixed
 
