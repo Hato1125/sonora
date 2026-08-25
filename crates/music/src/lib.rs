@@ -1,9 +1,11 @@
 mod audio;
+pub mod binimum;
 pub mod kugou;
 pub mod local;
 pub mod lrclib;
 pub mod lyrics;
 mod models;
+pub mod musixmatch;
 pub mod netease;
 pub mod spotify;
 pub mod youtube;
@@ -19,7 +21,7 @@ use async_trait::async_trait;
 pub use models::{
     Album, AlbumDetail, Artist, ArtistProfile, ArtistRef, Credit, Genre, GenreDetail, GenreItem,
     GenreSection, Lyrics, LyricsHit, LyricsLane, LyricsLine, LyricsQuery, LyricsWord, Playlist,
-    PlaylistDetail, ReleaseType, RomanizedText, SavedArtist, Track, TrackKey, UserProfile,
+    PlaylistDetail, ReleaseType, RomanizedText, SavedArtist, Track, TrackKey, UserProfile, Voice,
     WritingSystem,
 };
 

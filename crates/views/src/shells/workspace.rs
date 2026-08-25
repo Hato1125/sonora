@@ -1,12 +1,42 @@
+use std::time::{Duration, Instant};
+
 use gpui::prelude::*;
-use gpui::{AnyView, App, Context, Entity, FocusHandle, Render};
+use gpui::{AnyView, App, Context, Entity, FocusHandle, Render, px};
 use gpui::{Window, div};
 use input::WORKSPACE_CONTEXT;
 use state::{Playback, Queue, SideTab};
+use ui::{Motion, ease_out_expo};
 
 use crate::chrome::{Chrome, PlayerBar, SidebarLeft, SidebarRight, TitleBarOptions, ToastStack};
 use crate::shared::playlist_editor::PlaylistEditor;
 use crate::shells::Shell;
+
+const VIEW_BLUR: gpui::Pixels = px(1.5);
+const VIEW_DURATION_EXTRA: Duration = Duration::from_millis(50);
+const VIEW_ZOOM: f32 = 0.01;
+
+#[derive(Clone, Copy)]
+struct ContentTransition {
+    from: f32,
+    to: f32,
+    started: Instant,
+    span: Duration,
+}
+
+impl ContentTransition {
+    fn hidden(self) -> f32 {
+        if self.span.is_zero() {
+            return self.to;
+        }
+        let elapsed = self.started.elapsed().as_secs_f32();
+        let progress = (elapsed / self.span.as_secs_f32()).clamp(0., 1.);
+        self.from + (self.to - self.from) * ease_out_expo(progress)
+    }
+
+    fn running(self) -> bool {
+        self.started.elapsed() < self.span
+    }
+}
 
 pub(crate) struct Workspace {
     sidebar: Entity<SidebarLeft>,
@@ -15,6 +45,7 @@ pub(crate) struct Workspace {
     playlist_editor: Entity<PlaylistEditor>,
     toasts: Entity<ToastStack>,
     content: AnyView,
+    transition: Option<ContentTransition>,
     focus: FocusHandle,
 }
 
@@ -36,6 +67,7 @@ impl Workspace {
             playlist_editor: PlaylistEditor::entity(cx),
             toasts: cx.new(ToastStack::new),
             content,
+            transition: None,
             focus: cx.focus_handle(),
         }
     }
@@ -65,6 +97,57 @@ impl Workspace {
     pub fn set_content(&mut self, content: AnyView, cx: &mut Context<Self>) {
         self.content = content;
         cx.notify();
+    }
+
+    pub fn reveal_content(&mut self, cx: &mut Context<Self>) -> Duration {
+        if cx.reduce_motion() {
+            self.transition = None;
+            return Duration::ZERO;
+        }
+
+        let from = self
+            .transition
+            .filter(|transition| transition.running())
+            .map(ContentTransition::hidden)
+            .unwrap_or(1.);
+        self.transition_from(from, 0., cx)
+    }
+
+    pub fn finish_transition(&mut self, cx: &mut Context<Self>) {
+        if self.transition.take().is_some() {
+            cx.notify();
+        }
+    }
+
+    fn transition_from(&mut self, from: f32, to: f32, cx: &mut Context<Self>) -> Duration {
+        let distance = (to - from).abs();
+        if distance <= f32::EPSILON {
+            return Duration::ZERO;
+        }
+
+        let span = (Motion::Base.span() + VIEW_DURATION_EXTRA).mul_f32(distance);
+        self.transition = Some(ContentTransition {
+            from,
+            to,
+            started: Instant::now(),
+            span,
+        });
+        cx.notify();
+        span
+    }
+
+    fn hidden(&mut self, window: &mut Window, cx: &Context<Self>) -> f32 {
+        if cx.reduce_motion() {
+            self.transition = None;
+            return 0.;
+        }
+        let Some(transition) = self.transition else {
+            return 0.;
+        };
+        if transition.running() {
+            window.request_animation_frame();
+        }
+        transition.hidden()
     }
 
     #[allow(dead_code)]
@@ -97,6 +180,8 @@ impl Render for Workspace {
         Chrome::publish(left, right, cx);
         let covered = self.sidebar_right.read(cx).covers_content(window);
         let overlay = self.sidebar.read(cx).overlays();
+        let hidden = self.hidden(window, cx);
+        let scale = 1. - VIEW_ZOOM * hidden;
 
         div()
             .relative()
@@ -121,8 +206,23 @@ impl Render for Workspace {
                             .flex_col()
                             .flex_1()
                             .min_w_0()
+                            .min_h_0()
+                            .when(hidden > 0., |this| this.overflow_hidden())
                             .when(covered, |this| this.hidden())
-                            .child(self.content.clone()),
+                            .child(
+                                div()
+                                    .absolute()
+                                    .left_0()
+                                    .right_0()
+                                    .top_0()
+                                    .bottom_0()
+                                    .flex()
+                                    .flex_col()
+                                    .layer_scale(scale)
+                                    .opacity(1. - hidden)
+                                    .blur(VIEW_BLUR * hidden)
+                                    .child(self.content.clone()),
+                            ),
                     )
                     .child(self.sidebar_right.clone())
                     .when(overlay, |this| this.child(self.sidebar.clone())),

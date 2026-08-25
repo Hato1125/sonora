@@ -13,6 +13,7 @@ mod remote;
 mod search;
 mod session;
 mod settings;
+mod sheets;
 mod song;
 mod toast;
 
@@ -108,6 +109,7 @@ pub fn init(
     let lyrics = cx.new(|cx| {
         Lyrics::new(
             playback.clone(),
+            queue.clone(),
             session.clone(),
             lyrics_providers,
             io.clone(),

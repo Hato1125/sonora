@@ -1,11 +1,13 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 
 use gpui::{Context, Entity, Task};
-use music::{LyricsHit, LyricsProvider, LyricsQuery, MusicApi, Track, TrackKey};
+use music::{Lyrics as Sheet, LyricsHit, LyricsProvider, LyricsQuery, MusicApi, Track, TrackKey};
 use tokio::task::JoinSet;
 
-use crate::{Io, Playback, Session, join};
+use crate::sheets::Sheets;
+use crate::{Io, Playback, Queue, Session, join};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LyricsState {
@@ -18,6 +20,7 @@ pub enum LyricsState {
 }
 
 const OWN_TRUST: u32 = 25;
+const SAVE_DELAY: Duration = Duration::from_millis(800);
 
 struct Native {
     api: Arc<dyn MusicApi>,
@@ -29,18 +32,26 @@ pub struct Lyrics {
     state: LyricsState,
     hits: Vec<LyricsHit>,
     chosen: usize,
+    picked: bool,
+    revision: u64,
     following: Option<String>,
     cache: HashMap<String, Found>,
+    store: Sheets,
     providers: Vec<Arc<dyn LyricsProvider>>,
     playback: Entity<Playback>,
+    queue: Entity<Queue>,
     session: Entity<Session>,
     io: Io,
     task: Option<Task<()>>,
+    ahead: Option<Task<()>>,
+    ahead_of: Option<String>,
+    save: Option<Task<()>>,
 }
 
 impl Lyrics {
     pub fn new(
         playback: Entity<Playback>,
+        queue: Entity<Queue>,
         session: Entity<Session>,
         providers: Vec<Arc<dyn LyricsProvider>>,
         io: Io,
@@ -48,17 +59,33 @@ impl Lyrics {
     ) -> Self {
         cx.observe(&playback, |this, _, cx| this.follow(cx))
             .detach();
+        cx.observe(&queue, |this, _, cx| this.prefetch(cx)).detach();
+        cx.spawn(async move |this, cx| {
+            let loaded = cx
+                .background_executor()
+                .spawn(async move { Sheets::read() })
+                .await;
+            this.update(cx, |this, _| this.store.absorb(loaded)).ok();
+        })
+        .detach();
         Self {
             state: LyricsState::Idle,
             hits: Vec::new(),
             chosen: 0,
+            picked: false,
+            revision: 0,
             following: None,
             cache: HashMap::new(),
+            store: Sheets::new(),
             providers,
             playback,
+            queue,
             session,
             io,
             task: None,
+            ahead: None,
+            ahead_of: None,
+            save: None,
         }
     }
 
@@ -78,11 +105,17 @@ impl Lyrics {
         self.hits.get(self.chosen)
     }
 
+    pub fn revision(&self) -> u64 {
+        self.revision
+    }
+
     pub fn choose(&mut self, index: usize, cx: &mut Context<Self>) {
         if index >= self.hits.len() || index == self.chosen {
             return;
         }
         self.chosen = index;
+        self.picked = true;
+        self.revision = self.revision.wrapping_add(1);
         cx.notify();
     }
 
@@ -106,14 +139,43 @@ impl Lyrics {
         }
         self.following = Some(id.clone());
         self.chosen = 0;
+        self.picked = false;
+        self.revision = self.revision.wrapping_add(1);
 
-        if let Some(found) = self.cache.get(&id) {
-            self.hits = found.hits.clone();
+        if let Some(found) = self.remembered(&id, cx) {
+            self.task = None;
+            self.hits = found.hits;
             self.state = state_for(&self.hits, found.instrumental);
             cx.notify();
+            self.prefetch(cx);
             return;
         }
         self.load(id, track, cx);
+    }
+
+    fn remembered(&mut self, id: &str, cx: &mut Context<Self>) -> Option<Found> {
+        if let Some(found) = self.cache.get(id) {
+            return Some(found.clone());
+        }
+        let (hits, instrumental) = self.store.get(&self.key(id, cx), &self.known(cx))?;
+        let found = Found { hits, instrumental };
+        self.cache.insert(id.to_owned(), found.clone());
+        Some(found)
+    }
+
+    fn key(&self, id: &str, cx: &Context<Self>) -> String {
+        match self.session.read(cx).slug_for(id) {
+            Some(slug) => format!("{slug}:{id}"),
+            None => id.to_owned(),
+        }
+    }
+
+    fn known(&self, cx: &Context<Self>) -> Vec<&'static str> {
+        self.providers
+            .iter()
+            .map(|provider| provider.name())
+            .chain(self.session.read(cx).provider_name())
+            .collect()
     }
 
     fn forget(&mut self, cx: &mut Context<Self>) {
@@ -124,6 +186,8 @@ impl Lyrics {
         self.following = None;
         self.hits.clear();
         self.chosen = 0;
+        self.picked = false;
+        self.revision = self.revision.wrapping_add(1);
         self.state = LyricsState::Idle;
         cx.notify();
     }
@@ -150,6 +214,33 @@ impl Lyrics {
         self.state = LyricsState::Loading;
         cx.notify();
 
+        if self.ahead_of.as_deref() == Some(id.as_str()) && self.ahead.is_some() {
+            self.task = self.ahead.take();
+            self.ahead_of = None;
+            return;
+        }
+        self.task = Some(self.fetch(id, track, cx));
+    }
+
+    fn prefetch(&mut self, cx: &mut Context<Self>) {
+        if self.providers.is_empty() || self.task.is_some() {
+            return;
+        }
+        let next = self.queue.read(cx).upcoming().next().cloned();
+        let Some((track, id)) = next.and_then(|track| Some((track.clone(), track.id?))) else {
+            return;
+        };
+        if self.ahead_of.as_deref() == Some(id.as_str())
+            || self.cache.contains_key(&id)
+            || self.store.holds(&self.key(&id, cx))
+        {
+            return;
+        }
+        self.ahead_of = Some(id.clone());
+        self.ahead = Some(self.fetch(id, track, cx));
+    }
+
+    fn fetch(&mut self, id: String, track: Track, cx: &mut Context<Self>) -> Task<()> {
         let key = self
             .session
             .read(cx)
@@ -162,76 +253,171 @@ impl Lyrics {
         let providers = self.providers.clone();
         let native = self.native(&id, cx);
         let io = self.io.clone();
-        self.task = Some(cx.spawn(async move |this, cx| {
+        cx.spawn(async move |this, cx| {
             let (sender, mut incoming) = tokio::sync::mpsc::unbounded_channel();
-            let query_for_rank = query.clone();
+            let ranking = query.clone();
             let worker = io.spawn(async move { gather(providers, native, query, sender).await });
             let mut hits = Vec::new();
-            let mut displayed = None;
+            let mut displayed: Option<LyricsHit> = None;
+            let mut shown: Option<u8> = None;
 
             while let Some(mut found) = incoming.recv().await {
                 hits.append(&mut found);
-                let mut ranked = music::lyrics::rank(&query_for_rank, hits.clone());
-                if displayed.is_none()
-                    && let Some(karaoke) = ranked.iter().find(|hit| hit.lyrics.worded()).cloned()
-                {
-                    displayed = Some(karaoke);
-                    keep_displayed_first(&mut ranked, displayed.as_ref());
-                    this.update(cx, |this, cx| {
-                        if this.following.as_deref() != Some(id.as_str()) {
-                            return;
-                        }
-                        this.hits = ranked;
-                        this.state = LyricsState::Ready;
-                        cx.notify();
-                    })
-                    .ok();
+                let ranked = ordered(&ranking, hits.clone());
+                let Some(best) = ranked.first().cloned() else {
+                    continue;
+                };
+                let step = depth(&best.lyrics);
+                if shown.is_none_or(|shown| step >= shown) {
+                    shown = Some(step);
+                    displayed = Some(best);
                 }
+                let anchor = displayed.clone();
+                this.update(cx, |this, cx| {
+                    if this.following.as_deref() != Some(id.as_str()) {
+                        return;
+                    }
+                    this.paint(ranked, anchor.as_ref(), cx);
+                })
+                .ok();
             }
 
             let found = join(worker).await;
 
             this.update(cx, |this, cx| {
-                if this.following.as_deref() != Some(id.as_str()) {
-                    return;
+                let current = this.following.as_deref() == Some(id.as_str());
+                if current {
+                    this.task = None;
                 }
-                this.task = None;
+                if this.ahead_of.as_deref() == Some(id.as_str()) {
+                    this.ahead_of = None;
+                }
                 match found {
                     Ok(()) => {
-                        let instrumental = music::lyrics::instrumental(&query_for_rank, &hits);
-                        let mut hits = music::lyrics::rank(&query_for_rank, hits);
-                        keep_displayed_first(&mut hits, displayed.as_ref());
-                        this.cache.insert(
-                            id,
-                            Found {
-                                hits: hits.clone(),
-                                instrumental,
-                            },
-                        );
-                        this.hits = hits;
-                        this.state = state_for(&this.hits, instrumental);
+                        let instrumental = music::lyrics::instrumental(&ranking, &hits);
+                        let ranked = ordered(&ranking, hits);
+                        this.remember(id, ranked, displayed.as_ref(), instrumental, current, cx);
                     }
                     Err(error) => {
                         log::warn!("lyrics: cannot look up {}: {error:#}", track.name);
-                        this.state = LyricsState::Failed(format!("{error:#}"));
+                        if current {
+                            this.state = LyricsState::Failed(format!("{error:#}"));
+                            cx.notify();
+                        }
                     }
                 }
-                cx.notify();
             })
             .ok();
+        })
+    }
+
+    fn paint(
+        &mut self,
+        ranked: Vec<LyricsHit>,
+        displayed: Option<&LyricsHit>,
+        cx: &mut Context<Self>,
+    ) {
+        self.pin(ranked, displayed);
+        if !self.hits.is_empty() {
+            self.state = LyricsState::Ready;
+        }
+        cx.notify();
+    }
+
+    fn remember(
+        &mut self,
+        id: String,
+        ranked: Vec<LyricsHit>,
+        displayed: Option<&LyricsHit>,
+        instrumental: bool,
+        current: bool,
+        cx: &mut Context<Self>,
+    ) {
+        let mut hits = ranked;
+        keep_displayed_first(&mut hits, displayed);
+        if !hits.is_empty() || instrumental {
+            self.store.put(self.key(&id, cx), &hits, instrumental);
+            self.schedule_save(cx);
+        }
+        self.cache.insert(
+            id,
+            Found {
+                hits: hits.clone(),
+                instrumental,
+            },
+        );
+        if current {
+            self.pin(hits, displayed);
+            self.state = state_for(&self.hits, instrumental);
+            cx.notify();
+            self.prefetch(cx);
+        }
+    }
+
+    fn pin(&mut self, ranked: Vec<LyricsHit>, displayed: Option<&LyricsHit>) {
+        let anchor = match self.picked {
+            true => self.hits.get(self.chosen).cloned(),
+            false => displayed.cloned(),
+        };
+        let before = self.current().map(|hit| hit.lyrics.clone());
+        let mut hits = ranked;
+        let held = keep_displayed_first(&mut hits, anchor.as_ref());
+        self.hits = hits;
+        self.chosen = 0;
+        self.picked &= held;
+        if before.as_ref() != self.current().map(|hit| &hit.lyrics) {
+            self.revision = self.revision.wrapping_add(1);
+        }
+    }
+
+    fn schedule_save(&mut self, cx: &mut Context<Self>) {
+        self.save = Some(cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(SAVE_DELAY).await;
+            let chore = this.update(cx, |this, _| this.store.chore()).ok().flatten();
+            if let Some(chore) = chore {
+                cx.background_executor()
+                    .spawn(async move { chore.write() })
+                    .await;
+            }
         }));
     }
 }
 
-fn keep_displayed_first(hits: &mut Vec<LyricsHit>, displayed: Option<&LyricsHit>) {
-    let Some(index) = displayed.and_then(|displayed| hits.iter().position(|hit| hit == displayed))
+fn depth(lyrics: &Sheet) -> u8 {
+    match (lyrics.worded(), lyrics.synced()) {
+        (true, _) => 3,
+        (false, true) => 2,
+        (false, false) => 1,
+    }
+}
+
+fn keep_displayed_first(hits: &mut Vec<LyricsHit>, displayed: Option<&LyricsHit>) -> bool {
+    let Some(index) =
+        displayed.and_then(|displayed| hits.iter().position(|hit| same(hit, displayed)))
     else {
-        return;
+        return false;
     };
     let displayed = hits.remove(index);
     hits.insert(0, displayed);
+    true
 }
 
+fn same(left: &LyricsHit, right: &LyricsHit) -> bool {
+    left.source == right.source
+        && left.title == right.title
+        && left.artist == right.artist
+        && left.album == right.album
+        && left.duration == right.duration
+        && left.lyrics.worded() == right.lyrics.worded()
+}
+
+fn ordered(query: &LyricsQuery, hits: Vec<LyricsHit>) -> Vec<LyricsHit> {
+    let mut ranked = music::lyrics::rank(query, hits);
+    music::lyrics::reshape(&mut ranked);
+    ranked
+}
+
+#[derive(Clone)]
 struct Found {
     hits: Vec<LyricsHit>,
     instrumental: bool,
@@ -311,7 +497,7 @@ async fn own(native: Native, query: LyricsQuery) -> Vec<LyricsHit> {
 mod tests {
     use std::time::Duration;
 
-    use music::{Lyrics as Sheet, LyricsHit, LyricsLine, LyricsWord};
+    use music::{Lyrics as Sheet, LyricsHit, LyricsLine, LyricsWord, Voice};
 
     use super::keep_displayed_first;
 
@@ -346,6 +532,7 @@ mod tests {
                         text: "line".to_owned(),
                     }]),
                     secondary: Vec::new(),
+                    voice: Voice::Lead,
                 }]
                 .into(),
             },

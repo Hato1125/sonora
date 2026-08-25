@@ -1,6 +1,8 @@
 use std::f32::consts::TAU;
 
-use gpui::{App, AppContext as _, Hsla, ImgResourceLoader, Resource, Rgba, SharedUri, Task};
+use gpui::{App, AppContext as _, Hsla, ImgResourceLoader, Rgba, SharedString, Task};
+
+use crate::artwork::resource;
 
 const BINS: usize = 24;
 const SAMPLES: usize = 6000;
@@ -10,8 +12,8 @@ const MIN_LIGHTNESS: f32 = 0.20;
 const MAX_LIGHTNESS: f32 = 0.94;
 const MIN_SHARE: f32 = 0.05;
 
-pub fn tint(url: impl Into<SharedUri>, cx: &mut App) -> Task<Option<Hsla>> {
-    let (load, _) = cx.fetch_asset::<ImgResourceLoader>(&Resource::Uri(url.into()));
+pub fn tint(url: impl Into<SharedString>, cx: &mut App) -> Task<Option<Hsla>> {
+    let (load, _) = cx.fetch_asset::<ImgResourceLoader>(&resource(url));
 
     cx.spawn(async move |cx| {
         let image = load.await.ok()?;

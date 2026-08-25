@@ -1,4 +1,4 @@
-use gpui::{AnyView, Context, Entity, MouseButton, NavigationDirection, Render};
+use gpui::{AnyView, Context, Entity, MouseButton, NavigationDirection, Render, Task};
 use gpui::{Window, div};
 use gpui::{font, prelude::*};
 use input::{
@@ -68,6 +68,7 @@ pub struct Root {
     signing_in: bool,
     toolbar: Option<Entity<Toolbar>>,
     pending: Option<Focus>,
+    navigation_transition: Option<Task<()>>,
     screens: Screens,
     _adaptive: Entity<Adaptive>,
 }
@@ -83,6 +84,10 @@ impl Root {
     ) -> Self {
         cx.observe(&session, |this, session, cx| {
             if matches!(session.read(cx).state(), SessionState::SignedOut) {
+                this.navigation_transition = None;
+                this.shells
+                    .workspace
+                    .update(cx, |workspace, cx| workspace.finish_transition(cx));
                 this.screens.artist = None;
                 this.screens.artist_detail = None;
                 this.screens.album = None;
@@ -100,7 +105,7 @@ impl Root {
 
         cx.subscribe(&navigation, |this, _, event, cx| {
             let NavigationEvent::Moved(destination) = event;
-            this.show(destination.clone(), cx);
+            this.transition_to(destination.clone(), cx);
         })
         .detach();
 
@@ -179,6 +184,7 @@ impl Root {
             signing_in: false,
             toolbar: None,
             pending: None,
+            navigation_transition: None,
             screens: Screens {
                 home,
                 library: library_view,
@@ -330,6 +336,36 @@ impl Root {
         navigate(Destination::Settings(SettingsTab::General), cx);
         self.pending = Some(Focus::Workspace);
         cx.notify();
+    }
+
+    fn transition_to(&mut self, destination: Destination, cx: &mut Context<Self>) {
+        self.navigation_transition = None;
+
+        let changes_shell = matches!(destination, Destination::Fullscreen)
+            || matches!(self.view, RootView::Fullscreen);
+        if changes_shell || cx.reduce_motion() {
+            self.shells
+                .workspace
+                .update(cx, |workspace, cx| workspace.finish_transition(cx));
+            self.show(destination, cx);
+            return;
+        }
+
+        self.show(destination, cx);
+        let enter = self
+            .shells
+            .workspace
+            .update(cx, |workspace, cx| workspace.reveal_content(cx));
+        self.navigation_transition = Some(cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(enter).await;
+            this.update(cx, |this, cx| {
+                this.navigation_transition = None;
+                this.shells
+                    .workspace
+                    .update(cx, |workspace, cx| workspace.finish_transition(cx));
+            })
+            .ok();
+        }));
     }
 
     fn show(&mut self, destination: Destination, cx: &mut Context<Self>) {

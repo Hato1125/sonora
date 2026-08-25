@@ -1,6 +1,8 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use serde::{Deserialize, Serialize};
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UserProfile {
     pub id: String,
@@ -158,10 +160,11 @@ pub struct Artist {
     pub albums: Vec<Album>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Lyrics {
     Plain {
         text: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
         romanized: Option<RomanizedText>,
     },
     Synced {
@@ -205,14 +208,20 @@ impl Lyrics {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LyricsLine {
     pub start: Duration,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub end: Option<Duration>,
     pub text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub romanized: Option<RomanizedText>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub words: Option<Vec<LyricsWord>>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub secondary: Vec<LyricsLane>,
+    #[serde(default, skip_serializing_if = "Voice::lead")]
+    pub voice: Voice,
 }
 
 impl LyricsLine {
@@ -236,12 +245,15 @@ impl LyricsLine {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LyricsLane {
     pub start: Duration,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub end: Option<Duration>,
     pub text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub romanized: Option<RomanizedText>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub words: Option<Vec<LyricsWord>>,
 }
 
@@ -259,13 +271,13 @@ impl LyricsLane {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RomanizedText {
     pub text: String,
     pub writing_system: WritingSystem,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WritingSystem {
     Japanese,
     Chinese,
@@ -288,7 +300,20 @@ impl WritingSystem {
     ];
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Voice {
+    #[default]
+    Lead,
+    Counter,
+}
+
+impl Voice {
+    pub fn lead(&self) -> bool {
+        matches!(self, Self::Lead)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LyricsWord {
     pub start: Duration,
     pub end: Duration,

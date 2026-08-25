@@ -119,7 +119,7 @@ fn tidy(text: &str) -> String {
 mod tests {
     use std::time::Duration;
 
-    use crate::LyricsLane;
+    use crate::{LyricsLane, Voice};
 
     use super::*;
 
@@ -151,6 +151,7 @@ mod tests {
                 romanized: None,
                 words: None,
             }],
+            voice: Voice::Lead,
         }];
 
         apply(&mut lines);
