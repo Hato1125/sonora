@@ -4220,6 +4220,7 @@ dependencies = [
  "librespot-protocol",
  "lofty",
  "log",
+ "percent-encoding",
  "protobuf",
  "reqwest",
  "rodio",

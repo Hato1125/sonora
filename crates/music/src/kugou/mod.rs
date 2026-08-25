@@ -5,6 +5,7 @@ use anyhow::{Context as _, Result};
 use async_trait::async_trait;
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
+use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
 use serde::Deserialize;
 use tokio::task::JoinSet;
 
@@ -15,7 +16,8 @@ const SOURCE: &str = "Kugou";
 const SEARCH: &str = "https://mobiles.kugou.com/api/v3/search/song";
 const CANDIDATES: &str = "https://lyrics.kugou.com/search";
 const DOWNLOAD: &str = "https://lyrics.kugou.com/download";
-const SONGS: usize = 3;
+const SONGS: usize = 4;
+const PAGE: usize = 20;
 const SHEETS: usize = 2;
 const CIPHER: [u8; 16] = [
     0x40, 0x47, 0x61, 0x77, 0x5e, 0x32, 0x74, 0x47, 0x51, 0x36, 0x31, 0x2d, 0xce, 0xd2, 0x6e, 0x69,
@@ -38,16 +40,12 @@ impl Kugou {
     }
 
     async fn songs(&self, wanted: &str) -> Result<Vec<Song>> {
+        let keyword = utf8_percent_encode(wanted, NON_ALPHANUMERIC);
         let response = self
             .http
-            .get(SEARCH)
-            .query(&[
-                ("format", "json"),
-                ("keyword", wanted),
-                ("page", "1"),
-                ("pagesize", "8"),
-                ("showtype", "1"),
-            ])
+            .get(format!(
+                "{SEARCH}?format=json&keyword={keyword}&page=1&pagesize={PAGE}&showtype=1"
+            ))
             .header("User-Agent", AGENT)
             .send()
             .await
