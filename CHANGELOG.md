@@ -7,6 +7,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.17.1] - 2026-08-25
+
 ### Added
 
 - The lyrics panel tells an instrumental track apart from one whose lyrics are simply missing: a
@@ -671,7 +673,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Initial release: a native Spotify client with playback, an interactive queue, the saved library,
 search, album, playlist, artist and song pages, context menus and adaptive theming.
 
-[unreleased]: https://github.com/nolight132/sonora/compare/v0.17.0...HEAD
+[unreleased]: https://github.com/nolight132/sonora/compare/v0.17.1...HEAD
+[0.17.1]: https://github.com/nolight132/sonora/compare/v0.17.0...v0.17.1
 [0.17.0]: https://github.com/nolight132/sonora/compare/v0.16.3...v0.17.0
 [0.16.3]: https://github.com/nolight132/sonora/compare/v0.16.2...v0.16.3
 [0.16.2]: https://github.com/nolight132/sonora/compare/v0.16.1...v0.16.2
