@@ -7,12 +7,30 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- The lyrics panel tells an instrumental track apart from one whose lyrics are simply missing: a
+  guitar and "This song is instrumental" when a lyrics provider says the track has no words, and a
+  crossed-out microphone and "No lyrics found, sorry!" when nobody has them.
+
+### Changed
+
+- Lyrics come from LrcLib and NetEase Cloud Music. The AMLL community database is no longer
+  queried: it held a matching sheet for one track in a 255-track library while costing a request
+  for every track played.
+
 ### Fixed
 
 - Japanese romanized lyrics now read as words rather than as fragments: kanji keep their word
   readings (君 is "kimi", not "kun"), verb endings stay attached to their stem ("oshietekureta"
   instead of "oshie tekureta"), particles are romanized as they are spoken ("wa" for は, "o" for
   を), and small つ doubles the next consonant instead of appearing as "tsu".
+- NetEase sheets no longer render their own metadata as lyrics: a leading "artist - title" line or
+  a Title/Album/By block is dropped, and doubled spacing between words is collapsed.
+- A sheet whose header names a different song is rejected, so a mismatched upload no longer
+  replaces the right lyrics.
+- Lyrics typed with lookalike Cyrillic letters are folded back to Latin, so they read as the words
+  they imitate instead of picking up a spurious romanized line beneath them.
 
 ## [0.17.0] - 2026-08-24
 

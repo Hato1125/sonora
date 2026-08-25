@@ -20,7 +20,6 @@ lofty.workspace = true
 kakasi.workspace = true
 log.workspace = true
 protobuf.workspace = true
-quick-xml.workspace = true
 reqwest.workspace = true
 rodio = { workspace = true, features = ["symphonia-aac", "symphonia-alac", "symphonia-isomp4", "flac", "mp3", "vorbis", "wav"] }
 serde.workspace = true
