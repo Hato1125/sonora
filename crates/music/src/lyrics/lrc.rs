@@ -1,7 +1,7 @@
 use std::ops::Range;
 use std::time::Duration;
 
-use crate::{LyricsLane, LyricsLine, LyricsWord};
+use crate::{LyricsLane, LyricsLine, LyricsWord, Voice};
 
 use super::romanize;
 const HOMOGLYPHS: &[(char, char)] = &[
@@ -56,6 +56,14 @@ const HOMOGLYPHS: &[(char, char)] = &[
     ('ι', 'i'),
 ];
 
+const WIDE_MARKS: &[(char, char)] = &[
+    ('\u{ff07}', '\''),
+    ('\u{02bc}', '\''),
+    ('\u{2032}', '\''),
+    ('\u{00b4}', '\''),
+    ('`', '\''),
+];
+
 pub fn parse(lrc: &str) -> Vec<LyricsLine> {
     let mut lines: Vec<LyricsLine> = lrc.lines().flat_map(read).collect();
     normalize(&mut lines);
@@ -93,8 +101,121 @@ pub fn normalize(lines: &mut Vec<LyricsLine>) {
     demark(&mut normalized);
     collapse(&mut normalized);
     unspoof(&mut normalized);
+    unwiden(&mut normalized);
+    bracket(&mut normalized);
+    recapitalize(&mut normalized);
     romanize::apply(&mut normalized);
     *lines = normalized;
+}
+
+fn bracket(lines: &mut [LyricsLine]) {
+    for lane in lines.iter_mut().flat_map(|line| line.secondary.iter_mut()) {
+        if lane.text.trim().is_empty() || lane.text.contains(['(', ')']) {
+            continue;
+        }
+        let Some(words) = lane
+            .words
+            .as_mut()
+            .filter(|words| words.iter().any(|word| !word.text.trim().is_empty()))
+        else {
+            lane.text = format!("({})", lane.text);
+            continue;
+        };
+        if let Some(first) = words.iter_mut().find(|word| !word.text.trim().is_empty()) {
+            first.text.insert(0, '(');
+        }
+        if let Some(last) = words
+            .iter_mut()
+            .rev()
+            .find(|word| !word.text.trim().is_empty())
+        {
+            last.text = format!("{})", last.text.trim_end());
+        }
+        lane.text = words.iter().map(|word| word.text.as_str()).collect();
+    }
+}
+
+fn unwiden(lines: &mut [LyricsLine]) {
+    for line in lines.iter_mut() {
+        narrow(&mut line.words, &mut line.text);
+        for lane in &mut line.secondary {
+            narrow(&mut lane.words, &mut lane.text);
+        }
+    }
+}
+
+fn narrow(words: &mut Option<Vec<LyricsWord>>, text: &mut String) {
+    for word in words.iter_mut().flatten() {
+        word.text = narrowed(&word.text);
+    }
+    *text = narrowed(text);
+}
+
+fn narrowed(text: &str) -> String {
+    text.chars()
+        .map(|letter| {
+            WIDE_MARKS
+                .iter()
+                .find(|(from, _)| *from == letter)
+                .map_or(letter, |(_, to)| *to)
+        })
+        .collect()
+}
+
+fn recapitalize(lines: &mut [LyricsLine]) {
+    if !mostly_capitalized(lines) {
+        return;
+    }
+    for line in lines.iter_mut() {
+        capitalize(&mut line.words, &mut line.text);
+        for lane in &mut line.secondary {
+            capitalize(&mut lane.words, &mut lane.text);
+        }
+    }
+}
+
+fn mostly_capitalized(lines: &[LyricsLine]) -> bool {
+    let (upper, lower) = lines
+        .iter()
+        .filter_map(|line| opener(&line.text))
+        .filter(|letter| letter.is_alphabetic())
+        .fold((0usize, 0usize), |(upper, lower), letter| match letter {
+            letter if letter.is_uppercase() => (upper + 1, lower),
+            letter if letter.is_lowercase() => (upper, lower + 1),
+            _ => (upper, lower),
+        });
+    upper > 0 && upper >= lower
+}
+
+fn opener(text: &str) -> Option<char> {
+    text.chars().find(|letter| letter.is_alphanumeric())
+}
+
+fn capitalize(words: &mut Option<Vec<LyricsWord>>, text: &mut String) {
+    if let Some(word) = words
+        .iter_mut()
+        .flatten()
+        .find(|word| word.text.chars().any(char::is_alphanumeric))
+    {
+        word.text = uppercased(&word.text);
+    }
+    *text = uppercased(text);
+}
+
+fn uppercased(text: &str) -> String {
+    let Some((at, letter)) = text
+        .char_indices()
+        .find(|(_, letter)| letter.is_alphanumeric())
+        .filter(|(_, letter)| letter.is_lowercase())
+    else {
+        return text.to_owned();
+    };
+    format!(
+        "{}{}{}",
+        &text[..at],
+        letter.to_uppercase(),
+        &text[at + letter.len_utf8()..]
+    )
 }
 
 fn demark(lines: &mut [LyricsLine]) {
@@ -507,6 +628,7 @@ fn read(line: &str) -> Vec<LyricsLine> {
             romanized: None,
             words: words.clone().map(|words| shifted(words, start)),
             secondary: Vec::new(),
+            voice: Voice::Lead,
         })
         .collect()
 }
@@ -656,6 +778,7 @@ mod tests {
                 },
             ]),
             secondary: Vec::new(),
+            voice: Voice::Lead,
         }];
 
         normalize(&mut lines);
@@ -663,7 +786,7 @@ mod tests {
         assert_eq!(lines[0].text, "Lead after");
         assert_eq!(lines[0].words.as_ref().map(Vec::len), Some(2));
         assert_eq!(lines[0].secondary.len(), 1);
-        assert_eq!(lines[0].secondary[0].text, "echo");
+        assert_eq!(lines[0].secondary[0].text, "(Echo)");
         assert_eq!(lines[0].secondary[0].start, Duration::from_millis(1500));
         assert_eq!(
             lines[0].secondary[0].sung_end(),
@@ -685,6 +808,7 @@ mod tests {
                     text: "Lead".to_owned(),
                 }]),
                 secondary: Vec::new(),
+                voice: Voice::Lead,
             },
             LyricsLine {
                 start: Duration::from_secs(2),
@@ -697,13 +821,14 @@ mod tests {
                     text: "(echo)".to_owned(),
                 }]),
                 secondary: Vec::new(),
+                voice: Voice::Lead,
             },
         ];
 
         normalize(&mut lines);
 
         assert_eq!(lines.len(), 1);
-        assert_eq!(lines[0].secondary[0].text, "echo");
+        assert_eq!(lines[0].secondary[0].text, "(Echo)");
         assert_eq!(lines[0].sung_end(), Some(Duration::from_secs(3)));
     }
 
