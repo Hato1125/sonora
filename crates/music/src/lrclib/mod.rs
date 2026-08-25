@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use serde::Deserialize;
 
 use crate::lyrics::lrc;
-use crate::{Lyrics, LyricsHit, LyricsLine, LyricsProvider, LyricsQuery, LyricsWord};
+use crate::{Lyrics, LyricsHit, LyricsLine, LyricsProvider, LyricsQuery, LyricsWord, Voice};
 
 const SOURCE: &str = "LrcLib";
 const ENDPOINT: &str = "https://lrclib.net/api/search";
@@ -159,6 +159,7 @@ fn filed(text: &str) -> Option<Vec<LyricsLine>> {
             text: line.text,
             romanized: None,
             secondary: Vec::new(),
+            voice: Voice::Lead,
         })
         .collect();
     lrc::normalize(&mut lines);
