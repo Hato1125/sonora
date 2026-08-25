@@ -90,42 +90,112 @@ pub fn normalize(lines: &mut Vec<LyricsLine>) {
         }
         normalized.push(line);
     }
+    demark(&mut normalized);
     collapse(&mut normalized);
     unspoof(&mut normalized);
     romanize::apply(&mut normalized);
     *lines = normalized;
 }
 
+fn demark(lines: &mut [LyricsLine]) {
+    for line in lines.iter_mut() {
+        unmark(&mut line.words, &mut line.text);
+        for lane in &mut line.secondary {
+            unmark(&mut lane.words, &mut lane.text);
+        }
+    }
+}
+
+fn unmark(words: &mut Option<Vec<LyricsWord>>, text: &mut String) {
+    let whole: String = match words.as_ref() {
+        Some(words) => words.iter().map(|word| word.text.as_str()).collect(),
+        None => text.clone(),
+    };
+    let marks = marks(&whole);
+    if marks.is_empty() {
+        return;
+    }
+    match words {
+        Some(words) => {
+            let mut cursor = 0;
+            for word in words.iter_mut() {
+                let at = cursor;
+                cursor += word.text.len();
+                word.text = outside(&word.text, at, &marks);
+            }
+            words.retain(|word| !word.text.is_empty());
+            *text = words.iter().map(|word| word.text.as_str()).collect();
+        }
+        None => *text = outside(text, 0, &marks),
+    }
+}
+
+fn marks(text: &str) -> Vec<Range<usize>> {
+    let mut marks = Vec::new();
+    let mut opened = None;
+    for (index, letter) in text.char_indices() {
+        match letter {
+            '<' => opened = Some(index),
+            '>' => {
+                if let Some(start) = opened.take() {
+                    let inner = &text[start + 1..index];
+                    let numeric = !inner.is_empty()
+                        && inner
+                            .trim_start_matches(['+', '-'])
+                            .chars()
+                            .all(|letter| letter.is_ascii_digit());
+                    if numeric {
+                        marks.push(start..index + letter.len_utf8());
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    marks
+}
+
+fn outside(text: &str, at: usize, marks: &[Range<usize>]) -> String {
+    text.char_indices()
+        .filter(|(index, _)| !marks.iter().any(|mark| mark.contains(&(at + index))))
+        .map(|(_, letter)| letter)
+        .collect()
+}
+
 fn collapse(lines: &mut [LyricsLine]) {
     for line in lines.iter_mut() {
-        let spaced = line.words.as_ref().is_some_and(|words| {
-            words
-                .iter()
-                .any(|word| word.text.contains(char::is_whitespace))
-        });
-        match line.words.as_mut() {
-            Some(words) if spaced => {
-                let mut trailing = true;
-                for word in words.iter_mut() {
-                    let mut text = squeezed(&word.text);
-                    if trailing && text.starts_with(' ') {
-                        text.remove(0);
-                    }
-                    trailing = text.ends_with(' ');
-                    word.text = text;
-                }
-                if let Some(last) = words.last_mut()
-                    && last.text.ends_with(' ')
-                {
-                    last.text.pop();
-                }
-                line.text = words.iter().map(|word| word.text.as_str()).collect();
-            }
-            _ => line.text = squeezed(&line.text).trim().to_owned(),
-        }
+        tighten(&mut line.words, &mut line.text);
         for lane in &mut line.secondary {
-            lane.text = squeezed(&lane.text).trim().to_owned();
+            tighten(&mut lane.words, &mut lane.text);
         }
+    }
+}
+
+fn tighten(words: &mut Option<Vec<LyricsWord>>, text: &mut String) {
+    let spaced = words.as_ref().is_some_and(|words| {
+        words
+            .iter()
+            .any(|word| word.text.contains(char::is_whitespace))
+    });
+    match words {
+        Some(words) if spaced => {
+            let mut trailing = true;
+            for word in words.iter_mut() {
+                let mut tidied = squeezed(&word.text);
+                if trailing && tidied.starts_with(' ') {
+                    tidied.remove(0);
+                }
+                trailing = tidied.ends_with(' ');
+                word.text = tidied;
+            }
+            if let Some(last) = words.last_mut()
+                && last.text.ends_with(' ')
+            {
+                last.text.pop();
+            }
+            *text = words.iter().map(|word| word.text.as_str()).collect();
+        }
+        _ => *text = squeezed(text).trim().to_owned(),
     }
 }
 

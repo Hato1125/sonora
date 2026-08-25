@@ -800,7 +800,7 @@ impl Aside {
                             })
                             .into_any_element(),
                         (_, true) => verse_line
-                            .motion(("verse-dim", self.line_revision as usize), Motion::Base, {
+                            .motion(("verse-dim", self.line_revision as usize), Motion::Quick, {
                                 move |this, t| this.text_color(mix(lit, tint, t))
                             })
                             .into_any_element(),

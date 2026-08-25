@@ -21,6 +21,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   a fifth of it rather than nearly all.
 - The AMLL community database is no longer queried: it held a matching sheet for one track in a
   255-track library while costing a request for every track played.
+- The lyric line being left behind fades out quicker than the incoming line fades in.
 
 ### Fixed
 
@@ -34,6 +35,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   replaces the right lyrics.
 - Lyrics typed with lookalike Cyrillic letters are folded back to Latin, so they read as the words
   they imitate instead of picking up a spurious romanized line beneath them.
+- Background vocal lines no longer show doubled spacing once they start being sung, and stray
+  markup such as "<-3>" left in an upload is dropped instead of appearing mid-verse.
 
 ## [0.17.0] - 2026-08-24
 
