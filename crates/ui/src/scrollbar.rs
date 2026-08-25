@@ -177,6 +177,13 @@ impl Scrollbar {
         self.following = true;
     }
 
+    pub fn place(&mut self, at: Pixels) {
+        let across = self.scroll.offset().x;
+        self.glide.jump(&self.scroll, point(across, at));
+        self.seen = self.scroll.offset().y;
+        self.following = true;
+    }
+
     pub fn goal(&self) -> Pixels {
         self.glide.goal(&self.scroll).y
     }
