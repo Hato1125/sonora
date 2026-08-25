@@ -96,6 +96,8 @@ struct Named {
 struct Sheet {
     lrc: Option<Verse>,
     yrc: Option<Verse>,
+    #[serde(default, rename = "pureMusic")]
+    pure_music: bool,
 }
 
 #[derive(Deserialize)]
@@ -180,14 +182,34 @@ fn hit(song: &Song, sheet: &Sheet) -> Option<LyricsHit> {
             lyric(&sheet.lrc)
                 .map(|text| lrc::parse(&text))
                 .filter(|lines| !lines.is_empty())
-        })?;
+        });
+    let quiet = sheet.pure_music
+        || lines
+            .as_deref()
+            .is_some_and(crate::lyrics::sheet::instrumental);
+    let lyrics = match (lines, quiet) {
+        (_, true) => Lyrics::plain(""),
+        (Some(mut lines), false) => {
+            let artists: Vec<String> = song
+                .artists
+                .iter()
+                .filter_map(|artist| artist.name.clone())
+                .collect();
+            if !crate::lyrics::sheet::headed(&mut lines, &song.name, &artists) {
+                return None;
+            }
+            Lyrics::Synced {
+                lines: lines.into(),
+            }
+        }
+        (None, false) => return None,
+    };
 
     Some(LyricsHit {
         source: SOURCE,
         trust: 0,
-        lyrics: Lyrics::Synced {
-            lines: lines.into(),
-        },
+        lyrics,
+        instrumental: quiet,
         title: song.name.clone(),
         artist: song
             .artists
