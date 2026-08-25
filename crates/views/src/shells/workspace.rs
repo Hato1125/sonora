@@ -11,9 +11,9 @@ use crate::chrome::{Chrome, PlayerBar, SidebarLeft, SidebarRight, TitleBarOption
 use crate::shared::playlist_editor::PlaylistEditor;
 use crate::shells::Shell;
 
-const VIEW_BLUR: gpui::Pixels = px(3.);
+const VIEW_BLUR: gpui::Pixels = px(1.5);
+const VIEW_DURATION_EXTRA: Duration = Duration::from_millis(50);
 const VIEW_ZOOM: f32 = 0.01;
-const VIEW_SWITCH_POINT: f32 = 0.5;
 
 #[derive(Clone, Copy)]
 struct ContentTransition {
@@ -99,12 +99,18 @@ impl Workspace {
         cx.notify();
     }
 
-    pub fn hide_content(&mut self, cx: &mut Context<Self>) -> Duration {
-        self.transition_to(1., cx).mul_f32(VIEW_SWITCH_POINT)
-    }
-
     pub fn reveal_content(&mut self, cx: &mut Context<Self>) -> Duration {
-        self.transition_to(0., cx)
+        if cx.reduce_motion() {
+            self.transition = None;
+            return Duration::ZERO;
+        }
+
+        let from = self
+            .transition
+            .filter(|transition| transition.running())
+            .map(ContentTransition::hidden)
+            .unwrap_or(1.);
+        self.transition_from(from, 0., cx)
     }
 
     pub fn finish_transition(&mut self, cx: &mut Context<Self>) {
@@ -113,19 +119,13 @@ impl Workspace {
         }
     }
 
-    fn transition_to(&mut self, to: f32, cx: &mut Context<Self>) -> Duration {
-        if cx.reduce_motion() {
-            self.transition = None;
-            return Duration::ZERO;
-        }
-
-        let from = self.transition.map(ContentTransition::hidden).unwrap_or(0.);
+    fn transition_from(&mut self, from: f32, to: f32, cx: &mut Context<Self>) -> Duration {
         let distance = (to - from).abs();
         if distance <= f32::EPSILON {
             return Duration::ZERO;
         }
 
-        let span = Motion::Base.span().mul_f32(distance);
+        let span = (Motion::Base.span() + VIEW_DURATION_EXTRA).mul_f32(distance);
         self.transition = Some(ContentTransition {
             from,
             to,

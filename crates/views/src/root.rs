@@ -351,20 +351,12 @@ impl Root {
             return;
         }
 
-        let exit = self
+        self.show(destination, cx);
+        let enter = self
             .shells
             .workspace
-            .update(cx, |workspace, cx| workspace.hide_content(cx));
+            .update(cx, |workspace, cx| workspace.reveal_content(cx));
         self.navigation_transition = Some(cx.spawn(async move |this, cx| {
-            cx.background_executor().timer(exit).await;
-            let enter = this
-                .update(cx, |this, cx| {
-                    this.show(destination, cx);
-                    this.shells
-                        .workspace
-                        .update(cx, |workspace, cx| workspace.reveal_content(cx))
-                })
-                .unwrap_or_default();
             cx.background_executor().timer(enter).await;
             this.update(cx, |this, cx| {
                 this.navigation_transition = None;
