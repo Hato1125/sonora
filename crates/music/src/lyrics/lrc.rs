@@ -105,16 +105,26 @@ fn collapse(lines: &mut [LyricsLine]) {
         });
         match line.words.as_mut() {
             Some(words) if spaced => {
+                let mut trailing = true;
                 for word in words.iter_mut() {
-                    word.text = squeezed(&word.text);
+                    let mut text = squeezed(&word.text);
+                    if trailing && text.starts_with(' ') {
+                        text.remove(0);
+                    }
+                    trailing = text.ends_with(' ');
+                    word.text = text;
+                }
+                if let Some(last) = words.last_mut()
+                    && last.text.ends_with(' ')
+                {
+                    last.text.pop();
                 }
                 line.text = words.iter().map(|word| word.text.as_str()).collect();
-                line.text = line.text.trim().to_owned();
             }
-            _ => line.text = squeezed(&line.text),
+            _ => line.text = squeezed(&line.text).trim().to_owned(),
         }
         for lane in &mut line.secondary {
-            lane.text = squeezed(&lane.text);
+            lane.text = squeezed(&lane.text).trim().to_owned();
         }
     }
 }
@@ -126,15 +136,15 @@ fn squeezed(text: &str) -> String {
         match letter.is_whitespace() {
             true => spacing = true,
             false => {
-                if spacing && !squeezed.is_empty() {
+                if spacing {
                     squeezed.push(' ');
+                    spacing = false;
                 }
-                spacing = false;
                 squeezed.push(letter);
             }
         }
     }
-    if spacing && !squeezed.is_empty() {
+    if spacing {
         squeezed.push(' ');
     }
     squeezed

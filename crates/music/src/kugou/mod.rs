@@ -265,18 +265,22 @@ fn hit(song: &Song, krc: &str, title: &str) -> Option<LyricsHit> {
     if !sheet::headed(&mut lines, title, &artists) {
         return None;
     }
+    let quiet = sheet::instrumental(&lines);
     crate::lyrics::lrc::normalize(&mut lines);
-    if lines.is_empty() {
+    if lines.is_empty() && !quiet {
         return None;
     }
 
     Some(LyricsHit {
         source: SOURCE,
         trust: 0,
-        lyrics: Lyrics::Synced {
-            lines: lines.into(),
+        lyrics: match quiet {
+            true => Lyrics::plain(""),
+            false => Lyrics::Synced {
+                lines: lines.into(),
+            },
         },
-        instrumental: false,
+        instrumental: quiet,
         title: song.name.clone(),
         artist: song.singer.clone(),
         album: (!song.album.is_empty()).then(|| song.album.clone()),

@@ -183,7 +183,10 @@ fn hit(song: &Song, sheet: &Sheet) -> Option<LyricsHit> {
                 .map(|text| lrc::parse(&text))
                 .filter(|lines| !lines.is_empty())
         });
-    let quiet = sheet.pure_music || lines.as_deref().is_some_and(placeholder);
+    let quiet = sheet.pure_music
+        || lines
+            .as_deref()
+            .is_some_and(crate::lyrics::sheet::instrumental);
     let lyrics = match (lines, quiet) {
         (_, true) => Lyrics::plain(""),
         (Some(mut lines), false) => {
@@ -238,13 +241,6 @@ struct Credit {
 #[derive(Deserialize)]
 struct Piece {
     tx: Option<String>,
-}
-
-fn placeholder(lines: &[LyricsLine]) -> bool {
-    !lines.is_empty()
-        && lines
-            .iter()
-            .all(|line| line.text.contains("纯音乐") || line.text.trim().is_empty())
 }
 
 fn writers(text: &str) -> Vec<String> {
