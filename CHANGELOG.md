@@ -7,6 +7,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- The window buttons on Windows are handed to Windows itself, so the maximize button restores a
+  maximized window instead of maximizing it again, and hovering it opens the Snap Layouts flyout.
+- Double-clicking the title bar maximizes the window and restores it when it is already maximized.
+  Nothing happened on macOS before, because the first click started a window drag that swallowed
+  the second.
+
 ## [0.18.0] - 2026-08-25
 
 ### Added

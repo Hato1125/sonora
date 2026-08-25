@@ -5,6 +5,7 @@ use gpui::{
 
 use crate::theme::ActiveTheme as _;
 
+const SYSTEM_ACTS: bool = cfg!(target_os = "windows");
 const BUTTON: Pixels = px(20.);
 const GLYPH: Pixels = px(16.);
 
@@ -93,7 +94,9 @@ impl RenderOnce for WindowControls {
             .flex_none()
             .items_center()
             .gap_2()
-            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+            .when(!SYSTEM_ACTS, |this| {
+                this.on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+            })
             .children(wanted.into_iter().map(move |control| {
                 let danger = control == Control::Close;
 
@@ -127,13 +130,15 @@ impl RenderOnce for WindowControls {
                                 })
                             }),
                     )
-                    .on_click(move |_, window, cx| {
-                        cx.stop_propagation();
-                        match control {
-                            Control::Minimize => window.minimize_window(),
-                            Control::Maximize | Control::Restore => window.zoom_window(),
-                            Control::Close => window.remove_window(),
-                        }
+                    .when(!SYSTEM_ACTS, |this| {
+                        this.on_click(move |_, window, cx| {
+                            cx.stop_propagation();
+                            match control {
+                                Control::Minimize => window.minimize_window(),
+                                Control::Maximize | Control::Restore => window.zoom_window(),
+                                Control::Close => window.remove_window(),
+                            }
+                        })
                     })
             }));
         controls.style().refine(&overrides);
