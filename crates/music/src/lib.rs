@@ -1,5 +1,5 @@
-pub mod amll;
 mod audio;
+pub mod kugou;
 pub mod local;
 pub mod lrclib;
 pub mod lyrics;
@@ -70,6 +70,9 @@ pub trait MusicApi: Send + Sync {
     async fn set_track_saved(&self, track_id: &str, saved: bool) -> Result<()>;
     async fn track(&self, track_id: &str) -> Result<Track>;
     async fn track_playcount(&self, track_id: &str) -> Result<Option<u64>>;
+    async fn track_lyrics(&self, _track_id: &str) -> Result<Option<Lyrics>> {
+        Ok(None)
+    }
     async fn playlists(&self, limit: u32) -> Result<Vec<Playlist>>;
     async fn create_playlist(&self, name: &str) -> Result<String>;
     async fn rename_playlist(&self, playlist_id: &str, name: &str) -> Result<()>;

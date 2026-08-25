@@ -4,6 +4,57 @@ use std::time::Duration;
 use crate::{LyricsLane, LyricsLine, LyricsWord};
 
 use super::romanize;
+const HOMOGLYPHS: &[(char, char)] = &[
+    ('а', 'a'),
+    ('в', 'b'),
+    ('е', 'e'),
+    ('к', 'k'),
+    ('м', 'm'),
+    ('н', 'h'),
+    ('о', 'o'),
+    ('р', 'p'),
+    ('с', 'c'),
+    ('т', 't'),
+    ('у', 'y'),
+    ('х', 'x'),
+    ('і', 'i'),
+    ('ј', 'j'),
+    ('ѕ', 's'),
+    ('ԁ', 'd'),
+    ('А', 'A'),
+    ('В', 'B'),
+    ('Е', 'E'),
+    ('К', 'K'),
+    ('М', 'M'),
+    ('Н', 'H'),
+    ('О', 'O'),
+    ('Р', 'P'),
+    ('С', 'C'),
+    ('Т', 'T'),
+    ('У', 'Y'),
+    ('Х', 'X'),
+    ('І', 'I'),
+    ('Ј', 'J'),
+    ('Ѕ', 'S'),
+    ('Α', 'A'),
+    ('Β', 'B'),
+    ('Ε', 'E'),
+    ('Ζ', 'Z'),
+    ('Η', 'H'),
+    ('Ι', 'I'),
+    ('Κ', 'K'),
+    ('Μ', 'M'),
+    ('Ν', 'N'),
+    ('Ο', 'O'),
+    ('Ρ', 'P'),
+    ('Τ', 'T'),
+    ('Υ', 'Y'),
+    ('Χ', 'X'),
+    ('ο', 'o'),
+    ('ρ', 'p'),
+    ('τ', 't'),
+    ('ι', 'i'),
+];
 
 pub fn parse(lrc: &str) -> Vec<LyricsLine> {
     let mut lines: Vec<LyricsLine> = lrc.lines().flat_map(read).collect();
@@ -39,8 +90,181 @@ pub fn normalize(lines: &mut Vec<LyricsLine>) {
         }
         normalized.push(line);
     }
+    demark(&mut normalized);
+    collapse(&mut normalized);
+    unspoof(&mut normalized);
     romanize::apply(&mut normalized);
     *lines = normalized;
+}
+
+fn demark(lines: &mut [LyricsLine]) {
+    for line in lines.iter_mut() {
+        unmark(&mut line.words, &mut line.text);
+        for lane in &mut line.secondary {
+            unmark(&mut lane.words, &mut lane.text);
+        }
+    }
+}
+
+fn unmark(words: &mut Option<Vec<LyricsWord>>, text: &mut String) {
+    let whole: String = match words.as_ref() {
+        Some(words) => words.iter().map(|word| word.text.as_str()).collect(),
+        None => text.clone(),
+    };
+    let marks = marks(&whole);
+    if marks.is_empty() {
+        return;
+    }
+    match words {
+        Some(words) => {
+            let mut cursor = 0;
+            for word in words.iter_mut() {
+                let at = cursor;
+                cursor += word.text.len();
+                word.text = outside(&word.text, at, &marks);
+            }
+            words.retain(|word| !word.text.is_empty());
+            *text = words.iter().map(|word| word.text.as_str()).collect();
+        }
+        None => *text = outside(text, 0, &marks),
+    }
+}
+
+fn marks(text: &str) -> Vec<Range<usize>> {
+    let mut marks = Vec::new();
+    let mut opened = None;
+    for (index, letter) in text.char_indices() {
+        match letter {
+            '<' => opened = Some(index),
+            '>' => {
+                if let Some(start) = opened.take() {
+                    let inner = &text[start + 1..index];
+                    let numeric = !inner.is_empty()
+                        && inner
+                            .trim_start_matches(['+', '-'])
+                            .chars()
+                            .all(|letter| letter.is_ascii_digit());
+                    if numeric {
+                        marks.push(start..index + letter.len_utf8());
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    marks
+}
+
+fn outside(text: &str, at: usize, marks: &[Range<usize>]) -> String {
+    text.char_indices()
+        .filter(|(index, _)| !marks.iter().any(|mark| mark.contains(&(at + index))))
+        .map(|(_, letter)| letter)
+        .collect()
+}
+
+fn collapse(lines: &mut [LyricsLine]) {
+    for line in lines.iter_mut() {
+        tighten(&mut line.words, &mut line.text);
+        for lane in &mut line.secondary {
+            tighten(&mut lane.words, &mut lane.text);
+        }
+    }
+}
+
+fn tighten(words: &mut Option<Vec<LyricsWord>>, text: &mut String) {
+    let spaced = words.as_ref().is_some_and(|words| {
+        words
+            .iter()
+            .any(|word| word.text.contains(char::is_whitespace))
+    });
+    match words {
+        Some(words) if spaced => {
+            let mut trailing = true;
+            for word in words.iter_mut() {
+                let mut tidied = squeezed(&word.text);
+                if trailing && tidied.starts_with(' ') {
+                    tidied.remove(0);
+                }
+                trailing = tidied.ends_with(' ');
+                word.text = tidied;
+            }
+            if let Some(last) = words.last_mut()
+                && last.text.ends_with(' ')
+            {
+                last.text.pop();
+            }
+            *text = words.iter().map(|word| word.text.as_str()).collect();
+        }
+        _ => *text = squeezed(text).trim().to_owned(),
+    }
+}
+
+fn squeezed(text: &str) -> String {
+    let mut squeezed = String::with_capacity(text.len());
+    let mut spacing = false;
+    for letter in text.chars() {
+        match letter.is_whitespace() {
+            true => spacing = true,
+            false => {
+                if spacing {
+                    squeezed.push(' ');
+                    spacing = false;
+                }
+                squeezed.push(letter);
+            }
+        }
+    }
+    if spacing {
+        squeezed.push(' ');
+    }
+    squeezed
+}
+
+fn unspoof(lines: &mut [LyricsLine]) {
+    for line in lines.iter_mut() {
+        if !spoofed(&line.text) {
+            continue;
+        }
+        line.text = latinized(&line.text);
+        if let Some(words) = line.words.as_mut() {
+            for word in words.iter_mut() {
+                word.text = latinized(&word.text);
+            }
+        }
+    }
+    for lane in lines.iter_mut().flat_map(|line| line.secondary.iter_mut()) {
+        if spoofed(&lane.text) {
+            lane.text = latinized(&lane.text);
+        }
+    }
+}
+
+fn spoofed(text: &str) -> bool {
+    let mut latin = false;
+    let mut masked = false;
+    for letter in text.chars().filter(|letter| letter.is_alphabetic()) {
+        if letter.is_ascii_alphabetic() {
+            latin = true;
+            continue;
+        }
+        match HOMOGLYPHS.iter().any(|(from, _)| *from == letter) {
+            true => masked = true,
+            false => return false,
+        }
+    }
+    latin && masked
+}
+
+fn latinized(text: &str) -> String {
+    text.chars()
+        .map(|letter| {
+            HOMOGLYPHS
+                .iter()
+                .find(|(from, _)| *from == letter)
+                .map(|(_, to)| *to)
+                .unwrap_or(letter)
+        })
+        .collect()
 }
 
 fn structural(text: &str) -> bool {

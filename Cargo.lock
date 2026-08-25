@@ -3157,7 +3157,7 @@ dependencies = [
 
 [[package]]
 name = "i18n"
-version = "0.17.0"
+version = "0.17.1"
 dependencies = [
  "fluent-bundle",
  "gpui",
@@ -3368,7 +3368,7 @@ dependencies = [
 
 [[package]]
 name = "input"
-version = "0.17.0"
+version = "0.17.1"
 dependencies = [
  "gpui",
  "ui",
@@ -4202,14 +4202,16 @@ dependencies = [
 
 [[package]]
 name = "music"
-version = "0.17.0"
+version = "0.17.1"
 dependencies = [
  "anyhow",
  "async-trait",
+ "base64",
  "bytes",
  "cpal",
  "deunicode",
  "dirs",
+ "flate2",
  "http",
  "kakasi",
  "librespot-core",
@@ -4218,8 +4220,8 @@ dependencies = [
  "librespot-protocol",
  "lofty",
  "log",
+ "percent-encoding",
  "protobuf",
- "quick-xml 0.38.4",
  "reqwest",
  "rodio",
  "serde",
@@ -6035,7 +6037,7 @@ dependencies = [
 
 [[package]]
 name = "router"
-version = "0.17.0"
+version = "0.17.1"
 dependencies = [
  "gpui",
  "ui",
@@ -6781,7 +6783,7 @@ dependencies = [
 
 [[package]]
 name = "sonora"
-version = "0.17.0"
+version = "0.17.1"
 dependencies = [
  "anyhow",
  "dirs",
@@ -6910,7 +6912,7 @@ dependencies = [
 
 [[package]]
 name = "state"
-version = "0.17.0"
+version = "0.17.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7929,7 +7931,7 @@ dependencies = [
 
 [[package]]
 name = "ui"
-version = "0.17.0"
+version = "0.17.1"
 dependencies = [
  "gpui",
  "i18n",
@@ -8254,7 +8256,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "views"
-version = "0.17.0"
+version = "0.17.1"
 dependencies = [
  "gpui",
  "i18n",

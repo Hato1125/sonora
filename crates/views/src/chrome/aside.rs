@@ -34,6 +34,8 @@ const PINNED_SHARE: f32 = 0.25;
 const PIN: f32 = 0.3;
 const SETTLE: std::time::Duration = std::time::Duration::from_secs(4);
 const INSTRUMENTAL_BREAK: std::time::Duration = std::time::Duration::from_secs(5);
+const GLYPH: f32 = 0.35;
+const GLYPH_SIZE: f32 = 0.5;
 
 fn track(queue: &Queue, position: QueuePosition) -> Option<Track> {
     match position {
@@ -798,7 +800,7 @@ impl Aside {
                             })
                             .into_any_element(),
                         (_, true) => verse_line
-                            .motion(("verse-dim", self.line_revision as usize), Motion::Base, {
+                            .motion(("verse-dim", self.line_revision as usize), Motion::Quick, {
                                 move |this, t| this.text_color(mix(lit, tint, t))
                             })
                             .into_any_element(),
@@ -825,11 +827,16 @@ impl Aside {
                         )
                         .into_any_element(),
                 ],
-                _ => vec![empty("lyrics-missing", cx)],
+                _ => vec![wordless("lyrics-missing", "icons/mic-off.svg", cx)],
             },
             (None, LyricsState::Idle) => vec![empty("lyrics-idle", cx)],
             (None, LyricsState::Loading) => vec![empty("lyrics-loading", cx)],
-            (None, LyricsState::Missing) => vec![empty("lyrics-missing", cx)],
+            (None, LyricsState::Instrumental) => {
+                vec![wordless("lyrics-instrumental", "icons/guitar.svg", cx)]
+            }
+            (None, LyricsState::Missing) => {
+                vec![wordless("lyrics-missing", "icons/mic-off.svg", cx)]
+            }
             (None, LyricsState::Failed(_)) => vec![empty("lyrics-failed", cx)],
         };
 
@@ -1393,6 +1400,25 @@ fn instrumental_row(progress: f32, past: bool, verse: Pixels, theme: &ui::Theme)
                         .text_color(tint),
                 )
         }))
+}
+
+fn wordless(key: &'static str, icon: &'static str, cx: &App) -> gpui::AnyElement {
+    let theme = *cx.theme();
+
+    div()
+        .flex()
+        .flex_1()
+        .flex_col()
+        .items_center()
+        .justify_center()
+        .child(
+            svg()
+                .path(icon)
+                .size(theme.metrics.cover * GLYPH_SIZE)
+                .text_color(theme.muted_foreground.opacity(GLYPH)),
+        )
+        .child(vacant(i18n::lookup(key, None), cx))
+        .into_any_element()
 }
 
 #[cfg(test)]

@@ -1361,14 +1361,14 @@ by the Mozilla Public License, v. 2.0.
 
 Used by 12 crate(s):
 
-- [i18n 0.16.3](https://crates.io/crates/i18n) — Copyright © 2007 Free Software Foundation, Inc. <https://fsf.org/>; Copyright (C) <year> <name of author>
-- [input 0.16.3](https://crates.io/crates/input) — Copyright © 2007 Free Software Foundation, Inc. <https://fsf.org/>; Copyright (C) <year> <name of author>
-- [music 0.16.3](https://crates.io/crates/music) — Copyright © 2007 Free Software Foundation, Inc. <https://fsf.org/>; Copyright (C) <year> <name of author>
-- [router 0.16.3](https://crates.io/crates/router) — Copyright © 2007 Free Software Foundation, Inc. <https://fsf.org/>; Copyright (C) <year> <name of author>
-- [sonora 0.16.3](https://crates.io/crates/sonora) — Copyright © 2007 Free Software Foundation, Inc. <https://fsf.org/>; Copyright (C) <year> <name of author>
-- [state 0.16.3](https://crates.io/crates/state) — Copyright © 2007 Free Software Foundation, Inc. <https://fsf.org/>; Copyright (C) <year> <name of author>
-- [ui 0.16.3](https://crates.io/crates/ui) — Copyright © 2007 Free Software Foundation, Inc. <https://fsf.org/>; Copyright (C) <year> <name of author>
-- [views 0.16.3](https://crates.io/crates/views) — Copyright © 2007 Free Software Foundation, Inc. <https://fsf.org/>; Copyright (C) <year> <name of author>
+- [i18n 0.17.0](https://crates.io/crates/i18n) — Copyright © 2007 Free Software Foundation, Inc. <https://fsf.org/>; Copyright (C) <year> <name of author>
+- [input 0.17.0](https://crates.io/crates/input) — Copyright © 2007 Free Software Foundation, Inc. <https://fsf.org/>; Copyright (C) <year> <name of author>
+- [music 0.17.0](https://crates.io/crates/music) — Copyright © 2007 Free Software Foundation, Inc. <https://fsf.org/>; Copyright (C) <year> <name of author>
+- [router 0.17.0](https://crates.io/crates/router) — Copyright © 2007 Free Software Foundation, Inc. <https://fsf.org/>; Copyright (C) <year> <name of author>
+- [sonora 0.17.0](https://crates.io/crates/sonora) — Copyright © 2007 Free Software Foundation, Inc. <https://fsf.org/>; Copyright (C) <year> <name of author>
+- [state 0.17.0](https://crates.io/crates/state) — Copyright © 2007 Free Software Foundation, Inc. <https://fsf.org/>; Copyright (C) <year> <name of author>
+- [ui 0.17.0](https://crates.io/crates/ui) — Copyright © 2007 Free Software Foundation, Inc. <https://fsf.org/>; Copyright (C) <year> <name of author>
+- [views 0.17.0](https://crates.io/crates/views) — Copyright © 2007 Free Software Foundation, Inc. <https://fsf.org/>; Copyright (C) <year> <name of author>
 - [ytmusic 0.1.0](https://crates.io/crates/ytmusic) — Copyright © 2007 Free Software Foundation, Inc. <https://fsf.org/>; Copyright (C) <year> <name of author>
 - [zlog 0.1.0](https://crates.io/crates/zlog) — Copyright © 2007 Free Software Foundation, Inc. <https://fsf.org/>; Copyright (C) <year> <name of author>
 - [ztracing 0.1.0](https://crates.io/crates/ztracing) — Copyright © 2007 Free Software Foundation, Inc. <https://fsf.org/>; Copyright (C) <year> <name of author>

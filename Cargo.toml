@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/*"]
 
 [workspace.package]
-version = "0.17.0"
+version = "0.17.1"
 edition = "2024"
 license = "GPL-3.0-or-later"
 repository = "https://github.com/nolight132/sonora"
@@ -19,7 +19,9 @@ views = { path = "crates/views" }
 
 anyhow = "1.0"
 async-trait = "0.1"
+base64 = "0.22"
 bytes = "1"
+flate2 = "1"
 cpal = "0.16"
 dirs = "6.0"
 deunicode = "1.6"
@@ -51,7 +53,6 @@ reqwest = { version = "0.12", default-features = false, features = [
   "json",
   "rustls-tls-native-roots",
 ] }
-quick-xml = "0.38"
 raw-window-handle = "0.6"
 rodio = { version = "0.21", default-features = false, features = ["playback"] }
 serde = { version = "1.0", features = ["derive"] }
@@ -73,6 +74,7 @@ librespot-playback = { version = "0.8.0", default-features = false, features = [
   "rustls-tls-native-roots",
 ] }
 librespot-protocol = "0.8.0"
+percent-encoding = "2.3"
 protobuf = "3"
 tokio = { version = "1.53", features = [
   "rt-multi-thread",

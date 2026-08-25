@@ -1,5 +1,7 @@
+mod japanese;
 pub mod lrc;
 pub(crate) mod romanize;
+pub(crate) mod sheet;
 
 use std::collections::HashSet;
 use std::time::Duration;
@@ -38,10 +40,16 @@ pub fn rank(query: &LyricsQuery, hits: Vec<LyricsHit>) -> Vec<LyricsHit> {
 }
 
 fn eligible(query: &LyricsQuery, hit: &LyricsHit) -> bool {
-    if !alike(&hit.title, &query.title)
-        || !artists_alike(&hit.artist, &query.artist)
-        || low_quality(&hit.lyrics)
-    {
+    matched(query, hit) && !hit.lyrics.is_empty() && !low_quality(&hit.lyrics)
+}
+
+pub fn instrumental(query: &LyricsQuery, hits: &[LyricsHit]) -> bool {
+    let matching = || hits.iter().filter(|hit| matched(query, hit));
+    matching().any(|hit| hit.instrumental) && !matching().any(|hit| !hit.lyrics.is_empty())
+}
+
+fn matched(query: &LyricsQuery, hit: &LyricsHit) -> bool {
+    if !alike(&hit.title, &query.title) || !artists_alike(&hit.artist, &query.artist) {
         return false;
     }
     hit.duration.is_none_or(|duration| {
@@ -234,6 +242,7 @@ mod tests {
                 },
                 false => Lyrics::plain(format!("la {title}")),
             },
+            instrumental: false,
             title: title.to_owned(),
             artist: artist.to_owned(),
             album: None,
