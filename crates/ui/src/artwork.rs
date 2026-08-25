@@ -250,6 +250,14 @@ fn blurred(image: &RenderImage) -> Option<Arc<RenderImage>> {
     Some(Arc::new(RenderImage::new(frames)))
 }
 
+pub(crate) fn resource(url: impl Into<SharedString>) -> Resource {
+    let url = url.into();
+    match url.strip_prefix(FILE_PREFIX) {
+        Some(path) => Resource::Path(Arc::from(Path::new(path))),
+        None => Resource::Uri(SharedUri::from(url)),
+    }
+}
+
 pub fn artwork_usage(cx: &App) -> Option<(usize, usize)> {
     let installed = cx.try_global::<Installed>()?;
     let cache = installed.0.read(cx);
@@ -395,10 +403,7 @@ impl RenderOnce for Artwork {
         match url {
             Some(url) => {
                 let cache = ArtworkCache::entity(cx);
-                let resource = match url.strip_prefix(FILE_PREFIX) {
-                    Some(path) => Resource::Path(Arc::from(Path::new(path))),
-                    None => Resource::Uri(SharedUri::from(url)),
-                };
+                let resource = resource(url);
                 let source = match soft {
                     false => ImageSource::Resource(resource),
                     true => {
