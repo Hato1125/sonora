@@ -55,6 +55,18 @@ impl Glide {
         self.schedule_frame(scroll, window);
     }
 
+    pub fn jump(&self, scroll: &ScrollHandle, to: Point<Pixels>) {
+        let landed = {
+            let mut drift = self.0.borrow_mut();
+            drift.target = held(to, scroll);
+            drift.shown = drift.target;
+            drift.gliding = false;
+            drift.beat = None;
+            drift.shown
+        };
+        scroll.set_offset(landed);
+    }
+
     pub fn goal(&self, scroll: &ScrollHandle) -> Point<Pixels> {
         let drift = self.0.borrow();
 

@@ -287,6 +287,17 @@ impl FullscreenView {
             })
     }
 
+    fn open_context_menu(
+        &mut self,
+        track: music::Track,
+        position: Point<Pixels>,
+        cx: &mut Context<Self>,
+    ) {
+        self.track_menu.reset(cx);
+        self.context_menu = Some((track, position));
+        cx.notify();
+    }
+
     fn meta(&self, hide: f32, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
         let track = self.playback.read(cx).track().cloned();
@@ -331,10 +342,8 @@ impl FullscreenView {
                                         return;
                                     };
                                     window.prevent_default();
-                                    this.track_menu.reset(cx);
-                                    this.context_menu = Some((track, event.position));
+                                    this.open_context_menu(track, event.position, cx);
                                     cx.stop_propagation();
-                                    cx.notify();
                                 }),
                             )
                             .child(title),
@@ -380,6 +389,7 @@ impl FullscreenView {
             None => t!("player-nothing-playing"),
         };
         let album = track.as_ref().and_then(|track| track.album_id.clone());
+        let held = track.clone();
 
         div()
             .flex()
@@ -419,6 +429,19 @@ impl FullscreenView {
                                             .hover(|style| style.underline())
                                             .on_click(move |_, _, cx| open_album(&album, cx))
                                     })
+                                    .on_mouse_down(
+                                        MouseButton::Right,
+                                        cx.listener(
+                                            move |this, event: &MouseDownEvent, window, cx| {
+                                                let Some(track) = held.clone() else {
+                                                    return;
+                                                };
+                                                window.prevent_default();
+                                                this.open_context_menu(track, event.position, cx);
+                                                cx.stop_propagation();
+                                            },
+                                        ),
+                                    )
                                     .child(title),
                             )
                             .when(hide < 1., |this| {

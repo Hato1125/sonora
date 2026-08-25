@@ -5,7 +5,7 @@ use librespot_core::{Session, spclient::CLIENT_TOKEN};
 use serde::Deserialize;
 
 use crate::lyrics::lrc;
-use crate::{Lyrics, LyricsLine, LyricsWord};
+use crate::{Lyrics, LyricsLine, LyricsWord, Voice};
 
 const ENDPOINT: &str = "https://spclient.wg.spotify.com/color-lyrics/v2/track";
 const APP_PLATFORM: &str = "WebPlayer";
@@ -125,6 +125,7 @@ fn verse(verse: &Verse) -> Option<LyricsLine> {
         romanized: None,
         words: (!words.is_empty()).then_some(words),
         secondary: Vec::new(),
+        voice: Voice::Lead,
     })
 }
 

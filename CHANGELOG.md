@@ -7,6 +7,73 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Word-by-word lyrics now come from Apple Music's own sheets first, through a public catalogue that
+  needs no Apple account. They bring background vocals on their own line, the songwriters, and, on a
+  duet, which of the two singers holds each line.
+- A duet now reads as one. Lines sung by the second voice sit against the right edge of the panel,
+  the way Apple Music lays them out, and their background vocals follow to that side. "Shallow",
+  "Under Pressure", "Summer Nights" and "Ain't No Mountain High Enough" all split this way.
+- Musixmatch is asked second and covers songs Apple has no sheet for, such as YOASOBI's 夜に駆ける.
+  When Musixmatch decides the network is asking too often it stops answering, so Sonora leaves it
+  alone for ten minutes and the other sources carry on.
+
+### Changed
+
+- Lyrics now appear as soon as the first source answers instead of once the slowest one has. In a
+  255-track library the words show up after about 50 ms rather than 840 ms, because Spotify and
+  LrcLib answer in well under a tenth of a second while Kugou and NetEase take one to three.
+- A sheet on screen is only ever replaced by a better one. Plain text gives way to line-by-line
+  timing and line-by-line to word-by-word, so a slow karaoke sheet still takes over when it lands.
+  Between two sheets of the same kind the better match wins, so Apple's words replace a karaoke
+  sheet that arrived first.
+- Lyrics are kept between runs, so a song you have played before shows its words with no wait at
+  all. The lyrics for the next song in the queue are fetched while the current one is still
+  playing, so skipping forward usually costs nothing either.
+- A karaoke sheet now borrows its words from the line-synced sheet already on screen and keeps only
+  the word timing, so the line breaks, capitalization, punctuation and spelling stay exactly as they
+  were and the switch to word-by-word highlighting is barely visible. In a 255-track library 47 of
+  the 48 karaoke sheets match up this way; one that cannot be matched is shown as its provider sent
+  it. Background vocals stay on their own line under the main one, and a sheet is only reshaped when
+  nearly every line of it finds a match, so a song whose two sheets disagree about whole verses keeps
+  the timing its provider gave it. A sheet that carries its own background vocals or duet
+  voices is left exactly as it came, since reshaping it would flatten them.
+- Verses from every source are capitalized the same way, so a sheet that no other source can shape
+  still reads consistently.
+- A sheet that appears part-way into a song puts the verse being sung straight where it belongs
+  instead of scrolling down to it from the top. Verse-to-verse scrolling while a song plays is
+  unchanged.
+- Verses now ease into and out of focus as the song moves on, rather than snapping between sharp and
+  blurred on the frame the line changes. The notes marking an instrumental break blur along with the
+  verses around them instead of staying sharp.
+- Settings gained "Karaoke motion", which chooses how the word-by-word highlight travels across each
+  word: Steady keeps the constant speed it has always used, while Gentle, Smooth, Snappy and Glide
+  ease it over a longer stretch, each easing off as it reaches the next word. Words whose timings sit
+  on top of each other used to flip instantly; every eased setting sweeps them over about 150 ms
+  instead, and a word is still fully lit by the time the next one starts, however long it is held.
+- A verse now stays lit until the next one begins, rather than dimming the moment its last word has
+  been sung. There is always a current verse on screen, so the gap between two karaoke lines no
+  longer leaves the panel with nothing highlighted. An instrumental break still shows its notes in
+  place of a verse.
+- A karaoke line fades out when it finishes the same way a line-timed one does. It used to drop
+  straight to its dimmed colour the moment the word-by-word highlight stopped drawing, and the
+  panel briefly treated the pause between two karaoke lines as though the song had gone back to the
+  first verse.
+
+### Fixed
+
+- The last word of a karaoke line is fully lit by the time the line ends. Every eased karaoke
+  motion stretched the last sweep past the word itself, so a line that handed over to the next one
+  mid-sweep lit its remaining words in a single frame.
+- The soft edge trailing the karaoke highlight now narrows as the highlight lands on the end of a
+  word, rather than disappearing in one frame once the word is fully lit.
+- Credits are no longer shown as lyrics. Sheets that opened with a title and artist line, a version
+  tag such as "Edited Version", a copyright notice, or a block of "Produced by", "Recorded by" and
+  per-instrument credits now start at the first sung line.
+- Right-clicking the song title in fullscreen opens the track menu when the window is too narrow to
+  show the lyrics beside the artwork. Only the wider layout answered a right-click before.
+
 ## [0.17.1] - 2026-08-25
 
 ### Added

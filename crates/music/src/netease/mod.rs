@@ -6,7 +6,7 @@ use serde::Deserialize;
 use tokio::task::JoinSet;
 
 use crate::lyrics::lrc;
-use crate::{Lyrics, LyricsHit, LyricsLine, LyricsProvider, LyricsQuery, LyricsWord};
+use crate::{Lyrics, LyricsHit, LyricsLine, LyricsProvider, LyricsQuery, LyricsWord, Voice};
 
 const SOURCE: &str = "NetEase";
 const SEARCH: &str = "https://music.163.com/api/search/get";
@@ -315,6 +315,7 @@ fn read_yrc(line: &str) -> Option<LyricsLine> {
         text,
         romanized: None,
         secondary: Vec::new(),
+        voice: Voice::Lead,
     })
 }
 
@@ -383,7 +384,7 @@ mod tests {
         assert_eq!(lines[0].text, "la again");
         let words = lines[0].words.as_ref().expect("the line is worded");
         assert_eq!(words[0].text.trim(), "la");
-        assert_eq!(lines[0].secondary[0].text, "la");
+        assert_eq!(lines[0].secondary[0].text, "(la)");
         assert_eq!(lines[0].secondary[0].start, Duration::from_millis(1000));
     }
 

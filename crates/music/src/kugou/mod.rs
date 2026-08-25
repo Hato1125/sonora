@@ -10,7 +10,7 @@ use serde::Deserialize;
 use tokio::task::JoinSet;
 
 use crate::lyrics::sheet;
-use crate::{Lyrics, LyricsHit, LyricsLine, LyricsProvider, LyricsQuery, LyricsWord};
+use crate::{Lyrics, LyricsHit, LyricsLine, LyricsProvider, LyricsQuery, LyricsWord, Voice};
 
 const SOURCE: &str = "Kugou";
 const SEARCH: &str = "https://mobiles.kugou.com/api/v3/search/song";
@@ -332,6 +332,7 @@ fn read(line: &str) -> Option<LyricsLine> {
         text,
         romanized: None,
         secondary: Vec::new(),
+        voice: Voice::Lead,
     })
 }
 

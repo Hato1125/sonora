@@ -54,8 +54,9 @@ reqwest = { version = "0.12", default-features = false, features = [
   "rustls-tls-native-roots",
 ] }
 raw-window-handle = "0.6"
+roxmltree = "0.21"
 rodio = { version = "0.21", default-features = false, features = ["playback"] }
-serde = { version = "1.0", features = ["derive"] }
+serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json = "1.0"
 serde_norway = "0.9"
 souvlaki = "0.8"

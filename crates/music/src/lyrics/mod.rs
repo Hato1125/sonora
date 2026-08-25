@@ -1,7 +1,9 @@
 mod japanese;
 pub mod lrc;
 pub(crate) mod romanize;
+mod shape;
 pub(crate) mod sheet;
+pub(crate) mod ttml;
 
 use std::collections::HashSet;
 use std::time::Duration;
@@ -13,10 +15,11 @@ const WAY_OFF: u64 = 10;
 const TITLE: u32 = 40;
 const ARTIST: u32 = 30;
 const ALBUM: u32 = 15;
-const SYNCED: u32 = 20;
-const WORDED: u32 = 60;
+const SYNCED: u32 = 200;
+const WORDED: u32 = 400;
 const DRIFTED: u32 = 50;
-const TRUNCATED: u32 = 40;
+const TRUNCATED: u32 = 500;
+const TRUSTED: u32 = 25;
 
 pub fn rank(query: &LyricsQuery, hits: Vec<LyricsHit>) -> Vec<LyricsHit> {
     let mut scored: Vec<(i64, LyricsHit)> = hits
@@ -37,6 +40,33 @@ pub fn rank(query: &LyricsQuery, hits: Vec<LyricsHit>) -> Vec<LyricsHit> {
         .map(|(_, hit)| hit)
         .filter(|hit| seen.insert(fingerprint(&hit.lyrics)))
         .collect()
+}
+
+pub fn reshape(hits: &mut [LyricsHit]) {
+    let Some(guide) = hits
+        .iter()
+        .find(|hit| hit.lyrics.synced() && !hit.lyrics.worded())
+        .map(|hit| hit.lyrics.clone())
+    else {
+        return;
+    };
+    for hit in hits
+        .iter_mut()
+        .filter(|hit| hit.lyrics.worded() && hit.trust < TRUSTED && !layered(&hit.lyrics))
+    {
+        if let Some(conformed) = shape::conform(&hit.lyrics, &guide) {
+            hit.lyrics = conformed;
+        }
+    }
+}
+
+fn layered(lyrics: &Lyrics) -> bool {
+    let Lyrics::Synced { lines } = lyrics else {
+        return false;
+    };
+    lines
+        .iter()
+        .any(|line| !line.secondary.is_empty() || !line.voice.lead())
 }
 
 fn eligible(query: &LyricsQuery, hit: &LyricsHit) -> bool {
@@ -190,7 +220,7 @@ fn artist_names(artists: &str) -> impl Iterator<Item = &str> {
         .filter(|artist| !artist.is_empty())
 }
 
-fn undecorated(text: &str) -> String {
+pub(super) fn undecorated(text: &str) -> String {
     let text = text.split(" - ").next().unwrap_or(text);
     let mut depth = 0usize;
     text.chars()
@@ -211,13 +241,7 @@ fn undecorated(text: &str) -> String {
 }
 
 pub fn active(lines: &[LyricsLine], at: Duration) -> Option<usize> {
-    lines
-        .iter()
-        .rposition(|line| line.start <= at)
-        .filter(|index| match lines[*index].sung_end() {
-            Some(end) => at < end,
-            None => true,
-        })
+    lines.iter().rposition(|line| line.start <= at)
 }
 
 pub fn active_word(words: &[LyricsWord], at: Duration) -> Option<usize> {
@@ -230,7 +254,7 @@ pub fn active_word(words: &[LyricsWord], at: Duration) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Lyrics;
+    use crate::{Lyrics, Voice};
 
     fn hit(title: &str, artist: &str, seconds: u64, synced: bool) -> LyricsHit {
         LyricsHit {
@@ -259,6 +283,7 @@ mod tests {
             romanized: None,
             words: None,
             secondary: Vec::new(),
+            voice: Voice::Lead,
         }
     }
 
@@ -516,11 +541,11 @@ mod tests {
         let lines = vec![line(0, 5, "one"), line(5, 9, "two")];
         assert_eq!(active(&lines, Duration::from_secs(2)), Some(0));
         assert_eq!(active(&lines, Duration::from_secs(6)), Some(1));
-        assert_eq!(active(&lines, Duration::from_secs(30)), None);
+        assert_eq!(active(&lines, Duration::from_secs(30)), Some(1));
     }
 
     #[test]
-    fn a_worded_line_ends_when_its_singing_ends() {
+    fn a_sung_line_holds_until_the_next_one_starts() {
         let mut padded = line(0, 12, "one");
         padded.words = Some(vec![LyricsWord {
             start: Duration::ZERO,
@@ -533,13 +558,13 @@ mod tests {
             Some(0)
         );
         assert_eq!(
-            active(&[line(0, 12, "one")], Duration::from_secs(8)),
+            active(std::slice::from_ref(&padded), Duration::from_secs(8)),
             Some(0)
         );
-        assert_eq!(
-            active(std::slice::from_ref(&padded), Duration::from_secs(8)),
-            None
-        );
+
+        let pair = vec![padded, line(10, 14, "two")];
+        assert_eq!(active(&pair, Duration::from_secs(8)), Some(0));
+        assert_eq!(active(&pair, Duration::from_secs(10)), Some(1));
     }
 
     #[test]
