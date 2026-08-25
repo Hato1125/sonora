@@ -63,6 +63,7 @@ fn main() {
             ));
         let lyrics: Vec<Arc<dyn LyricsProvider>> = vec![
             Arc::new(music::lrclib::LrcLib::new()),
+            Arc::new(music::kugou::Kugou::new()),
             Arc::new(music::netease::NetEase::new()),
         ];
         state::init(cx, io, providers, local_provider, lyrics);

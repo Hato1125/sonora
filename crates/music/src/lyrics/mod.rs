@@ -1,6 +1,7 @@
 mod japanese;
 pub mod lrc;
 pub(crate) mod romanize;
+pub(crate) mod sheet;
 
 use std::collections::HashSet;
 use std::time::Duration;

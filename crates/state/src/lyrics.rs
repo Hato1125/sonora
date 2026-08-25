@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use gpui::{Context, Entity, Task};
-use music::{LyricsHit, LyricsProvider, LyricsQuery, Track, TrackKey};
+use music::{LyricsHit, LyricsProvider, LyricsQuery, MusicApi, Track, TrackKey};
 use tokio::task::JoinSet;
 
 use crate::{Io, Playback, Session, join};
@@ -15,6 +15,14 @@ pub enum LyricsState {
     Instrumental,
     Missing,
     Failed(String),
+}
+
+const OWN_TRUST: u32 = 25;
+
+struct Native {
+    api: Arc<dyn MusicApi>,
+    source: &'static str,
+    id: String,
 }
 
 pub struct Lyrics {
@@ -120,6 +128,18 @@ impl Lyrics {
         cx.notify();
     }
 
+    fn native(&self, id: &str, cx: &mut Context<Self>) -> Option<Native> {
+        if music::is_local_id(id) {
+            return None;
+        }
+        let session = self.session.read(cx);
+        Some(Native {
+            api: session.client()?,
+            source: session.provider_name()?,
+            id: id.to_owned(),
+        })
+    }
+
     fn load(&mut self, id: String, track: Track, cx: &mut Context<Self>) {
         if self.providers.is_empty() {
             self.state = LyricsState::Missing;
@@ -140,11 +160,12 @@ impl Lyrics {
             });
         let query = query_for(&track, key);
         let providers = self.providers.clone();
+        let native = self.native(&id, cx);
         let io = self.io.clone();
         self.task = Some(cx.spawn(async move |this, cx| {
             let (sender, mut incoming) = tokio::sync::mpsc::unbounded_channel();
             let query_for_rank = query.clone();
-            let worker = io.spawn(async move { gather(providers, query, sender).await });
+            let worker = io.spawn(async move { gather(providers, native, query, sender).await });
             let mut hits = Vec::new();
             let mut displayed = None;
 
@@ -236,6 +257,7 @@ fn query_for(track: &Track, key: Option<TrackKey>) -> LyricsQuery {
 
 async fn gather(
     providers: Vec<Arc<dyn LyricsProvider>>,
+    native: Option<Native>,
     query: LyricsQuery,
     sender: tokio::sync::mpsc::UnboundedSender<Vec<LyricsHit>>,
 ) -> anyhow::Result<()> {
@@ -252,10 +274,37 @@ async fn gather(
                 .unwrap_or_default()
         });
     }
+    if let Some(native) = native {
+        let query = query.clone();
+        tasks.spawn(async move { own(native, query).await });
+    }
     while let Some(found) = tasks.join_next().await {
         sender.send(found.unwrap_or_default()).ok();
     }
     Ok(())
+}
+
+async fn own(native: Native, query: LyricsQuery) -> Vec<LyricsHit> {
+    let found = native
+        .api
+        .track_lyrics(&native.id)
+        .await
+        .inspect_err(|error| log::warn!("lyrics: {} did not answer: {error:#}", native.source))
+        .unwrap_or_default();
+    let Some(lyrics) = found.filter(|lyrics| !lyrics.is_empty()) else {
+        return Vec::new();
+    };
+    vec![LyricsHit {
+        source: native.source,
+        trust: OWN_TRUST,
+        lyrics,
+        instrumental: false,
+        title: query.title,
+        artist: query.artist,
+        album: query.album,
+        duration: (!query.duration.is_zero()).then_some(query.duration),
+        writers: Vec::new(),
+    }]
 }
 
 #[cfg(test)]
