@@ -95,6 +95,22 @@ partial translation is welcome — pick a language below and fill in what it lac
 To add a language, create `assets/i18n/<locale>/main.ftl` and register it in
 `crates/i18n/src/language.rs`. Regenerate the table with `scripts/i18n-coverage.py`.
 
+## AI policy
+We have nothing against the usage of LLMs in the project — in fact, we use them ourselves. 
+We believe that AI can speed up development in a lot of meaningful ways and be a useful 
+tool for learning new concepts. We have also found it particularly helpful for 
+contributing to substantial codebases such as GPUI and librespot, where it has helped 
+us quickly locate the relevant parts of the code.
+
+**However**, using AI cannot act as an excuse for failing to 
+understand, review, and test the changes proposed. Furthermore, we expect communication 
+with a real person, not a computer. This includes but is not limited to PR/issue text
+generation, comments in discussions, etc. A summary of changes can be generated
+and does not need to be disclosed explicitly, but the reasoning and motivation
+behind a change must come from the contributor and reflect their own understanding.
+
+AI-assisted proofreading and translation of human-written text are permitted.
+
 ## Credits
 
 Sonora is built with the help of some incredible open-source projects, including:
