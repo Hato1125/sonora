@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use anyhow::Result;
-use gpui::{Context, Entity, EventEmitter, Task};
+use gpui::{App, Context, Entity, EventEmitter, Task};
 use music::{
     MusicApi, PlaybackConfig, PlaybackEvent as BackendEvent, PlaybackEvents, PlaybackFactory,
     Player, Track,
@@ -50,6 +50,7 @@ const POSITION_INTERVAL: Duration = Duration::from_millis(500);
 const CLOCK_SETTLE: Duration = Duration::from_secs(1);
 const PRELOAD_BEFORE_END: Duration = Duration::from_secs(10);
 const SKIP_DEBOUNCE: Duration = Duration::from_millis(250);
+const RESTART_WINDOW: Duration = Duration::from_secs(3);
 const KEY_COOLDOWN: Duration = Duration::from_secs(6);
 const RESUME_STEP: Duration = Duration::from_secs(5);
 const TAPER_DB: f32 = 50.;
@@ -822,7 +823,19 @@ impl Playback {
         self.load_after(&track, start, cx);
     }
 
+    pub fn has_previous(&self, cx: &App) -> bool {
+        self.track.is_some() || self.queue.read(cx).has_previous()
+    }
+
+    fn restarts(&self, cx: &App) -> bool {
+        self.track.is_some()
+            && (self.live_position() > RESTART_WINDOW || !self.queue.read(cx).has_previous())
+    }
+
     pub fn previous(&mut self, cx: &mut Context<Self>) {
+        if self.restarts(cx) {
+            return self.seek(Duration::ZERO, cx);
+        }
         self.fetch = None;
         let start = self.burst();
         let Some(track) = self.queue.update(cx, |queue, cx| queue.previous(cx)) else {

@@ -22,6 +22,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Previous restarts the track you are on once you are more than three seconds into it, and only
+  steps back a track if you press it near the start. There is also nothing to step back to on the
+  first track of a queue, so there it always restarts.
 - New installs start with different defaults. Album art tints the theme, corners are rounded rather
   than subtle, volume normalisation is off, and lyrics are romanized for Japanese, Chinese and
   Korean only. Albums, playlists and artists open as cards, an artist's own page as a list, and both
