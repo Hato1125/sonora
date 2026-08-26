@@ -9,6 +9,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Songs, albums, playlists and artists can be dropped straight onto the queue. Drop between two
+  queued songs to slot them in there, or anywhere else in the pane to add them at the end.
 - Sonora tells you when a newer version is out. On Windows it asks GitHub once at startup and, if
   a release is newer than the running build, floats a card in the top-left corner with the new
   version number, a link to what changed, and a choice between Later and Update. Update downloads
@@ -34,6 +36,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Rows in the list view of Albums, Playlists and Artists can be dragged by their name. The name
+  column swallowed the press, so the only place a row could be picked up from was its cover.
+- Dropping something in the space between two pinned items in the sidebar, or between two queued
+  songs, puts it there instead of at the end.
 - The minimize and close buttons work on Windows, where a click on either did nothing. Maximize is
   still handed to Windows itself, which is what lets it restore a maximized window and open the
   Snap Layouts flyout on hover.
