@@ -3,6 +3,7 @@ mod auth;
 mod client;
 mod genres;
 mod playback;
+mod trim;
 mod wire;
 
 use std::path::PathBuf;
