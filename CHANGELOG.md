@@ -15,11 +15,28 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the installer, checks it against the release checksums, runs it and starts Sonora again when it
   is done. The card appears once per launch and never nags mid-session, and the check can be turned
   off under Settings, About.
+- Sonora reopens at the size and position it had when you closed it, and maximized if you left it
+  that way. A saved position that no longer lands on a connected display is dropped, so unplugging
+  a monitor cannot leave the window off screen. Wayland does not hand a window its position, so
+  there only the size and the maximized state come back.
+
+### Changed
+
+- New installs start with different defaults. Album art tints the theme, corners are rounded rather
+  than subtle, volume normalisation is off, and lyrics are romanized for Japanese, Chinese and
+  Korean only. Albums, playlists and artists open as cards, an artist's own page as a list, and both
+  sidebars are a little narrower. Anything you have already set is left alone.
+
+### Removed
+
+- The "Karaoke motion" setting is gone. Every word-by-word highlight now travels on the Smooth
+  curve, which is what the setting defaulted to, so anyone who left it alone sees no change.
 
 ### Fixed
 
-- The window buttons on Windows are handed to Windows itself, so the maximize button restores a
-  maximized window instead of maximizing it again, and hovering it opens the Snap Layouts flyout.
+- The minimize and close buttons work on Windows, where a click on either did nothing. Maximize is
+  still handed to Windows itself, which is what lets it restore a maximized window and open the
+  Snap Layouts flyout on hover.
 - Double-clicking the title bar maximizes the window and restores it when it is already maximized.
   Nothing happened on macOS before, because the first click started a window drag that swallowed
   the second.

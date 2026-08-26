@@ -10,14 +10,17 @@ mod single;
 use std::sync::Arc;
 
 use gpui::{
-    App, AppContext as _, Bounds, Entity, TitlebarOptions, WindowBackgroundAppearance,
-    WindowBounds, WindowOptions, point, px, size,
+    App, AppContext as _, Bounds, Entity, Pixels, Size, TitlebarOptions,
+    WindowBackgroundAppearance, WindowBounds, WindowOptions, point, px, size,
 };
 use music::LyricsProvider;
 use router::Screen;
 use state::{Library, Playback, Queue, Session, Sonora};
 use ui::ActiveTheme as _;
 use views::Root;
+
+const LEAST_SIZE: Size<Pixels> = size(px(480.), px(400.));
+const FIRST_SIZE: Size<Pixels> = size(px(920.), px(640.));
 
 fn main() {
     logging::init();
@@ -138,10 +141,11 @@ fn open_window(
     queue: Entity<Queue>,
     cx: &mut App,
 ) {
-    let bounds = Bounds::centered(None, size(px(920.), px(640.)), cx);
+    let placement = state::window_placement(LEAST_SIZE, cx)
+        .unwrap_or_else(|| WindowBounds::Windowed(Bounds::centered(None, FIRST_SIZE, cx)));
     cx.open_window(
         WindowOptions {
-            window_bounds: Some(WindowBounds::Windowed(bounds)),
+            window_bounds: Some(placement),
             window_background: WindowBackgroundAppearance::Transparent,
             titlebar: Some(TitlebarOptions {
                 title: Some("Sonora".into()),
@@ -152,12 +156,13 @@ fn open_window(
             is_movable: true,
             is_resizable: true,
             app_id: Some("sonora".into()),
-            window_min_size: Some(size(px(480.), px(400.))),
+            window_min_size: Some(LEAST_SIZE),
             ..Default::default()
         },
         |window, cx| {
             window.set_rem_size(cx.theme().font_size);
             state::attach_remote(window_handle(window), cx);
+            state::remember_window(window, cx);
             cx.new(|cx| Root::new(session, library, playback, queue, window, cx))
         },
     )
