@@ -35,6 +35,10 @@ impl Control {
         }
     }
 
+    fn system(self) -> bool {
+        SYSTEM_ACTS && matches!(self, Self::Maximize | Self::Restore)
+    }
+
     fn area(self) -> WindowControlArea {
         match self {
             Self::Minimize => WindowControlArea::Min,
@@ -110,6 +114,7 @@ impl RenderOnce for WindowControls {
                     .size(BUTTON)
                     .rounded(theme.radius)
                     .cursor_pointer()
+                    .occlude()
                     .window_control_area(control.area())
                     .hover(move |style| {
                         style.bg(match danger {
@@ -130,15 +135,16 @@ impl RenderOnce for WindowControls {
                                 })
                             }),
                     )
-                    .when(!SYSTEM_ACTS, |this| {
-                        this.on_click(move |_, window, cx| {
-                            cx.stop_propagation();
-                            match control {
-                                Control::Minimize => window.minimize_window(),
-                                Control::Maximize | Control::Restore => window.zoom_window(),
-                                Control::Close => window.remove_window(),
-                            }
-                        })
+                    .when(!control.system(), |this| {
+                        this.on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                            .on_click(move |_, window, cx| {
+                                cx.stop_propagation();
+                                match control {
+                                    Control::Minimize => window.minimize_window(),
+                                    Control::Maximize | Control::Restore => window.zoom_window(),
+                                    Control::Close => window.remove_window(),
+                                }
+                            })
                     })
             }));
         controls.style().refine(&overrides);
