@@ -48,6 +48,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- YouTube tracks no longer leave a short silence between them. The audio YouTube serves carries a
+  fraction of a second of encoder padding at each end, which nothing in the decoding stack was
+  removing, so it played as a gap however early the next track was fetched. Sonora now reads how
+  much to drop from the file itself and trims it.
 - Imported tracks run into one another with no gap. The next track was already decoded and waiting
   behind the current one, but Sonora tore it down and started it again the moment the song changed,
   so every boundary cost a stumble.
