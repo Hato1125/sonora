@@ -67,10 +67,10 @@ impl Default for RomanizationScripts {
             japanese: true,
             chinese: true,
             korean: true,
-            cyrillic: true,
-            greek: true,
-            arabic: true,
-            other: true,
+            cyrillic: false,
+            greek: false,
+            arabic: false,
+            other: false,
         }
     }
 }
@@ -123,8 +123,8 @@ impl Frame {
 
 const SAVE_DELAY: Duration = Duration::from_millis(300);
 const DEFAULT_VOLUME: f32 = 0.7;
-const DEFAULT_SIDEBAR_WIDTH: f32 = 220.;
-const DEFAULT_SIDEBAR_RIGHT_WIDTH: f32 = 380.;
+const DEFAULT_SIDEBAR_WIDTH: f32 = 195.;
+const DEFAULT_SIDEBAR_RIGHT_WIDTH: f32 = 254.;
 const DEFAULT_FONT_SIZE: f32 = 14.;
 const DEFAULT_STARTUP: &str = "home";
 
@@ -186,11 +186,11 @@ impl Default for Values {
         Self {
             version: 1,
             volume: DEFAULT_VOLUME,
-            normalisation: true,
+            normalisation: false,
             gapless: true,
             karaoke_lyrics: true,
             karaoke_sweep: Sweep::default().id().to_owned(),
-            romanized_lyrics: false,
+            romanized_lyrics: true,
             romanization_scripts: RomanizationScripts::default(),
             adaptive_menu: false,
             sidebar_width: DEFAULT_SIDEBAR_WIDTH,
@@ -230,8 +230,8 @@ impl Default for Appearance {
     fn default() -> Self {
         Self {
             theme: "dark".to_owned(),
-            adaptive_theme: false,
-            rounding: "subtle".to_owned(),
+            adaptive_theme: true,
+            rounding: Rounding::Rounded.id().to_owned(),
             font_size: DEFAULT_FONT_SIZE,
             transparent: false,
             transparency: 0.15,
@@ -475,10 +475,6 @@ impl AppSettings {
         }
         self.values.tables.insert(table.to_owned(), layout);
         self.schedule_save(cx);
-    }
-
-    pub fn view(&self, table: &str) -> Mode {
-        self.values.views.get(table).copied().unwrap_or_default()
     }
 
     pub fn view_or(&self, table: &str, fallback: Mode) -> Mode {
@@ -821,16 +817,22 @@ mod tests {
     }
 
     #[test]
-    fn new_lyric_preferences_have_backward_compatible_defaults() {
+    fn lyrics_start_karaoke_and_romanize_only_cjk() {
         let values: Values = serde_json::from_str("{}").expect("empty settings use defaults");
 
         assert!(values.karaoke_lyrics);
-        assert!(!values.romanized_lyrics);
-        assert!(
-            WritingSystem::ALL
-                .into_iter()
-                .all(|system| values.romanization_scripts.contains(system))
-        );
+        assert!(values.romanized_lyrics);
+        let romanized = [
+            WritingSystem::Japanese,
+            WritingSystem::Chinese,
+            WritingSystem::Korean,
+        ];
+        for system in WritingSystem::ALL {
+            assert_eq!(
+                values.romanization_scripts.contains(system),
+                romanized.contains(&system)
+            );
+        }
     }
 
     #[test]
@@ -848,7 +850,7 @@ mod tests {
                 .contains(WritingSystem::Japanese)
         );
         assert!(values.romanization_scripts.contains(WritingSystem::Chinese));
-        assert!(values.romanization_scripts.contains(WritingSystem::Other));
+        assert!(!values.romanization_scripts.contains(WritingSystem::Other));
     }
 
     #[test]

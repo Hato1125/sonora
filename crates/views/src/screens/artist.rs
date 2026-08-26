@@ -128,7 +128,7 @@ impl ArtistView {
         let settings = Sonora::global(cx).settings.clone();
         let saved = settings.read(cx).table(SECTION);
         let sorting = settings.read(cx).sorting(SECTION);
-        let mode = settings.read(cx).view_or(SECTION, Mode::Cards);
+        let mode = settings.read(cx).view_or(SECTION, Mode::List);
         let columns =
             crate::shared::tracks::artist_columns(Sonora::global(cx).session.read(cx).playcounts());
         let scroll = scrollbar.read(cx).scroll().clone();
