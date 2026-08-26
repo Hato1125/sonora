@@ -48,6 +48,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Spotify playback on Windows no longer hisses in the background, which was loudest at low volume.
+  Sonora asked the output device for a stream it could not give and settled for the poorest sample
+  format on offer instead of the one the device already runs at, so every track was played through
+  a needlessly coarse output. It now opens the device at its own format, the way YouTube and
+  imported tracks always have.
 - Rows in the list view of Albums, Playlists and Artists can be dragged by their name. The name
   column swallowed the press, so the only place a row could be picked up from was its cover.
 - Dropping something in the space between two pinned items in the sidebar, or between two queued
