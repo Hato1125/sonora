@@ -8,9 +8,7 @@ use gpui::{
 };
 use music::WritingSystem;
 use serde::{Deserialize, Serialize};
-use ui::{
-    Layout, Look, Mode, Pace, Pin, Rounding, Sorting, Stillness, Sweep, ThemeKind, ThemeOverrides,
-};
+use ui::{Layout, Look, Mode, Pace, Pin, Rounding, Sorting, Stillness, ThemeKind, ThemeOverrides};
 
 use crate::queue::{Resume, gap_target};
 use crate::{Repeat, Sonora};
@@ -138,7 +136,6 @@ struct Values {
     normalisation: bool,
     gapless: bool,
     karaoke_lyrics: bool,
-    karaoke_sweep: String,
     romanized_lyrics: bool,
     romanization_scripts: RomanizationScripts,
     adaptive_menu: bool,
@@ -189,7 +186,6 @@ impl Default for Values {
             normalisation: false,
             gapless: true,
             karaoke_lyrics: true,
-            karaoke_sweep: Sweep::default().id().to_owned(),
             romanized_lyrics: true,
             romanization_scripts: RomanizationScripts::default(),
             adaptive_menu: false,
@@ -289,10 +285,6 @@ impl AppSettings {
 
     pub fn karaoke_lyrics(&self) -> bool {
         self.values.karaoke_lyrics
-    }
-
-    pub fn karaoke_sweep(&self) -> Sweep {
-        Sweep::from_id(&self.values.karaoke_sweep)
     }
 
     pub fn romanized_lyrics(&self) -> bool {
@@ -432,14 +424,6 @@ impl AppSettings {
 
     pub fn set_karaoke_lyrics(&mut self, karaoke: bool, cx: &mut Context<Self>) {
         self.values.karaoke_lyrics = karaoke;
-        self.schedule_save(cx);
-    }
-
-    pub fn set_karaoke_sweep(&mut self, sweep: Sweep, cx: &mut Context<Self>) {
-        if self.karaoke_sweep() == sweep {
-            return;
-        }
-        self.values.karaoke_sweep = sweep.id().to_owned();
         self.schedule_save(cx);
     }
 

@@ -16,7 +16,7 @@ use ui::{ActiveTheme as _, Scrollbar, Scroller, eyebrow};
 use ui::{
     Avatar, Button, InfoCard, Initials, Input, Look, MAX_FONT, MAX_TRANSPARENCY, MIN_FONT,
     MenuItem, Modal, Pace, Picker, Popovers, Rounding, Scrubber, ScrubberState, Separator,
-    Skeleton, Stillness, Sweep, Switch, Text, Theme, ThemeKind,
+    Skeleton, Stillness, Switch, Text, Theme, ThemeKind,
 };
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -29,7 +29,6 @@ const LANGUAGES: &str = "languages";
 const STARTUP: &str = "startup";
 const MOTION: &str = "motion";
 const PACE: &str = "pace";
-const SWEEP: &str = "sweep";
 
 struct Account {
     slug: &'static str,
@@ -171,7 +170,6 @@ impl SettingsView {
                 self.playback_row(cx).into_any_element(),
                 self.gapless_row(cx).into_any_element(),
                 self.karaoke_lyrics_row(cx).into_any_element(),
-                self.karaoke_sweep_row(cx).into_any_element(),
                 self.romanized_lyrics_row(cx).into_any_element(),
             ],
             SettingsTab::About => vec![
@@ -712,33 +710,6 @@ impl SettingsView {
                         .update(cx, |playback, cx| playback.set_gapless(!on, cx));
                 }))
                 .into_any_element(),
-        )
-    }
-
-    fn karaoke_sweep_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = *cx.theme();
-        let muted = theme.muted_foreground;
-        let small = theme.text(Text::Small);
-        let current = self.settings.read(cx).karaoke_sweep();
-
-        let picker = Picker::new(SWEEP, &self.popovers, current.label())
-            .width(Picker::NARROW)
-            .items(Sweep::ALL.into_iter().map(|sweep| {
-                MenuItem::new(sweep.id(), sweep.label())
-                    .selected(current == sweep)
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        this.settings
-                            .update(cx, |settings, cx| settings.set_karaoke_sweep(sweep, cx));
-                        cx.notify();
-                    }))
-            }));
-
-        self.row(
-            t!("settings-sweep"),
-            t!("settings-sweep-detail"),
-            muted,
-            small,
-            picker.into_any_element(),
         )
     }
 

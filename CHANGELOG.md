@@ -21,6 +21,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Korean only. Albums, playlists and artists open as cards, an artist's own page as a list, and both
   sidebars are a little narrower. Anything you have already set is left alone.
 
+### Removed
+
+- The "Karaoke motion" setting is gone. Every word-by-word highlight now travels on the Smooth
+  curve, which is what the setting defaulted to, so anyone who left it alone sees no change.
+
 ### Fixed
 
 - The window buttons on Windows are handed to Windows itself, so the maximize button restores a

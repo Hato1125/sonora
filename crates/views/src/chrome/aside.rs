@@ -15,8 +15,8 @@ use state::{
 };
 use ui::{
     ActiveTheme as _, Button, Card, DraggedPin, Edge, Motion, Motioned as _, Pin, PinKind,
-    Pinnable as _, Popup, Scrollbar, Scroller, Spot, Sweep, Text, drop_gap, drop_marker, eyebrow,
-    mix, snapped, vacant,
+    Pinnable as _, Popup, Scrollbar, Scroller, Spot, Text, drop_gap, drop_marker, ease_out_cubic,
+    eyebrow, mix, snapped, vacant,
 };
 
 use crate::chrome::{Chrome, section_label};
@@ -37,6 +37,7 @@ const INSTRUMENTAL_BREAK: std::time::Duration = std::time::Duration::from_secs(5
 const GLYPH: f32 = 0.35;
 const GLYPH_SIZE: f32 = 0.5;
 const SWEEP_LEAST: std::time::Duration = std::time::Duration::from_millis(180);
+const SWEEP_STRETCH: f32 = 1.4;
 const SWEPT: f32 = 0.98;
 const LANDING: f32 = 0.2;
 
@@ -132,7 +133,6 @@ impl Sections {
 #[derive(Clone, Copy)]
 struct Sung {
     karaoke: bool,
-    sweep: Sweep,
     scripts: Option<RomanizationScripts>,
     theme: ui::Theme,
 }
@@ -671,11 +671,10 @@ impl Aside {
             .map(|hit| (hit.source, hit.writers.clone()));
         let following = lyrics.following().map(str::to_owned);
         let take = lyrics.revision();
-        let (karaoke_lyrics, sweep, romanization_scripts) = {
+        let (karaoke_lyrics, romanization_scripts) = {
             let settings = self.settings.read(cx);
             (
                 settings.karaoke_lyrics(),
-                settings.karaoke_sweep(),
                 settings
                     .romanized_lyrics()
                     .then(|| settings.romanization_scripts()),
@@ -684,7 +683,6 @@ impl Aside {
         let karaoke_effects = karaoke_lyrics && effects();
         let sung = Sung {
             karaoke: karaoke_effects,
-            sweep,
             scripts: romanization_scripts,
             theme,
         };
@@ -1255,7 +1253,7 @@ fn karaoke_lane(
                 let text = SharedString::from(fragment);
                 let (highlight_start, highlight_end) = karaoke_window(line_start, words, index);
                 let tail = index + 1 >= words.len();
-                let highlighted = swept(highlight_start, highlight_end, position, tail, sung.sweep);
+                let highlighted = swept(highlight_start, highlight_end, position, tail);
                 let landing = ((1. - highlighted) / LANDING).min(1.);
                 div()
                     .relative()
@@ -1441,18 +1439,13 @@ fn swept(
     end: std::time::Duration,
     position: std::time::Duration,
     tail: bool,
-    sweep: Sweep,
 ) -> f32 {
     let span = end.saturating_sub(start);
-    let least = match sweep {
-        Sweep::Steady => std::time::Duration::ZERO,
-        _ => SWEEP_LEAST,
-    };
     let travel = match tail {
-        true => span.max(least),
-        false => span.mul_f32(sweep.stretch()).max(least),
+        true => span.max(SWEEP_LEAST),
+        false => span.mul_f32(SWEEP_STRETCH).max(SWEEP_LEAST),
     };
-    let eased = sweep.ease(progress_between(start, start + travel, position));
+    let eased = ease_out_cubic(progress_between(start, start + travel, position));
     match eased >= SWEPT {
         true => 1.,
         false => eased,
