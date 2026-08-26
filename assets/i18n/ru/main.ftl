@@ -92,6 +92,8 @@ menu-make-playlist-private = Сделать приватным
 menu-open-album = Открыть альбом
 menu-play-album = Воспроизвести альбом
 menu-add-album-to-queue = Добавить альбом в очередь
+menu-play-artist = Воспроизвести исполнителя
+menu-add-artist-to-queue = Добавить исполнителя в очередь
 
 # playlist editor
 playlist-name-placeholder = Название плейлиста
@@ -425,6 +427,8 @@ toast-queued-album = Альбом добавлен в очередь
 toast-next-album = Альбом прозвучит следующим
 toast-queued-playlist = Плейлист добавлен в очередь
 toast-next-playlist = Плейлист прозвучит следующим
+toast-queued-artist = Исполнитель добавлен в очередь
+toast-next-artist = Исполнитель прозвучит следующим
 toast-queue-failed = Не удалось добавить в очередь
 toast-keys-refused = Spotify не выдаёт этому аккаунту ключи воспроизведения
 toast-sign-in-to-play = { $name } отдаёт музыку только тем, кто вошёл в аккаунт

@@ -92,6 +92,8 @@ menu-make-playlist-private = Make private
 menu-open-album = Open album
 menu-play-album = Play album
 menu-add-album-to-queue = Add album to queue
+menu-play-artist = Play artist
+menu-add-artist-to-queue = Add artist to queue
 
 # playlist editor
 playlist-name-placeholder = Playlist name
@@ -434,6 +436,8 @@ toast-queued-album = Album added to the queue
 toast-next-album = Album plays next
 toast-queued-playlist = Playlist added to the queue
 toast-next-playlist = Playlist plays next
+toast-queued-artist = Artist added to the queue
+toast-next-artist = Artist plays next
 toast-queue-failed = That could not be added to the queue
 toast-keys-refused = Spotify is not granting this account playback keys
 toast-sign-in-to-play = { $name } only streams to a signed-in listener

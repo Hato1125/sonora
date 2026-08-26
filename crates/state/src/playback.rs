@@ -545,6 +545,22 @@ impl Playback {
         });
     }
 
+    pub fn play_artist_next(&mut self, artist: &str, cx: &mut Context<Self>) {
+        let id = artist.to_owned();
+        let artist = artist.to_owned();
+        self.enqueue_from("artist", &id, QueuePlacement::Next, cx, move |client| {
+            Box::pin(async move { client.artist(&artist).await.map(|found| found.top_tracks) })
+        });
+    }
+
+    pub fn enqueue_artist(&mut self, artist: &str, cx: &mut Context<Self>) {
+        let id = artist.to_owned();
+        let artist = artist.to_owned();
+        self.enqueue_from("artist", &id, QueuePlacement::End, cx, move |client| {
+            Box::pin(async move { client.artist(&artist).await.map(|found| found.top_tracks) })
+        });
+    }
+
     pub fn enqueue_playlist(&mut self, playlist: &str, cx: &mut Context<Self>) {
         let id = playlist.to_owned();
         let playlist = playlist.to_owned();
