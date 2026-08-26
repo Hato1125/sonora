@@ -58,6 +58,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Double-clicking the title bar maximizes the window and restores it when it is already maximized.
   Nothing happened on macOS before, because the first click started a window drag that swallowed
   the second.
+- A lyric sheet that only says the song is instrumental is read as instrumental instead of being
+  shown as the song's words, whatever case it is written in.
 
 ## [0.18.0] - 2026-08-25
 
