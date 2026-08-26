@@ -6,10 +6,11 @@ use music::SavedArtist;
 use router::Destination;
 use state::{Library, LibraryState, Origin, Playback};
 use ui::rank::{ESSENTIAL, HANDY};
-use ui::{Cell, ColumnSpec, GridSource, Menu, Pin, PinKind, Width};
+use ui::{Cell, ColumnSpec, GridSource, Menu, Pin, Width};
 
 use crate::shared::cells::{self, DATE, NUMBER};
 use crate::shared::menu::artist_menu;
+use crate::shared::pins::Pinned as _;
 use crate::shared::text::{folded, holds};
 use crate::shared::tracks::initial;
 
@@ -107,12 +108,7 @@ impl GridSource for ArtistSource {
     }
 
     fn pin(&self, row: usize, cx: &App) -> Option<Pin> {
-        let artist = self.artists(cx).get(row)?;
-
-        Some(
-            Pin::new(PinKind::Artist, artist.id.clone(), artist.name.clone())
-                .cover(artist.cover.clone()),
-        )
+        self.artists(cx).get(row)?.pin()
     }
 
     fn context_menu(&self, row: usize, _visible: &[ArtistField], cx: &App) -> Option<Menu> {

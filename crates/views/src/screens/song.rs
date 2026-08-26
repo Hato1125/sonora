@@ -7,13 +7,14 @@ use music::{Credit, Track};
 use router::{Destination, Link as _};
 use state::{Playback, SongDetail};
 use ui::{
-    ActiveTheme as _, Avatar, Button, Fact, InfoCard, Initials, Pin, PinKind, Scrollbar, Scroller,
-    Skeleton, Text, clock,
+    ActiveTheme as _, Avatar, Button, Fact, InfoCard, Initials, Scrollbar, Scroller, Skeleton,
+    Text, clock,
 };
 
 use crate::shared::about::{AboutArtist, about_modal};
 use crate::shared::cells;
 use crate::shared::hero::{HeroMetaStrip, HeroPlayButton, PageHero, release_date_label};
+use crate::shared::pins::Pinned as _;
 
 const PANEL: Pixels = px(300.);
 const TITLE_SKELETON: Pixels = px(240.);
@@ -120,10 +121,7 @@ impl SongView {
                 )
             });
 
-        let pin = track
-            .id
-            .clone()
-            .map(|id| Pin::new(PinKind::Song, id, track.name.clone()).cover(cover.clone()));
+        let pin = track.pin().map(|pin| pin.cover(cover.clone()));
 
         PageHero::new("song-hero", track.name.clone())
             .pin(pin)

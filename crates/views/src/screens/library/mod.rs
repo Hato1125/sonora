@@ -23,13 +23,14 @@ use router::{Destination, LibraryTab, navigate};
 use state::{AppSettings, Library, LibraryPart, LibraryState, Playback, PlaybackState, Sonora};
 use ui::{
     ActiveTheme as _, Button, Card, Deck, FlagAxis, GridDelegate, GridEvent, GridSource, GridState,
-    LEADING, Menu, MenuItem, Mode, Pin, PinKind, Pinnable, Popovers, Popup, RangeAxis, Scrollbar,
-    Scroller, Sort, SortAxis, Text, Toggle, Unit, Viewport, clock, grid, heading, quantize,
-    scrolled, snapped, vacant,
+    LEADING, Menu, MenuItem, Mode, Pinnable, Popovers, Popup, RangeAxis, Scrollbar, Scroller, Sort,
+    SortAxis, Text, Toggle, Unit, Viewport, clock, grid, heading, quantize, scrolled, snapped,
+    vacant,
 };
 
 use crate::shared::album_grid::{AlbumGrid, CardGrid};
 use crate::shared::hero::{HeroMetaStrip, HeroPlayButton, PageHero};
+use crate::shared::pins::Pinned as _;
 use crate::shared::tracks::{
     self, LIBRARY_COLUMNS, PlaybackStatus, TrackField, TrackSieve, TrackSource, Tracks,
     playback_status,
@@ -694,10 +695,7 @@ impl LibraryView {
         .text_size(theme.text(Text::Small))
         .truncate();
 
-        let pin = track
-            .id
-            .clone()
-            .map(|id| Pin::new(PinKind::Song, id, track.name.clone()).cover(track.cover.clone()));
+        let pin = track.pin();
 
         Some(
             Card::new(("library-track", display), SharedString::from(track.name))
