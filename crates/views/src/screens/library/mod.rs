@@ -105,6 +105,13 @@ impl Section {
         }
     }
 
+    fn mode(self) -> Mode {
+        match self {
+            Section::Tracks => Mode::List,
+            Section::Albums | Section::Playlists | Section::Artists => Mode::Cards,
+        }
+    }
+
     fn slot(self) -> usize {
         match self {
             Section::Tracks => 0,
@@ -190,7 +197,8 @@ impl LibraryView {
                 settings.sorting(section.key()),
             )
         };
-        let viewed = |section: Section, cx: &App| settings.read(cx).view(section.key());
+        let viewed =
+            |section: Section, cx: &App| settings.read(cx).view_or(section.key(), section.mode());
         let views = Section::ALL.map(|section| viewed(section, cx));
 
         let scrollbar = cx.new(|_| Scrollbar::new(ScrollHandle::new()));

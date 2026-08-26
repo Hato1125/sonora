@@ -7,6 +7,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Sonora reopens at the size and position it had when you closed it, and maximized if you left it
+  that way. A saved position that no longer lands on a connected display is dropped, so unplugging
+  a monitor cannot leave the window off screen. Wayland does not hand a window its position, so
+  there only the size and the maximized state come back.
+
+### Changed
+
+- New installs start with different defaults. Album art tints the theme, corners are rounded rather
+  than subtle, volume normalisation is off, and lyrics are romanized for Japanese, Chinese and
+  Korean only. Albums, playlists and artists open as cards, an artist's own page as a list, and both
+  sidebars are a little narrower. Anything you have already set is left alone.
+
 ### Fixed
 
 - The window buttons on Windows are handed to Windows itself, so the maximize button restores a
