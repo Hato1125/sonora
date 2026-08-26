@@ -61,7 +61,7 @@ pub(crate) fn transport(
         .items_center()
         .gap_2()
         .child(shuffle(queue, cx))
-        .child(previous(playback, queue, cx))
+        .child(previous(playback, cx))
         .child(toggle(playback, big, cx))
         .child(next(playback, queue, cx))
         .child(repeat(playback, cx))
@@ -134,8 +134,8 @@ fn repeat(playback: &Entity<Playback>, cx: &App) -> Button {
         })
 }
 
-fn previous(playback: &Entity<Playback>, queue: &Entity<Queue>, cx: &App) -> Button {
-    let enabled = queue.read(cx).has_previous();
+fn previous(playback: &Entity<Playback>, cx: &App) -> Button {
+    let enabled = playback.read(cx).has_previous(cx);
     let playback = playback.clone();
 
     Button::new("previous")
