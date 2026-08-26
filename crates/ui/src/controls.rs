@@ -110,6 +110,7 @@ impl RenderOnce for WindowControls {
                     .size(BUTTON)
                     .rounded(theme.radius)
                     .cursor_pointer()
+                    .occlude()
                     .window_control_area(control.area())
                     .hover(move |style| {
                         style.bg(match danger {
