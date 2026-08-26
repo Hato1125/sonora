@@ -174,6 +174,7 @@ impl SettingsView {
             ],
             SettingsTab::About => vec![
                 self.version_row(cx).into_any_element(),
+                self.updates_row(cx).into_any_element(),
                 self.license_row(cx).into_any_element(),
                 self.source_row(cx).into_any_element(),
             ],
@@ -708,6 +709,26 @@ impl SettingsView {
                 .on_click(cx.listener(move |this, _, _, cx| {
                     this.playback
                         .update(cx, |playback, cx| playback.set_gapless(!on, cx));
+                }))
+                .into_any_element(),
+        )
+    }
+
+    fn updates_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+        let muted = theme.muted_foreground;
+        let small = theme.text(Text::Small);
+        let on = self.settings.read(cx).check_updates();
+
+        self.row(
+            t!("settings-check-updates"),
+            t!("settings-check-updates-detail"),
+            muted,
+            small,
+            Switch::new("check-updates", on)
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.settings
+                        .update(cx, |settings, cx| settings.set_check_updates(!on, cx));
                 }))
                 .into_any_element(),
         )

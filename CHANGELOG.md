@@ -9,6 +9,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Sonora tells you when a newer version is out. On Windows it asks GitHub once at startup and, if
+  a release is newer than the running build, floats a card in the top-left corner with the new
+  version number, a link to what changed, and a choice between Later and Update. Update downloads
+  the installer, checks it against the release checksums, runs it and starts Sonora again when it
+  is done. The card appears once per launch and never nags mid-session, and the check can be turned
+  off under Settings, About.
 - Sonora reopens at the size and position it had when you closed it, and maximized if you left it
   that way. A saved position that no longer lands on a connected display is dropped, so unplugging
   a monitor cannot leave the window off screen. Wayland does not hand a window its position, so
