@@ -38,6 +38,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   than subtle, volume normalisation is off, and lyrics are romanized for Japanese, Chinese and
   Korean only. Albums, playlists and artists open as cards, an artist's own page as a list, and both
   sidebars are a little narrower. Anything you have already set is left alone.
+- The lyric line being sung is set a little larger than the rest, and grows into that size as it
+  arrives instead of only brightening.
 
 ### Removed
 

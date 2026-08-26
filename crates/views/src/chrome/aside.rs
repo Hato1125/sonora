@@ -3,9 +3,10 @@ use std::ops::Range;
 use gpui::prelude::*;
 
 use gpui::{
-    App, Context, Div, DragMoveEvent, Entity, FontWeight, MouseDownEvent, Pixels, Point, Render,
-    ScrollHandle, ScrollStrategy, ScrollWheelEvent, SharedString, Task, UniformListScrollHandle,
-    Window, div, ease_in_out, px, relative, svg, uniform_list,
+    Animation, AnimationExt as _, App, Context, Div, DragMoveEvent, Entity, FontWeight,
+    MouseDownEvent, Pixels, Point, Render, ScrollHandle, ScrollStrategy, ScrollWheelEvent,
+    SharedString, Task, UniformListScrollHandle, Window, div, ease_in_out, px, relative, svg,
+    uniform_list,
 };
 use i18n::t;
 use music::{Track, Voice};
@@ -15,8 +16,8 @@ use state::{
 };
 use ui::{
     ActiveTheme as _, Button, Card, DraggedPin, Edge, Motion, Motioned as _, Pin, Pinnable as _,
-    Popup, Scrollbar, Scroller, Spot, Text, drop_gap, drop_marker, ease_out_cubic, eyebrow, mix,
-    snapped, vacant,
+    Popup, Scrollbar, Scroller, Spot, Text, drop_gap, drop_marker, ease_out_cubic, ease_out_expo,
+    eyebrow, mix, snapped, vacant,
 };
 
 use crate::chrome::{Chrome, section_label};
@@ -31,6 +32,7 @@ const TAIL_ROWS: usize = 2;
 const BLUR: f32 = 0.07;
 const PAST: f32 = 0.4;
 const REVEAL: f32 = 0.6;
+const ACTIVE_VERSE_GROWTH: Pixels = px(2.);
 const PINNED_SHARE: f32 = 0.25;
 const PIN: f32 = 0.3;
 const SETTLE: std::time::Duration = std::time::Duration::from_secs(4);
@@ -891,21 +893,37 @@ impl Aside {
 
                     let verse_line =
                         verse_line.when(softness > 0., |this| this.blur(blur * softness));
-                    let glowing = animations && Some(index) == active_line && !karaoke;
+                    let active = Some(index) == active_line;
+                    let growing = animations && active;
                     let departing = dimming.is_some();
+                    let active_size = active_verse_size(verse);
                     let unsung = theme.muted_foreground;
                     let lit = theme.foreground;
-                    let verse_line = match (glowing, departing) {
+                    let verse_line = match (growing, departing) {
                         (true, _) => verse_line
-                            .motion(("verse-glow", self.arrival as usize), Motion::Base, {
-                                move |this, t| this.text_color(mix(unsung, lit, t))
-                            })
+                            .with_animation(
+                                ("verse-grow", self.arrival as usize),
+                                Animation::new(Motion::Base.span()).with_easing(ease_out_expo),
+                                move |this, t| {
+                                    let this = this.text_size(verse + ACTIVE_VERSE_GROWTH * t);
+                                    match karaoke {
+                                        true => this,
+                                        false => this.text_color(mix(unsung, lit, t)),
+                                    }
+                                },
+                            )
                             .into_any_element(),
                         (_, true) => verse_line
-                            .motion(("verse-dim", self.departure as usize), Motion::Quick, {
-                                move |this, t| this.text_color(mix(lit, tint, t))
-                            })
+                            .with_animation(
+                                ("verse-shrink", self.departure as usize),
+                                Animation::new(Motion::Quick.span()).with_easing(ease_out_expo),
+                                move |this, t| {
+                                    this.text_size(active_size - ACTIVE_VERSE_GROWTH * t)
+                                        .text_color(mix(lit, tint, t))
+                                },
+                            )
                             .into_any_element(),
+                        _ if active => verse_line.text_size(active_size).into_any_element(),
                         _ => verse_line.into_any_element(),
                     };
                     rendered.push(verse_line);
@@ -1444,6 +1462,10 @@ fn needs_space(left: &str, right: &str) -> bool {
             first,
             ')' | ']' | '}' | ',' | '.' | '!' | '?' | ';' | ':' | '%' | '\'' | '’' | '-' | '—'
         )
+}
+
+fn active_verse_size(verse: Pixels) -> Pixels {
+    verse + ACTIVE_VERSE_GROWTH
 }
 
 fn anchored_lyrics_offset(view: Pixels, item: Pixels, height: Pixels, reach: Pixels) -> Pixels {
