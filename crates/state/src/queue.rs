@@ -494,7 +494,16 @@ impl Queue {
     }
 
     pub fn append_all(&mut self, tracks: impl IntoIterator<Item = Track>, cx: &mut Context<Self>) {
-        let at = self.queued();
+        self.insert_upcoming(self.queued(), tracks, cx);
+    }
+
+    pub fn insert_upcoming(
+        &mut self,
+        gap: usize,
+        tracks: impl IntoIterator<Item = Track>,
+        cx: &mut Context<Self>,
+    ) {
+        let at = gap.min(self.queued());
         for (offset, track) in tracks.into_iter().enumerate() {
             self.upcoming.insert(at + offset, track);
         }

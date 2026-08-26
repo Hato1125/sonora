@@ -92,6 +92,8 @@ menu-make-playlist-private = Privat machen
 menu-open-album = Album öffnen
 menu-play-album = Album abspielen
 menu-add-album-to-queue = Album zur Warteschlange hinzufügen
+menu-play-artist = Künstler abspielen
+menu-add-artist-to-queue = Künstler zur Warteschlange hinzufügen
 
 # playlist editor
 playlist-name-placeholder = Name der Playlist
@@ -412,6 +414,8 @@ toast-queued-album = Album zur Warteschlange hinzugefügt
 toast-next-album = Album läuft als Nächstes
 toast-queued-playlist = Playlist zur Warteschlange hinzugefügt
 toast-next-playlist = Playlist läuft als Nächstes
+toast-queued-artist = Künstler zur Warteschlange hinzugefügt
+toast-next-artist = Künstler läuft als Nächstes
 toast-queue-failed = Das konnte nicht zur Warteschlange hinzugefügt werden
 toast-keys-refused = Spotify gibt diesem Konto keine Wiedergabeschlüssel
 toast-sign-in-to-play = { $name } streamt nur für angemeldete Hörer

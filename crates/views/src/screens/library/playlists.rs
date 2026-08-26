@@ -6,10 +6,11 @@ use music::Playlist;
 use router::Destination;
 use state::{Library, LibraryState, Origin, Playback};
 use ui::rank::{ESSENTIAL, HANDY, NICE, SPARE};
-use ui::{Cell, ColumnSpec, GridSource, Menu, Pin, PinKind, Width};
+use ui::{Cell, ColumnSpec, GridSource, Menu, Pin, Width};
 
 use crate::shared::cells::{self, DATE, NUMBER, TRAILING};
 use crate::shared::menu::playlist_menu;
+use crate::shared::pins::Pinned as _;
 use crate::shared::text::{folded, holds};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -130,16 +131,7 @@ impl GridSource for PlaylistSource {
     }
 
     fn pin(&self, row: usize, cx: &App) -> Option<Pin> {
-        let playlist = self.playlists(cx).get(row)?;
-
-        Some(
-            Pin::new(
-                PinKind::Playlist,
-                playlist.id.clone(),
-                playlist.name.clone(),
-            )
-            .cover(playlist.cover.clone()),
-        )
+        self.playlists(cx).get(row)?.pin()
     }
 
     fn context_menu(&self, row: usize, _visible: &[PlaylistField], cx: &App) -> Option<Menu> {

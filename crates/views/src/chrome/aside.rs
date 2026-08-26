@@ -14,14 +14,15 @@ use state::{
     Sonora,
 };
 use ui::{
-    ActiveTheme as _, Button, Card, DraggedPin, Edge, Motion, Motioned as _, Pin, PinKind,
-    Pinnable as _, Popup, Scrollbar, Scroller, Spot, Text, drop_gap, drop_marker, ease_out_cubic,
-    eyebrow, mix, snapped, vacant,
+    ActiveTheme as _, Button, Card, DraggedPin, Edge, Motion, Motioned as _, Pin, Pinnable as _,
+    Popup, Scrollbar, Scroller, Spot, Text, drop_gap, drop_marker, ease_out_cubic, eyebrow, mix,
+    snapped, vacant,
 };
 
 use crate::chrome::{Chrome, section_label};
 use crate::shared::effects;
 use crate::shared::menu::ItemMenu;
+use crate::shared::pins::Pinned as _;
 
 const QUEUE: &str = "queue";
 const FADE: f32 = 96.;
@@ -377,6 +378,11 @@ impl Aside {
         }));
     }
 
+    fn enqueue(&mut self, pin: &Pin, gap: Option<usize>, cx: &mut Context<Self>) {
+        self.playback
+            .update(cx, |playback, cx| playback.enqueue_pin(pin, gap, cx));
+    }
+
     fn dismiss_menu(&mut self, cx: &mut Context<Self>) {
         self.track_menu.reset(cx);
         self.context_menu = None;
@@ -401,10 +407,7 @@ impl Aside {
             QueuePosition::Current => theme.primary,
             QueuePosition::Upcoming(_) | QueuePosition::Similar(_) => theme.foreground,
         };
-        let pin = track
-            .id
-            .clone()
-            .map(|id| Pin::new(PinKind::Song, id, track.name.clone()).cover(track.cover.clone()));
+        let pin = track.pin();
         let menu_track = track.clone();
 
         let card = Card::new(
@@ -484,10 +487,10 @@ impl Aside {
                     let Some(gap) = drop_gap(event.bounds, event.event.position, target) else {
                         return;
                     };
-                    let Some(held) = event.drag(cx).spot(QUEUE) else {
-                        return;
+                    let gap = match event.drag(cx).spot(QUEUE) {
+                        Some(held) => (gap != held.index && gap != held.index + 1).then_some(gap),
+                        None => Some(gap),
                     };
-                    let gap = (gap != held.index && gap != held.index + 1).then_some(gap);
                     if this.drop_gap != gap {
                         this.drop_gap = gap;
                         cx.notify();
@@ -495,16 +498,20 @@ impl Aside {
                 }),
             )
             .on_drop(cx.listener(move |this, dragged: &DraggedPin, _, cx| {
-                let Some(held) = dragged.spot(QUEUE) else {
-                    return;
-                };
-                if let Some(gap) = this.drop_gap.take() {
-                    this.queue.update(cx, |queue, cx| {
-                        if queue.revision() == held.revision {
-                            queue.move_upcoming_to_gap(held.index, gap, cx);
+                let gap = this.drop_gap.take();
+                match dragged.spot(QUEUE) {
+                    Some(held) => {
+                        if let Some(gap) = gap {
+                            this.queue.update(cx, |queue, cx| {
+                                if queue.revision() == held.revision {
+                                    queue.move_upcoming_to_gap(held.index, gap, cx);
+                                }
+                            });
                         }
-                    });
+                    }
+                    None => this.enqueue(&dragged.pin, gap, cx),
                 }
+                cx.notify();
             }))
         })
         .when_some(similar_index, |this, target| {
@@ -1181,11 +1188,21 @@ impl Render for Aside {
             .child(self.header(sections, cx))
             .child(
                 div()
+                    .id("queue-drop")
                     .relative()
                     .flex()
                     .flex_col()
                     .flex_1()
                     .min_h_0()
+                    .when(self.tab == SideTab::Queue, |this| {
+                        this.on_drop(cx.listener(|this, dragged: &DraggedPin, _, cx| {
+                            let gap = this.drop_gap.take();
+                            if dragged.spot(QUEUE).is_none() {
+                                this.enqueue(&dragged.pin, gap, cx);
+                            }
+                            cx.notify();
+                        }))
+                    })
                     .when(self.tab == SideTab::Lyrics, |this| {
                         this.child(self.verses(window, cx))
                     })

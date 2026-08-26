@@ -83,12 +83,12 @@ partial translation is welcome — pick a language below and fill in what it lac
 
 | Language | Translated | Coverage |
 | --- | --- | --- |
-| English (`en-US`) | 395/395 | 100% |
-| Deutsch (`de`) | 364/395 | 92% |
-| Français (`fr`) | 364/395 | 92% |
-| Русский (`ru`) | 383/395 | 97% |
-| Українська (`uk`) | 383/395 | 97% |
-| Polski (`pl`) | 383/395 | 97% |
+| English (`en-US`) | 399/399 | 100% |
+| Deutsch (`de`) | 368/399 | 92% |
+| Français (`fr`) | 368/399 | 92% |
+| Русский (`ru`) | 387/399 | 97% |
+| Українська (`uk`) | 387/399 | 97% |
+| Polski (`pl`) | 387/399 | 97% |
 
 <!-- i18n:end -->
 

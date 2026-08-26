@@ -8,6 +8,7 @@ const CHIP: Pixels = px(240.);
 const NUDGE: Pixels = px(8.);
 const ART: Pixels = px(20.);
 const MARKER: Pixels = px(2.);
+const SLACK: Pixels = px(10.);
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Edge {
@@ -16,7 +17,8 @@ pub enum Edge {
 }
 
 pub fn drop_gap(bounds: Bounds<Pixels>, position: Point<Pixels>, index: usize) -> Option<usize> {
-    if !bounds.contains(&position) {
+    let slack = SLACK.min(bounds.size.height / 2.);
+    if !bounds.dilate(slack).contains(&position) {
         return None;
     }
 

@@ -1,9 +1,7 @@
 use std::rc::Rc;
 
 use gpui::prelude::*;
-use gpui::{
-    App, Div, ElementId, Hsla, MouseButton, Pixels, SharedString, StyleRefinement, Window, div,
-};
+use gpui::{App, Div, ElementId, Hsla, Pixels, SharedString, StyleRefinement, Window, div};
 
 const RAMP: f32 = 6.;
 const DEPTH: usize = 5;
@@ -122,9 +120,11 @@ impl RenderOnce for InlineLinks {
                             let handler = on_click.clone();
                             item.hover(|style| style.underline())
                                 .cursor_pointer()
-                                .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                                 .when_some(handler, |this, handler| {
-                                    this.on_click(move |_, _, cx| handler(value.clone(), cx))
+                                    this.on_click(move |_, _, cx| {
+                                        cx.stop_propagation();
+                                        handler(value.clone(), cx);
+                                    })
                                 })
                                 .child(label)
                         }

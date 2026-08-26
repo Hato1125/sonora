@@ -5,11 +5,11 @@ use gpui::{App, ClickEvent, Entity, MouseDownEvent, Pixels, SharedString, Window
 use music::Track;
 use state::{Playback, PlaybackState};
 use ui::{
-    ActiveTheme as _, Button, Card, Pin, PinKind, Pinnable, Text, clock, eyebrow, heading, snapped,
-    vacant,
+    ActiveTheme as _, Button, Card, Pinnable, Text, clock, eyebrow, heading, snapped, vacant,
 };
 
 use crate::shared::cells;
+use crate::shared::pins::Pinned as _;
 
 const ROWS: usize = 5;
 const MAX_COLUMNS: usize = 3;
@@ -297,10 +297,7 @@ fn pick(
         false => theme.foreground,
     };
     let playing = current && playback.read(cx).state() == &PlaybackState::Playing;
-    let pin = track
-        .id
-        .clone()
-        .map(|id| Pin::new(PinKind::Song, id, track.name.clone()).cover(track.cover.clone()));
+    let pin = track.pin();
     let pressed = {
         let tracks = tracks.clone();
         let playback = playback.clone();

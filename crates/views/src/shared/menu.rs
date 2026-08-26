@@ -1,11 +1,28 @@
 use gpui::{App, ClipboardItem, Entity, Styled as _};
 use i18n::t;
-use music::{Album, MediaKind, Playlist, Track};
+use music::{Album, MediaKind, Playlist, SavedArtist, Track};
 use router::{Destination, navigate};
 use state::{Detail, LibraryState, Playback, Sonora};
 use ui::{Menu, MenuItem, Pin, PinKind, Scrollbar, SubmenuState};
 
 use crate::shared::playlist_editor::{Edit, PlaylistEditor};
+
+#[derive(Clone)]
+pub(crate) enum Item {
+    Album(Album),
+    Playlist(Playlist),
+    Artist(SavedArtist),
+}
+
+impl Item {
+    pub(crate) fn menu(&self, playback: Entity<Playback>, opened_here: bool, cx: &App) -> Menu {
+        match self {
+            Self::Album(album) => album_menu(album.clone(), playback, opened_here, cx),
+            Self::Playlist(playlist) => playlist_menu(playlist.clone(), playback, opened_here, cx),
+            Self::Artist(artist) => artist_menu(artist.clone(), playback, opened_here, cx),
+        }
+    }
+}
 
 #[derive(Clone, Copy, Default)]
 pub(crate) struct TrackColumns {
@@ -400,12 +417,86 @@ fn album_library_item(album: Album, cx: &App) -> MenuItem {
     }
 }
 
-pub(crate) fn artist_menu(artist_id: String) -> Menu {
-    Menu::new("artist-context-menu").item(
-        MenuItem::new("copy-artist-link", t!("menu-copy-link"))
-            .icon("icons/link.svg")
-            .on_click(move |_, _, cx| copy_link(MediaKind::Artist, &artist_id, cx)),
+pub(crate) fn artist_menu(
+    artist: SavedArtist,
+    playback: Entity<Playback>,
+    opened_here: bool,
+    cx: &App,
+) -> Menu {
+    let artist_id = artist.id.clone();
+    let opened = artist_id.clone();
+    let played = artist_id.clone();
+    let next = artist_id.clone();
+    let queued = artist_id.clone();
+    let copied = artist_id.clone();
+    let playing = playback.clone();
+    let nexting = playback.clone();
+    let queueing = playback;
+
+    let open = match opened_here {
+        true => Vec::new(),
+        false => vec![
+            MenuItem::new("open-artist", t!("menu-go-to-artist"))
+                .icon("icons/info.svg")
+                .on_click(move |_, _, cx| navigate(Destination::Artist(opened.clone().into()), cx)),
+        ],
+    };
+
+    sections(
+        Menu::new("artist-context-menu"),
+        vec![
+            open,
+            vec![
+                MenuItem::new("play-artist", t!("menu-play-artist"))
+                    .icon("icons/play.svg")
+                    .on_click(move |_, _, cx| {
+                        playing.update(cx, |playback, cx| playback.play_artist(&played, cx));
+                    }),
+                MenuItem::new("play-artist-next", t!("menu-play-next"))
+                    .icon("icons/list-plus.svg")
+                    .on_click(move |_, _, cx| {
+                        nexting.update(cx, |playback, cx| playback.play_artist_next(&next, cx));
+                    }),
+                MenuItem::new("enqueue-artist", t!("menu-add-artist-to-queue"))
+                    .icon("icons/list-end.svg")
+                    .on_click(move |_, _, cx| {
+                        queueing.update(cx, |playback, cx| playback.enqueue_artist(&queued, cx));
+                    }),
+            ],
+            artist_library_item(artist, cx).into_iter().collect(),
+            vec![
+                MenuItem::new("copy-artist-link", t!("menu-copy-link"))
+                    .icon("icons/link.svg")
+                    .on_click(move |_, _, cx| copy_link(MediaKind::Artist, &copied, cx)),
+            ],
+        ],
     )
+}
+
+fn artist_library_item(artist: SavedArtist, cx: &App) -> Option<MenuItem> {
+    if music::is_local_id(&artist.id) {
+        return None;
+    }
+    let library = Sonora::global(cx).library.clone();
+    let followed = library.read(cx).saved_artist(&artist.id);
+    let item = MenuItem::new(
+        "toggle-artist-library",
+        match followed {
+            true => t!("artist-unfollow"),
+            false => t!("artist-follow"),
+        },
+    )
+    .icon(match followed {
+        true => "icons/heart-off.svg",
+        false => "icons/heart.svg",
+    });
+
+    Some(match library.read(cx).pending_artist(&artist.id) {
+        true => item.disabled(),
+        false => item.on_click(move |_, _, cx| {
+            library.update(cx, |library, cx| library.toggle_artist(artist.clone(), cx));
+        }),
+    })
 }
 
 pub(crate) fn playlist_menu(
@@ -526,11 +617,29 @@ pub(crate) fn item_menu(
             .playlist(&pin.id)
             .cloned()
             .map(|playlist| playlist_menu(playlist, playback.clone(), false, cx)),
-        PinKind::Artist => Some(artist_menu(pin.id.clone())),
+        PinKind::Artist => Some(artist_menu(
+            library
+                .read(cx)
+                .artist(&pin.id)
+                .cloned()
+                .unwrap_or_else(|| pinned_artist(pin)),
+            playback.clone(),
+            false,
+            cx,
+        )),
         PinKind::Song => saved_track(&pin.id, cx).map(|track| tracks.for_track(&track, cx)),
     };
 
     built.unwrap_or_else(|| sparse_menu(pin, playback))
+}
+
+pub(crate) fn pinned_artist(pin: &Pin) -> SavedArtist {
+    SavedArtist {
+        id: pin.id.clone(),
+        name: pin.title.clone(),
+        cover: pin.cover.clone(),
+        added_at: None,
+    }
 }
 
 fn sparse_menu(pin: &Pin, playback: Entity<Playback>) -> Menu {
@@ -607,10 +716,20 @@ fn transport_items(pin: &Pin, playback: Entity<Playback>) -> Vec<MenuItem> {
                 }),
         ],
         PinKind::Artist => vec![
-            MenuItem::new("play-pin", t!("common-play"))
+            MenuItem::new("play-pin", t!("menu-play-artist"))
                 .icon("icons/play.svg")
                 .on_click(move |_, _, cx| {
                     playback.update(cx, |playback, cx| playback.play_artist(&played, cx));
+                }),
+            MenuItem::new("play-pin-next", t!("menu-play-next"))
+                .icon("icons/list-plus.svg")
+                .on_click(move |_, _, cx| {
+                    nexting.update(cx, |playback, cx| playback.play_artist_next(&next, cx));
+                }),
+            MenuItem::new("enqueue-pin", t!("menu-add-artist-to-queue"))
+                .icon("icons/list-end.svg")
+                .on_click(move |_, _, cx| {
+                    queueing.update(cx, |playback, cx| playback.enqueue_artist(&queued, cx));
                 }),
         ],
         PinKind::Song => vec![

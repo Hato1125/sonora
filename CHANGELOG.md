@@ -9,6 +9,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Right-clicking an artist now offers Play artist, Play next, Add artist to queue, Follow and Copy
+  link, wherever the artist appears. It only ever offered Copy link before.
+- Albums and playlists on Home and on a genre page answer a right-click with the same menu they
+  have in Your Library, so a card and a row no longer disagree about what you can do with an item.
+- The song page and the now-playing artwork in the player bar answer a right-click with the track
+  menu. The song page had no context menu at all, and the artwork ignored the click even though the
+  title beside it did not.
+- Songs, albums, playlists and artists can be dropped straight onto the queue. Drop between two
+  queued songs to slot them in there, or anywhere else in the pane to add them at the end.
 - Sonora tells you when a newer version is out. On Windows it asks GitHub once at startup and, if
   a release is newer than the running build, floats a card in the top-left corner with the new
   version number, a link to what changed, and a choice between Later and Update. Update downloads
@@ -37,6 +46,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Rows in the list view of Albums, Playlists and Artists can be dragged by their name. The name
+  column swallowed the press, so the only place a row could be picked up from was its cover.
+- Dropping something in the space between two pinned items in the sidebar, or between two queued
+  songs, puts it there instead of at the end.
 - The minimize and close buttons work on Windows, where a click on either did nothing. Maximize is
   still handed to Windows itself, which is what lets it restore a maximized window and open the
   Snap Layouts flyout on hover.

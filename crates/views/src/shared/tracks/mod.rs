@@ -17,13 +17,11 @@ use jiff::Timestamp;
 use music::Track;
 use router::Destination;
 use state::{Detail, Library, Playback, PlaybackState, Sonora};
-use ui::{
-    Button, Cell, ColumnSpec, GridSource, GridState, Menu, Pin, PinKind, ROW_GROUP, Scrollbar,
-    clock,
-};
+use ui::{Button, Cell, ColumnSpec, GridSource, GridState, Menu, Pin, ROW_GROUP, Scrollbar, clock};
 
 use crate::shared::cells;
 use crate::shared::hero::release_date_label;
+use crate::shared::pins::Pinned as _;
 
 pub(crate) use columns::{LIBRARY_COLUMNS, TrackField, album_columns, artist_columns};
 pub(crate) use sieve::TrackSieve;
@@ -295,6 +293,10 @@ impl TrackSource {
     pub(crate) fn at(&self, row: usize, cx: &App) -> Option<Track> {
         self.provider.tracks(cx).get(row).cloned()
     }
+
+    pub(crate) fn menu(&self) -> &ItemMenu {
+        &self.menu
+    }
 }
 
 impl GridSource for TrackSource {
@@ -348,10 +350,7 @@ impl GridSource for TrackSource {
     }
 
     fn pin(&self, row: usize, cx: &App) -> Option<Pin> {
-        let track = self.provider.tracks(cx).get(row)?;
-        let id = track.id.clone()?;
-
-        Some(Pin::new(PinKind::Song, id, track.name.clone()).cover(track.cover.clone()))
+        self.provider.tracks(cx).get(row)?.pin()
     }
 
     fn cell(&self, cell: Cell<TrackField>, cx: &mut App) -> AnyElement {

@@ -1,5 +1,4 @@
 use std::future::Future;
-use std::pin::Pin;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -9,8 +8,9 @@ use music::{
     MusicApi, PlaybackConfig, PlaybackEvent as BackendEvent, PlaybackEvents, PlaybackFactory,
     Player, Track,
 };
+use ui::{Pin, PinKind};
 
-type Fetch = Pin<Box<dyn Future<Output = Result<Vec<Track>>> + Send>>;
+type Fetch = std::pin::Pin<Box<dyn Future<Output = Result<Vec<Track>>> + Send>>;
 
 #[derive(Clone, Copy, PartialEq)]
 enum Refusal {
@@ -39,6 +39,17 @@ impl Start {
 enum QueuePlacement {
     Next,
     End,
+    Gap(usize),
+}
+
+impl QueuePlacement {
+    fn toast(self, source: &str) -> Option<String> {
+        match self {
+            Self::Next => Some(format!("toast-next-{source}")),
+            Self::End => Some(format!("toast-queued-{source}")),
+            Self::Gap(_) => None,
+        }
+    }
 }
 
 use crate::queue::Queue;
@@ -457,6 +468,52 @@ impl Playback {
             .update(cx, |queue, cx| queue.prepend_all(tracks, cx));
     }
 
+    pub fn insert_all(&mut self, tracks: Vec<Track>, gap: usize, cx: &mut Context<Self>) {
+        if tracks.is_empty() {
+            return;
+        }
+        if self.queue.read(cx).current().is_none() {
+            self.begin(tracks, 0, None, cx);
+            return;
+        }
+        self.queue
+            .update(cx, |queue, cx| queue.insert_upcoming(gap, tracks, cx));
+    }
+
+    pub fn enqueue_pin(&mut self, pin: &Pin, gap: Option<usize>, cx: &mut Context<Self>) {
+        let placement = QueuePlacement::Gap(gap.unwrap_or(usize::MAX));
+        let id = pin.id.clone();
+
+        match pin.kind {
+            PinKind::Song => {
+                let track = id.clone();
+                self.enqueue_from("track", &id, placement, cx, move |client| {
+                    Box::pin(async move { client.track(&track).await.map(|track| vec![track]) })
+                });
+            }
+            PinKind::Album => {
+                let album = id.clone();
+                self.enqueue_from("album", &id, placement, cx, move |client| {
+                    Box::pin(async move { client.album_tracks(&album).await })
+                });
+            }
+            PinKind::Playlist => {
+                let playlist = id.clone();
+                self.enqueue_from("playlist", &id, placement, cx, move |client| {
+                    Box::pin(async move { client.playlist_tracks(&playlist).await })
+                });
+            }
+            PinKind::Artist => {
+                let artist = id.clone();
+                self.enqueue_from("artist", &id, placement, cx, move |client| {
+                    Box::pin(
+                        async move { client.artist(&artist).await.map(|found| found.top_tracks) },
+                    )
+                });
+            }
+        }
+    }
+
     pub fn enqueue_album(&mut self, album: &str, cx: &mut Context<Self>) {
         let id = album.to_owned();
         let album = album.to_owned();
@@ -485,6 +542,22 @@ impl Playback {
         let origin = Origin::Artist(artist.to_owned());
         let artist = artist.to_owned();
         self.gather(origin, cx, move |client| {
+            Box::pin(async move { client.artist(&artist).await.map(|found| found.top_tracks) })
+        });
+    }
+
+    pub fn play_artist_next(&mut self, artist: &str, cx: &mut Context<Self>) {
+        let id = artist.to_owned();
+        let artist = artist.to_owned();
+        self.enqueue_from("artist", &id, QueuePlacement::Next, cx, move |client| {
+            Box::pin(async move { client.artist(&artist).await.map(|found| found.top_tracks) })
+        });
+    }
+
+    pub fn enqueue_artist(&mut self, artist: &str, cx: &mut Context<Self>) {
+        let id = artist.to_owned();
+        let artist = artist.to_owned();
+        self.enqueue_from("artist", &id, QueuePlacement::End, cx, move |client| {
             Box::pin(async move { client.artist(&artist).await.map(|found| found.top_tracks) })
         });
     }
@@ -548,12 +621,9 @@ impl Playback {
                         match placement {
                             QueuePlacement::Next => this.play_next_all(tracks, cx),
                             QueuePlacement::End => this.enqueue_all(tracks, cx),
+                            QueuePlacement::Gap(gap) => this.insert_all(tracks, gap, cx),
                         }
-                        if queued {
-                            let key = match placement {
-                                QueuePlacement::Next => format!("toast-next-{source}"),
-                                QueuePlacement::End => format!("toast-queued-{source}"),
-                            };
+                        if queued && let Some(key) = placement.toast(source) {
                             Toasts::show(Outcome::Done, key, cx);
                         }
                     }

@@ -92,6 +92,8 @@ menu-make-playlist-private = Rendre privée
 menu-open-album = Ouvrir l'album
 menu-play-album = Lire l'album
 menu-add-album-to-queue = Ajouter l'album à la file d'attente
+menu-play-artist = Lire l'artiste
+menu-add-artist-to-queue = Ajouter l'artiste à la file d'attente
 
 # playlist editor
 playlist-name-placeholder = Nom de la playlist
@@ -412,6 +414,8 @@ toast-queued-album = Album ajouté à la file d'attente
 toast-next-album = L'album sera lu juste après
 toast-queued-playlist = Playlist ajoutée à la file d'attente
 toast-next-playlist = La playlist sera lue juste après
+toast-queued-artist = Artiste ajouté à la file d'attente
+toast-next-artist = L'artiste sera lu juste après
 toast-queue-failed = Impossible d'ajouter cela à la file d'attente
 toast-keys-refused = Spotify n'accorde pas de clés de lecture à ce compte
 toast-sign-in-to-play = { $name } ne diffuse qu'aux auditeurs connectés
