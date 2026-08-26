@@ -1,7 +1,7 @@
 use gpui::prelude::*;
 use gpui::{
-    AnyElement, App, Context, Div, ElementId, Entity, FontWeight, Pixels, ScrollHandle,
-    ScrollWheelEvent, SharedString, WeakEntity, Window, div, point, px,
+    AnyElement, App, Context, Div, ElementId, Entity, FontWeight, MouseDownEvent, Pixels, Point,
+    ScrollHandle, ScrollWheelEvent, SharedString, WeakEntity, Window, div, point, px,
 };
 use std::cell::Cell;
 use std::rc::Rc;
@@ -10,11 +10,13 @@ use music::{Album, GenreItem, GenreSection, Playlist};
 use router::{Destination, navigate};
 use state::Playback;
 use ui::{
-    ActiveTheme as _, Button, Card, Deck, Glide, Mode, Skeleton, Text, Viewport, heading, snapped,
+    ActiveTheme as _, Button, Card, Deck, Glide, Mode, Popup, Skeleton, Text, Viewport, heading,
+    snapped,
 };
 
 use crate::shared::album_grid::CardGrid;
 use crate::shared::cards;
+use crate::shared::menu::Item;
 
 const PLATE: Pixels = px(260.);
 const LANES: usize = 5;
@@ -35,6 +37,7 @@ pub(crate) struct Shelves {
     playback: Entity<Playback>,
     rails: Vec<Rail>,
     above: Rc<Cell<Option<Pixels>>>,
+    context_menu: Option<(Item, Point<Pixels>)>,
 }
 
 impl Shelves {
@@ -44,6 +47,7 @@ impl Shelves {
             playback,
             rails: Vec::new(),
             above: Rc::new(Cell::new(None)),
+            context_menu: None,
         }
     }
 
@@ -80,6 +84,20 @@ impl Shelves {
 
     pub(crate) fn reset(&mut self) {
         self.rails.clear();
+        self.context_menu = None;
+    }
+
+    fn popup(&self, cx: &mut Context<Self>) -> Option<Popup> {
+        let (item, at) = self.context_menu.clone()?;
+
+        Some(
+            Popup::new(at, item.menu(self.playback.clone(), false, cx)).on_close(cx.listener(
+                |this, _, _, cx| {
+                    this.context_menu = None;
+                    cx.notify();
+                },
+            )),
+        )
     }
 
     pub(crate) fn render(
@@ -105,7 +123,7 @@ impl Shelves {
         let me = cx.entity().downgrade();
         let above = self.above.clone();
 
-        Deck::new(self.tag("stack", 0))
+        let stack = Deck::new(self.tag("stack", 0))
             .viewport(viewport)
             .rows(heights)
             .gap(STACK_GAP)
@@ -117,15 +135,20 @@ impl Shelves {
                 let Some(section) = sections.get(place) else {
                     return div().into_any_element();
                 };
+                let holder = view.downgrade();
                 let shelves = view.read(cx);
 
                 match mode {
-                    Mode::Cards => {
-                        shelves.rail(place, &sections, width, &view.downgrade(), window, cx)
-                    }
-                    Mode::List => shelves.lane(place, section, width, window, cx),
+                    Mode::Cards => shelves.rail(place, &sections, width, &holder, window, cx),
+                    Mode::List => shelves.lane(place, section, width, &holder, window, cx),
                 }
-            })
+            });
+
+        div()
+            .relative()
+            .w_full()
+            .child(stack)
+            .children(self.popup(cx))
             .into_any_element()
     }
 
@@ -168,6 +191,7 @@ impl Shelves {
         place: usize,
         section: &GenreSection,
         width: Pixels,
+        me: &WeakEntity<Self>,
         window: &Window,
         cx: &App,
     ) -> AnyElement {
@@ -177,7 +201,7 @@ impl Shelves {
             .iter()
             .take(lanes * ROWS)
             .enumerate()
-            .map(|(index, item)| self.card(place * 100 + index, item, None, cx))
+            .map(|(index, item)| self.card(place * 100 + index, item, None, me, cx))
             .collect();
 
         div()
@@ -273,8 +297,14 @@ impl Shelves {
                                     return div().into_any_element();
                                 };
 
-                                view.read(cx)
-                                    .card(place * 100 + index, item, Some(card), cx)
+                                let holder = view.downgrade();
+                                view.read(cx).card(
+                                    place * 100 + index,
+                                    item,
+                                    Some(card),
+                                    &holder,
+                                    cx,
+                                )
                             }),
                     ),
             )
@@ -336,10 +366,17 @@ impl Shelves {
             })
     }
 
-    fn card(&self, id: usize, item: &GenreItem, tile: Option<Pixels>, cx: &App) -> AnyElement {
+    fn card(
+        &self,
+        id: usize,
+        item: &GenreItem,
+        tile: Option<Pixels>,
+        me: &WeakEntity<Self>,
+        cx: &App,
+    ) -> AnyElement {
         match item {
-            GenreItem::Playlist(playlist) => self.playlist_card(id, playlist, tile, cx),
-            GenreItem::Album(album) => self.album_card(id, album, tile, cx),
+            GenreItem::Playlist(playlist) => self.playlist_card(id, playlist, tile, me, cx),
+            GenreItem::Album(album) => self.album_card(id, album, tile, me, cx),
             GenreItem::Genre(genre) => plate(slot("genre", id), genre, tile, cx),
         }
     }
@@ -349,17 +386,43 @@ impl Shelves {
         id: usize,
         playlist: &Playlist,
         tile: Option<Pixels>,
+        me: &WeakEntity<Self>,
         cx: &App,
     ) -> AnyElement {
         cards::playlist_card(slot("playlist", id), playlist, &self.playback, cx)
             .map(|card| dressed(card, tile, cx))
+            .menu(opener(me, Item::Playlist(playlist.clone())))
             .into_any_element()
     }
 
-    fn album_card(&self, id: usize, album: &Album, tile: Option<Pixels>, cx: &App) -> AnyElement {
+    fn album_card(
+        &self,
+        id: usize,
+        album: &Album,
+        tile: Option<Pixels>,
+        me: &WeakEntity<Self>,
+        cx: &App,
+    ) -> AnyElement {
         cards::album_card(slot("album", id), album, &self.playback, cx)
             .map(|card| dressed(card, tile, cx))
+            .menu(opener(me, Item::Album(album.clone())))
             .into_any_element()
+    }
+}
+
+fn opener(
+    me: &WeakEntity<Shelves>,
+    item: Item,
+) -> impl Fn(&MouseDownEvent, &mut Window, &mut App) + 'static {
+    let me = me.clone();
+
+    move |event: &MouseDownEvent, _: &mut Window, cx: &mut App| {
+        let at = event.position;
+        me.update(cx, |this, cx| {
+            this.context_menu = Some((item.clone(), at));
+            cx.notify();
+        })
+        .ok();
     }
 }
 
