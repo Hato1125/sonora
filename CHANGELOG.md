@@ -48,6 +48,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Imported tracks run into one another with no gap. The next track was already decoded and waiting
+  behind the current one, but Sonora tore it down and started it again the moment the song changed,
+  so every boundary cost a stumble.
 - Spotify playback on Windows no longer hisses in the background, which was loudest at low volume.
   Sonora asked the output device for a stream it could not give and settled for the poorest sample
   format on offer instead of the one the device already runs at, so every track was played through
