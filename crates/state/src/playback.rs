@@ -1187,15 +1187,26 @@ impl Playback {
         self.restart_engine(cx);
     }
 
+    fn local_active(&self) -> bool {
+        self.track
+            .as_ref()
+            .and_then(|track| track.id.as_deref())
+            .is_some_and(music::is_local_id)
+    }
+
     fn restart_engine(&mut self, cx: &mut Context<Self>) {
-        if self.engine.is_some() {
-            let playback = self.session.read(cx).playback();
-            if let Some(playback) = playback {
-                self.start_engine(playback, cx);
-                return;
-            }
+        let playback = match self.engine.is_some() {
+            true => self.session.read(cx).playback(),
+            false => None,
+        };
+        let Some(playback) = playback else {
+            return cx.notify();
+        };
+
+        match self.local_active() {
+            true => self.start_engine(playback, cx),
+            false => self.rebind(playback, cx),
         }
-        cx.notify();
     }
 
     fn ask_for_reconnect(&mut self, cx: &mut Context<Self>) -> bool {
@@ -1237,12 +1248,7 @@ impl Playback {
         self.listen(events, false, cx);
         self.engine = Some(engine);
         self.refused = None;
-        let local_active = self
-            .track
-            .as_ref()
-            .and_then(|track| track.id.as_deref())
-            .is_some_and(music::is_local_id);
-        if !local_active {
+        if !self.local_active() {
             self.state = PlaybackState::Idle;
             self.position = Duration::ZERO;
             self.clock.reset(Duration::ZERO, false);
@@ -1283,12 +1289,7 @@ impl Playback {
     }
 
     fn on_backend_event(&mut self, event: BackendEvent, local: bool, cx: &mut Context<Self>) {
-        let active = self
-            .track
-            .as_ref()
-            .and_then(|track| track.id.as_deref())
-            .is_some_and(music::is_local_id);
-        if local != active {
+        if local != self.local_active() {
             return;
         }
         match event {
@@ -1379,12 +1380,7 @@ impl Playback {
         self.task = None;
         self.engine = None;
 
-        let local_active = self
-            .track
-            .as_ref()
-            .and_then(|track| track.id.as_deref())
-            .is_some_and(music::is_local_id);
-        if !local_active {
+        if !self.local_active() {
             self.load = None;
             self.fetch = None;
             self.enqueue = None;
