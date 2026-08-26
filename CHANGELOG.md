@@ -48,6 +48,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Turning volume normalisation or gapless playback on or off keeps the song you are on. Both
+  settings can only take effect on a fresh player, so Sonora used to drop the track and send you
+  back to nothing; it now rebuilds the player and puts the song back where it was. A song that was
+  paused stays paused rather than starting itself.
 - YouTube tracks no longer leave a short silence between them. The audio YouTube serves carries a
   fraction of a second of encoder padding at each end, which nothing in the decoding stack was
   removing, so it played as a gap however early the next track was fetched. Sonora now reads how
