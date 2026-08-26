@@ -48,6 +48,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- A word-by-word lyric line never breaks in the middle of a word. Each word is laid out on its own
+  so it would be squeezed rather than moved down when it did not fit, splitting "upon" across two
+  lines as "u" and "pon". A word that does not fit now moves to the next line whole.
 - Turning volume normalisation or gapless playback on or off keeps the song you are on. Both
   settings can only take effect on a fresh player, so Sonora used to drop the track and send you
   back to nothing; it now rebuilds the player and puts the song back where it was. A song that was

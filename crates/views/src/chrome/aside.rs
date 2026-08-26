@@ -1334,6 +1334,7 @@ fn karaoke_lane(
         let landing = ((1. - highlighted) / LANDING).min(1.);
         div()
             .relative()
+            .flex_none()
             .whitespace_nowrap()
             .child(text.clone())
             .when(highlighted > 0., |this| {
