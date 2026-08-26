@@ -3,15 +3,17 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use gpui::{Context, Task};
+use gpui::{
+    App, Bounds, Context, Pixels, Size, Subscription, Task, Window, WindowBounds, point, px, size,
+};
 use music::WritingSystem;
 use serde::{Deserialize, Serialize};
 use ui::{
     Layout, Look, Mode, Pace, Pin, Rounding, Sorting, Stillness, Sweep, ThemeKind, ThemeOverrides,
 };
 
-use crate::Repeat;
 use crate::queue::{Resume, gap_target};
+use crate::{Repeat, Sonora};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -73,6 +75,52 @@ impl Default for RomanizationScripts {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+struct Frame {
+    x: f32,
+    y: f32,
+    width: f32,
+    height: f32,
+    maximized: bool,
+}
+
+impl Frame {
+    fn of(window: &Window) -> Self {
+        let placement = window.window_bounds();
+        let bounds = placement.get_bounds();
+        Self {
+            x: bounds.origin.x / px(1.),
+            y: bounds.origin.y / px(1.),
+            width: bounds.size.width / px(1.),
+            height: bounds.size.height / px(1.),
+            maximized: matches!(placement, WindowBounds::Maximized(_)),
+        }
+    }
+
+    fn sane(self) -> bool {
+        [self.x, self.y, self.width, self.height]
+            .iter()
+            .all(|it| it.is_finite())
+            && self.width > 0.
+            && self.height > 0.
+    }
+
+    fn placement(self, least: Size<Pixels>) -> WindowBounds {
+        let bounds = Bounds {
+            origin: point(px(self.x), px(self.y)),
+            size: size(
+                px(self.width).max(least.width),
+                px(self.height).max(least.height),
+            ),
+        };
+        match self.maximized {
+            true => WindowBounds::Maximized(bounds),
+            false => WindowBounds::Windowed(bounds),
+        }
+    }
+}
+
 const SAVE_DELAY: Duration = Duration::from_millis(300);
 const DEFAULT_VOLUME: f32 = 0.7;
 const DEFAULT_SIDEBAR_WIDTH: f32 = 220.;
@@ -112,6 +160,8 @@ struct Values {
     pins: Pins,
     #[serde(skip_serializing_if = "Option::is_none")]
     resume: Option<Resume>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    window: Option<Frame>,
     appearance: Appearance,
 }
 
@@ -159,6 +209,7 @@ impl Default for Values {
             views: HashMap::new(),
             pins: Pins::new(),
             resume: None,
+            window: None,
             appearance: Appearance::default(),
         }
     }
@@ -197,6 +248,7 @@ pub struct AppSettings {
     values: Values,
     path: PathBuf,
     save: Option<Task<()>>,
+    watch: Option<Subscription>,
 }
 
 impl AppSettings {
@@ -219,6 +271,7 @@ impl AppSettings {
             values,
             path,
             save: None,
+            watch: None,
         }
     }
 
@@ -618,6 +671,22 @@ impl AppSettings {
         self.schedule_save(cx);
     }
 
+    pub fn watch_window(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.keep_frame(window, cx);
+        self.watch = Some(cx.observe_window_bounds(window, |this, window, cx| {
+            this.keep_frame(window, cx);
+        }));
+    }
+
+    fn keep_frame(&mut self, window: &Window, cx: &mut Context<Self>) {
+        let frame = Frame::of(window);
+        if !frame.sane() || self.values.window == Some(frame) {
+            return;
+        }
+        self.values.window = Some(frame);
+        self.schedule_save(cx);
+    }
+
     fn schedule_save(&mut self, cx: &mut Context<Self>) {
         cx.notify();
         self.save = Some(cx.spawn(async move |this, cx| {
@@ -646,6 +715,25 @@ impl AppSettings {
             log::error!("settings: cannot write {}: {error}", self.path.display());
         }
     }
+}
+
+pub fn window_placement(least: Size<Pixels>, cx: &App) -> Option<WindowBounds> {
+    let frame = Sonora::global(cx).settings.read(cx).values.window?;
+    if !frame.sane() {
+        return None;
+    }
+
+    let placement = frame.placement(least);
+    let bounds = placement.get_bounds();
+    cx.displays()
+        .iter()
+        .any(|display| display.bounds().intersects(&bounds))
+        .then_some(placement)
+}
+
+pub fn remember_window(window: &mut Window, cx: &mut App) {
+    let settings = Sonora::global(cx).settings.clone();
+    settings.update(cx, |settings, cx| settings.watch_window(window, cx));
 }
 
 fn settings_path() -> PathBuf {
