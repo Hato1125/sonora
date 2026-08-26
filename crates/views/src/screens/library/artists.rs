@@ -112,7 +112,12 @@ impl GridSource for ArtistSource {
     }
 
     fn context_menu(&self, row: usize, _visible: &[ArtistField], cx: &App) -> Option<Menu> {
-        Some(artist_menu(self.at(row, cx)?.id))
+        Some(artist_menu(
+            self.at(row, cx)?,
+            self.playback.clone(),
+            false,
+            cx,
+        ))
     }
 
     fn cell(&self, cell: Cell<ArtistField>, cx: &mut App) -> AnyElement {

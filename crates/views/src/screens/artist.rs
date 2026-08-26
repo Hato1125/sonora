@@ -270,12 +270,12 @@ impl ArtistView {
                 let value = cells::count(count);
                 t!("artist-monthly-listeners", count = count, value = &value)
             });
-        let overflow = self.detail.read(cx).id().map(|id| {
+        let overflow = self.saved_artist(cx).map(|artist| {
             Picker::icon("artist-overflow", &self.popovers, "icons/ellipsis.svg")
                 .tooltip("common-more")
                 .large()
                 .left()
-                .menu(artist_menu(id.to_owned()))
+                .menu(artist_menu(artist, self.playback.clone(), true, cx))
         });
         let actions = div()
             .flex()
@@ -309,22 +309,26 @@ impl ArtistView {
             .into_any_element()
     }
 
-    fn follow_button(&self, cx: &App) -> Option<Button> {
-        let theme = *cx.theme();
-        let library = Sonora::global(cx).library.clone();
+    fn saved_artist(&self, cx: &App) -> Option<SavedArtist> {
         let detail = self.detail.read(cx);
-        let id = detail.id()?.to_owned();
-        if music::is_local_id(&id) {
-            return None;
-        }
         let artist = detail.artist()?;
-        let followed = library.read(cx).saved_artist(&id);
-        let target = SavedArtist {
-            id,
+
+        Some(SavedArtist {
+            id: detail.id()?.to_owned(),
             name: artist.name.clone(),
             cover: artist.cover_large.clone(),
             added_at: None,
-        };
+        })
+    }
+
+    fn follow_button(&self, cx: &App) -> Option<Button> {
+        let theme = *cx.theme();
+        let library = Sonora::global(cx).library.clone();
+        let target = self.saved_artist(cx)?;
+        if music::is_local_id(&target.id) {
+            return None;
+        }
+        let followed = library.read(cx).saved_artist(&target.id);
 
         let heart = Button::new("artist-toggle-library")
             .outline()

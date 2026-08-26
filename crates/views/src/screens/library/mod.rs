@@ -9,7 +9,7 @@ use std::rc::Rc;
 
 use crate::chrome::tools::{self, Sift, Sliders};
 use crate::chrome::{Chrome, Searchable, Toolbar, Tooled};
-use crate::shared::menu::{album_menu, artist_menu, playlist_menu};
+use crate::shared::menu::Item;
 use crate::shared::playlist_editor::{Edit, PlaylistEditor};
 
 use gpui::prelude::*;
@@ -18,7 +18,7 @@ use gpui::{
     SharedString, WeakEntity, Window, div, point, px, relative,
 };
 use i18n::t;
-use music::{Album, Playlist, Track};
+use music::Track;
 use router::{Destination, LibraryTab, navigate};
 use state::{AppSettings, Library, LibraryPart, LibraryState, Playback, PlaybackState, Sonora};
 use ui::{
@@ -77,9 +77,8 @@ const RECENT: Sort = Sort::Descending;
 #[derive(Clone)]
 enum LibraryMenu {
     Background,
-    Album(Album),
-    Playlist(Playlist),
-    Artist(String),
+    Item(Item),
+    Track(Track),
 }
 
 #[derive(Clone)]
@@ -696,6 +695,8 @@ impl LibraryView {
         .truncate();
 
         let pin = track.pin();
+        let context = track.clone();
+        let view = self.me.clone();
 
         Some(
             Card::new(("library-track", display), SharedString::from(track.name))
@@ -707,6 +708,17 @@ impl LibraryView {
                 .underline()
                 .when(track.explicit, Card::explicit)
                 .bare_meta(artists)
+                .menu(move |event, _, cx| {
+                    let Some(view) = view.upgrade() else {
+                        return;
+                    };
+                    view.update(cx, |this, cx| {
+                        this.tracks.read(cx).delegate().source().menu().reset(cx);
+                        this.context_menu =
+                            Some((LibraryMenu::Track(context.clone()), event.position));
+                        cx.notify();
+                    });
+                })
                 .when(playable, move |card| {
                     card.play(playing, move |_, _, cx| match &state {
                         Some(PlaybackState::Playing) => {
@@ -740,7 +752,8 @@ impl LibraryView {
                     return;
                 };
                 view.update(cx, |this, cx| {
-                    this.context_menu = Some((LibraryMenu::Album(album.clone()), position));
+                    this.context_menu =
+                        Some((LibraryMenu::Item(Item::Album(album.clone())), position));
                     cx.notify();
                 });
             },
@@ -766,8 +779,10 @@ impl LibraryView {
                         return;
                     };
                     view.update(cx, |this, cx| {
-                        this.context_menu =
-                            Some((LibraryMenu::Playlist(playlist.clone()), event.position));
+                        this.context_menu = Some((
+                            LibraryMenu::Item(Item::Playlist(playlist.clone())),
+                            event.position,
+                        ));
                         cx.notify();
                     });
                 })
@@ -783,7 +798,7 @@ impl LibraryView {
         cx: &App,
     ) -> Option<AnyElement> {
         let artist = self.artists.read(cx).delegate().source().at(row, cx)?;
-        let context = artist.id.clone();
+        let context = artist.clone();
         let view = self.me.clone();
 
         Some(
@@ -795,8 +810,10 @@ impl LibraryView {
                         return;
                     };
                     view.update(cx, |this, cx| {
-                        this.context_menu =
-                            Some((LibraryMenu::Artist(context.clone()), event.position));
+                        this.context_menu = Some((
+                            LibraryMenu::Item(Item::Artist(context.clone())),
+                            event.position,
+                        ));
                         cx.notify();
                     });
                 })
@@ -823,11 +840,14 @@ impl Render for LibraryView {
 
         let context_menu = self.context_menu.clone().map(|(target, position)| {
             let menu = match target {
-                LibraryMenu::Album(album) => album_menu(album, self.playback.clone(), false, cx),
-                LibraryMenu::Playlist(playlist) => {
-                    playlist_menu(playlist, self.playback.clone(), false, cx)
-                }
-                LibraryMenu::Artist(id) => artist_menu(id),
+                LibraryMenu::Item(item) => item.menu(self.playback.clone(), false, cx),
+                LibraryMenu::Track(track) => self
+                    .tracks
+                    .read(cx)
+                    .delegate()
+                    .source()
+                    .menu()
+                    .for_track(&track, cx),
                 LibraryMenu::Background => Menu::new("playlist-background-menu").item(
                     MenuItem::new("create-playlist", t!("menu-new-playlist"))
                         .icon("icons/plus.svg")

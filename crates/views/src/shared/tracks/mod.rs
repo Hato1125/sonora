@@ -293,6 +293,10 @@ impl TrackSource {
     pub(crate) fn at(&self, row: usize, cx: &App) -> Option<Track> {
         self.provider.tracks(cx).get(row).cloned()
     }
+
+    pub(crate) fn menu(&self) -> &ItemMenu {
+        &self.menu
+    }
 }
 
 impl GridSource for TrackSource {
