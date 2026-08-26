@@ -165,7 +165,7 @@ async fn engine_loop(
     mut commands: UnboundedReceiver<Command>,
     events: UnboundedSender<PlaybackEvent>,
 ) {
-    let output = match Output::open(Volume::new(config.gain), None) {
+    let output = match Output::open(Volume::new(config.gain)) {
         Ok(output) => output,
         Err(error) => {
             log::error!("playback: cannot open audio output: {error:#}");
