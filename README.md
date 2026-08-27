@@ -35,12 +35,12 @@ Stream Spotify, YouTube Music, and local files all in one **native** app.
 ## Features
 - **Spotify**, **YouTube**, and local playback.
 - Library management within supported providers.
-- Gapless playback (Spotify).
-- Synced lyrics.
-- Cross-platform support.
+- Gapless playback.
 - Audio normalization.
+- Synced/karaoke lyrics.
+- Romanization.
+- Cross-platform support.
 - Custom themes.
-- Offline local playback.
 
 ## Install
 
