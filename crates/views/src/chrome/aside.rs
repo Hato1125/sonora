@@ -42,6 +42,9 @@ const LYRICS_HORIZONTAL_INSET_REM: f32 = 1.5;
 const PINNED_SHARE: f32 = 0.25;
 const PIN: f32 = 0.3;
 const SPARE: f32 = 1.;
+// a sweep or a set of dots has nothing to say to a display running faster than
+// this, so frames past it are work with no picture to show for it
+const TICK: std::time::Duration = std::time::Duration::from_millis(8);
 const HAZE_STEPS: f32 = 8.;
 const SETTLE: std::time::Duration = std::time::Duration::from_secs(4);
 const INSTRUMENTAL_BREAK: std::time::Duration = std::time::Duration::from_secs(5);
@@ -225,6 +228,8 @@ pub(crate) struct Aside {
     lyrics_wraps: HashMap<usize, Wrapped>,
     lane_rooms: HashMap<usize, Pixels>,
     row_heights: Vec<Pixels>,
+    ticked: std::time::Instant,
+    tick: Option<Task<()>>,
 }
 
 impl Aside {
@@ -306,6 +311,8 @@ impl Aside {
             lyrics_wraps: HashMap::new(),
             lane_rooms: HashMap::new(),
             row_heights: Vec::new(),
+            ticked: std::time::Instant::now(),
+            tick: None,
         }
     }
 
@@ -347,6 +354,32 @@ impl Aside {
         self.departing_line = None;
         self.placing = true;
         self.forget_measurements();
+    }
+
+    /// Asks for the next frame of a continuous animation, no sooner than TICK
+    /// after the last one. Anything else drawing a frame carries it along, so
+    /// this only ever removes frames nobody would have seen.
+    fn tick(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let waited = self.ticked.elapsed();
+        if waited >= TICK {
+            self.ticked = std::time::Instant::now();
+            self.tick = None;
+            window.request_animation_frame();
+            return;
+        }
+        if self.tick.is_some() {
+            return;
+        }
+        let rest = TICK - waited;
+        self.tick = Some(cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(rest).await;
+            this.update(cx, |this, cx| {
+                this.tick = None;
+                this.ticked = std::time::Instant::now();
+                cx.notify();
+            })
+            .ok();
+        }));
     }
 
     fn forget_measurements(&mut self) {
@@ -761,7 +794,7 @@ impl Aside {
                     && karaoke_effects
                     && active_line.is_some_and(|index| lines[index].worded())
                 {
-                    window.request_animation_frame();
+                    self.tick(window, cx);
                 }
                 if self.previous_active_line != active_line {
                     if self.previous_active_line.is_some() {
@@ -834,7 +867,7 @@ impl Aside {
                             continue;
                         }
                         if singing && instrumental_line == Some(index) {
-                            window.request_animation_frame();
+                            self.tick(window, cx);
                         }
                         let softness = match hazing && instrumental_line != Some(index) {
                             true => haze(viewport_haze(&scroll, rendered.len(), view, blur)),

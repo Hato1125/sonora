@@ -7,6 +7,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- The word-by-word highlight and the melody-break dots ask for at most 125 frames a second rather
+  than one per refresh. On a fast display that was a third of the frames spent advancing a fill by a
+  fraction of a pixel, and anything else drawing a frame still carries the lyrics along with it, so
+  nothing moves any less smoothly.
+
 ## [0.19.1] - 2026-08-27
 
 ### Changed
