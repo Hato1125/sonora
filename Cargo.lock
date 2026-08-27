@@ -6815,6 +6815,7 @@ dependencies = [
  "raw-window-handle",
  "reqwest",
  "router",
+ "sha2",
  "state",
  "tokio",
  "ui",
