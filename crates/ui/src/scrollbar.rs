@@ -182,6 +182,13 @@ impl Scrollbar {
         self.nudges
     }
 
+    /// Records that the reader moved the view themselves. A precise scroll needs
+    /// no smoothing, but it is still theirs, and anything following the view has
+    /// to know to stop.
+    pub fn stirred(&mut self) {
+        self.nudges = self.nudges.wrapping_add(1);
+    }
+
     pub fn nudge(&mut self, window: &mut Window) {
         self.following = false;
         self.nudges = self.nudges.wrapping_add(1);
