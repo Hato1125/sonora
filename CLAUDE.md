@@ -154,6 +154,7 @@ to please the lint.
 pay nothing:
 
 ```sh
+cargo prof                             # alias for run --release --features profiler
 cargo run --features profiler          # then set any of:
 GPUI_DEBUG_OVERLAY=minimal|full        # frame time, phase split, cache hits, dirty count
 GPUI_SHOW_REPAINTS=1                   # wash every view a notify named, fading over 160ms
