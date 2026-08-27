@@ -1478,6 +1478,8 @@ impl Aside {
         if self.nudges != nudges {
             self.nudges = nudges;
             self.pinned = false;
+            self.flying = false;
+            self.drifts.clear();
             self.nudged = Some(std::time::Instant::now());
         }
         if !self.pinned {
