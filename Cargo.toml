@@ -29,8 +29,8 @@ env_logger = "0.11"
 fastrand = "2.5"
 futures = "0.3"
 fluent-bundle = "0.16"
-gpui = { path = "../../Personal/gpui-sonora/crates/gpui" }
-gpui_platform = { path = "../../Personal/gpui-sonora/crates/gpui_platform", features = [
+gpui = { git = "https://github.com/nolight132/gpui", rev = "42764632cb39ee996e30f9c5bdcfb3613b7aefe6" }
+gpui_platform = { git = "https://github.com/nolight132/gpui", rev = "42764632cb39ee996e30f9c5bdcfb3613b7aefe6", features = [
   "font-kit",
   "wayland",
   "x11",
