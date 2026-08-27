@@ -1,10 +1,10 @@
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::Duration;
 
 use gpui::prelude::*;
 use gpui::{
-    Anchor, AnyElement, AnyWindowHandle, App, Bounds, ClickEvent, Div, ElementId, Entity,
+    Anchor, AnyElement, AnyWindowHandle, App, Bounds, ClickEvent, Div, ElementId, Entity, Global,
     Interactivity, MouseButton, Pixels, Point, ScrollWheelEvent, SharedString, Size, Stateful,
     StyleRefinement, Window, anchored, deferred, div, point, px, svg,
 };
@@ -18,6 +18,8 @@ use crate::theme::ActiveTheme as _;
 
 pub const MENU_CONTEXT: &str = "Menu";
 
+const ESCAPE_KEY: &str = "escape";
+
 const SUBMENU_CLOSE_DELAY: Duration = Duration::from_millis(160);
 const SUBMENU_FALLBACK_WIDTH: Pixels = px(236.);
 const SUBMENU_TOP: Pixels = px(-14.);
@@ -28,8 +30,13 @@ const SAFE_Y: Pixels = px(12.);
 const NEAR: usize = Near::Bar as usize + 1;
 
 type Press = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
-type Dismiss = Box<dyn Fn(&(), &mut Window, &mut App) + 'static>;
+type Close = Rc<dyn Fn(&(), &mut Window, &mut App) + 'static>;
 type Action = Rc<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
+
+#[derive(Default)]
+struct Escape(Rc<RefCell<Option<Close>>>);
+
+impl Global for Escape {}
 
 #[derive(Clone, Default)]
 pub(crate) struct Trigger(Rc<Cell<Option<Bounds<Pixels>>>>);
@@ -284,7 +291,7 @@ impl MenuItem {
 pub struct Menu {
     base: Stateful<Div>,
     items: Vec<MenuItem>,
-    dismiss: Option<Dismiss>,
+    dismiss: Option<Close>,
     action: Option<Action>,
     priority: usize,
     deferred: bool,
@@ -327,7 +334,7 @@ impl Menu {
     }
 
     pub fn on_dismiss(mut self, handler: impl Fn(&(), &mut Window, &mut App) + 'static) -> Self {
-        self.dismiss = Some(Box::new(handler));
+        self.dismiss = Some(Rc::new(handler));
         self
     }
 
@@ -676,6 +683,10 @@ impl RenderOnce for Menu {
             })
             .occlude()
             .child(body);
+        if let Some(dismiss) = dismiss.clone().filter(|_| shielded) {
+            arm(dismiss, cx);
+        }
+
         let surface = match should_defer {
             true => anchored()
                 .anchor(corner)
@@ -725,6 +736,28 @@ impl RenderOnce for Menu {
             menu.into_any_element()
         }
     }
+}
+
+fn arm(close: Close, cx: &mut App) {
+    if cx.try_global::<Escape>().is_none() {
+        let armed: Rc<RefCell<Option<Close>>> = Rc::default();
+        let watched = armed.clone();
+        cx.observe_keystrokes(move |event, window, cx| {
+            if event.keystroke.key != ESCAPE_KEY {
+                return;
+            }
+            let Some(close) = watched.borrow_mut().take() else {
+                return;
+            };
+            close(&(), window, cx);
+        })
+        .detach();
+
+        cx.set_global(Escape(armed));
+    }
+
+    let armed = cx.global::<Escape>().0.clone();
+    *armed.borrow_mut() = Some(close);
 }
 
 fn grown(bounds: Bounds<Pixels>, x: Pixels, y: Pixels) -> Bounds<Pixels> {
