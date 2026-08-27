@@ -29,8 +29,8 @@ env_logger = "0.11"
 fastrand = "2.5"
 futures = "0.3"
 fluent-bundle = "0.16"
-gpui = { git = "https://github.com/nolight132/gpui", rev = "42764632cb39ee996e30f9c5bdcfb3613b7aefe6" }
-gpui_platform = { git = "https://github.com/nolight132/gpui", rev = "42764632cb39ee996e30f9c5bdcfb3613b7aefe6", features = [
+gpui = { git = "https://github.com/nolight132/gpui", rev = "87d0ed566327d377abbc66cb5560facffafe884d" }
+gpui_platform = { git = "https://github.com/nolight132/gpui", rev = "87d0ed566327d377abbc66cb5560facffafe884d", features = [
   "font-kit",
   "wayland",
   "x11",
