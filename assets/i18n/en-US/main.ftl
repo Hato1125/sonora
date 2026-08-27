@@ -109,6 +109,7 @@ playlist-again-add = Add again
 queue-title = Queue
 queue-history = History
 queue-now-playing = Now playing
+queue-from = From
 queue-up-next = Up next
 queue-reset = Reset
 queue-clear = Clear

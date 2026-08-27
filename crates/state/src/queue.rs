@@ -17,6 +17,8 @@ pub struct Resume {
     pub(crate) provider: String,
     pub(crate) position: f32,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) origin: Option<crate::Origin>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) current: Option<Stub>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) past: Vec<Stub>,
@@ -109,6 +111,7 @@ fn record<'a>(
     Resume {
         provider: provider.to_owned(),
         position: 0.,
+        origin: None,
         current: current.and_then(stub),
         past: past[past.len().saturating_sub(KEPT_PAST)..]
             .iter()

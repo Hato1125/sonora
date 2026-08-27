@@ -11,7 +11,7 @@ use crate::chrome::Chrome;
 use crate::shared::cells;
 use i18n::t;
 use music::{Album, ReleaseType, SavedArtist, Track};
-use state::{AppSettings, ArtistDetail, Playback, Sonora};
+use state::{AppSettings, ArtistDetail, Origin, Playback, Sonora};
 use ui::ActiveTheme as _;
 use ui::Table as _;
 use ui::{
@@ -145,6 +145,14 @@ impl ArtistView {
                 playback.clone(),
                 menu_scrollbar,
             )
+            .from({
+                let detail = detail.clone();
+                move |cx: &App| {
+                    let detail = detail.read(cx);
+                    let name = detail.artist()?.name.clone();
+                    Some(Origin::artist(detail.id()?).named(name))
+                }
+            })
             .with_liked(Sonora::global(cx).library.clone());
             let source = source.table(cx.weak_entity());
             let mut delegate = GridDelegate::new(source, width, cx);
@@ -282,12 +290,15 @@ impl ArtistView {
             .flex()
             .items_center()
             .gap_2()
-            .child(HeroPlayButton::new(
-                "play-artist",
-                t!("artist-play"),
-                self.popular.as_ref().clone(),
-                self.playback.clone(),
-            ))
+            .child(
+                HeroPlayButton::new(
+                    "play-artist",
+                    t!("artist-play"),
+                    self.popular.as_ref().clone(),
+                    self.playback.clone(),
+                )
+                .from(self.playing_from(cx)),
+            )
             .children(self.follow_button(cx))
             .children(overflow);
 
@@ -561,8 +572,16 @@ impl ArtistView {
             .into_any_element()
     }
 
+    fn playing_from(&self, cx: &App) -> Option<Origin> {
+        let detail = self.detail.read(cx);
+        let name = detail.artist()?.name.clone();
+
+        Some(Origin::artist(detail.id()?).named(name))
+    }
+
     fn popular(&self, cx: &mut Context<Self>) -> AnyElement {
         let tracks = self.popular.clone();
+        let from = self.playing_from(cx);
         let pages = Shape::new(self.width, tracks.len()).pages;
         let queued = tracks.clone();
         let playback = self.playback.clone();
@@ -603,7 +622,7 @@ impl ArtistView {
         })
         .on_start(move |place, cx| {
             playback.update(cx, |playback, cx| {
-                playback.start(queued.as_ref().clone(), place, cx)
+                playback.start(queued.as_ref().clone(), place, from.clone(), cx)
             });
         })
         .into_any_element()

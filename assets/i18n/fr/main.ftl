@@ -109,6 +109,7 @@ playlist-again-add = Ajouter quand même
 queue-title = File d'attente
 queue-history = Historique
 queue-now-playing = En cours de lecture
+queue-from = Depuis
 queue-up-next = À suivre
 queue-reset = Réinitialiser
 queue-clear = Vider

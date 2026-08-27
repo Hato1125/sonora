@@ -58,11 +58,11 @@ impl ArtistSource {
     }
 
     fn index_cell(&self, cell: &Cell<ArtistField>, artist: &SavedArtist, cx: &App) -> AnyElement {
-        let origin = Origin::Artist(artist.id.clone());
+        let origin = Origin::artist(artist.id.clone()).named(artist.name.clone());
         let state = self.playback.read(cx).playing_from(&origin);
-        let id = artist.id.clone();
+        let played = origin.clone();
         let press = cells::toggle(&self.playback, state.clone(), move |playback, cx| {
-            playback.play_artist(&id, cx)
+            playback.play_origin(played.clone(), cx)
         });
 
         cells::index(cell, state, true, None, press, cx)
@@ -98,7 +98,7 @@ impl GridSource for ArtistSource {
 
     fn playing(&self, row: usize, cx: &App) -> bool {
         self.artists(cx).get(row).is_some_and(|artist| {
-            let origin = Origin::Artist(artist.id.clone());
+            let origin = Origin::artist(artist.id.clone());
             self.playback.read(cx).playing_from(&origin).is_some()
         })
     }

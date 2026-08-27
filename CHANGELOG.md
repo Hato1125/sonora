@@ -7,6 +7,56 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-08-27
+
+### Added
+
+- The queue now says where the music is coming from, next to Now playing, and the name opens that
+  album, playlist or artist, your liked songs or the imported tab. Starting a track from a table row
+  used to leave no source recorded at all, so there was nothing to show; every way of starting
+  playback now carries one, and it is kept with the queue across a restart.
+- Artist cards have the play button album and playlist cards already had.
+
+### Changed
+
+- The lyrics sheet drags its rows along when it scrolls itself, on a verse change or after clicking
+  a verse. Each row is held back on a spring of its own, so they come to rest one after another
+  instead of the sheet arriving all at once. Scrolling the lyrics yourself is left alone: the rows
+  stay exactly where you put them.
+- Cover art is cached on disk, so images come back without fetching them again after a restart.
+- The track title in fullscreen is set semibold, both in the large view and in the strip.
+- Lines in the lyrics sheet sit a little further apart.
+
+### Fixed
+
+- Scrolling the "Add to playlist" list no longer closes it. Every row reported hover on its own
+  account, so as the list glided under a still cursor the row being left behind could have the last
+  word and start the close timer. The submenu now tracks hover for the panel as a whole, and it
+  stays open while the pointer is anywhere over it, the gap beside it, its scrollbar, or the row it
+  hangs off.
+- Moving back from a submenu onto the row that opened it no longer closes the submenu and leaves it
+  stuck shut until the pointer has been away and returned.
+- A submenu that would run off the right of the window now opens to the left of the menu instead of
+  sliding over it.
+- Turning the left sidebar off no longer leaves its width behind as empty space. A cached view is
+  laid out from the style the cache is given and never consults its own, so hiding itself was not
+  enough to give the room back.
+- Lyrics no longer jerk at the end of a verse change. Rows are drawn at the exact offset they are
+  given rather than rounded to whole pixels, which forced a slowing row either to sit on its last
+  pixel for several frames and then hop, or to stop while it was still visibly moving.
+- A verse no longer shifts sideways the frame its growth or fade finishes. Both animations now end
+  at the size the line is actually set in, so shaping it at one size and scaling it to another can
+  no longer disagree by a pixel, which a right-aligned background verse showed as a jump.
+- The lyrics blur keeps up with a long jump, such as scrubbing from the end of a track back to the
+  start. It is worked out from where a row is drawn instead of where it was laid out, so it no
+  longer goes missing at the edge the sheet is coming from.
+- A background lane no longer jumps as it finishes opening. The room it needs is measured from the
+  line height it inherits and counts the gaps between lanes, so nothing is left clipped until the
+  last frame.
+- Scrolling the lyrics with a trackpad stops the panel following the sung verse, the same as a mouse
+  wheel already did.
+- The wider gap above a change of voice no longer stretches that row.
+
 ## [0.20.0] - 2026-08-27
 
 ### Changed
@@ -919,7 +969,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Initial release: a native Spotify client with playback, an interactive queue, the saved library,
 search, album, playlist, artist and song pages, context menus and adaptive theming.
 
-[unreleased]: https://github.com/nolight132/sonora/compare/v0.20.0...HEAD
+[unreleased]: https://github.com/nolight132/sonora/compare/v0.21.0...HEAD
+[0.21.0]: https://github.com/nolight132/sonora/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/nolight132/sonora/compare/v0.19.1...v0.20.0
 [0.19.1]: https://github.com/nolight132/sonora/compare/v0.19.0...v0.19.1
 [0.19.0]: https://github.com/nolight132/sonora/compare/v0.18.0...v0.19.0

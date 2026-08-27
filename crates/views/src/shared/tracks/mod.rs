@@ -16,7 +16,7 @@ use gpui::{
 use jiff::Timestamp;
 use music::Track;
 use router::Destination;
-use state::{Detail, Library, Playback, PlaybackState, Sonora};
+use state::{Detail, Library, Origin, Playback, PlaybackState, Sonora};
 use ui::{Button, Cell, ColumnSpec, GridSource, GridState, Menu, Pin, ROW_GROUP, Scrollbar, clock};
 
 use crate::shared::cells;
@@ -65,6 +65,10 @@ pub(crate) fn holds(table: &Entity<GridState<TrackSource>>, id: &str, cx: &App) 
     })
 }
 
+pub(crate) fn whence(table: &Entity<GridState<TrackSource>>, cx: &App) -> Option<Origin> {
+    table.read(cx).delegate().source().whence(cx)
+}
+
 pub(crate) fn ordered(table: &Entity<GridState<TrackSource>>, cx: &App) -> Vec<Track> {
     let state = table.read(cx);
     let delegate = state.delegate();
@@ -74,8 +78,11 @@ pub(crate) fn ordered(table: &Entity<GridState<TrackSource>>, cx: &App) -> Vec<T
         .collect()
 }
 
+type Whence = Rc<dyn Fn(&App) -> Option<Origin>>;
+
 pub(crate) struct TrackSource {
     columns: &'static [ColumnSpec<TrackField>],
+    whence: Option<Whence>,
     provider: Rc<dyn Tracks>,
     playback: Entity<Playback>,
     is_liked: Option<Entity<Library>>,
@@ -101,6 +108,7 @@ impl TrackSource {
     ) -> Self {
         Self {
             columns,
+            whence: None,
             provider: Rc::new(provider),
             playback,
             is_liked: None,
@@ -148,6 +156,16 @@ impl TrackSource {
         *self.spread.borrow_mut() = Some(Spread { stamp, extent });
 
         extent
+    }
+
+    // resolved when play starts
+    pub(crate) fn from(mut self, whence: impl Fn(&App) -> Option<Origin> + 'static) -> Self {
+        self.whence = Some(Rc::new(whence));
+        self
+    }
+
+    pub(crate) fn whence(&self, cx: &App) -> Option<Origin> {
+        self.whence.as_ref().and_then(|whence| whence(cx))
     }
 
     pub(crate) fn table(mut self, table: WeakEntity<GridState<TrackSource>>) -> Self {
@@ -209,17 +227,16 @@ impl TrackSource {
                 }));
                 let provider = self.provider.clone();
                 let table = self.table.clone();
+                let whence = self.whence.clone();
                 let row = cell.row;
                 let display = cell.display;
-                let press =
-                    cells::toggle(
-                        &self.playback,
-                        state.clone(),
-                        move |playback, cx| match table.as_ref().and_then(|table| table.upgrade()) {
-                            Some(table) => playback.start(ordered(&table, cx), display, cx),
-                            None => playback.start(provider.tracks(cx).to_vec(), row, cx),
-                        },
-                    );
+                let press = cells::toggle(&self.playback, state.clone(), move |playback, cx| {
+                    let from = whence.as_ref().and_then(|whence| whence(cx));
+                    match table.as_ref().and_then(|table| table.upgrade()) {
+                        Some(table) => playback.start(ordered(&table, cx), display, from, cx),
+                        None => playback.start(provider.tracks(cx).to_vec(), row, from, cx),
+                    }
+                });
                 (preload, press)
             }
         };
@@ -239,13 +256,15 @@ impl TrackSource {
                 let playback = self.playback.clone();
                 let provider = self.provider.clone();
                 let table = self.table.clone();
+                let whence = self.whence.clone();
                 let row = cell.row;
                 let display = cell.display;
                 Some(Box::new(move |cx| {
+                    let from = whence.as_ref().and_then(|whence| whence(cx));
                     playback.update(cx, |playback, cx| {
                         match table.as_ref().and_then(|table| table.upgrade()) {
-                            Some(table) => playback.start(ordered(&table, cx), display, cx),
-                            None => playback.start(provider.tracks(cx).to_vec(), row, cx),
+                            Some(table) => playback.start(ordered(&table, cx), display, from, cx),
+                            None => playback.start(provider.tracks(cx).to_vec(), row, from, cx),
                         }
                     });
                 }))

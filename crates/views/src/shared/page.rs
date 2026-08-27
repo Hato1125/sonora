@@ -35,7 +35,8 @@ pub(crate) fn play(
     cx: &mut App,
 ) {
     let queued = tracks::ordered(table, cx);
-    playback.update(cx, |playback, cx| playback.start(queued, display, cx));
+    let from = tracks::whence(table, cx);
+    playback.update(cx, |playback, cx| playback.start(queued, display, from, cx));
 }
 
 pub(crate) fn resize(

@@ -13,15 +13,15 @@ Stream Spotify, YouTube Music, and local files all in one **native** app.
     <table>
       <tr>
         <td colspan="2">
-          <img width="1762" height="1087" alt="image" src="https://github.com/user-attachments/assets/356b17e6-45dd-461c-89bb-96ee660fed5e" />
+          <img width="1602" height="992" alt="image" src="https://github.com/user-attachments/assets/d0357517-a28d-4c90-abd1-4f3e8d8cdedc" />
         </td>
       </tr>
       <tr>
         <td width="50%">
-          <img width="1496" height="936" alt="image" src="https://github.com/user-attachments/assets/58f88aaa-ce1f-4796-94eb-144d0ae9d677" />
+          <img width="1576" height="945" alt="image" src="https://github.com/user-attachments/assets/70979e4c-261f-4561-b671-04d28a9971a9" />
         </td>
         <td width="50%">
-          <img width="1496" height="936" alt="image" src="https://github.com/user-attachments/assets/df1e3792-245b-4b8b-83de-103c59219f74" />
+          <img width="1576" height="945" alt="image" src="https://github.com/user-attachments/assets/ff3b4284-25e2-4487-bf9b-60d8f56dc44d" />
         </td>
       </tr>
     </table>
@@ -46,6 +46,8 @@ Stream Spotify, YouTube Music, and local files all in one **native** app.
 
 ### macOS
 
+Install with [Brew](https://brew.sh/).
+
 ```sh
 brew install --cask nolight132/tap/sonora
 ```
@@ -57,9 +59,17 @@ xattr -dr com.apple.quarantine /Applications/Sonora.app
 
 ### Linux
 
-```sh
-AUR, COPR, .deb coming soon.
+#### Arch
+
+Install from the AUR with your AUR helper of choice.
+
 ```
+yay -S sonora
+```
+
+#### Other
+
+Flatpak coming soon.
 
 ### Nix
 Just use the flake in the project root.
@@ -71,7 +81,14 @@ inputs.sonora.packages.${system}.default
 The flake installs the latest tagged release binary.
 
 ### Windows
-Download the latest `.exe` for your architecture from [Releases](https://github.com/nolight132/sonora/releases/latest). There isn't a proper Windows installer yet.
+
+#### Installer
+
+Download and run the [installer](https://github.com/nolight132/sonora/releases/latest/download/Sonora-Setup.exe).
+
+#### Portable
+
+Download the latest `windows-msvc.exe` for your architecture from [Releases](https://github.com/nolight132/sonora/releases/latest).
 
 ## Translations
 
@@ -83,12 +100,12 @@ partial translation is welcome — pick a language below and fill in what it lac
 
 | Language | Translated | Coverage |
 | --- | --- | --- |
-| English (`en-US`) | 399/399 | 100% |
-| Deutsch (`de`) | 368/399 | 92% |
-| Français (`fr`) | 368/399 | 92% |
-| Русский (`ru`) | 387/399 | 97% |
-| Українська (`uk`) | 387/399 | 97% |
-| Polski (`pl`) | 387/399 | 97% |
+| English (`en-US`) | 413/413 | 100% |
+| Deutsch (`de`) | 369/413 | 89% |
+| Français (`fr`) | 369/413 | 89% |
+| Русский (`ru`) | 388/413 | 94% |
+| Українська (`uk`) | 388/413 | 94% |
+| Polski (`pl`) | 388/413 | 94% |
 
 <!-- i18n:end -->
 

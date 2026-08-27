@@ -23,6 +23,9 @@ const SUBMENU_FALLBACK_WIDTH: Pixels = px(236.);
 const SUBMENU_TOP: Pixels = px(-14.);
 const WINDOW_MARGIN: Pixels = px(8.);
 const PANEL_SLACK: Pixels = px(6.);
+const SAFE_X: Pixels = px(6.);
+const SAFE_Y: Pixels = px(12.);
+const NEAR: usize = Near::Bar as usize + 1;
 
 type Press = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 type Dismiss = Box<dyn Fn(&(), &mut Window, &mut App) + 'static>;
@@ -38,28 +41,27 @@ impl Trigger {
     }
 
     fn contains(&self, position: Point<Pixels>, slack: Pixels) -> bool {
-        self.0.get().is_some_and(|bounds| {
-            Bounds {
-                origin: Point {
-                    x: bounds.origin.x - slack,
-                    y: bounds.origin.y - slack,
-                },
-                size: Size {
-                    width: bounds.size.width + slack * 2.,
-                    height: bounds.size.height + slack * 2.,
-                },
-            }
-            .contains(&position)
-        })
+        self.0
+            .get()
+            .is_some_and(|bounds| grown(bounds, slack, slack).contains(&position))
     }
+}
+
+#[derive(Clone, Copy)]
+enum Near {
+    Item,
+    Gap,
+    Panel,
+    Bar,
 }
 
 #[derive(Clone, Default)]
 pub struct SubmenuState {
     open: Rc<Cell<bool>>,
     generation: Rc<Cell<u64>>,
-    parent_bounds: Rc<Cell<Option<Bounds<Pixels>>>>,
-    safe_bounds: Rc<Cell<Option<Bounds<Pixels>>>>,
+    near: Rc<Cell<[bool; NEAR]>>,
+    menu_bounds: Rc<Cell<Option<Bounds<Pixels>>>>,
+    panel_bounds: Rc<Cell<Option<Bounds<Pixels>>>>,
 }
 
 impl SubmenuState {
@@ -67,11 +69,22 @@ impl SubmenuState {
         self.open.get()
     }
 
-    fn hover(&self, hovered: bool, window: AnyWindowHandle, cx: &mut App) {
+    fn touched(&self) -> bool {
+        self.near.get().iter().any(|there| *there)
+    }
+
+    fn near(&self, place: Near, hovered: bool, window: AnyWindowHandle, cx: &mut App) {
+        let mut near = self.near.get();
+        if near[place as usize] == hovered {
+            return;
+        }
+        near[place as usize] = hovered;
+        self.near.set(near);
+
         let generation = self.generation.get().wrapping_add(1);
         self.generation.set(generation);
 
-        if hovered {
+        if self.touched() {
             if !self.open.replace(true) {
                 cx.refresh_windows();
             }
@@ -82,16 +95,15 @@ impl SubmenuState {
         cx.spawn(async move |cx| {
             cx.background_executor().timer(SUBMENU_CLOSE_DELAY).await;
             let inside = cx.update(|cx| {
-                cx.update_window(window, |_, window, _| {
-                    state
-                        .safe_bounds
-                        .get()
-                        .is_some_and(|bounds| bounds.contains(&window.mouse_position()))
-                })
-                .unwrap_or(false)
+                cx.update_window(window, |_, window, _| state.covers(window.mouse_position()))
+                    .unwrap_or(false)
             });
             cx.update(|cx| {
-                if state.generation.get() == generation && !inside && state.open.replace(false) {
+                if state.generation.get() == generation
+                    && !state.touched()
+                    && !inside
+                    && state.open.replace(false)
+                {
                     cx.refresh_windows();
                 }
             });
@@ -99,48 +111,42 @@ impl SubmenuState {
         .detach();
     }
 
-    fn observe_panel(&self, bounds: Bounds<Pixels>) {
-        self.safe_bounds.set(Some(Bounds {
-            origin: Point {
-                x: bounds.origin.x - px(4.),
-                y: bounds.origin.y - px(12.),
-            },
-            size: Size {
-                width: bounds.size.width + px(16.),
-                height: bounds.size.height + px(24.),
-            },
-        }));
+    fn measure_panel(&self, bounds: Bounds<Pixels>) {
+        self.panel_bounds.set(Some(grown(bounds, SAFE_X, SAFE_Y)));
     }
 
-    fn observe_parent(&self, bounds: Bounds<Pixels>) {
-        self.parent_bounds.set(Some(bounds));
+    fn measure_menu(&self, bounds: Bounds<Pixels>) {
+        self.menu_bounds.set(Some(bounds));
     }
 
     fn should_flip(&self, viewport_width: Pixels) -> bool {
-        let Some(parent) = self.parent_bounds.get() else {
+        let Some(menu) = self.menu_bounds.get() else {
             return false;
         };
         let submenu_width = self
-            .safe_bounds
+            .panel_bounds
             .get()
             .map(|bounds| bounds.size.width)
             .unwrap_or(SUBMENU_FALLBACK_WIDTH);
-        parent.right() + submenu_width + WINDOW_MARGIN > viewport_width
+        menu.right() + submenu_width + WINDOW_MARGIN > viewport_width
+    }
+
+    fn covers(&self, position: Point<Pixels>) -> bool {
+        self.panel_bounds
+            .get()
+            .is_some_and(|bounds| bounds.contains(&position))
     }
 
     fn contains(&self, position: Point<Pixels>) -> bool {
-        self.is_open()
-            && self
-                .safe_bounds
-                .get()
-                .is_some_and(|bounds| bounds.contains(&position))
+        self.is_open() && self.covers(position)
     }
 
     pub fn reset(&self) {
         self.generation.set(self.generation.get().wrapping_add(1));
         self.open.set(false);
-        self.parent_bounds.set(None);
-        self.safe_bounds.set(None);
+        self.near.set([false; NEAR]);
+        self.menu_bounds.set(None);
+        self.panel_bounds.set(None);
     }
 }
 
@@ -367,8 +373,9 @@ impl RenderOnce for Menu {
 
         if let (Some(scrollbar), Some(guard)) = (scrollbar.as_ref(), hover_guard.clone()) {
             scrollbar.update(cx, |scrollbar, _| {
-                scrollbar
-                    .set_hover_guard(move |hovered, window, cx| guard.hover(hovered, window, cx));
+                scrollbar.set_hover_guard(move |hovered, window, cx| {
+                    guard.near(Near::Bar, hovered, window, cx)
+                });
             });
         }
 
@@ -418,7 +425,6 @@ impl RenderOnce for Menu {
             let action = action.clone();
             let press_action = action.clone();
             let submenu_state = submenu.as_ref().map(|submenu| submenu.state.clone());
-            let item_hover_guard = hover_guard.clone();
             let has_artwork = artwork.is_some();
 
             div()
@@ -470,12 +476,7 @@ impl RenderOnce for Menu {
                 .when(submenu.is_some(), |this| this.child("›"))
                 .when_some(submenu_state, |this, state| {
                     this.on_hover(move |hovered, window, cx| {
-                        state.hover(*hovered, window.window_handle(), cx)
-                    })
-                })
-                .when_some(item_hover_guard, |this, state| {
-                    this.on_hover(move |hovered, window, cx| {
-                        state.hover(*hovered, window.window_handle(), cx)
+                        state.near(Near::Item, *hovered, window.window_handle(), cx)
                     })
                 })
                 .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
@@ -491,60 +492,44 @@ impl RenderOnce for Menu {
                     if submenu.menu.action.is_none() {
                         submenu.menu.action = action.clone();
                     }
-                    let open = submenu.state.is_open();
-                    let panel_state = submenu.state.clone();
-                    let safe_state = submenu.state.clone();
-                    let bounds_state = submenu.state.clone();
+                    let gap_state = submenu.state.clone();
                     let flip_left = submenu.state.should_flip(viewport_width);
-                    this.child(
-                        div()
-                            .absolute()
-                            .top(SUBMENU_TOP)
-                            .when(flip_left, |this| this.right_full())
-                            .when(!flip_left, |this| this.left_full())
-                            .when(!open, |this| this.invisible())
-                            .child(
-                                anchored()
-                                    .anchor(if flip_left {
-                                        Anchor::TopRight
-                                    } else {
-                                        Anchor::TopLeft
-                                    })
-                                    .snap_to_window_with_margin(WINDOW_MARGIN)
-                                    .child(
-                                        div()
-                                            .on_children_prepainted(move |bounds, _, _| {
-                                                if let Some(bounds) =
-                                                    bounds.into_iter().reduce(|a, b| a.union(&b))
-                                                {
-                                                    bounds_state.observe_panel(bounds);
-                                                }
-                                            })
-                                            .id("submenu-safe-area")
-                                            .occlude()
-                                            .pt_3()
-                                            .pb_3()
-                                            .when(flip_left, |this| this.pl_3().pr_1())
-                                            .when(!flip_left, |this| this.pl_1().pr_3())
-                                            .on_hover(move |hovered, window, cx| {
-                                                safe_state.hover(
-                                                    *hovered,
-                                                    window.window_handle(),
-                                                    cx,
-                                                )
-                                            })
-                                            .child(submenu.menu.inline().relative().on_hover(
-                                                move |hovered, window, cx| {
-                                                    panel_state.hover(
+                    match submenu.state.is_open() {
+                        false => this,
+                        true => this.child(
+                            div()
+                                .absolute()
+                                .top(SUBMENU_TOP)
+                                .when(flip_left, |this| this.right_full())
+                                .when(!flip_left, |this| this.left_full())
+                                .child(
+                                    anchored()
+                                        .anchor(match flip_left {
+                                            true => Anchor::TopRight,
+                                            false => Anchor::TopLeft,
+                                        })
+                                        .snap_to_window_with_margin(WINDOW_MARGIN)
+                                        .child(
+                                            div()
+                                                .id("submenu-safe-area")
+                                                .occlude()
+                                                .pt_3()
+                                                .pb_3()
+                                                .when(flip_left, |this| this.pl_3().pr_1())
+                                                .when(!flip_left, |this| this.pl_1().pr_3())
+                                                .on_hover(move |hovered, window, cx| {
+                                                    gap_state.near(
+                                                        Near::Gap,
                                                         *hovered,
                                                         window.window_handle(),
                                                         cx,
                                                     )
-                                                },
-                                            )),
-                                    ),
-                            ),
-                    )
+                                                })
+                                                .child(submenu.menu.inline().relative()),
+                                        ),
+                                ),
+                        ),
+                    }
                 })
                 .into_any_element()
         });
@@ -582,7 +567,7 @@ impl RenderOnce for Menu {
                         panel.observe(bounds.clone());
                         if let Some(bounds) = bounds.into_iter().reduce(|a, b| a.union(&b)) {
                             for guard in &bounds_guards {
-                                guard.observe_parent(bounds);
+                                guard.measure_menu(bounds);
                             }
                         }
                     }
@@ -636,6 +621,14 @@ impl RenderOnce for Menu {
             _ => Anchor::TopLeft,
         };
         let panel_looks = div()
+            .when_some(hover_guard.clone(), |this, guard| {
+                this.on_children_prepainted(move |bounds, _, _| {
+                    if let Some(bounds) = bounds.into_iter().reduce(|a, b| a.union(&b)) {
+                        guard.measure_panel(bounds);
+                    }
+                })
+            })
+            .id("menu-panel")
             .flex()
             .flex_col()
             .p_1()
@@ -648,6 +641,11 @@ impl RenderOnce for Menu {
             .key_context(MENU_CONTEXT)
             .when_some(width, |this, width| this.w(width))
             .when_some(ceiling, |this, ceiling| this.max_h(ceiling))
+            .when_some(hover_guard, |this, guard| {
+                this.on_hover(move |hovered, window, cx| {
+                    guard.near(Near::Panel, *hovered, window.window_handle(), cx)
+                })
+            })
             .occlude()
             .child(body);
         let mut menu = base
@@ -694,5 +692,18 @@ impl RenderOnce for Menu {
         } else {
             menu.into_any_element()
         }
+    }
+}
+
+fn grown(bounds: Bounds<Pixels>, x: Pixels, y: Pixels) -> Bounds<Pixels> {
+    Bounds {
+        origin: Point {
+            x: bounds.origin.x - x,
+            y: bounds.origin.y - y,
+        },
+        size: Size {
+            width: bounds.size.width + x * 2.,
+            height: bounds.size.height + y * 2.,
+        },
     }
 }

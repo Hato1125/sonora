@@ -20,7 +20,9 @@ use gpui::{
 use i18n::t;
 use music::Track;
 use router::{Destination, LibraryTab, navigate};
-use state::{AppSettings, Library, LibraryPart, LibraryState, Playback, PlaybackState, Sonora};
+use state::{
+    AppSettings, Library, LibraryPart, LibraryState, Origin, Playback, PlaybackState, Sonora,
+};
 use ui::{
     ActiveTheme as _, Button, Card, Deck, FlagAxis, GridDelegate, GridEvent, GridSource, GridState,
     LEADING, Menu, MenuItem, Mode, Pinnable, Popovers, Popup, RangeAxis, Scrollbar, Scroller, Sort,
@@ -212,7 +214,8 @@ impl LibraryView {
                 LibraryTracks(library.clone()),
                 playback.clone(),
                 playlist_scrollbar,
-            );
+            )
+            .from(|_| Some(Origin::saved()));
             let source = source.table(cx.weak_entity());
             let mut delegate = GridDelegate::new(source, width, cx).with_sort(
                 TrackField::AddedAt,
@@ -484,8 +487,9 @@ impl LibraryView {
 
     fn play(&mut self, display: usize, cx: &mut Context<Self>) {
         let queued = tracks::ordered(&self.tracks, cx);
+        let from = tracks::whence(&self.tracks, cx);
         self.playback
-            .update(cx, |playback, cx| playback.start(queued, display, cx));
+            .update(cx, |playback, cx| playback.start(queued, display, from, cx));
     }
 
     fn open_album(&mut self, display: usize, cx: &mut Context<Self>) {
@@ -804,7 +808,7 @@ impl LibraryView {
         let view = self.me.clone();
 
         Some(
-            cards::artist_card(("library-artist", display), &artist)
+            cards::artist_card(("library-artist", display), &artist, &self.playback, cx)
                 .tile(card)
                 .flat()
                 .menu(move |event, _, cx| {

@@ -23,6 +23,7 @@ router.workspace = true
 ui.workspace = true
 views.workspace = true
 reqwest.workspace = true
+sha2.workspace = true
 tokio = { workspace = true, features = ["rt"] }
 interprocess.workspace = true
 
