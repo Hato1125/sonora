@@ -537,7 +537,7 @@ impl AppSettings {
             return;
         }
         resume.position = position;
-        self.schedule_save(cx);
+        self.save_quietly(cx);
     }
 
     pub fn pins_before(&self, slugs: &[&str], slug: &str) -> usize {
@@ -703,6 +703,11 @@ impl AppSettings {
 
     fn schedule_save(&mut self, cx: &mut Context<Self>) {
         cx.notify();
+        self.save_quietly(cx);
+    }
+
+    /// Persists without waking observers, for values no view renders.
+    fn save_quietly(&mut self, cx: &mut Context<Self>) {
         self.save = Some(cx.spawn(async move |this, cx| {
             cx.background_executor().timer(SAVE_DELAY).await;
             this.update(cx, |this, _| this.save_now()).ok();

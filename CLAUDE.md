@@ -148,6 +148,25 @@ rather than a `type_complexity` warning. The one lint that cannot be satisfied o
 `crates/ui/src/input/mod.rs`; it carries a targeted `#[allow]` on that test. Don't rewrite the case
 to please the lint.
 
+### Profiling
+
+`gpui` carries a `profiler` feature, exposed as sonora's own `profiler` feature so normal builds
+pay nothing:
+
+```sh
+cargo run --features profiler          # then set any of:
+GPUI_DEBUG_OVERLAY=minimal|full        # frame time, phase split, cache hits, dirty count
+GPUI_SHOW_REPAINTS=1                   # wash every view a notify named, fading over 160ms
+GPUI_LOG_NOTIFIES=1                    # once a second, which views were notified and how often
+ZED_MEASUREMENTS=1                     # raw frame durations on stderr
+```
+
+`full` paints its readout as quads and costs a few ms itself, so time with it hidden. The wash marks
+the view a notify named, not the ancestors dragged along with it — dirtiness always walks up the view
+path, so a leaf can never repaint without its ancestors' render functions running. There is no
+damage tracking in the renderer: the whole window is redrawn every frame, so caching saves element
+construction, layout and scene assembly, never GPU fill.
+
 ### Runtime environment
 
 |                   |                                                                                                                                   |

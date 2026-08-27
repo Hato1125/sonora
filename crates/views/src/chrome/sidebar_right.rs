@@ -30,7 +30,6 @@ impl SidebarRight {
         let open = settings.read(cx).sidebar_right_open();
         let tab = settings.read(cx).sidebar_right_tab();
         let aside = cx.new(|cx| Aside::new(queue, playback, tab, cx));
-        cx.observe(&aside, |_, _, cx| cx.notify()).detach();
 
         Self {
             aside,
