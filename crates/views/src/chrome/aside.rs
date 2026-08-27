@@ -5,8 +5,8 @@ use gpui::prelude::*;
 use gpui::{
     Animation, AnimationExt as _, App, Bounds, Context, Div, DragMoveEvent, Entity, FontWeight,
     MouseDownEvent, Pixels, Point, Render, ScrollHandle, ScrollStrategy, ScrollWheelEvent,
-    SharedString, Task, UniformListScrollHandle, Window, div, ease_in_out, px, relative, svg,
-    uniform_list,
+    SharedString, SpringConfig, SpringState, Task, UniformListScrollHandle, Window, div,
+    ease_in_out, px, relative, svg, uniform_list,
 };
 use i18n::t;
 use music::{Track, Voice};
@@ -35,7 +35,7 @@ const BLUR: f32 = 0.13;
 const VEIL: f32 = 0.3;
 const HAZE: f32 = 0.45;
 const VERSE_FADE: f32 = 1.25;
-const VERSE_GLIDE: f32 = 0.07;
+const VERSE_SPRING: SpringConfig = SpringConfig::new(170., 23., 1.);
 const PAST: f32 = 0.4;
 const AHEAD: f32 = 0.6;
 const REVEAL: f32 = 0.6;
@@ -49,12 +49,10 @@ const LAG: f32 = 24.;
 const LAG_SHARE: f32 = 0.28;
 // movement the last row skips
 const LAG_TRAIL: f32 = 0.9;
-// how fast the first row catches up
-const LAG_EASE: f32 = 0.08;
-// how much slower the last one is
-const LAG_STAGGER: f32 = 0.6;
-// how hard it lands
-const LAG_LAND: f32 = 24.;
+// The first row's physical spring. Rows farther along the viewport keep the same damping ratio but
+// use a lower natural frequency, producing the cascading iMessage-like settle.
+const LAG_SPRING: SpringConfig = SpringConfig::new(210., 22., 1.);
+const LAG_STAGGER: f32 = 0.35;
 const LAG_LEAST: Pixels = px(0.05);
 const LAG_STALL: f32 = 0.064;
 // Below this a blur is not worth a layer of its own.
@@ -274,7 +272,7 @@ pub(crate) struct Aside {
     flying: bool,
     flew: bool,
     slid: std::time::Instant,
-    drifts: HashMap<usize, Pixels>,
+    drifts: HashMap<usize, SpringState>,
     pinning: Option<usize>,
     held: Option<Warm>,
     rising: Option<Warm>,
@@ -319,7 +317,7 @@ impl Aside {
         cx.observe(&settings, |_, _, cx| cx.notify()).detach();
         let verse_bar = cx.new(|_| {
             Scrollbar::new(ScrollHandle::new())
-                .paced(VERSE_GLIDE)
+                .spring(VERSE_SPRING)
                 .watching(me)
         });
 
@@ -519,29 +517,26 @@ impl Aside {
         }
     }
 
-    // a spring per row
+    // A physical spring per row. Feeding the inverse scroll delta makes each row lag behind the
+    // sheet; retaining velocity lets it settle naturally and survive a retarget without restarting.
     fn dragged(&mut self, row: usize, along: f32, drag: Drag, window: &mut Window) -> Pixels {
         let held = self.drifts.get(&row).copied();
         if held.is_none() && drag.step == px(0.) {
             return px(0.);
         }
-        let rate = LAG_EASE * (1. - LAG_STAGGER * along);
-        let ease = 1. - (1. - rate).powf(drag.beat * 60.);
-        let fed = held.unwrap_or(px(0.)) - drag.step * (LAG_TRAIL * along);
-        let eased = (fed * (1. - ease)).clamp(-drag.most, drag.most);
-        let land = px(LAG_LAND * (eased.abs() / px(1.)).sqrt() * drag.beat);
-        let closer = (eased.abs() - land).max(px(0.));
-        let shown = match eased < px(0.) {
-            true => -closer,
-            false => closer,
-        };
-        if shown.abs() < LAG_LEAST {
+        let mut state = held.unwrap_or_default();
+        state.position = (px(state.position) - drag.step * (LAG_TRAIL * along))
+            .clamp(-drag.most, drag.most)
+            .as_f32();
+        let spring = lag_spring(along);
+        state = spring.step(state, 0., drag.beat);
+        if spring.is_settled(state, 0., LAG_LEAST.as_f32()) {
             self.drifts.remove(&row);
             return px(0.);
         }
-        self.drifts.insert(row, shown);
+        self.drifts.insert(row, state);
         window.request_animation_frame();
-        shown
+        px(state.position)
     }
 
     fn set_hovered(&mut self, spot: Warm, over: bool, cx: &mut Context<Self>) {
@@ -941,7 +936,11 @@ impl Aside {
         let wrap_size = active_verse_size(verse);
         let scroll = self.verse_bar.read(cx).scroll().clone();
         let nudges = self.verse_bar.read(cx).nudges();
-        let drag = match (lines.is_some(), ui::motion::animates(cx)) {
+        let animations = ui::motion::animates(cx);
+        if !animations {
+            self.drifts.clear();
+        }
+        let drag = match (lines.is_some(), animations) {
             (true, true) => self.lagged(&scroll, verse, nudges),
             _ => Drag::default(),
         };
@@ -981,7 +980,6 @@ impl Aside {
                     self.departing_line = None;
                 }
                 let instrumental_line = active_instrumental(lines, position);
-                let animations = ui::motion::animates(cx);
                 let hazing = effects() && self.pinned;
                 let blur = verse * BLUR;
                 let sharpen = self.sharpen_progress(window);
@@ -1487,18 +1485,16 @@ impl Aside {
         };
         self.aiming = false;
         let view = scroll.bounds();
-        // land on the grid
-        let goal = snapped(
-            anchored_lyrics_offset(
-                view.origin.y,
-                item.origin.y,
-                view.size.height,
-                scroll.max_offset().y,
-            ),
-            window,
+        // Preserve the fractional target. Every lyric row paints through `slip`, which disables
+        // GPUI's device-pixel offset snapping for this animated subtree.
+        let goal = anchored_lyrics_offset(
+            view.origin.y,
+            item.origin.y,
+            view.size.height,
+            scroll.max_offset().y,
         );
         self.flown(goal, scroll.offset().y);
-        match std::mem::take(&mut self.placing) {
+        match std::mem::take(&mut self.placing) || cx.reduce_motion() {
             true => self.verse_bar.update(cx, |bar, _| bar.place(goal)),
             false => self.verse_bar.update(cx, |bar, _| bar.aim(goal, window)),
         }
@@ -2542,6 +2538,15 @@ struct Drag {
     most: Pixels,
 }
 
+fn lag_spring(along: f32) -> SpringConfig {
+    let frequency = 1. - LAG_STAGGER * along.clamp(0., 1.);
+    SpringConfig::new(
+        LAG_SPRING.stiffness * frequency * frequency,
+        LAG_SPRING.damping * frequency,
+        LAG_SPRING.mass,
+    )
+}
+
 // incoming rows last
 fn viewport_along(scroll: &ScrollHandle, row: usize, view: Bounds<Pixels>, downward: bool) -> f32 {
     let Some(place) = viewport_place(scroll, row, view, px(0.)) else {
@@ -2615,7 +2620,7 @@ mod tests {
 
     use super::{
         QueuePosition, Sections, Slot, active_lyrics_row, anchored_lyrics_offset,
-        karaoke_fragments, karaoke_window, line_has_passed, line_row, lyric_row_count,
+        karaoke_fragments, karaoke_window, lag_spring, line_has_passed, line_row, lyric_row_count,
         plain_lyrics_fragments, secondary_karaoke_visible, wrap_fragment_widths,
     };
     use gpui::px;
@@ -2795,6 +2800,13 @@ mod tests {
     }
 
     #[test]
+    fn lyrics_follow_preserves_a_subpixel_target() {
+        let offset = anchored_lyrics_offset(px(0.25), px(200.125), px(100.5), px(500.));
+
+        assert!((offset.as_f32() - -169.725).abs() < 0.001);
+    }
+
+    #[test]
     fn karaoke_uses_spacing_from_the_complete_line() {
         let text = "I said oooh I'm drowning in the night";
         let words = ["I", "said", "oooh", "I'm", "drowning", "in", "the", "night"]
@@ -2845,6 +2857,19 @@ mod tests {
         let rows = wrap_fragment_widths(&[px(120.), px(30.), px(30.)], &[true; 3], px(80.));
 
         assert_eq!(rows, [0..1, 1..3]);
+    }
+
+    #[test]
+    fn lyrics_row_springs_stagger_without_changing_their_damping_ratio() {
+        let (first_frequency, first_ratio) = lag_spring(0.).canonical();
+        let (last_frequency, last_ratio) = lag_spring(1.).canonical();
+
+        assert!(first_frequency > last_frequency);
+        assert!((first_ratio - last_ratio).abs() < f32::EPSILON);
+        assert!(
+            first_ratio < 1.,
+            "the lyrics settle should have a subtle overshoot"
+        );
     }
 
     #[test]
