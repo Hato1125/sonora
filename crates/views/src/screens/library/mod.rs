@@ -711,7 +711,6 @@ impl LibraryView {
                 .when_some(pin, Pinnable::pin)
                 .weight(FontWeight::SEMIBOLD)
                 .flat()
-                .underline()
                 .when(track.explicit, Card::explicit)
                 .bare_meta(artists)
                 .menu(move |event, _, cx| {

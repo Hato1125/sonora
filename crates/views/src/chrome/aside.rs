@@ -634,7 +634,6 @@ impl Aside {
             .truncate(),
         )
         .tint(title)
-        .underline()
         .when(track.explicit, Card::explicit)
         .play(
             playing,
