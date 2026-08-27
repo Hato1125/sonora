@@ -184,9 +184,13 @@ impl Render for Workspace {
         Chrome::publish(left, right, cx);
         let covered = self.sidebar_right.read(cx).covers_content(window);
         let overlay = self.sidebar.read(cx).overlays();
-        let sidebar_width = self.sidebar.read(cx).shown_width();
         let bar_height = PlayerBar::height(window, cx);
-        let sidebar = match overlay {
+        // A cached view is laid out from the style given here and its own root
+        // style is never consulted, so it can only be cached while it is in the
+        // flow at a width this knows: an overlaid sidebar places itself, and a
+        // closed one hides itself and takes no space at all.
+        let sidebar_width = self.sidebar.read(cx).occupied_width();
+        let sidebar = match overlay || sidebar_width == gpui::Pixels::ZERO {
             true => self.sidebar.clone().into_any_element(),
             false => self
                 .sidebar
