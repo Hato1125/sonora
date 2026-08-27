@@ -7,6 +7,26 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.19.1] - 2026-08-27
+
+### Changed
+
+- Sonora redraws far less of the window at once. A word-by-word lyric line, a melody break and a
+  verse change each rebuilt the player bar, the sidebar and the toolbar on every frame they
+  animated, and scrolling a busy screen rebuilt the same things again, so the two together could not
+  keep pace. Scrolling Home or your songs while the lyrics move is smooth now.
+- Sonora looks for a newer version on Linux and macOS too, where the setting for it was already
+  offered but never did anything. It only tells you: installing in place stays a Windows-only path,
+  because that is the only build Sonora ships an installer for. The setting starts off there, since
+  a distribution or a tap can trail a release by weeks and there is nothing to act on until it
+  catches up, and the notice says to update Sonora the way you installed it.
+
+### Fixed
+
+- Long descriptions in Settings wrap onto a second line instead of being cut off.
+- The lyrics panel measures a line once per panel width rather than on every frame, and a verse well
+  outside the panel holds its place without being laid out at all.
+
 ## [0.19.0] - 2026-08-27
 
 ### Added
@@ -859,7 +879,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Initial release: a native Spotify client with playback, an interactive queue, the saved library,
 search, album, playlist, artist and song pages, context menus and adaptive theming.
 
-[unreleased]: https://github.com/nolight132/sonora/compare/v0.19.0...HEAD
+[unreleased]: https://github.com/nolight132/sonora/compare/v0.19.1...HEAD
+[0.19.1]: https://github.com/nolight132/sonora/compare/v0.19.0...v0.19.1
 [0.19.0]: https://github.com/nolight132/sonora/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/nolight132/sonora/compare/v0.17.1...v0.18.0
 [0.17.1]: https://github.com/nolight132/sonora/compare/v0.17.0...v0.17.1

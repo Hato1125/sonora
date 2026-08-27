@@ -1531,9 +1531,7 @@ impl SettingsView {
                     )
                     .child(
                         div()
-                            .overflow_hidden()
-                            .whitespace_nowrap()
-                            .text_ellipsis()
+                            .min_w_0()
                             .text_color(muted)
                             .text_size(small)
                             .child(detail),

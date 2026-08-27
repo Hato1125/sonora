@@ -338,6 +338,16 @@ impl PlayerBar {
     }
 }
 
+impl PlayerBar {
+    pub(crate) fn height(window: &Window, cx: &gpui::App) -> Pixels {
+        let theme = *cx.theme();
+        match !Room::of(window.viewport_size().width).fits(Room::Roomy) {
+            true => ui::snapped(theme.metrics.player_bar + theme.metrics.pad * 3., window),
+            false => ui::snapped(theme.metrics.player_bar, window),
+        }
+    }
+}
+
 impl Render for PlayerBar {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
@@ -345,10 +355,7 @@ impl Render for PlayerBar {
         let empty = muted.opacity(0.3);
         let span = Room::of(window.viewport_size().width);
         let stacked = !span.fits(Room::Roomy);
-        let height = match stacked {
-            true => ui::snapped(theme.metrics.player_bar + theme.metrics.pad * 3., window),
-            false => ui::snapped(theme.metrics.player_bar, window),
-        };
+        let height = Self::height(window, cx);
         let clock_text = theme.text(ui::Text::Tiny);
 
         let show_track = span.fits(Room::Snug);
