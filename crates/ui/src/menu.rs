@@ -60,6 +60,7 @@ pub struct SubmenuState {
     open: Rc<Cell<bool>>,
     generation: Rc<Cell<u64>>,
     near: Rc<Cell<[bool; NEAR]>>,
+    flip: Rc<Cell<Option<bool>>>,
     menu_bounds: Rc<Cell<Option<Bounds<Pixels>>>>,
     panel_bounds: Rc<Cell<Option<Bounds<Pixels>>>>,
 }
@@ -104,6 +105,7 @@ impl SubmenuState {
                     && !inside
                     && state.open.replace(false)
                 {
+                    state.flip.set(None);
                     cx.refresh_windows();
                 }
             });
@@ -119,16 +121,31 @@ impl SubmenuState {
         self.menu_bounds.set(Some(bounds));
     }
 
-    fn should_flip(&self, viewport_width: Pixels) -> bool {
+    fn flipped(&self, viewport_width: Pixels) -> bool {
+        if let Some(flip) = self.flip.get() {
+            return flip;
+        }
         let Some(menu) = self.menu_bounds.get() else {
             return false;
         };
-        let submenu_width = self
+        let width = self
             .panel_bounds
             .get()
             .map(|bounds| bounds.size.width)
             .unwrap_or(SUBMENU_FALLBACK_WIDTH);
-        menu.right() + submenu_width + WINDOW_MARGIN > viewport_width
+        let flip = menu.right() + width + WINDOW_MARGIN > viewport_width;
+        self.flip.set(Some(flip));
+        flip
+    }
+
+    fn measure_reach(&self, bounds: Bounds<Pixels>, window: &Window, cx: &mut App) {
+        if self.flip.get() == Some(true)
+            || bounds.right() + WINDOW_MARGIN <= window.viewport_size().width
+        {
+            return;
+        }
+        self.flip.set(Some(true));
+        cx.refresh_windows();
     }
 
     fn covers(&self, position: Point<Pixels>) -> bool {
@@ -145,6 +162,7 @@ impl SubmenuState {
         self.generation.set(self.generation.get().wrapping_add(1));
         self.open.set(false);
         self.near.set([false; NEAR]);
+        self.flip.set(None);
         self.menu_bounds.set(None);
         self.panel_bounds.set(None);
     }
@@ -493,15 +511,24 @@ impl RenderOnce for Menu {
                         submenu.menu.action = action.clone();
                     }
                     let gap_state = submenu.state.clone();
-                    let flip_left = submenu.state.should_flip(viewport_width);
+                    let reach_state = submenu.state.clone();
                     match submenu.state.is_open() {
                         false => this,
-                        true => this.child(
+                        true => this.child({
+                            let flip_left = submenu.state.flipped(viewport_width);
                             div()
                                 .absolute()
                                 .top(SUBMENU_TOP)
+                                .w(px(0.))
                                 .when(flip_left, |this| this.right_full())
                                 .when(!flip_left, |this| this.left_full())
+                                .on_children_prepainted(move |bounds, window, cx| {
+                                    if let Some(bounds) =
+                                        bounds.into_iter().reduce(|one, other| one.union(&other))
+                                    {
+                                        reach_state.measure_reach(bounds, window, cx);
+                                    }
+                                })
                                 .child(
                                     anchored()
                                         .anchor(match flip_left {
@@ -527,8 +554,8 @@ impl RenderOnce for Menu {
                                                 })
                                                 .child(submenu.menu.inline().relative()),
                                         ),
-                                ),
-                        ),
+                                )
+                        }),
                     }
                 })
                 .into_any_element()
@@ -563,14 +590,7 @@ impl RenderOnce for Menu {
                 .flex_col()
                 .on_children_prepainted({
                     let panel = panel.clone();
-                    move |bounds, _, _| {
-                        panel.observe(bounds.clone());
-                        if let Some(bounds) = bounds.into_iter().reduce(|a, b| a.union(&b)) {
-                            for guard in &bounds_guards {
-                                guard.measure_menu(bounds);
-                            }
-                        }
-                    }
+                    move |bounds, _, _| panel.observe(bounds)
                 })
                 .gap(px(2.))
                 .children(rows)
@@ -621,12 +641,20 @@ impl RenderOnce for Menu {
             _ => Anchor::TopLeft,
         };
         let panel_looks = div()
-            .when_some(hover_guard.clone(), |this, guard| {
-                this.on_children_prepainted(move |bounds, _, _| {
-                    if let Some(bounds) = bounds.into_iter().reduce(|a, b| a.union(&b)) {
+            .on_children_prepainted({
+                let guard = hover_guard.clone();
+                move |bounds, _, _| {
+                    let Some(bounds) = bounds.into_iter().reduce(|one, other| one.union(&other))
+                    else {
+                        return;
+                    };
+                    if let Some(guard) = guard.as_ref() {
                         guard.measure_panel(bounds);
                     }
-                })
+                    for guard in &bounds_guards {
+                        guard.measure_menu(bounds);
+                    }
+                }
             })
             .id("menu-panel")
             .flex()
@@ -648,6 +676,15 @@ impl RenderOnce for Menu {
             })
             .occlude()
             .child(body);
+        let surface = match should_defer {
+            true => anchored()
+                .anchor(corner)
+                .snap_to_window_with_margin(WINDOW_MARGIN)
+                .child(panel_looks)
+                .into_any_element(),
+            false => panel_looks.into_any_element(),
+        };
+
         let mut menu = base
             .absolute()
             .flex()
@@ -678,12 +715,7 @@ impl RenderOnce for Menu {
                     ),
                 )
             })
-            .child(
-                anchored()
-                    .anchor(corner)
-                    .snap_to_window_with_margin(WINDOW_MARGIN)
-                    .child(panel_looks),
-            );
+            .child(surface);
 
         menu.style().refine(&overrides);
 
