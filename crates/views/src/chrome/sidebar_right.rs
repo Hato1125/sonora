@@ -1,5 +1,5 @@
 use gpui::prelude::*;
-use gpui::{Context, Entity, Pixels, Render, Window, div, px};
+use gpui::{Context, Entity, Pixels, Render, StyleRefinement, Window, div, px};
 use state::{AppSettings, Playback, Queue, SideTab, Sonora};
 use ui::{ActiveTheme as _, MIN_CONTENT, Panel, Room, Side};
 
@@ -123,7 +123,11 @@ impl Render for SidebarRight {
             }))
             .when(!theme.transparent, |this| this.bg(theme.background))
             .border_color(theme.border)
-            .child(self.aside.clone())
+            .child(
+                self.aside
+                    .clone()
+                    .cached(StyleRefinement::default().size_full()),
+            )
             .into_any_element()
     }
 }

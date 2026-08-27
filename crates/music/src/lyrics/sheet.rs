@@ -35,7 +35,12 @@ const LABELS: &[&str] = &[
     "和声",
 ];
 
-const QUIET: &[&str] = &["纯音乐", "此歌曲为没有填词的纯音乐"];
+const QUIET: &[&str] = &[
+    "instrumental",
+    "this song is instrumental",
+    "纯音乐",
+    "此歌曲为没有填词的纯音乐",
+];
 
 const TAGS: &[&str] = &[
     "version",
@@ -97,7 +102,8 @@ const LABEL_REACH: usize = 48;
 pub(crate) fn instrumental(lines: &[LyricsLine]) -> bool {
     !lines.is_empty()
         && lines.iter().all(|line| {
-            line.text.trim().is_empty() || QUIET.iter().any(|mark| line.text.contains(mark))
+            let text = line.text.trim().to_lowercase();
+            text.is_empty() || QUIET.iter().any(|mark| text.contains(mark))
         })
 }
 

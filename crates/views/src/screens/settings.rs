@@ -4,19 +4,19 @@ use std::process::Command;
 use crate::shared::accounts::AccountPicker;
 use crate::shared::browsers::BrowserPicker;
 use gpui::{
-    AnyElement, Context, Entity, FontWeight, PathPromptOptions, Pixels, Render, SharedString,
-    Window, div, px,
+    AnyElement, App, Context, Entity, FontWeight, PathPromptOptions, Pixels, Render, SharedString,
+    TextRun, Window, div, font, px,
 };
 use gpui::{ScrollHandle, prelude::*, svg};
 use i18n::{Language, t};
 use music::{AccountChoice, SignIn, SignInPrompt, WritingSystem};
 use router::{Screen, SettingsTab};
-use state::{AppSettings, Failure, Playback, Session, SessionState, Sonora};
+use state::{AppSettings, Failure, Playback, SYSTEM_FONT, Session, SessionState, Sonora};
 use ui::{ActiveTheme as _, Scrollbar, Scroller, eyebrow};
 use ui::{
-    Avatar, Button, InfoCard, Initials, Input, Look, MAX_FONT, MAX_TRANSPARENCY, MIN_FONT,
-    MenuItem, Modal, Pace, Picker, Popovers, Rounding, Scrubber, ScrubberState, Separator,
-    Skeleton, Stillness, Sweep, Switch, Text, Theme, ThemeKind,
+    Avatar, Button, InfoCard, Initials, Input, Look, MAX_FONT, MAX_TRANSPARENCY, MIN_FONT, Menu,
+    MenuItem, Modal, Pace, Picker, Popovers, Rounding, Scrubber, ScrubberState, SelectNext,
+    SelectPrevious, Separator, Skeleton, Stillness, Submit, Switch, Text, Theme, ThemeKind,
 };
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -26,10 +26,26 @@ const SOURCE_URL: &str = "https://github.com/nolight132/sonora";
 const THEMES: &str = "themes";
 const CORNERS: &str = "corners";
 const LANGUAGES: &str = "languages";
+const TYPEFACES: &str = "typefaces";
+const TYPEFACE_LIMIT: usize = 200;
+const TYPEFACE_HEIGHT: Pixels = px(320.);
+const TYPEFACE_LEAD: usize = 2;
 const STARTUP: &str = "startup";
 const MOTION: &str = "motion";
 const PACE: &str = "pace";
-const SWEEP: &str = "sweep";
+
+enum Row {
+    Item(AnyElement),
+    Title(AnyElement),
+}
+
+impl Row {
+    fn into_element(self) -> AnyElement {
+        match self {
+            Self::Item(element) | Self::Title(element) => element,
+        }
+    }
+}
 
 struct Account {
     slug: &'static str,
@@ -105,7 +121,12 @@ pub struct SettingsView {
     browsers: Option<(&'static str, Vec<SharedString>)>,
     secret: Entity<Input>,
     languages: Entity<Input>,
+    typefaces: Entity<Input>,
+    typeface_scroll: Entity<Scrollbar>,
+    typeface_cursor: usize,
+    installed: Option<Vec<SharedString>>,
     picking: bool,
+    picking_typeface: bool,
 }
 
 impl SettingsView {
@@ -117,20 +138,37 @@ impl SettingsView {
         let settings = Sonora::global(cx).settings.clone();
         cx.observe(&session, |_, _, cx| cx.notify()).detach();
         cx.observe(&settings, |_, _, cx| cx.notify()).detach();
-        let languages = cx.new(|cx| Input::new("settings-language-search", cx).compact());
+        cx.observe(&playback, |_, _, cx| cx.notify()).detach();
+        let languages = cx.new(|cx| {
+            Input::new("settings-language-search", cx)
+                .compact()
+                .tucked()
+        });
         cx.observe(&languages, |_, _, cx| cx.notify()).detach();
+        let typefaces = cx.new(|cx| {
+            Input::new("settings-typeface-search", cx)
+                .compact()
+                .tucked()
+        });
+        cx.observe(&typefaces, |_, _, cx| cx.notify()).detach();
+        let me = cx.entity_id();
         Self {
             session,
             playback,
             settings,
             tab: SettingsTab::General,
-            scrollbar: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
+            scrollbar: cx.new(|_| Scrollbar::new(ScrollHandle::new()).watching(me)),
             opacity: ScrubberState::new("opacity"),
             popovers: Popovers::default(),
             browsers: None,
             secret: cx.new(|cx| Input::new("login-cookie-hint", cx)),
             languages,
+            typefaces,
+            typeface_scroll: cx.new(|_| Scrollbar::inset().watching(me)),
+            typeface_cursor: 0,
+            installed: None,
             picking: false,
+            picking_typeface: false,
         }
     }
 
@@ -141,54 +179,73 @@ impl SettingsView {
     }
 
     fn panel(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let rows: Vec<AnyElement> = match self.tab {
+        let rows: Vec<Row> = match self.tab {
             SettingsTab::General => vec![
-                self.startup_row(cx).into_any_element(),
-                self.language_row(cx).into_any_element(),
-                self.accounts_row(cx).into_any_element(),
-                self.local_folder_row(cx).into_any_element(),
+                Row::Item(self.startup_row(cx).into_any_element()),
+                Row::Item(self.language_row(cx).into_any_element()),
+                self.title("settings-group-accounts", cx),
+                Row::Item(self.accounts_row(cx).into_any_element()),
+                self.title("settings-group-library", cx),
+                Row::Item(self.local_folder_row(cx).into_any_element()),
             ],
             SettingsTab::Appearance => vec![
-                self.theme_row(cx).into_any_element(),
-                self.adaptive_row(cx).into_any_element(),
-                self.opacity_row(cx).into_any_element(),
-                self.motion_row(cx).into_any_element(),
-                self.pace_row(cx).into_any_element(),
+                Row::Item(self.theme_row(cx).into_any_element()),
+                Row::Item(self.adaptive_row(cx).into_any_element()),
+                Row::Item(self.opacity_row(cx).into_any_element()),
+                Row::Item(self.corners_row(cx).into_any_element()),
+                self.title("settings-group-text", cx),
+                Row::Item(self.font_row(cx).into_any_element()),
+                Row::Item(self.typeface_row(cx).into_any_element()),
+                self.title("settings-group-motion", cx),
+                Row::Item(self.motion_row(cx).into_any_element()),
+                Row::Item(self.pace_row(cx).into_any_element()),
             ]
             .into_iter()
+            .chain(decorated().then(|| self.title("settings-group-title-bar", cx)))
+            .chain(decorated().then(|| Row::Item(self.decorations_row(cx).into_any_element())))
+            .chain(decorated().then(|| Row::Item(self.side_row(cx).into_any_element())))
             .chain([
-                self.corners_row(cx).into_any_element(),
-                self.font_row(cx).into_any_element(),
-            ])
-            .chain(decorated().then(|| self.decorations_row(cx).into_any_element()))
-            .chain(decorated().then(|| self.side_row(cx).into_any_element()))
-            .chain([
-                self.advanced_header(cx).into_any_element(),
-                self.adaptive_menu_row(cx).into_any_element(),
+                self.title("settings-advanced", cx),
+                Row::Item(self.adaptive_menu_row(cx).into_any_element()),
             ])
             .collect(),
             SettingsTab::Playback => vec![
-                self.playback_row(cx).into_any_element(),
-                self.gapless_row(cx).into_any_element(),
-                self.karaoke_lyrics_row(cx).into_any_element(),
-                self.karaoke_sweep_row(cx).into_any_element(),
-                self.romanized_lyrics_row(cx).into_any_element(),
+                Row::Item(self.playback_row(cx).into_any_element()),
+                Row::Item(self.gapless_row(cx).into_any_element()),
+                self.title("settings-group-lyrics", cx),
+                Row::Item(self.karaoke_lyrics_row(cx).into_any_element()),
+                Row::Item(self.romanized_lyrics_row(cx).into_any_element()),
             ],
             SettingsTab::About => vec![
-                self.version_row(cx).into_any_element(),
-                self.license_row(cx).into_any_element(),
-                self.source_row(cx).into_any_element(),
+                Row::Item(self.version_row(cx).into_any_element()),
+                Row::Item(self.updates_row(cx).into_any_element()),
+                self.title("settings-group-project", cx),
+                Row::Item(self.license_row(cx).into_any_element()),
+                Row::Item(self.source_row(cx).into_any_element()),
             ],
         };
 
         let mut panel = div().flex().flex_col();
-        for (index, row) in rows.into_iter().enumerate() {
-            if index > 0 {
+        let mut parted = false;
+        for row in rows {
+            let titled = matches!(row, Row::Title(_));
+            if parted && !titled {
                 panel = panel.child(Separator::horizontal().w_full());
             }
-            panel = panel.child(row);
+            parted = !titled;
+            panel = panel.child(row.into_element());
         }
         panel
+    }
+
+    fn title(&self, key: &'static str, cx: &App) -> Row {
+        Row::Title(
+            div()
+                .pt_5()
+                .pb_1()
+                .child(eyebrow(i18n::lookup(key, None), cx))
+                .into_any_element(),
+        )
     }
 
     fn look(&self, cx: &Context<Self>) -> Look {
@@ -270,6 +327,137 @@ impl SettingsView {
             muted,
             small,
             picker.into_any_element(),
+        )
+    }
+
+    fn typeface_entries(&self, cx: &App) -> Vec<SharedString> {
+        let asked = self.typefaces.read(cx).text().trim().to_lowercase();
+        let installed = self.installed.as_deref().unwrap_or_default();
+
+        std::iter::once(SharedString::from(SYSTEM_FONT))
+            .chain(installed.iter().cloned())
+            .filter(|name| {
+                let label = match name.as_ref() == SYSTEM_FONT {
+                    true => t!("settings-typeface-system"),
+                    false => name.clone(),
+                };
+                matches(name, &label, &asked)
+            })
+            .take(TYPEFACE_LIMIT)
+            .collect()
+    }
+
+    fn walk_typefaces(&mut self, step: isize, cx: &mut Context<Self>) {
+        let count = self.typeface_entries(cx).len();
+        if count == 0 {
+            return;
+        }
+        let place = self.typeface_cursor.min(count - 1) as isize + step;
+        self.typeface_cursor = place.rem_euclid(count as isize) as usize;
+        self.typeface_scroll
+            .read(cx)
+            .scroll()
+            .scroll_to_item(self.typeface_cursor);
+        cx.notify();
+    }
+
+    fn take_typeface(&mut self, cx: &mut Context<Self>) {
+        let entries = self.typeface_entries(cx);
+        let Some(name) = entries.get(self.typeface_cursor).cloned() else {
+            return;
+        };
+        self.settings
+            .update(cx, |settings, cx| settings.set_font(name.to_string(), cx));
+        self.popovers.close();
+        cx.notify();
+    }
+
+    fn reveal_typeface(&mut self, cx: &App) {
+        let chosen = self.settings.read(cx).font();
+        let seat = match chosen == SYSTEM_FONT {
+            true => Some(0),
+            false => self
+                .installed
+                .as_deref()
+                .unwrap_or_default()
+                .iter()
+                .position(|name| name.as_ref() == chosen)
+                .map(|place| place + 1),
+        };
+
+        if let Some(seat) = seat {
+            self.typeface_cursor = seat;
+            self.typeface_scroll
+                .read(cx)
+                .scroll()
+                .scroll_to_item(seat.saturating_sub(TYPEFACE_LEAD));
+        }
+    }
+
+    fn typeface_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+        let muted = theme.muted_foreground;
+        let small = theme.text(Text::Small);
+        let chosen = self.settings.read(cx).font().to_owned();
+        let bundled = chosen == SYSTEM_FONT;
+        let current = match bundled {
+            true => t!("settings-typeface-system"),
+            false => SharedString::from(chosen.clone()),
+        };
+
+        let asked = self.typefaces.read(cx).text().trim().to_lowercase();
+        let installed = self.installed.as_deref().unwrap_or_default();
+        let entries = std::iter::once((
+            SharedString::from(SYSTEM_FONT),
+            t!("settings-typeface-system"),
+        ))
+        .chain(installed.iter().map(|name| (name.clone(), name.clone())))
+        .filter(|(id, label)| matches(id, label, &asked))
+        .take(TYPEFACE_LIMIT)
+        .collect::<Vec<_>>();
+        let barren = entries.is_empty();
+        let cursor = self.typeface_cursor.min(entries.len().saturating_sub(1));
+
+        let picker = Picker::new(TYPEFACES, &self.popovers, current)
+            .width(Picker::WIDE)
+            .menu(
+                Menu::new("typefaces-menu")
+                    .w(Picker::WIDE)
+                    .max_h(TYPEFACE_HEIGHT)
+                    .scrollbar(self.typeface_scroll.clone())
+                    .header(self.typefaces.clone()),
+            )
+            .items(entries.into_iter().enumerate().map(|(place, (id, label))| {
+                let name = id.clone();
+                let preview = name.clone();
+                MenuItem::new(id, label)
+                    .selected(place == cursor)
+                    .checked(chosen == name.as_ref())
+                    .when(name.as_ref() != SYSTEM_FONT, |item| item.face(preview))
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        let name = name.to_string();
+                        this.settings
+                            .update(cx, |settings, cx| settings.set_font(name, cx));
+                        cx.notify();
+                    }))
+            }))
+            .when(barren, |picker| {
+                picker
+                    .item(MenuItem::new("typeface-empty", t!("settings-typeface-none")).disabled())
+            });
+
+        let keys = div()
+            .on_action(cx.listener(|this, _: &SelectNext, _, cx| this.walk_typefaces(1, cx)))
+            .on_action(cx.listener(|this, _: &SelectPrevious, _, cx| this.walk_typefaces(-1, cx)))
+            .on_action(cx.listener(|this, _: &Submit, _, cx| this.take_typeface(cx)))
+            .child(picker);
+
+        self.row(
+            t!("settings-typeface"),
+            t!("settings-typeface-detail"),
+            muted,
+            small,
+            keys.into_any_element(),
         )
     }
 
@@ -668,13 +856,6 @@ impl SettingsView {
         )
     }
 
-    fn advanced_header(&self, cx: &gpui::App) -> impl IntoElement {
-        div()
-            .pt_5()
-            .pb_1()
-            .child(eyebrow(t!("settings-advanced"), cx))
-    }
-
     fn adaptive_menu_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
         let muted = theme.muted_foreground;
@@ -715,30 +896,23 @@ impl SettingsView {
         )
     }
 
-    fn karaoke_sweep_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn updates_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
         let muted = theme.muted_foreground;
         let small = theme.text(Text::Small);
-        let current = self.settings.read(cx).karaoke_sweep();
-
-        let picker = Picker::new(SWEEP, &self.popovers, current.label())
-            .width(Picker::NARROW)
-            .items(Sweep::ALL.into_iter().map(|sweep| {
-                MenuItem::new(sweep.id(), sweep.label())
-                    .selected(current == sweep)
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        this.settings
-                            .update(cx, |settings, cx| settings.set_karaoke_sweep(sweep, cx));
-                        cx.notify();
-                    }))
-            }));
+        let on = self.settings.read(cx).check_updates();
 
         self.row(
-            t!("settings-sweep"),
-            t!("settings-sweep-detail"),
+            t!("settings-check-updates"),
+            t!("settings-check-updates-detail"),
             muted,
             small,
-            picker.into_any_element(),
+            Switch::new("check-updates", on)
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.settings
+                        .update(cx, |settings, cx| settings.set_check_updates(!on, cx));
+                }))
+                .into_any_element(),
         )
     }
 
@@ -1420,6 +1594,10 @@ fn open_settings_file(path: &Path) -> std::io::Result<()> {
 
 impl Render for SettingsView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if self.installed.is_none() {
+            self.installed = Some(usable_fonts(window, cx));
+        }
+
         let picking = self.popovers.shows(LANGUAGES);
         if picking != self.picking {
             self.picking = picking;
@@ -1429,6 +1607,21 @@ impl Render for SettingsView {
                     .update(cx, |input, cx| input.focus(window, cx)),
                 false => self
                     .languages
+                    .update(cx, |input, cx| input.set_text("", cx)),
+            }
+        }
+
+        let picking_typeface = self.popovers.shows(TYPEFACES);
+        if picking_typeface != self.picking_typeface {
+            self.picking_typeface = picking_typeface;
+            match picking_typeface {
+                true => {
+                    self.typefaces
+                        .update(cx, |input, cx| input.focus(window, cx));
+                    self.reveal_typeface(cx);
+                }
+                false => self
+                    .typefaces
                     .update(cx, |input, cx| input.set_text("", cx)),
             }
         }
@@ -1481,6 +1674,38 @@ impl Render for SettingsView {
                 this.child(self.secret_prompt(cx).into_any_element())
             })
     }
+}
+
+fn usable_fonts(window: &Window, cx: &App) -> Vec<SharedString> {
+    let missing = resolved(window, "sonora-has-no-such-family");
+    let mut names = cx.text_system().all_font_names();
+    names.sort_unstable();
+    names.dedup();
+
+    names
+        .into_iter()
+        .filter(|name| !name.starts_with('.'))
+        .filter(|name| resolved(window, name) != missing)
+        .map(SharedString::from)
+        .collect()
+}
+
+fn resolved(window: &Window, family: &str) -> Option<gpui::FontId> {
+    let run = TextRun {
+        len: 1,
+        font: font(SharedString::from(family.to_owned())),
+        color: gpui::black(),
+        background_color: None,
+        underline: None,
+        strikethrough: None,
+    };
+
+    window
+        .text_system()
+        .shape_line(SharedString::from("A"), px(12.), &[run], None)
+        .runs
+        .first()
+        .map(|run| run.font_id)
 }
 
 fn matches(id: &str, label: &str, asked: &str) -> bool {

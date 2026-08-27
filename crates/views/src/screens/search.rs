@@ -10,14 +10,15 @@ use ui::Input;
 
 use crate::chrome::Chrome;
 use crate::shared::menu::{ItemMenu, item_menu};
-use state::{Genres, Hit, Kind, Playback, Search};
+use state::{Genres, Hit, Kind, Playback, Search, Sonora};
 use ui::ActiveTheme as _;
 use ui::{
-    Card, Deck, Pin, PinKind, Pinnable, Popup, Room, Scrollbar, Scroller, Separator, Text, Theme,
-    VAST, Viewport, clock, eyebrow, scrolled, snapped, vacant,
+    Card, Deck, Pin, Pinnable, Popup, Room, Scrollbar, Scroller, Separator, Text, Theme, VAST,
+    Viewport, clock, eyebrow, scrolled, snapped, vacant,
 };
 
 use crate::shared::cells;
+use crate::shared::pins::Pinned as _;
 use crate::shared::shelves;
 
 const RAIL: Pixels = gpui::px(12.);
@@ -44,7 +45,7 @@ impl HitMenu {
     fn of(hit: &Hit) -> Option<Self> {
         match hit {
             Hit::Song(track) => Some(Self::Song(Box::new(track.clone()))),
-            Hit::Artist(_) | Hit::Album(_) | Hit::Playlist(_) => pin(hit).map(Self::Item),
+            Hit::Artist(_) | Hit::Album(_) | Hit::Playlist(_) => hit.pin().map(Self::Item),
         }
     }
 }
@@ -93,6 +94,8 @@ impl SearchView {
         .detach();
         let chrome = Chrome::entity(cx);
         cx.observe(&chrome, |_, _, cx| cx.notify()).detach();
+        let library = Sonora::global(cx).library.clone();
+        cx.observe(&library, |_, _, cx| cx.notify()).detach();
         let current_playback = playback_status(&playback, cx);
         cx.observe(&playback, |this, playback, cx| {
             let current = playback_status(&playback, cx);
@@ -106,7 +109,8 @@ impl SearchView {
         let asked = input.read(cx).text().to_owned();
         search.update(cx, |search, cx| search.ask(&asked, cx));
 
-        let playlist_scrollbar = cx.new(|_| Scrollbar::inset());
+        let me = cx.entity_id();
+        let playlist_scrollbar = cx.new(|_| Scrollbar::inset().watching(me));
 
         Self {
             input,
@@ -114,11 +118,11 @@ impl SearchView {
             genres,
             playback,
             playback_status: current_playback,
-            songs: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
-            artists: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
-            albums: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
-            mixed: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
-            browsing: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
+            songs: cx.new(|_| Scrollbar::new(ScrollHandle::new()).watching(me)),
+            artists: cx.new(|_| Scrollbar::new(ScrollHandle::new()).watching(me)),
+            albums: cx.new(|_| Scrollbar::new(ScrollHandle::new()).watching(me)),
+            mixed: cx.new(|_| Scrollbar::new(ScrollHandle::new()).watching(me)),
+            browsing: cx.new(|_| Scrollbar::new(ScrollHandle::new()).watching(me)),
             track_menu: ItemMenu::new(playlist_scrollbar),
             context_menu: None,
         }
@@ -284,7 +288,7 @@ impl SearchView {
             }
         };
 
-        card.when_some(pin(hit), Pinnable::pin)
+        card.when_some(hit.pin(), Pinnable::pin)
             .when_some(HitMenu::of(hit), |card, target| card.menu(menu(target, me)))
             .into_any_element()
     }
@@ -341,7 +345,7 @@ impl SearchView {
             .gap_4()
             .p_3()
             .bg(theme.secondary)
-            .when_some(pin(hit), Pinnable::pin)
+            .when_some(hit.pin(), Pinnable::pin)
             .when_some(target, |card, target| card.press(pressed(target, &me)))
             .when_some(HitMenu::of(hit), |card, target| {
                 card.on_mouse_down(MouseButton::Right, menu(target, &me))
@@ -576,17 +580,6 @@ fn cover(hit: &Hit) -> Option<String> {
         Hit::Album(album) => album.cover.clone(),
         Hit::Playlist(list) => list.cover.clone(),
     }
-}
-
-fn pin(hit: &Hit) -> Option<Pin> {
-    let (kind, id, name) = match hit {
-        Hit::Song(track) => (PinKind::Song, track.id.clone()?, track.name.clone()),
-        Hit::Artist(artist) => (PinKind::Artist, artist.id.clone()?, artist.name.clone()),
-        Hit::Album(album) => (PinKind::Album, album.id.clone(), album.name.clone()),
-        Hit::Playlist(list) => (PinKind::Playlist, list.id.clone(), list.name.clone()),
-    };
-
-    Some(Pin::new(kind, id, name).cover(cover(hit)))
 }
 
 fn meta(hit: &Hit, compact: bool) -> SharedString {

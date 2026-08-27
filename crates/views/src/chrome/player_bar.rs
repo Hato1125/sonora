@@ -50,7 +50,8 @@ impl PlayerBar {
         cx.observe(&library, |_, _, cx| cx.notify()).detach();
         cx.observe(&settings, |_, _, cx| cx.notify()).detach();
 
-        let playlist_scrollbar = cx.new(|_| Scrollbar::inset());
+        let me = cx.entity_id();
+        let playlist_scrollbar = cx.new(|_| Scrollbar::inset().watching(me));
 
         Self {
             playback,
@@ -257,6 +258,15 @@ impl PlayerBar {
                         track.as_ref().and_then(|track| track.album_id.clone()),
                         |this, album| this.link(Destination::Album(album.into())),
                     )
+                    .when_some(track.clone(), |this, context| {
+                        this.on_mouse_down(
+                            MouseButton::Right,
+                            cx.listener(move |this, event: &MouseDownEvent, window, cx| {
+                                window.prevent_default();
+                                this.open_context_menu(context.clone(), event.position, cx);
+                            }),
+                        )
+                    })
                     .child(Artwork::new(cover).size(artwork)),
             )
             .when(room, |this| {

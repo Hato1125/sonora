@@ -5,6 +5,7 @@ use gpui::{
 
 use crate::theme::ActiveTheme as _;
 
+const SYSTEM_ACTS: bool = cfg!(target_os = "windows");
 const BUTTON: Pixels = px(20.);
 const GLYPH: Pixels = px(16.);
 
@@ -32,6 +33,10 @@ impl Control {
             Self::Maximize | Self::Restore => "window-maximize",
             Self::Close => "window-close",
         }
+    }
+
+    fn system(self) -> bool {
+        SYSTEM_ACTS && matches!(self, Self::Maximize | Self::Restore)
     }
 
     fn area(self) -> WindowControlArea {
@@ -93,7 +98,9 @@ impl RenderOnce for WindowControls {
             .flex_none()
             .items_center()
             .gap_2()
-            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+            .when(!SYSTEM_ACTS, |this| {
+                this.on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+            })
             .children(wanted.into_iter().map(move |control| {
                 let danger = control == Control::Close;
 
@@ -107,6 +114,7 @@ impl RenderOnce for WindowControls {
                     .size(BUTTON)
                     .rounded(theme.radius)
                     .cursor_pointer()
+                    .occlude()
                     .window_control_area(control.area())
                     .hover(move |style| {
                         style.bg(match danger {
@@ -117,6 +125,7 @@ impl RenderOnce for WindowControls {
                     .child(
                         svg()
                             .path(control.icon())
+                            .id("glyph")
                             .size(GLYPH)
                             .flex_none()
                             .text_color(theme.muted_foreground)
@@ -127,13 +136,16 @@ impl RenderOnce for WindowControls {
                                 })
                             }),
                     )
-                    .on_click(move |_, window, cx| {
-                        cx.stop_propagation();
-                        match control {
-                            Control::Minimize => window.minimize_window(),
-                            Control::Maximize | Control::Restore => window.zoom_window(),
-                            Control::Close => window.remove_window(),
-                        }
+                    .when(!control.system(), |this| {
+                        this.on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                            .on_click(move |_, window, cx| {
+                                cx.stop_propagation();
+                                match control {
+                                    Control::Minimize => window.minimize_window(),
+                                    Control::Maximize | Control::Restore => window.zoom_window(),
+                                    Control::Close => window.remove_window(),
+                                }
+                            })
                     })
             }));
         controls.style().refine(&overrides);

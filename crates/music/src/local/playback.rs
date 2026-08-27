@@ -11,8 +11,14 @@ use crate::{PlaybackConfig, PlaybackEvent, PlaybackEvents, PlaybackFactory, Play
 const POLL: Duration = Duration::from_millis(20);
 
 enum Command {
-    Load { id: String, at: Option<Duration> },
-    Preload { id: String },
+    Load {
+        id: String,
+        at: Option<Duration>,
+        seamless: bool,
+    },
+    Preload {
+        id: String,
+    },
     Play,
     Pause,
     Seek(Duration),
@@ -41,11 +47,12 @@ struct Engine {
 }
 
 impl Player for Engine {
-    fn load(&self, track_id: &str, _seamless: bool) -> Result<()> {
+    fn load(&self, track_id: &str, seamless: bool) -> Result<()> {
         self.commands
             .send(Command::Load {
                 id: track_id.to_owned(),
                 at: None,
+                seamless,
             })
             .context("cannot reach local playback engine")
     }
@@ -55,6 +62,7 @@ impl Player for Engine {
             .send(Command::Load {
                 id: track_id.to_owned(),
                 at: Some(at),
+                seamless: false,
             })
             .context("cannot reach local playback engine")
     }
@@ -147,7 +155,19 @@ async fn engine_loop(
             command = commands.recv() => {
                 let Some(command) = command else { break };
                 match command {
-                    Command::Load { id, at } => {
+                    Command::Load { id, at, seamless } => {
+                        let segued = seamless
+                            && at.is_none()
+                            && current.as_ref().is_some_and(|slot| slot.id == id);
+                        if segued {
+                            playing = true;
+                            sink.play();
+                            if let Some(length) = current.as_ref().and_then(|slot| slot.length) {
+                                events.send(PlaybackEvent::Length(length)).ok();
+                            }
+                            events.send(PlaybackEvent::Playing(sink.get_pos())).ok();
+                            continue;
+                        }
                         events.send(PlaybackEvent::Loading(at.unwrap_or_default())).ok();
                         sink.clear();
                         current = None;
@@ -181,9 +201,8 @@ async fn engine_loop(
                         }
                     }
                     Command::Preload { id } => {
-                        let known = current.as_ref().is_some_and(|slot| slot.id == id)
-                            || queued.as_ref().is_some_and(|slot| slot.id == id);
-                        if known || current.is_none() {
+                        let known = current.as_ref().is_some_and(|slot| slot.id == id);
+                        if known || current.is_none() || queued.is_some() {
                             continue;
                         }
                         match load(&sink, &id) {

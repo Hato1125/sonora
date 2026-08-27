@@ -7,7 +7,8 @@ use async_trait::async_trait;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use ytmusic::YtMusic;
 
-use crate::audio::{Output, RAMP, SmoothGain, Volume};
+use crate::audio::{Output, RAMP, SmoothGain, Trimmed, Volume};
+use crate::youtube::trim;
 use crate::{PlaybackConfig, PlaybackEvent, PlaybackEvents, PlaybackFactory, Player};
 
 const NORMAL_CAP: f32 = 1.0;
@@ -165,7 +166,7 @@ async fn engine_loop(
     mut commands: UnboundedReceiver<Command>,
     events: UnboundedSender<PlaybackEvent>,
 ) {
-    let output = match Output::open(Volume::new(config.gain), None) {
+    let output = match Output::open(Volume::new(config.gain)) {
         Ok(output) => output,
         Err(error) => {
             log::error!("playback: cannot open audio output: {error:#}");
@@ -446,6 +447,20 @@ fn append(
         false => gain,
     };
     let source = decode(loaded.data.clone())?;
+    let edit = trim::from_mp4(&loaded.data);
+    match edit {
+        Some(edit) => log::debug!(
+            "playback: {id} trims {:?} of priming, plays {:?}",
+            edit.skip,
+            edit.take
+        ),
+        None => log::debug!("playback: {id} carries no edit list"),
+    }
+    let source = Trimmed::new(
+        source,
+        edit.map(|edit| edit.skip).unwrap_or_default(),
+        edit.and_then(|edit| edit.take),
+    );
     sink.append(SmoothGain::new(source, envelope.clone(), initial, RAMP));
     Ok(Slot {
         id: id.to_string(),

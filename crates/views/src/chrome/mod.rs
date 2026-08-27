@@ -6,6 +6,7 @@ mod title_bar;
 mod toasts;
 mod toolbar;
 pub(crate) mod tools;
+mod update_notice;
 
 pub(crate) use aside::Aside;
 pub(crate) use player_bar::PlayerBar;
@@ -14,6 +15,7 @@ pub(crate) use sidebar_right::SidebarRight;
 pub(crate) use title_bar::{TitleBar, TitleBarEvent, TitleBarOptions};
 pub(crate) use toasts::ToastStack;
 pub(crate) use toolbar::{Searchable, Toolbar, Tooled};
+pub(crate) use update_notice::UpdateNotice;
 
 use gpui::prelude::*;
 use gpui::{App, Div, Entity, Global, Pixels, Window, div};

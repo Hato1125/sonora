@@ -7,6 +7,123 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-08-27
+
+### Added
+
+- Right-clicking an artist now offers Play artist, Play next, Add artist to queue, Follow and Copy
+  link, wherever the artist appears. It only ever offered Copy link before.
+- Albums and playlists on Home and on a genre page answer a right-click with the same menu they
+  have in Your Library, so a card and a row no longer disagree about what you can do with an item.
+- The song page and the now-playing artwork in the player bar answer a right-click with the track
+  menu. The song page had no context menu at all, and the artwork ignored the click even though the
+  title beside it did not.
+- Songs, albums, playlists and artists can be dropped straight onto the queue. Drop between two
+  queued songs to slot them in there, or anywhere else in the pane to add them at the end.
+- Sonora tells you when a newer version is out. On Windows it asks GitHub once at startup and, if
+  a release is newer than the running build, floats a card in the top-left corner with the new
+  version number, a link to what changed, and a choice between Later and Update. Update downloads
+  the installer, checks it against the release checksums, runs it and starts Sonora again when it
+  is done. The card appears once per launch and never nags mid-session, and the check can be turned
+  off under Settings, About.
+- Sonora reopens at the size and position it had when you closed it, and maximized if you left it
+  that way. A saved position that no longer lands on a connected display is dropped, so unplugging
+  a monitor cannot leave the window off screen. Wayland does not hand a window its position, so
+  there only the size and the maximized state come back.
+- Settings, Appearance can pick the interface font. The list is searchable and holds every font
+  installed on the machine that can actually set the interface, so the script-only families a system
+  carries do not clutter it, and Bundled keeps the Inter that ships with Sonora.
+
+### Changed
+
+- Previous restarts the track you are on once you are more than three seconds into it, and only
+  steps back a track if you press it near the start. There is also nothing to step back to on the
+  first track of a queue, so there it always restarts.
+- New installs start with different defaults. Album art tints the theme, corners are rounded rather
+  than subtle, volume normalisation is off, and lyrics are romanized for Japanese, Chinese and
+  Korean only. Albums, playlists and artists open as cards, an artist's own page as a list, and both
+  sidebars are a little narrower. Anything you have already set is left alone.
+- The lyric line being sung is set a little larger than the rest, and grows into that size as it
+  arrives instead of only brightening. Entering or leaving fullscreen no longer replays that growth
+  for a line that arrived a while ago.
+- Background vocals only show on the line being sung. They fade in as the line arrives and fade out
+  as it leaves, instead of sitting under every line in the sheet, and the space they take opens and
+  closes with them so the lines below do not jump.
+- Lyrics blur and dim by how far a line sits from the one being sung on screen, not by how many
+  lines away it is. The lines next to the sung one are already slightly soft, and every line further
+  out is softer than the one before it, all the way to the edge of the panel. A line never fades so
+  far that it cannot be read, and pointing at one still brings it back sharp. The panel also takes
+  longer to carry the next line into place. Scrolling the lyrics by hand is unchanged.
+
+### Removed
+
+- The "Karaoke motion" setting is gone. Every word-by-word highlight now travels on the Smooth
+  curve, which is what the setting defaulted to, so anyone who left it alone sees no change.
+
+### Fixed
+
+- Lyrics no longer run past the edge of the panel. Japanese, Chinese and Korean lines had no place to
+  break, because a line was only ever split where it had a space, so a whole verse was laid out as
+  one unbreakable row. They now break between characters, and never before a closing bracket or a
+  mark like a comma that has to stay with the character in front of it.
+- Non-Latin lyrics are set in the same weight as the rest of the text. Inter carries no Japanese,
+  Chinese or Korean glyphs, so those came from whatever the system offered and arrived at regular
+  weight next to bold Latin.
+- Turning Karaoke lyrics on no longer widens the gaps between words. The line being sung was laid
+  out one box per word so it could be highlighted piece by piece, and each box was measured on its
+  own; it is now a single run per line with the highlight clipped over it, which is what every other
+  line already did.
+- The word-by-word highlight keeps pace with Japanese, Chinese and Korean lines, where it used to
+  stall and then jump ahead to catch up. It travels on an eased curve, which reads as a flourish
+  across a word of Latin letters but not across a single wide character, and lyrics for those
+  languages are timed one character at a time or, worse, a whole phrase at a time: the highlight
+  raced most of the way over a character and then crawled the rest. Wide characters and phrases now
+  fill at an even pace, and the soft edge the highlight carries no longer hardens on every character
+  it crosses, which was dragging the visible edge back half a character at a time. A word followed
+  by a rest also finishes where it is sung instead of drifting on through the silence.
+- Japanese, Chinese and Korean lyrics keep their spacing when a line's word timings do not line up
+  with its text. Sonora fell back to spacing the words out as if they were English, which put a gap
+  between every character.
+- Album covers no longer leave a thin line across the player bar as they scroll past it. Card grids
+  and the shelves on Home were drawing one row beyond the edge of what you can see, and a single
+  pixel of it fell outside the clip.
+- The Songs tab in Your Library no longer stutters on a large collection. Its play button was
+  building a copy of every song in the list on every frame, so the bigger the library the worse it
+  scrolled.
+- A word-by-word lyric line never breaks in the middle of a word. Each word is laid out on its own
+  so it would be squeezed rather than moved down when it did not fit, splitting "upon" across two
+  lines as "u" and "pon". A word that does not fit now moves to the next line whole. Punctuation
+  timed as its own word goes with it, so a line no longer wraps to leave a lone "?" or "," on the
+  last row.
+- Turning volume normalisation or gapless playback on or off keeps the song you are on. Both
+  settings can only take effect on a fresh player, so Sonora used to drop the track and send you
+  back to nothing; it now rebuilds the player and puts the song back where it was. A song that was
+  paused stays paused rather than starting itself.
+- YouTube tracks no longer leave a short silence between them. The audio YouTube serves carries a
+  fraction of a second of encoder padding at each end, which nothing in the decoding stack was
+  removing, so it played as a gap however early the next track was fetched. Sonora now reads how
+  much to drop from the file itself and trims it.
+- Imported tracks run into one another with no gap. The next track was already decoded and waiting
+  behind the current one, but Sonora tore it down and started it again the moment the song changed,
+  so every boundary cost a stumble.
+- Spotify playback on Windows no longer hisses in the background, which was loudest at low volume.
+  Sonora asked the output device for a stream it could not give and settled for the poorest sample
+  format on offer instead of the one the device already runs at, so every track was played through
+  a needlessly coarse output. It now opens the device at its own format, the way YouTube and
+  imported tracks always have.
+- Rows in the list view of Albums, Playlists and Artists can be dragged by their name. The name
+  column swallowed the press, so the only place a row could be picked up from was its cover.
+- Dropping something in the space between two pinned items in the sidebar, or between two queued
+  songs, puts it there instead of at the end.
+- The minimize and close buttons work on Windows, where a click on either did nothing. Maximize is
+  still handed to Windows itself, which is what lets it restore a maximized window and open the
+  Snap Layouts flyout on hover.
+- Double-clicking the title bar maximizes the window and restores it when it is already maximized.
+  Nothing happened on macOS before, because the first click started a window drag that swallowed
+  the second.
+- A lyric sheet that only says the song is instrumental is read as instrumental instead of being
+  shown as the song's words, whatever case it is written in.
+
 ## [0.18.0] - 2026-08-25
 
 ### Added
@@ -742,7 +859,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Initial release: a native Spotify client with playback, an interactive queue, the saved library,
 search, album, playlist, artist and song pages, context menus and adaptive theming.
 
-[unreleased]: https://github.com/nolight132/sonora/compare/v0.18.0...HEAD
+[unreleased]: https://github.com/nolight132/sonora/compare/v0.19.0...HEAD
+[0.19.0]: https://github.com/nolight132/sonora/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/nolight132/sonora/compare/v0.17.1...v0.18.0
 [0.17.1]: https://github.com/nolight132/sonora/compare/v0.17.0...v0.17.1
 [0.17.0]: https://github.com/nolight132/sonora/compare/v0.16.3...v0.17.0

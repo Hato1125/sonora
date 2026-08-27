@@ -82,7 +82,8 @@ impl FullscreenView {
         let aside = cx.new(|cx| Aside::new(queue.clone(), playback.clone(), SideTab::Lyrics, cx));
         aside.update(cx, |aside, _| aside.strip());
         cx.observe(&aside, |_, _, cx| cx.notify()).detach();
-        let playlist_scrollbar = cx.new(|_| Scrollbar::inset());
+        let me = cx.entity_id();
+        let playlist_scrollbar = cx.new(|_| Scrollbar::inset().watching(me));
 
         let mut this = Self {
             playback,

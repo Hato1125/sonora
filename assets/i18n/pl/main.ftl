@@ -92,6 +92,8 @@ menu-make-playlist-private = Ustaw jako prywatną
 menu-open-album = Otwórz album
 menu-play-album = Odtwórz album
 menu-add-album-to-queue = Dodaj album do kolejki
+menu-play-artist = Odtwórz wykonawcę
+menu-add-artist-to-queue = Dodaj wykonawcę do kolejki
 
 # playlist editor
 playlist-name-placeholder = Nazwa playlisty
@@ -425,6 +427,8 @@ toast-queued-album = Album dodano do kolejki
 toast-next-album = Album zabrzmi następny
 toast-queued-playlist = Playlistę dodano do kolejki
 toast-next-playlist = Playlista zabrzmi następna
+toast-queued-artist = Wykonawcę dodano do kolejki
+toast-next-artist = Wykonawca zabrzmi następny
 toast-queue-failed = Nie udało się dodać do kolejki
 toast-keys-refused = Spotify nie udziela temu kontu kluczy odtwarzania
 toast-sign-in-to-play = { $name } udostępnia muzykę tylko po zalogowaniu
@@ -440,3 +444,13 @@ lyrics-failed = Nie udało się połączyć z serwisem tekstów
 lyrics-follow = Znów podążaj za utworem
 lyrics-source = Tekst z { $source }
 lyrics-writers = Autorzy: { $writers }
+
+update-available = Sonora { $version } jest dostępna
+update-detail = Masz wersję { $running }. Zobacz, co się zmieniło, albo zaktualizuj teraz.
+update-notes = Co nowego
+update-now = Aktualizuj
+update-later = Później
+update-working = Pobieranie aktualizacji…
+update-failed = Nie udało się zainstalować aktualizacji. Spróbuj ze strony wydań.
+settings-check-updates = Sprawdzaj aktualizacje
+settings-check-updates-detail = Zapytaj GitHuba przy starcie, czy jest nowsza wersja

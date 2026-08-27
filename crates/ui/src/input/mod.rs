@@ -156,6 +156,7 @@ pub struct Input {
     hint: SharedString,
     icon: Option<SharedString>,
     compact: bool,
+    tucked: bool,
     clearable: bool,
     content: SharedString,
     selected_range: Range<usize>,
@@ -173,6 +174,7 @@ impl Input {
             hint: hint.into(),
             icon: None,
             compact: false,
+            tucked: false,
             clearable: false,
             content: SharedString::default(),
             selected_range: 0..0,
@@ -191,6 +193,11 @@ impl Input {
 
     pub fn compact(mut self) -> Self {
         self.compact = true;
+        self
+    }
+
+    pub fn tucked(mut self) -> Self {
+        self.tucked = true;
         self
     }
 

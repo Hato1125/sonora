@@ -19,7 +19,7 @@ use crate::chrome::tools::{self, Sift, Sliders};
 use crate::chrome::{Chrome, Searchable, Toolbar, Tooled};
 use crate::shared::hero::{HeroMetaStrip, HeroPlayButton, PageHero, release_date_label};
 use crate::shared::tracks::{
-    self, PlaybackStatus, TrackField, TrackSieve, TrackSource, Tracks, playback_status,
+    PlaybackStatus, TrackField, TrackSieve, TrackSource, Tracks, playback_status,
 };
 use crate::shared::{cells, page};
 
@@ -72,11 +72,12 @@ impl DetailView {
         let saved = settings.read(cx).table(section);
         let width = MIN_CONTENT;
 
-        let scrollbar = cx.new(|_| Scrollbar::new(ScrollHandle::new()));
+        let id = cx.entity_id();
+        let scrollbar = cx.new(|_| Scrollbar::new(ScrollHandle::new()).watching(id));
         let scroll = scrollbar.read(cx).scroll().clone();
 
         let table = cx.new(|cx| {
-            let playlist_scrollbar = cx.new(|_| Scrollbar::inset());
+            let playlist_scrollbar = cx.new(|_| Scrollbar::inset().watching(id));
             let source = TrackSource::new(
                 columns,
                 DetailTracks(detail.clone()),
@@ -275,10 +276,10 @@ impl DetailView {
             .flex()
             .items_center()
             .gap_2()
-            .child(HeroPlayButton::new(
+            .child(HeroPlayButton::listed(
                 "play-detail",
                 label,
-                tracks::ordered(&self.table, cx),
+                &self.table,
                 self.playback.clone(),
             ))
             .children(self.library_button(cx))

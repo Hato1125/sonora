@@ -1,13 +1,15 @@
 use std::time::{Duration, Instant};
 
 use gpui::prelude::*;
-use gpui::{AnyView, App, Context, Entity, FocusHandle, Render, px};
+use gpui::{AnyView, App, Context, Entity, FocusHandle, Render, StyleRefinement, px};
 use gpui::{Window, div};
 use input::WORKSPACE_CONTEXT;
 use state::{Playback, Queue, SideTab};
 use ui::{Motion, ease_out_expo};
 
-use crate::chrome::{Chrome, PlayerBar, SidebarLeft, SidebarRight, TitleBarOptions, ToastStack};
+use crate::chrome::{
+    Chrome, PlayerBar, SidebarLeft, SidebarRight, TitleBarOptions, ToastStack, UpdateNotice,
+};
 use crate::shared::playlist_editor::PlaylistEditor;
 use crate::shells::Shell;
 
@@ -44,6 +46,7 @@ pub(crate) struct Workspace {
     sidebar_right: Entity<SidebarRight>,
     playlist_editor: Entity<PlaylistEditor>,
     toasts: Entity<ToastStack>,
+    notice: Entity<UpdateNotice>,
     content: AnyView,
     transition: Option<ContentTransition>,
     focus: FocusHandle,
@@ -66,6 +69,7 @@ impl Workspace {
             sidebar_right,
             playlist_editor: PlaylistEditor::entity(cx),
             toasts: cx.new(ToastStack::new),
+            notice: cx.new(UpdateNotice::new),
             content,
             transition: None,
             focus: cx.focus_handle(),
@@ -221,7 +225,14 @@ impl Render for Workspace {
                                     .layer_scale(scale)
                                     .opacity(1. - hidden)
                                     .blur(VIEW_BLUR * hidden)
-                                    .child(self.content.clone()),
+                                    .child(match hidden > 0. {
+                                        true => self.content.clone().into_any_element(),
+                                        false => self
+                                            .content
+                                            .clone()
+                                            .cached(StyleRefinement::default().size_full())
+                                            .into_any_element(),
+                                    }),
                             ),
                     )
                     .child(self.sidebar_right.clone())
@@ -234,5 +245,6 @@ impl Render for Workspace {
                     .child(self.toasts.clone()),
             )
             .child(self.playlist_editor.clone())
+            .child(self.notice.clone())
     }
 }

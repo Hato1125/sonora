@@ -123,6 +123,9 @@ impl Text {
     }
 }
 
+const INSET: f32 = 0.25;
+const BORDER: Pixels = px(1.);
+
 pub fn snapped(value: Pixels, window: &Window) -> Pixels {
     let scale = window.scale_factor();
     px((value / px(1.) * scale).round() / scale)
@@ -149,4 +152,8 @@ pub fn text_width(text: impl Into<SharedString>, window: &Window) -> Pixels {
         .text_system()
         .shape_line(text, size, &[run], None)
         .width
+}
+
+pub fn tucked(radius: Pixels, window: &Window) -> Pixels {
+    (radius - window.rem_size() * INSET - BORDER).max(Pixels::ZERO)
 }

@@ -3,12 +3,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use librespot_playback::audio_backend::{Sink, SinkError, SinkResult};
-use librespot_playback::config::AudioFormat;
 use librespot_playback::convert::Converter;
 use librespot_playback::decoder::AudioPacket;
 use librespot_playback::{NUM_CHANNELS, SAMPLE_RATE};
 
-use crate::audio::{Output, Volume, Wanted};
+use crate::audio::{Output, Volume};
 
 const QUEUED_CHUNKS: usize = 26;
 const DRAIN_POLL: Duration = Duration::from_millis(10);
@@ -32,21 +31,16 @@ pub struct BlazingSink {
 }
 
 impl BlazingSink {
-    pub fn open(format: AudioFormat, flush: Flush, volume: Volume) -> Result<Self, SinkError> {
-        let wanted = Wanted {
-            channels: NUM_CHANNELS as u16,
-            sample_rate: SAMPLE_RATE,
-            format: Box::new(move |device| output_sample_format(format, device)),
-        };
-        let output = Output::open(volume, Some(wanted))
+    pub fn open(flush: Flush, volume: Volume) -> Result<Self, SinkError> {
+        let output = Output::open(volume)
             .map_err(|error| SinkError::ConnectionRefused(error.to_string()))?;
         output.sink().pause();
 
         Ok(Self { output, flush })
     }
 
-    pub fn boxed(format: AudioFormat, flush: Flush, volume: Volume) -> Box<dyn Sink> {
-        match Self::open(format, flush, volume) {
+    pub fn boxed(flush: Flush, volume: Volume) -> Box<dyn Sink> {
+        match Self::open(flush, volume) {
             Ok(sink) => Box::new(sink),
             Err(error) => {
                 log::error!("sink: cannot open an output device: {error}");
@@ -96,19 +90,5 @@ struct Silence;
 impl Sink for Silence {
     fn write(&mut self, _packet: AudioPacket, _converter: &mut Converter) -> SinkResult<()> {
         Ok(())
-    }
-}
-
-fn output_sample_format(input: AudioFormat, device: cpal::SampleFormat) -> cpal::SampleFormat {
-    if cfg!(target_os = "windows") {
-        device
-    } else {
-        match input {
-            AudioFormat::F64 => cpal::SampleFormat::F64,
-            AudioFormat::F32 => cpal::SampleFormat::F32,
-            AudioFormat::S32 => cpal::SampleFormat::I32,
-            AudioFormat::S24 | AudioFormat::S24_3 => cpal::SampleFormat::I24,
-            AudioFormat::S16 => cpal::SampleFormat::I16,
-        }
     }
 }

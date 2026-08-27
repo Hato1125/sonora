@@ -215,11 +215,15 @@ impl Element for Text {
 }
 
 impl Render for Input {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
         let height = match self.compact {
             true => theme.metrics.control_small,
             false => theme.metrics.field,
+        };
+        let radius = match self.tucked {
+            true => crate::tucked(theme.radius, window),
+            false => theme.radius,
         };
 
         div()
@@ -230,10 +234,13 @@ impl Render for Input {
             .min_w_0()
             .h(height)
             .px_3()
-            .rounded(theme.radius)
+            .rounded(radius)
             .bg(theme.secondary)
-            .border_1()
-            .border_color(theme.border)
+            .when_else(
+                self.tucked,
+                |this| this.w_full(),
+                |this| this.border_1().border_color(theme.border),
+            )
             .overflow_hidden()
             .key_context(INPUT_CONTEXT)
             .track_focus(&self.focus_handle)

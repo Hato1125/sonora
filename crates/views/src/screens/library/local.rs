@@ -113,11 +113,12 @@ impl LocalView {
             )
         };
 
-        let scrollbar = cx.new(|_| Scrollbar::new(ScrollHandle::new()));
+        let id = cx.entity_id();
+        let scrollbar = cx.new(|_| Scrollbar::new(ScrollHandle::new()).watching(id));
         let scroll = scrollbar.read(cx).scroll().clone();
 
         let tracks = cx.new(|cx| {
-            let playlist_scrollbar = cx.new(|_| Scrollbar::inset());
+            let playlist_scrollbar = cx.new(|_| Scrollbar::inset().watching(id));
             let source = TrackSource::new(
                 LIBRARY_COLUMNS,
                 LocalTracks(library.clone()),
@@ -162,6 +163,7 @@ impl LocalView {
             for table in this.tables() {
                 table.refresh(cx);
             }
+            cx.notify();
         })
         .detach();
 

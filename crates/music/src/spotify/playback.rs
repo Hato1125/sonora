@@ -4,7 +4,7 @@ use std::time::Duration;
 use anyhow::{Context as _, Result};
 use async_trait::async_trait;
 use librespot_core::{Session, SpotifyUri};
-use librespot_playback::config::{AudioFormat, Bitrate, PlayerConfig};
+use librespot_playback::config::{Bitrate, PlayerConfig};
 use librespot_playback::mixer::NoOpVolume;
 use librespot_playback::player::{Player, PlayerEvent};
 use tokio::sync::mpsc::UnboundedReceiver;
@@ -68,7 +68,7 @@ impl Engine {
         let sink_volume = volume.clone();
         let sink_flush = flush.clone();
         let player = Player::new(player_config, session, Box::new(NoOpVolume), move || {
-            BlazingSink::boxed(AudioFormat::default(), sink_flush, sink_volume)
+            BlazingSink::boxed(sink_flush, sink_volume)
         });
 
         let events = Events(player.get_player_event_channel());

@@ -8,10 +8,11 @@ use music::Album;
 use router::Destination;
 use state::{Library, LibraryState, Origin, Playback};
 use ui::rank::{HANDY, NICE, SPARE, USEFUL};
-use ui::{Cell, ColumnSpec, GridSource, Menu, Pin, PinKind, Width};
+use ui::{Cell, ColumnSpec, GridSource, Menu, Pin, Width};
 
 use crate::shared::cells::{self, DATE, NUMBER, TRAILING, YEAR};
 use crate::shared::menu::album_menu;
+use crate::shared::pins::Pinned as _;
 use crate::shared::text::{folded, holds};
 use crate::shared::tracks::initial;
 
@@ -224,12 +225,7 @@ impl GridSource for AlbumSource {
     }
 
     fn pin(&self, row: usize, cx: &App) -> Option<Pin> {
-        let album = self.albums(cx).get(row)?;
-
-        Some(
-            Pin::new(PinKind::Album, album.id.clone(), album.name.clone())
-                .cover(album.cover.clone()),
-        )
+        self.albums(cx).get(row)?.pin()
     }
 
     fn context_menu(&self, row: usize, _visible: &[AlbumField], cx: &App) -> Option<Menu> {

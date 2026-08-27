@@ -371,6 +371,7 @@ impl RenderOnce for Card {
                         let size = px((art / px(1.) * SCRIM_RATIO).round()).max(SCRIM_MIN);
 
                         div()
+                            .id("card-scrim")
                             .absolute()
                             .inset_0()
                             .when(!playing, |this| {
@@ -418,6 +419,7 @@ impl RenderOnce for Card {
         };
 
         let title = div()
+            .id("card-title")
             .min_w_0()
             .truncate()
             .when_some(drag_start.clone(), |this, drag_start| {
@@ -526,6 +528,7 @@ impl RenderOnce for Card {
             .children(trailing.map(|trailing| div().flex_none().child(trailing)))
             .children(action.map(|action| {
                 div()
+                    .id("card-action")
                     .flex_none()
                     .invisible()
                     .group_hover(CARD_GROUP, |style| style.visible())

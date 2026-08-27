@@ -64,11 +64,11 @@ pub use input::{
 };
 pub use label::{eyebrow, heading, upper, vacant};
 pub use layout::{ALWAYS, MIN_CONTENT, ROOMY, Room, SNUG, VAST, WIDE};
-pub use menu::{Menu, MenuItem, SubmenuState};
-pub use metrics::{LEADING, Metrics, Rounding, Text, snapped};
+pub use menu::{MENU_CONTEXT, Menu, MenuItem, SubmenuState};
+pub use metrics::{LEADING, Metrics, Rounding, Text, snapped, tucked};
 pub use modal::Modal;
 pub use motion::{
-    Motion, Motioned, Pace, Stillness, Sweep, ease_in_out_expo, ease_out_cubic, ease_out_expo,
+    Motion, Motioned, Pace, Stillness, ease_in_out_expo, ease_out_cubic, ease_out_expo,
     ease_out_quad, mix,
 };
 pub use notice::Notice;

@@ -9,6 +9,7 @@ pub(crate) mod hero;
 pub(crate) mod menu;
 pub(crate) mod page;
 pub(crate) mod picks;
+pub(crate) mod pins;
 pub(crate) mod playlist_editor;
 pub(crate) mod shelves;
 pub(crate) mod text;

@@ -17,13 +17,11 @@ use jiff::Timestamp;
 use music::Track;
 use router::Destination;
 use state::{Detail, Library, Playback, PlaybackState, Sonora};
-use ui::{
-    Button, Cell, ColumnSpec, GridSource, GridState, Menu, Pin, PinKind, ROW_GROUP, Scrollbar,
-    clock,
-};
+use ui::{Button, Cell, ColumnSpec, GridSource, GridState, Menu, Pin, ROW_GROUP, Scrollbar, clock};
 
 use crate::shared::cells;
 use crate::shared::hero::release_date_label;
+use crate::shared::pins::Pinned as _;
 
 pub(crate) use columns::{LIBRARY_COLUMNS, TrackField, album_columns, artist_columns};
 pub(crate) use sieve::TrackSieve;
@@ -41,6 +39,30 @@ pub(crate) fn playback_status(playback: &Entity<Playback>, cx: &App) -> Playback
 pub(crate) trait Tracks: 'static {
     fn tracks<'a>(&self, cx: &'a App) -> &'a [Track];
     fn is_loading(&self, cx: &App) -> bool;
+}
+
+pub(crate) fn first_playable(table: &Entity<GridState<TrackSource>>, cx: &App) -> Option<usize> {
+    let state = table.read(cx);
+    let delegate = state.delegate();
+
+    (0..delegate.row_count()).find(|display| {
+        delegate
+            .source()
+            .peek(delegate.row(*display), cx)
+            .is_some_and(|track| track.playable)
+    })
+}
+
+pub(crate) fn holds(table: &Entity<GridState<TrackSource>>, id: &str, cx: &App) -> bool {
+    let state = table.read(cx);
+    let delegate = state.delegate();
+
+    (0..delegate.row_count()).any(|display| {
+        delegate
+            .source()
+            .peek(delegate.row(display), cx)
+            .is_some_and(|track| track.id.as_deref() == Some(id))
+    })
 }
 
 pub(crate) fn ordered(table: &Entity<GridState<TrackSource>>, cx: &App) -> Vec<Track> {
@@ -295,6 +317,14 @@ impl TrackSource {
     pub(crate) fn at(&self, row: usize, cx: &App) -> Option<Track> {
         self.provider.tracks(cx).get(row).cloned()
     }
+
+    pub(crate) fn peek<'a>(&self, row: usize, cx: &'a App) -> Option<&'a Track> {
+        self.provider.tracks(cx).get(row)
+    }
+
+    pub(crate) fn menu(&self) -> &ItemMenu {
+        &self.menu
+    }
 }
 
 impl GridSource for TrackSource {
@@ -348,10 +378,7 @@ impl GridSource for TrackSource {
     }
 
     fn pin(&self, row: usize, cx: &App) -> Option<Pin> {
-        let track = self.provider.tracks(cx).get(row)?;
-        let id = track.id.clone()?;
-
-        Some(Pin::new(PinKind::Song, id, track.name.clone()).cover(track.cover.clone()))
+        self.provider.tracks(cx).get(row)?.pin()
     }
 
     fn cell(&self, cell: Cell<TrackField>, cx: &mut App) -> AnyElement {

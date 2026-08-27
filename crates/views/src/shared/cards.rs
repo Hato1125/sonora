@@ -1,10 +1,12 @@
+use gpui::prelude::FluentBuilder as _;
 use gpui::{App, ElementId, Entity, FontWeight, SharedString};
 use music::{Album, Playlist, SavedArtist};
 use router::{Destination, navigate};
 use state::{Origin, Playback, PlaybackState};
-use ui::{ActiveTheme as _, Card, Pin, PinKind, Pinnable as _, Text};
+use ui::{ActiveTheme as _, Card, Pinnable, Text};
 
 use crate::shared::cells;
+use crate::shared::pins::Pinned as _;
 
 pub(crate) fn album_card(
     id: impl Into<ElementId>,
@@ -19,7 +21,7 @@ pub(crate) fn album_card(
         playback.read(cx).playing_from(&origin),
         Some(PlaybackState::Playing)
     );
-    let pin = Pin::new(PinKind::Album, album.id.clone(), album.name.clone()).cover(cover.clone());
+    let pin = album.pin();
     let opened = SharedString::from(album.id.clone());
     let toggled = playback.clone();
     let artists = cells::artist_links(
@@ -40,7 +42,7 @@ pub(crate) fn album_card(
             toggled.update(cx, |playback, cx| playback.toggle_origin(&origin, cx));
         })
         .press(move |_, _, cx| navigate(Destination::Album(opened.clone()), cx))
-        .pin(pin)
+        .when_some(pin, Pinnable::pin)
 }
 
 pub(crate) fn playlist_card(
@@ -54,12 +56,7 @@ pub(crate) fn playlist_card(
         playback.read(cx).playing_from(&origin),
         Some(PlaybackState::Playing)
     );
-    let pin = Pin::new(
-        PinKind::Playlist,
-        playlist.id.clone(),
-        playlist.name.clone(),
-    )
-    .cover(playlist.cover.clone());
+    let pin = playlist.pin();
     let opened = SharedString::from(playlist.id.clone());
     let toggled = playback.clone();
 
@@ -72,12 +69,11 @@ pub(crate) fn playlist_card(
             toggled.update(cx, |playback, cx| playback.toggle_origin(&origin, cx));
         })
         .press(move |_, _, cx| navigate(Destination::Playlist(opened.clone()), cx))
-        .pin(pin)
+        .when_some(pin, Pinnable::pin)
 }
 
 pub(crate) fn artist_card(id: impl Into<ElementId>, artist: &SavedArtist) -> Card {
-    let pin = Pin::new(PinKind::Artist, artist.id.clone(), artist.name.clone())
-        .cover(artist.cover.clone());
+    let pin = artist.pin();
     let opened = SharedString::from(artist.id.clone());
 
     Card::new(id, SharedString::from(artist.name.clone()))
@@ -87,5 +83,5 @@ pub(crate) fn artist_card(id: impl Into<ElementId>, artist: &SavedArtist) -> Car
         .underline()
         .meta(i18n::lookup("artist-eyebrow", None))
         .press(move |_, _, cx| navigate(Destination::Artist(opened.clone()), cx))
-        .pin(pin)
+        .when_some(pin, Pinnable::pin)
 }

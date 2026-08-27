@@ -1,5 +1,8 @@
 use gpui::prelude::*;
-use gpui::{AnyView, Context, Entity, EventEmitter, MouseButton, Pixels, Render};
+use gpui::{
+    AnyView, Context, Entity, EventEmitter, MouseButton, MouseDownEvent, MouseMoveEvent,
+    MouseUpEvent, Pixels, Render,
+};
 use gpui::{Window, div, px};
 use ui::WindowControls;
 use ui::{ActiveTheme as _, Button};
@@ -7,6 +10,8 @@ use ui::{ActiveTheme as _, Button};
 use crate::chrome::SidebarRight;
 use router::Navigation;
 use state::{AppSettings, Sonora};
+
+const SYSTEM_ZOOMS: bool = cfg!(target_os = "windows");
 
 #[cfg(target_os = "macos")]
 const TITLE_BAR_LEFT_INSET: f32 = 74.;
@@ -45,6 +50,7 @@ pub(crate) struct TitleBar {
     navigation: Entity<Navigation>,
     settings: Entity<AppSettings>,
     options: TitleBarOptions,
+    grabbed: bool,
 }
 
 impl EventEmitter<TitleBarEvent> for TitleBar {}
@@ -60,6 +66,7 @@ impl TitleBar {
             navigation,
             settings,
             options: TitleBarOptions::default(),
+            grabbed: false,
         }
     }
 
@@ -193,9 +200,27 @@ impl Render for TitleBar {
                 this.border_b_1().border_color(theme.title_bar_border)
             })
             .window_control_area(gpui::WindowControlArea::Drag)
-            .on_mouse_down(MouseButton::Left, |_, window, _| {
-                window.start_window_move();
-            })
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(
+                    |this, event: &MouseDownEvent, window, _| match event.click_count {
+                        1 => this.grabbed = true,
+                        2 if !SYSTEM_ZOOMS => window.zoom_window(),
+                        _ => {}
+                    },
+                ),
+            )
+            .on_mouse_up(
+                MouseButton::Left,
+                cx.listener(|this, _: &MouseUpEvent, _, _| this.grabbed = false),
+            )
+            .on_mouse_down_out(cx.listener(|this, _: &MouseDownEvent, _, _| this.grabbed = false))
+            .on_mouse_move(cx.listener(|this, _: &MouseMoveEvent, window, _| {
+                if this.grabbed {
+                    this.grabbed = false;
+                    window.start_window_move();
+                }
+            }))
             .child(
                 div()
                     .flex()

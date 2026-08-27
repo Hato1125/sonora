@@ -1,16 +1,16 @@
 use std::future::Future;
-use std::pin::Pin;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use anyhow::Result;
-use gpui::{Context, Entity, EventEmitter, Task};
+use gpui::{App, Context, Entity, EventEmitter, Task};
 use music::{
     MusicApi, PlaybackConfig, PlaybackEvent as BackendEvent, PlaybackEvents, PlaybackFactory,
     Player, Track,
 };
+use ui::{Pin, PinKind};
 
-type Fetch = Pin<Box<dyn Future<Output = Result<Vec<Track>>> + Send>>;
+type Fetch = std::pin::Pin<Box<dyn Future<Output = Result<Vec<Track>>> + Send>>;
 
 #[derive(Clone, Copy, PartialEq)]
 enum Refusal {
@@ -39,6 +39,17 @@ impl Start {
 enum QueuePlacement {
     Next,
     End,
+    Gap(usize),
+}
+
+impl QueuePlacement {
+    fn toast(self, source: &str) -> Option<String> {
+        match self {
+            Self::Next => Some(format!("toast-next-{source}")),
+            Self::End => Some(format!("toast-queued-{source}")),
+            Self::Gap(_) => None,
+        }
+    }
 }
 
 use crate::queue::Queue;
@@ -50,6 +61,7 @@ const POSITION_INTERVAL: Duration = Duration::from_millis(500);
 const CLOCK_SETTLE: Duration = Duration::from_secs(1);
 const PRELOAD_BEFORE_END: Duration = Duration::from_secs(10);
 const SKIP_DEBOUNCE: Duration = Duration::from_millis(250);
+const RESTART_WINDOW: Duration = Duration::from_secs(3);
 const KEY_COOLDOWN: Duration = Duration::from_secs(6);
 const RESUME_STEP: Duration = Duration::from_secs(5);
 const TAPER_DB: f32 = 50.;
@@ -456,6 +468,52 @@ impl Playback {
             .update(cx, |queue, cx| queue.prepend_all(tracks, cx));
     }
 
+    pub fn insert_all(&mut self, tracks: Vec<Track>, gap: usize, cx: &mut Context<Self>) {
+        if tracks.is_empty() {
+            return;
+        }
+        if self.queue.read(cx).current().is_none() {
+            self.begin(tracks, 0, None, cx);
+            return;
+        }
+        self.queue
+            .update(cx, |queue, cx| queue.insert_upcoming(gap, tracks, cx));
+    }
+
+    pub fn enqueue_pin(&mut self, pin: &Pin, gap: Option<usize>, cx: &mut Context<Self>) {
+        let placement = QueuePlacement::Gap(gap.unwrap_or(usize::MAX));
+        let id = pin.id.clone();
+
+        match pin.kind {
+            PinKind::Song => {
+                let track = id.clone();
+                self.enqueue_from("track", &id, placement, cx, move |client| {
+                    Box::pin(async move { client.track(&track).await.map(|track| vec![track]) })
+                });
+            }
+            PinKind::Album => {
+                let album = id.clone();
+                self.enqueue_from("album", &id, placement, cx, move |client| {
+                    Box::pin(async move { client.album_tracks(&album).await })
+                });
+            }
+            PinKind::Playlist => {
+                let playlist = id.clone();
+                self.enqueue_from("playlist", &id, placement, cx, move |client| {
+                    Box::pin(async move { client.playlist_tracks(&playlist).await })
+                });
+            }
+            PinKind::Artist => {
+                let artist = id.clone();
+                self.enqueue_from("artist", &id, placement, cx, move |client| {
+                    Box::pin(
+                        async move { client.artist(&artist).await.map(|found| found.top_tracks) },
+                    )
+                });
+            }
+        }
+    }
+
     pub fn enqueue_album(&mut self, album: &str, cx: &mut Context<Self>) {
         let id = album.to_owned();
         let album = album.to_owned();
@@ -484,6 +542,22 @@ impl Playback {
         let origin = Origin::Artist(artist.to_owned());
         let artist = artist.to_owned();
         self.gather(origin, cx, move |client| {
+            Box::pin(async move { client.artist(&artist).await.map(|found| found.top_tracks) })
+        });
+    }
+
+    pub fn play_artist_next(&mut self, artist: &str, cx: &mut Context<Self>) {
+        let id = artist.to_owned();
+        let artist = artist.to_owned();
+        self.enqueue_from("artist", &id, QueuePlacement::Next, cx, move |client| {
+            Box::pin(async move { client.artist(&artist).await.map(|found| found.top_tracks) })
+        });
+    }
+
+    pub fn enqueue_artist(&mut self, artist: &str, cx: &mut Context<Self>) {
+        let id = artist.to_owned();
+        let artist = artist.to_owned();
+        self.enqueue_from("artist", &id, QueuePlacement::End, cx, move |client| {
             Box::pin(async move { client.artist(&artist).await.map(|found| found.top_tracks) })
         });
     }
@@ -547,12 +621,9 @@ impl Playback {
                         match placement {
                             QueuePlacement::Next => this.play_next_all(tracks, cx),
                             QueuePlacement::End => this.enqueue_all(tracks, cx),
+                            QueuePlacement::Gap(gap) => this.insert_all(tracks, gap, cx),
                         }
-                        if queued {
-                            let key = match placement {
-                                QueuePlacement::Next => format!("toast-next-{source}"),
-                                QueuePlacement::End => format!("toast-queued-{source}"),
-                            };
+                        if queued && let Some(key) = placement.toast(source) {
                             Toasts::show(Outcome::Done, key, cx);
                         }
                     }
@@ -822,7 +893,19 @@ impl Playback {
         self.load_after(&track, start, cx);
     }
 
+    pub fn has_previous(&self, cx: &App) -> bool {
+        self.track.is_some() || self.queue.read(cx).has_previous()
+    }
+
+    fn restarts(&self, cx: &App) -> bool {
+        self.track.is_some()
+            && (self.live_position() > RESTART_WINDOW || !self.queue.read(cx).has_previous())
+    }
+
     pub fn previous(&mut self, cx: &mut Context<Self>) {
+        if self.restarts(cx) {
+            return self.seek(Duration::ZERO, cx);
+        }
         self.fetch = None;
         let start = self.burst();
         let Some(track) = self.queue.update(cx, |queue, cx| queue.previous(cx)) else {
@@ -1104,15 +1187,26 @@ impl Playback {
         self.restart_engine(cx);
     }
 
+    fn local_active(&self) -> bool {
+        self.track
+            .as_ref()
+            .and_then(|track| track.id.as_deref())
+            .is_some_and(music::is_local_id)
+    }
+
     fn restart_engine(&mut self, cx: &mut Context<Self>) {
-        if self.engine.is_some() {
-            let playback = self.session.read(cx).playback();
-            if let Some(playback) = playback {
-                self.start_engine(playback, cx);
-                return;
-            }
+        let playback = match self.engine.is_some() {
+            true => self.session.read(cx).playback(),
+            false => None,
+        };
+        let Some(playback) = playback else {
+            return cx.notify();
+        };
+
+        match self.local_active() {
+            true => self.start_engine(playback, cx),
+            false => self.rebind(playback, cx),
         }
-        cx.notify();
     }
 
     fn ask_for_reconnect(&mut self, cx: &mut Context<Self>) -> bool {
@@ -1154,12 +1248,7 @@ impl Playback {
         self.listen(events, false, cx);
         self.engine = Some(engine);
         self.refused = None;
-        let local_active = self
-            .track
-            .as_ref()
-            .and_then(|track| track.id.as_deref())
-            .is_some_and(music::is_local_id);
-        if !local_active {
+        if !self.local_active() {
             self.state = PlaybackState::Idle;
             self.position = Duration::ZERO;
             self.clock.reset(Duration::ZERO, false);
@@ -1200,12 +1289,7 @@ impl Playback {
     }
 
     fn on_backend_event(&mut self, event: BackendEvent, local: bool, cx: &mut Context<Self>) {
-        let active = self
-            .track
-            .as_ref()
-            .and_then(|track| track.id.as_deref())
-            .is_some_and(music::is_local_id);
-        if local != active {
+        if local != self.local_active() {
             return;
         }
         match event {
@@ -1296,12 +1380,7 @@ impl Playback {
         self.task = None;
         self.engine = None;
 
-        let local_active = self
-            .track
-            .as_ref()
-            .and_then(|track| track.id.as_deref())
-            .is_some_and(music::is_local_id);
-        if !local_active {
+        if !self.local_active() {
             self.load = None;
             self.fetch = None;
             self.enqueue = None;

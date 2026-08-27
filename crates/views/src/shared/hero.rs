@@ -9,8 +9,11 @@ use i18n::t;
 use music::Track;
 use state::{Playback, PlaybackState};
 use ui::{
-    ActiveTheme as _, Artwork, Button, ExplicitBadge, LEADING, Pin, Pinnable as _, Text, upper,
+    ActiveTheme as _, Artwork, Button, ExplicitBadge, GridState, LEADING, Pin, Pinnable as _, Text,
+    upper,
 };
+
+use crate::shared::tracks::{self, TrackSource};
 
 pub(crate) fn release_date_label(value: &str) -> SharedString {
     let parts: Vec<_> = value.split('-').collect();
@@ -87,11 +90,39 @@ impl RenderOnce for HeroMetaStrip {
     }
 }
 
+enum Listing {
+    Owned(Vec<Track>),
+    Listed(Entity<GridState<TrackSource>>),
+}
+
+impl Listing {
+    fn first(&self, cx: &App) -> Option<usize> {
+        match self {
+            Self::Owned(tracks) => tracks.iter().position(|track| track.playable),
+            Self::Listed(table) => tracks::first_playable(table, cx),
+        }
+    }
+
+    fn holds(&self, id: &str, cx: &App) -> bool {
+        match self {
+            Self::Owned(tracks) => tracks.iter().any(|track| track.id.as_deref() == Some(id)),
+            Self::Listed(table) => tracks::holds(table, id, cx),
+        }
+    }
+
+    fn queue(&self, cx: &App) -> Vec<Track> {
+        match self {
+            Self::Owned(tracks) => tracks.clone(),
+            Self::Listed(table) => tracks::ordered(table, cx),
+        }
+    }
+}
+
 #[derive(IntoElement)]
 pub(crate) struct HeroPlayButton {
     id: ElementId,
     label: SharedString,
-    tracks: Vec<Track>,
+    listing: Listing,
     playback: Entity<Playback>,
 }
 
@@ -105,7 +136,21 @@ impl HeroPlayButton {
         Self {
             id: id.into(),
             label: label.into(),
-            tracks,
+            listing: Listing::Owned(tracks),
+            playback,
+        }
+    }
+
+    pub(crate) fn listed(
+        id: impl Into<ElementId>,
+        label: impl Into<SharedString>,
+        table: &Entity<GridState<TrackSource>>,
+        playback: Entity<Playback>,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            label: label.into(),
+            listing: Listing::Listed(table.clone()),
             playback,
         }
     }
@@ -113,16 +158,12 @@ impl HeroPlayButton {
 
 impl RenderOnce for HeroPlayButton {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let first_playable = self.tracks.iter().position(|track| track.playable);
+        let first_playable = self.listing.first(cx);
         let state = {
             let playback = self.playback.read(cx);
             let current = playback.track().and_then(|track| track.id.as_deref());
             current
-                .filter(|current| {
-                    self.tracks
-                        .iter()
-                        .any(|track| track.id.as_deref() == Some(*current))
-                })
+                .filter(|current| self.listing.holds(current, cx))
                 .map(|_| playback.state().clone())
         };
         let (label, icon, blocked) = match &state {
@@ -133,7 +174,7 @@ impl RenderOnce for HeroPlayButton {
         };
         let disabled = first_playable.is_none() || blocked;
         let first_playable = first_playable.unwrap_or_default();
-        let tracks = self.tracks;
+        let listing = self.listing;
         let playback = self.playback;
 
         div().flex().child(
@@ -147,7 +188,10 @@ impl RenderOnce for HeroPlayButton {
                         Some(PlaybackState::Playing) => playback.pause(cx),
                         Some(PlaybackState::Paused) => playback.resume(cx),
                         Some(PlaybackState::Loading) => {}
-                        _ => playback.start(tracks.clone(), first_playable, cx),
+                        _ => {
+                            let queued = listing.queue(cx);
+                            playback.start(queued, first_playable, cx)
+                        }
                     });
                 }),
         )

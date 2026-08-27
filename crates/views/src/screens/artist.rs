@@ -123,18 +123,19 @@ impl ArtistView {
         cx: &mut Context<Self>,
     ) -> Self {
         let width = MIN_CONTENT;
-        let scrollbar = cx.new(|_| Scrollbar::new(ScrollHandle::new()));
-        let playlist_scrollbar = cx.new(|_| Scrollbar::inset());
+        let id = cx.entity_id();
+        let scrollbar = cx.new(|_| Scrollbar::new(ScrollHandle::new()).watching(id));
+        let playlist_scrollbar = cx.new(|_| Scrollbar::inset().watching(id));
         let settings = Sonora::global(cx).settings.clone();
         let saved = settings.read(cx).table(SECTION);
         let sorting = settings.read(cx).sorting(SECTION);
-        let mode = settings.read(cx).view_or(SECTION, Mode::Cards);
+        let mode = settings.read(cx).view_or(SECTION, Mode::List);
         let columns =
             crate::shared::tracks::artist_columns(Sonora::global(cx).session.read(cx).playcounts());
         let scroll = scrollbar.read(cx).scroll().clone();
         let shown = Rc::new(Cell::new(LISTED));
         let table = cx.new(|cx| {
-            let menu_scrollbar = cx.new(|_| Scrollbar::inset());
+            let menu_scrollbar = cx.new(|_| Scrollbar::inset().watching(id));
             let source = TrackSource::new(
                 columns,
                 ArtistTracks {
@@ -215,7 +216,7 @@ impl ArtistView {
             releases_expanded: false,
             width,
             scrollbar,
-            about_bar: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
+            about_bar: cx.new(|_| Scrollbar::new(ScrollHandle::new()).watching(id)),
             about_open: false,
             table,
             shown,
@@ -270,12 +271,12 @@ impl ArtistView {
                 let value = cells::count(count);
                 t!("artist-monthly-listeners", count = count, value = &value)
             });
-        let overflow = self.detail.read(cx).id().map(|id| {
+        let overflow = self.saved_artist(cx).map(|artist| {
             Picker::icon("artist-overflow", &self.popovers, "icons/ellipsis.svg")
                 .tooltip("common-more")
                 .large()
                 .left()
-                .menu(artist_menu(id.to_owned()))
+                .menu(artist_menu(artist, self.playback.clone(), true, cx))
         });
         let actions = div()
             .flex()
@@ -309,22 +310,26 @@ impl ArtistView {
             .into_any_element()
     }
 
-    fn follow_button(&self, cx: &App) -> Option<Button> {
-        let theme = *cx.theme();
-        let library = Sonora::global(cx).library.clone();
+    fn saved_artist(&self, cx: &App) -> Option<SavedArtist> {
         let detail = self.detail.read(cx);
-        let id = detail.id()?.to_owned();
-        if music::is_local_id(&id) {
-            return None;
-        }
         let artist = detail.artist()?;
-        let followed = library.read(cx).saved_artist(&id);
-        let target = SavedArtist {
-            id,
+
+        Some(SavedArtist {
+            id: detail.id()?.to_owned(),
             name: artist.name.clone(),
             cover: artist.cover_large.clone(),
             added_at: None,
-        };
+        })
+    }
+
+    fn follow_button(&self, cx: &App) -> Option<Button> {
+        let theme = *cx.theme();
+        let library = Sonora::global(cx).library.clone();
+        let target = self.saved_artist(cx)?;
+        if music::is_local_id(&target.id) {
+            return None;
+        }
+        let followed = library.read(cx).saved_artist(&target.id);
 
         let heart = Button::new("artist-toggle-library")
             .outline()

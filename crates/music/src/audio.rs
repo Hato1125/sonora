@@ -26,12 +26,6 @@ impl Volume {
     }
 }
 
-pub struct Wanted {
-    pub channels: u16,
-    pub sample_rate: u32,
-    pub format: Box<dyn FnOnce(cpal::SampleFormat) -> cpal::SampleFormat>,
-}
-
 pub struct Output {
     sink: Arc<rodio::Sink>,
     volume: Volume,
@@ -39,40 +33,28 @@ pub struct Output {
 }
 
 impl Output {
-    pub fn open(volume: Volume, wanted: Option<Wanted>) -> Result<Self> {
+    pub fn open(volume: Volume) -> Result<Self> {
         let host = cpal::default_host();
         let device = host
             .default_output_device()
             .context("no audio output device")?;
 
-        log::info!(
-            "sink: using {}",
-            device.name().unwrap_or_else(|_| "unknown".to_owned())
-        );
-
         let default = device
             .default_output_config()
             .map_err(|error| anyhow::anyhow!("cannot read the output config: {error}"))?;
-        let (config, format) = match wanted {
-            Some(wanted) => {
-                let config = device
-                    .supported_output_configs()
-                    .map_err(|error| anyhow::anyhow!("cannot list the output configs: {error}"))?
-                    .find(|config| config.channels() == wanted.channels)
-                    .and_then(|config| {
-                        config
-                            .try_with_sample_rate(cpal::SampleRate(wanted.sample_rate))
-                            .or_else(|| config.try_with_sample_rate(default.sample_rate()))
-                    })
-                    .unwrap_or(default);
-                let format = (wanted.format)(config.sample_format());
-                (config.config(), format)
-            }
-            None => (default.config(), default.sample_format()),
-        };
+
+        log::info!(
+            "sink: using {} at {} Hz, {} channels, {}",
+            device.name().unwrap_or_else(|_| "unknown".to_owned()),
+            default.sample_rate().0,
+            default.channels(),
+            default.sample_format()
+        );
+
+        let format = default.sample_format();
         let builder = OutputStreamBuilder::default()
             .with_device(device)
-            .with_config(&config)
+            .with_config(&default.config())
             .with_sample_format(format);
         let mut stream = builder
             .open_stream()
@@ -109,31 +91,43 @@ pub struct SmoothGain<I> {
     target: f32,
     step: f32,
 
+    ramp: Duration,
     frames_left: u32,
     ramp_frames: u32,
 
     channel: u16,
     channels: u16,
+    rate: u32,
 }
 
 impl<I: Source> SmoothGain<I> {
-    pub fn new(input: I, volume: Volume, initial: f32, duration: Duration) -> Self {
-        let channels = input.channels();
-        let ramp_frames = (duration.as_secs_f64() * input.sample_rate() as f64)
-            .round()
-            .max(1.0) as u32;
-
+    pub fn new(input: I, volume: Volume, initial: f32, ramp: Duration) -> Self {
         Self {
             input,
             volume,
             current: initial,
             target: initial,
             step: 0.0,
+            ramp,
             frames_left: 0,
-            ramp_frames,
+            ramp_frames: 1,
             channel: 0,
-            channels,
+            channels: 0,
+            rate: 0,
         }
+    }
+
+    fn resync(&mut self) {
+        let channels = self.input.channels().max(1);
+        let rate = self.input.sample_rate().max(1);
+        if channels == self.channels && rate == self.rate {
+            return;
+        }
+
+        self.channels = channels;
+        self.rate = rate;
+        self.ramp_frames = (self.ramp.as_secs_f64() * rate as f64).round().max(1.0) as u32;
+        self.frames_left = self.frames_left.min(self.ramp_frames);
     }
 }
 
@@ -144,6 +138,7 @@ impl<I: Source> Iterator for SmoothGain<I> {
         let sample = self.input.next()?;
 
         if self.channel == 0 {
+            self.resync();
             let requested = self.volume.get().max(0.0);
 
             if requested.to_bits() != self.target.to_bits() {
@@ -165,7 +160,7 @@ impl<I: Source> Iterator for SmoothGain<I> {
         let output = sample * self.current;
 
         self.channel += 1;
-        if self.channel == self.channels {
+        if self.channel >= self.channels {
             self.channel = 0;
         }
 
@@ -192,5 +187,85 @@ impl<I: Source> Source for SmoothGain<I> {
 
     fn try_seek(&mut self, position: Duration) -> Result<(), SeekError> {
         self.input.try_seek(position)
+    }
+}
+
+pub struct Trimmed<I> {
+    input: I,
+    head: u64,
+    body: Option<u64>,
+    emitted: u64,
+    primed: bool,
+    lane: u64,
+}
+
+impl<I: Source> Trimmed<I> {
+    pub fn new(input: I, skip: Duration, take: Option<Duration>) -> Self {
+        let lane = (input.sample_rate() as u64) * (input.channels().max(1) as u64);
+        let samples = |span: Duration| (span.as_secs_f64() * lane as f64).round() as u64;
+
+        Self {
+            head: samples(skip),
+            body: take.map(samples),
+            emitted: 0,
+            primed: false,
+            lane,
+            input,
+        }
+    }
+
+    fn offset(&self) -> Duration {
+        Duration::from_secs_f64(self.head as f64 / self.lane as f64)
+    }
+}
+
+impl<I: Source> Iterator for Trimmed<I> {
+    type Item = f32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if !self.primed {
+            self.primed = true;
+            for _ in 0..self.head {
+                self.input.next()?;
+            }
+        }
+        if self.body.is_some_and(|body| self.emitted >= body) {
+            return None;
+        }
+
+        let sample = self.input.next()?;
+        self.emitted += 1;
+        Some(sample)
+    }
+}
+
+impl<I: Source> Source for Trimmed<I> {
+    fn current_span_len(&self) -> Option<usize> {
+        self.input.current_span_len()
+    }
+
+    fn channels(&self) -> u16 {
+        self.input.channels()
+    }
+
+    fn sample_rate(&self) -> u32 {
+        self.input.sample_rate()
+    }
+
+    fn total_duration(&self) -> Option<Duration> {
+        match self.body {
+            Some(body) => Some(Duration::from_secs_f64(body as f64 / self.lane as f64)),
+            None => self
+                .input
+                .total_duration()
+                .map(|whole| whole.saturating_sub(self.offset())),
+        }
+    }
+
+    fn try_seek(&mut self, position: Duration) -> Result<(), SeekError> {
+        self.input.try_seek(position + self.offset())?;
+        self.primed = true;
+        self.emitted = (position.as_secs_f64() * self.lane as f64).round() as u64;
+        Ok(())
     }
 }
