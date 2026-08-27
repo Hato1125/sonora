@@ -1828,16 +1828,28 @@ fn lyrics_wrap_rows(
         .map(|(text, _)| SharedString::from(text.clone()))
         .collect::<Vec<_>>();
     let spoken = parts.iter().map(|(_, word)| *word).collect::<Vec<_>>();
-    let widths = fragments
-        .iter()
-        .map(|fragment| {
-            let run = style.to_run(fragment.len());
-            window
-                .text_system()
-                .shape_line(fragment.clone(), font_size, &[run], None)
-                .width
-        })
-        .collect::<Vec<_>>();
+    // one shaped line per verse rather than one per fragment: a line of wide
+    // characters is a shaping call each otherwise, and the widths that come back
+    // this way also carry the kerning across a boundary
+    let whole = SharedString::from(
+        parts
+            .iter()
+            .map(|(text, _)| text.as_str())
+            .collect::<String>(),
+    );
+    let run = style.to_run(whole.len());
+    let shaped = window
+        .text_system()
+        .shape_line(whole, font_size, &[run], None);
+    let mut widths = Vec::with_capacity(parts.len());
+    let mut at = 0;
+    let mut left = shaped.x_for_index(0);
+    for (text, _) in parts {
+        at += text.len();
+        let right = shaped.x_for_index(at);
+        widths.push(right - left);
+        left = right;
+    }
     let breaks = fragments
         .iter()
         .enumerate()

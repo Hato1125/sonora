@@ -7,6 +7,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Lyrics no longer hitch as a track loads or as verses scroll into view. Measuring a line asked the
+  text system to shape every piece of it separately, which on Japanese, Chinese and Korean lyrics is
+  one shaping call per character and, on the frame a sheet first appears, hundreds of them at once.
+  A line is shaped once now, and the widths that come back also account for the kerning between one
+  piece and the next, so the highlight sits exactly where the glyphs do.
+
 ## [0.19.1] - 2026-08-27
 
 ### Changed
