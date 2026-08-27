@@ -30,7 +30,9 @@ pub use queue::{Named, Queue, Resume, Stub};
 pub use remote::{Remote, attach as attach_remote};
 pub use search::{AlbumHit, ArtistHit, Hit, Kind, PlaylistHit, Search};
 pub use session::{Failure, ProviderInfo, Session, SessionEvent, SessionState};
-pub use settings::{AppSettings, RomanizationScripts, SideTab, remember_window, window_placement};
+pub use settings::{
+    AppSettings, RomanizationScripts, SYSTEM_FONT, SideTab, remember_window, window_placement,
+};
 pub use song::SongDetail;
 pub use toast::{Outcome, Toast, Toasts};
 pub use updates::{Release, UpdateState, Updates};

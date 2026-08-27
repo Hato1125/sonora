@@ -119,12 +119,18 @@ impl Frame {
     }
 }
 
+fn system_font() -> String {
+    SYSTEM_FONT.to_owned()
+}
+
 const SAVE_DELAY: Duration = Duration::from_millis(300);
 const DEFAULT_VOLUME: f32 = 0.7;
 const DEFAULT_SIDEBAR_WIDTH: f32 = 195.;
 const DEFAULT_SIDEBAR_RIGHT_WIDTH: f32 = 254.;
 const DEFAULT_FONT_SIZE: f32 = 14.;
 const DEFAULT_STARTUP: &str = "home";
+
+pub const SYSTEM_FONT: &str = "auto";
 
 type Pins = HashMap<String, Vec<Pin>>;
 
@@ -148,6 +154,8 @@ struct Values {
     shuffle: bool,
     repeat: Repeat,
     language: String,
+    #[serde(default = "system_font")]
+    font: String,
     provider: String,
     startup: String,
     #[serde(skip_serializing_if = "HashMap::is_empty")]
@@ -199,6 +207,7 @@ impl Default for Values {
             shuffle: false,
             repeat: Repeat::Off,
             language: i18n::AUTO.to_owned(),
+            font: system_font(),
             provider: "spotify".to_owned(),
             startup: DEFAULT_STARTUP.to_owned(),
             hidden_columns: HashMap::new(),
@@ -335,6 +344,10 @@ impl AppSettings {
 
     pub fn language(&self) -> &str {
         &self.values.language
+    }
+
+    pub fn font(&self) -> &str {
+        &self.values.font
     }
 
     pub fn provider(&self) -> &str {
@@ -582,6 +595,16 @@ impl AppSettings {
     pub fn set_language(&mut self, language: impl Into<String>, cx: &mut Context<Self>) {
         self.values.language = language.into();
         i18n::set(i18n::resolve(&self.values.language));
+        cx.refresh_windows();
+        self.schedule_save(cx);
+    }
+
+    pub fn set_font(&mut self, font: impl Into<String>, cx: &mut Context<Self>) {
+        let font = font.into();
+        if self.values.font == font {
+            return;
+        }
+        self.values.font = font;
         cx.refresh_windows();
         self.schedule_save(cx);
     }

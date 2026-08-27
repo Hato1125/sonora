@@ -1,14 +1,14 @@
 use gpui::{AnyView, Context, Entity, MouseButton, NavigationDirection, Render, Task};
+use gpui::{App, Font, FontFallbacks, SharedString, font, prelude::*};
 use gpui::{Window, div};
-use gpui::{font, prelude::*};
 use input::{
     NavigateBack, NavigateForward, OpenFilter, OpenSearch, OpenSettings, ToggleFullscreen,
     ToggleLyrics, ToggleQueue,
 };
 use router::{Destination, LibraryTab, NavigationEvent, SettingsTab, back, forward, navigate};
 use state::{
-    ArtistDetail, Detail, GenreDetails, Genres, Home, Io, Library, Playback, Queue, Search,
-    Session, SessionState, SideTab, SongDetail, Sonora,
+    ArtistDetail, Detail, GenreDetails, Genres, Home, Io, Library, Playback, Queue, SYSTEM_FONT,
+    Search, Session, SessionState, SideTab, SongDetail, Sonora,
 };
 use ui::{ActiveTheme as _, Dismiss, Look, Theme, ThemeKind};
 
@@ -447,6 +447,52 @@ impl Root {
     }
 }
 
+const UI_FONT: &str = "Inter";
+
+const SCRIPTS: [&str; 15] = [
+    "Source Han Sans",
+    "Noto Sans CJK JP",
+    "Noto Sans CJK SC",
+    "Noto Sans CJK TC",
+    "Noto Sans CJK KR",
+    "Noto Sans Arabic",
+    "Noto Sans Hebrew",
+    "Noto Sans Thai",
+    "Noto Sans Devanagari",
+    "Hiragino Sans",
+    "PingFang SC",
+    "Apple SD Gothic Neo",
+    "Yu Gothic UI",
+    "Microsoft YaHei UI",
+    "Malgun Gothic",
+];
+
+fn ui_font(cx: &App) -> Font {
+    let chosen = Sonora::global(cx).settings.read(cx).font();
+    match chosen == SYSTEM_FONT {
+        true => Font {
+            fallbacks: Some(scripts(false).clone()),
+            ..font(UI_FONT)
+        },
+        false => Font {
+            fallbacks: Some(scripts(true).clone()),
+            ..font(SharedString::from(chosen.to_owned()))
+        },
+    }
+}
+
+fn scripts(custom: bool) -> &'static FontFallbacks {
+    static BUNDLED: std::sync::OnceLock<FontFallbacks> = std::sync::OnceLock::new();
+    static CHOSEN: std::sync::OnceLock<FontFallbacks> = std::sync::OnceLock::new();
+    let named = || SCRIPTS.iter().map(|name| (*name).to_owned());
+    match custom {
+        true => CHOSEN.get_or_init(|| {
+            FontFallbacks::from_fonts(std::iter::once(UI_FONT.to_owned()).chain(named()).collect())
+        }),
+        false => BUNDLED.get_or_init(|| FontFallbacks::from_fonts(named().collect())),
+    }
+}
+
 impl Render for Root {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let show_sign_in = match self.session.read(cx).state() {
@@ -482,7 +528,7 @@ impl Render for Root {
         div()
             .relative()
             .flex()
-            .font(font("Inter"))
+            .font(ui_font(cx))
             .flex_col()
             .size_full()
             .bg(theme.background)

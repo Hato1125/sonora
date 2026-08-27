@@ -1,9 +1,9 @@
 use gpui::{KeyBinding, actions};
 use ui::{
     Backspace, BackspaceWord, Copy, Cut, Delete, DeleteWord, Deselect, Dismiss, End, FORM_CONTEXT,
-    GRID_CONTEXT, Home, INPUT_CONTEXT, Left, Paste, Right, SelectAll, SelectEnd, SelectHome,
-    SelectLeft, SelectNext, SelectPrevious, SelectRight, SelectWordLeft, SelectWordRight, Space,
-    Submit, WordLeft, WordRight,
+    GRID_CONTEXT, Home, INPUT_CONTEXT, Left, MENU_CONTEXT, Paste, Right, SelectAll, SelectEnd,
+    SelectHome, SelectLeft, SelectNext, SelectPrevious, SelectRight, SelectWordLeft,
+    SelectWordRight, Space, Submit, WordLeft, WordRight,
 };
 
 actions!(
@@ -31,10 +31,16 @@ pub fn bindings() -> Vec<KeyBinding> {
     let away_from_text = format!("{WORKSPACE_CONTEXT} && !{INPUT_CONTEXT}");
     let table = Some(GRID_CONTEXT);
     let form = Some(FORM_CONTEXT);
+    let menu = Some(MENU_CONTEXT);
 
     vec![
         KeyBinding::new("down", SelectNext, table),
         KeyBinding::new("up", SelectPrevious, table),
+        KeyBinding::new("down", SelectNext, menu),
+        KeyBinding::new("up", SelectPrevious, menu),
+        KeyBinding::new("tab", SelectNext, menu),
+        KeyBinding::new("shift-tab", SelectPrevious, menu),
+        KeyBinding::new("enter", Submit, menu),
         KeyBinding::new("alt-left", NavigateBack, None),
         KeyBinding::new("alt-right", NavigateForward, None),
         KeyBinding::new("escape", Deselect, table),
