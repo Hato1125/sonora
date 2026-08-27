@@ -184,6 +184,16 @@ impl Render for Workspace {
         Chrome::publish(left, right, cx);
         let covered = self.sidebar_right.read(cx).covers_content(window);
         let overlay = self.sidebar.read(cx).overlays();
+        let sidebar_width = self.sidebar.read(cx).shown_width();
+        let bar_height = PlayerBar::height(window, cx);
+        let sidebar = match overlay {
+            true => self.sidebar.clone().into_any_element(),
+            false => self
+                .sidebar
+                .clone()
+                .cached(StyleRefinement::default().w(sidebar_width).h_full())
+                .into_any_element(),
+        };
         let hidden = self.hidden(window, cx);
         let scale = 1. - VIEW_ZOOM * hidden;
 
@@ -202,7 +212,7 @@ impl Render for Workspace {
                     .flex()
                     .flex_1()
                     .min_h_0()
-                    .when(!overlay, |this| this.child(self.sidebar.clone()))
+                    .when(!overlay, |this| this.child(sidebar))
                     .child(
                         div()
                             .relative()
@@ -241,7 +251,11 @@ impl Render for Workspace {
             .child(
                 div()
                     .relative()
-                    .child(self.player_bar.clone())
+                    .child(
+                        self.player_bar
+                            .clone()
+                            .cached(StyleRefinement::default().w_full().h(bar_height)),
+                    )
                     .child(self.toasts.clone()),
             )
             .child(self.playlist_editor.clone())
