@@ -198,7 +198,7 @@ impl Default for Values {
             romanized_lyrics: true,
             romanization_scripts: RomanizationScripts::default(),
             adaptive_menu: false,
-            check_updates: true,
+            check_updates: cfg!(target_os = "windows"),
             sidebar_width: DEFAULT_SIDEBAR_WIDTH,
             sidebar_open: true,
             sidebar_right_width: DEFAULT_SIDEBAR_RIGHT_WIDTH,

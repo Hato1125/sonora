@@ -13,7 +13,7 @@ const INSTALLER: &str = "Sonora-Setup.exe";
 const SUMS: &str = "SHA256SUMS";
 const UNINSTALLER: &str = "unins000.exe";
 const RUNNING: &str = env!("CARGO_PKG_VERSION");
-const OFFERED: bool = cfg!(target_os = "windows");
+const INSTALLABLE: bool = cfg!(target_os = "windows");
 const AGENT: &str = concat!(
     "sonora/",
     env!("CARGO_PKG_VERSION"),
@@ -69,7 +69,7 @@ impl Updates {
     }
 
     pub fn installable(&self) -> bool {
-        OFFERED
+        INSTALLABLE
             && installed()
             && self
                 .offered()
@@ -118,7 +118,7 @@ impl Updates {
     }
 
     fn look(&mut self, cx: &mut Context<Self>) {
-        if !OFFERED || !self.settings.read(cx).check_updates() {
+        if !self.settings.read(cx).check_updates() {
             return;
         }
         let http = self.http.clone();
