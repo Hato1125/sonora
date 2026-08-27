@@ -42,7 +42,12 @@ const LYRICS_HORIZONTAL_INSET_REM: f32 = 1.5;
 const PINNED_SHARE: f32 = 0.25;
 const PIN: f32 = 0.3;
 const SPARE: f32 = 1.;
-const HAZE_STEPS: f32 = 8.;
+// Below this a blur is not worth a layer of its own.
+const HAZE_LEAST: Pixels = px(0.05);
+// What a sheet settling on the best answer comes in through: it blurs and fades
+// on the way, once, on a curve that is the same going in as coming out.
+const RESOLVE_BLUR: f32 = 0.2;
+const RESOLVE_FADE: f32 = 0.5;
 const SETTLE: std::time::Duration = std::time::Duration::from_secs(4);
 const INSTRUMENTAL_BREAK: std::time::Duration = std::time::Duration::from_secs(5);
 const GLYPH: f32 = 0.35;
@@ -225,6 +230,8 @@ pub(crate) struct Aside {
     lyrics_wraps: HashMap<usize, Wrapped>,
     lane_rooms: HashMap<usize, Pixels>,
     row_heights: Vec<Pixels>,
+    showed: bool,
+    resolving: bool,
 }
 
 impl Aside {
@@ -306,6 +313,8 @@ impl Aside {
             lyrics_wraps: HashMap::new(),
             lane_rooms: HashMap::new(),
             row_heights: Vec::new(),
+            showed: false,
+            resolving: false,
         }
     }
 
@@ -724,9 +733,13 @@ impl Aside {
                 .update(cx, |bar, _| bar.remember_offset(scroll.offset().y));
         } else if self.verse_take != take {
             self.verse_take = take;
+            // Nothing was on screen before, so there is no change to play: the
+            // sheet is simply put up.
+            self.resolving = self.showed;
             self.forget_verse();
             self.anchor_verse();
         }
+        self.showed = shown.is_some();
 
         let empty = |key: &'static str, cx: &mut Context<Self>| {
             vacant(i18n::lookup(key, None), cx)
@@ -821,7 +834,7 @@ impl Aside {
                     let haze = |depth: f32| match (waking, settling) {
                         (true, _) => depth * (1. - sharpen),
                         (false, true) => depth * sharpen,
-                        (false, false) => stepped(depth),
+                        (false, false) => depth,
                     };
                     if has_instrumental {
                         let row = rendered.len();
@@ -855,8 +868,8 @@ impl Aside {
                             this.seek_lyrics(instrumental_start, cx);
                         }))
                         .when(softness > 0., |this| this.opacity(1. - VEIL * softness))
-                        .map(|this| match (blur * softness).round() {
-                            soft if soft > px(0.) => this.blur(soft),
+                        .map(|this| match blur * softness {
+                            soft if soft > HAZE_LEAST => this.blur(soft),
                             _ => this,
                         });
                         rendered.push(notes.into_any_element());
@@ -1000,6 +1013,7 @@ impl Aside {
                         .cursor_pointer()
                         .hover(|style| style.bg(theme.table_hover))
                         .text_size(verse)
+                        .line_height(active_verse_size(verse) * ui::LEADING)
                         .text_color(tint)
                         .font_weight(FontWeight::SEMIBOLD)
                         .on_hover(cx.listener(move |this, over: &bool, _, cx| {
@@ -1012,21 +1026,32 @@ impl Aside {
 
                     let verse_line = verse_line
                         .when(softness > 0., |this| this.opacity(1. - VEIL * softness))
-                        .map(|this| match (blur * softness).round() {
-                            soft if soft > px(0.) => this.blur(soft),
+                        .map(|this| match blur * softness {
+                            soft if soft > HAZE_LEAST => this.blur(soft),
                             _ => this,
                         });
                     let shrinking = dimming.is_some();
                     let active_size = active_verse_size(verse);
                     let unsung = theme.muted_foreground.opacity(AHEAD);
                     let lit = theme.foreground;
+                    // The verse is drawn at the size it ends up and scaled into place,
+                    // so the text system is asked for one size rather than one per
+                    // frame, and nothing around it has to move.
+                    let small = verse / active_size;
+                    let from = match line.voice.lead() {
+                        true => gpui::point(0., 0.5),
+                        false => gpui::point(1., 0.5),
+                    };
                     let verse_line = match (growing, shrinking) {
                         (true, _) => verse_line
+                            .text_size(active_size)
                             .with_animation(
                                 ("verse-grow", self.arrival as usize),
                                 Animation::new(Motion::Base.span()).with_easing(ease_out_expo),
                                 move |this, t| {
-                                    let this = this.text_size(verse + ACTIVE_VERSE_GROWTH * t);
+                                    let this = this
+                                        .layer_scale(small + (1. - small) * t)
+                                        .layer_scale_origin(from);
                                     match karaoke {
                                         true => this,
                                         false => this.text_color(mix(unsung, lit, t)),
@@ -1035,11 +1060,13 @@ impl Aside {
                             )
                             .into_any_element(),
                         (_, true) => verse_line
+                            .text_size(active_size)
                             .with_animation(
                                 ("verse-shrink", self.departure as usize),
                                 Animation::new(Motion::Base.span()).with_easing(ease_out_expo),
                                 move |this, t| {
-                                    this.text_size(active_size - ACTIVE_VERSE_GROWTH * t)
+                                    this.layer_scale(1. - (1. - small) * t)
+                                        .layer_scale_origin(from)
                                         .text_color(mix(lit, tint, t))
                                 },
                             )
@@ -1112,7 +1139,7 @@ impl Aside {
             None => (px(REST), px(REST)),
         };
 
-        Scroller::new("lyrics", &self.verse_bar)
+        let sheet = Scroller::new("lyrics", &self.verse_bar)
             .flex()
             .flex_col()
             .gap_1()
@@ -1125,7 +1152,23 @@ impl Aside {
                 let fade = verse * VERSE_FADE;
                 this.fade_edges(fade, fade)
             })
-            .children(body)
+            .children(body);
+
+        // A sheet only ever replaces another once, when every source has
+        // answered, and that is the one change worth showing.
+        match self.resolving && ui::motion::animates(cx) {
+            true => sheet
+                .with_animation(
+                    ("verse-sheet", self.verse_take as usize),
+                    Animation::new(Motion::Base.span()).with_easing(ui::ease_in_out_cubic),
+                    move |this, t| {
+                        this.blur(verse * RESOLVE_BLUR * (1. - t))
+                            .opacity(1. - RESOLVE_FADE * (1. - t))
+                    },
+                )
+                .into_any_element(),
+            false => sheet.into_any_element(),
+        }
     }
 
     fn verse_slack(&self, count: usize, window: &Window, cx: &App) -> (Pixels, Pixels) {
@@ -1520,9 +1563,7 @@ fn revealed(
     fade: Pixels,
 ) -> Reveal {
     let mut front = px(0.);
-    let mut landing = 0.;
     let mut offset = px(0.);
-    let mut soft = false;
     for index in plan.rows[row].clone() {
         let mine = plan.widths.get(index).copied().unwrap_or(px(0.));
         let word = plan.spoken.get(index).copied().unwrap_or(index);
@@ -1534,7 +1575,6 @@ fn revealed(
         // a wide character or a phrase timed as one word fills at an even pace;
         // the eased curve only reads as a flourish across Latin letters
         let even = plan.evenly.get(word).copied().unwrap_or(false);
-        soft |= even;
         let share = match even {
             true => progress_between(start, end, position),
             false => swept(start, end, position, last),
@@ -1550,20 +1590,19 @@ fn revealed(
             let reach = offset + mine * part;
             if part > 0. && reach > front {
                 front = reach;
-                landing = match share < 1. {
-                    true => ((1. - share) / LANDING).min(1.),
-                    false => 0.,
-                };
             }
         }
         offset += mine;
     }
 
-    // an even fill holds one soft edge, never wider than the text left to
-    // reveal: hardening it on every character would drag the edge back each time
-    if soft && fade > px(0.) {
-        landing = ((offset - front) / fade).min(1.);
-    }
+    // The edge keeps one soft trail the whole way across a row, no wider than
+    // the text left to reveal. Letting it harden at every word would drag the
+    // visible edge back each time, and a word can end mid-word: providers split
+    // "nothing" into "no" and "thing".
+    let landing = match fade > px(0.) {
+        true => ((offset - front) / fade).min(1.),
+        false => 0.,
+    };
 
     Reveal {
         shown: front > px(0.),
@@ -1828,16 +1867,28 @@ fn lyrics_wrap_rows(
         .map(|(text, _)| SharedString::from(text.clone()))
         .collect::<Vec<_>>();
     let spoken = parts.iter().map(|(_, word)| *word).collect::<Vec<_>>();
-    let widths = fragments
-        .iter()
-        .map(|fragment| {
-            let run = style.to_run(fragment.len());
-            window
-                .text_system()
-                .shape_line(fragment.clone(), font_size, &[run], None)
-                .width
-        })
-        .collect::<Vec<_>>();
+    // one shaped line per verse rather than one per fragment: a line of wide
+    // characters is a shaping call each otherwise, and the widths that come back
+    // this way also carry the kerning across a boundary
+    let whole = SharedString::from(
+        parts
+            .iter()
+            .map(|(text, _)| text.as_str())
+            .collect::<String>(),
+    );
+    let run = style.to_run(whole.len());
+    let shaped = window
+        .text_system()
+        .shape_line(whole, font_size, &[run], None);
+    let mut widths = Vec::with_capacity(parts.len());
+    let mut at = 0;
+    let mut left = shaped.x_for_index(0);
+    for (text, _) in parts {
+        at += text.len();
+        let right = shaped.x_for_index(at);
+        widths.push(right - left);
+        left = right;
+    }
     let breaks = fragments
         .iter()
         .enumerate()
@@ -2109,11 +2160,6 @@ fn spared(scroll: &ScrollHandle, row: usize, view: Bounds<Pixels>, slack: Pixels
     }
     let top = item.origin.y - view.origin.y + scroll.offset().y;
     top + item.size.height + slack < px(0.) || top - slack > height
-}
-
-// bucketed depth keeps neighbouring rows on one filter instead of one each
-fn stepped(depth: f32) -> f32 {
-    (depth * HAZE_STEPS).round() / HAZE_STEPS
 }
 
 fn viewport_haze(scroll: &ScrollHandle, row: usize, view: Bounds<Pixels>, margin: Pixels) -> f32 {

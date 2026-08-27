@@ -1060,6 +1060,9 @@ impl Playback {
     }
 
     pub fn seek(&mut self, position: Duration, cx: &mut Context<Self>) {
+        if self.state != PlaybackState::Playing {
+            self.seek_on_play = Some(position);
+        }
         if self.resume_at.is_some() {
             self.resume_at = Some(position);
             if self.resume_ready

@@ -33,6 +33,7 @@ pub struct Lyrics {
     hits: Vec<LyricsHit>,
     chosen: usize,
     picked: bool,
+    settled: bool,
     revision: u64,
     following: Option<String>,
     cache: HashMap<String, Found>,
@@ -73,6 +74,7 @@ impl Lyrics {
             hits: Vec::new(),
             chosen: 0,
             picked: false,
+            settled: false,
             revision: 0,
             following: None,
             cache: HashMap::new(),
@@ -140,10 +142,12 @@ impl Lyrics {
         self.following = Some(id.clone());
         self.chosen = 0;
         self.picked = false;
+        self.settled = false;
         self.revision = self.revision.wrapping_add(1);
 
         if let Some(found) = self.remembered(&id, cx) {
             self.task = None;
+            self.settled = true;
             self.hits = found.hits;
             self.state = state_for(&self.hits, found.instrumental);
             cx.notify();
@@ -187,6 +191,7 @@ impl Lyrics {
         self.hits.clear();
         self.chosen = 0;
         self.picked = false;
+        self.settled = false;
         self.revision = self.revision.wrapping_add(1);
         self.state = LyricsState::Idle;
         cx.notify();
@@ -311,7 +316,44 @@ impl Lyrics {
         })
     }
 
+    /// Shows an answer that arrived while others are still being looked for.
+    ///
+    /// A word-by-word sheet is the best there is, so it goes up the moment it
+    /// turns up and settles the question rather than waiting for the slowest
+    /// source to answer. Short of that, the first timed answer is put up and
+    /// nothing replaces it until the search is over: the reader is never walked
+    /// through a series of ever better sheets, and an untimed one is not shown at
+    /// all while something better could still arrive.
     fn paint(
+        &mut self,
+        ranked: Vec<LyricsHit>,
+        displayed: Option<&LyricsHit>,
+        cx: &mut Context<Self>,
+    ) {
+        if self.settled {
+            return;
+        }
+        let kind = self
+            .prospect(&ranked, displayed)
+            .map(|hit| depth(&hit.lyrics));
+        let best = kind == Some(WORDED);
+        if !best && !self.hits.is_empty() {
+            return;
+        }
+        if !best && kind != Some(TIMED) {
+            return;
+        }
+        match best {
+            true => {
+                log::debug!("lyrics: settling on a word-by-word answer as it arrives");
+                self.settled = true;
+            }
+            false => log::debug!("lyrics: showing the first timed answer while the rest arrive"),
+        }
+        self.apply(ranked, displayed, cx);
+    }
+
+    fn apply(
         &mut self,
         ranked: Vec<LyricsHit>,
         displayed: Option<&LyricsHit>,
@@ -322,6 +364,21 @@ impl Lyrics {
             self.state = LyricsState::Ready;
         }
         cx.notify();
+    }
+
+    /// The hit a ranking would put on screen.
+    fn prospect<'a>(
+        &'a self,
+        ranked: &'a [LyricsHit],
+        displayed: Option<&'a LyricsHit>,
+    ) -> Option<&'a LyricsHit> {
+        let anchor = match self.picked {
+            true => self.hits.get(self.chosen),
+            false => displayed,
+        };
+        anchor
+            .and_then(|anchor| ranked.iter().find(|hit| same(hit, anchor)))
+            .or_else(|| ranked.first())
     }
 
     fn remember(
@@ -347,8 +404,15 @@ impl Lyrics {
             },
         );
         if current {
-            self.pin(hits, displayed);
-            self.state = state_for(&self.hits, instrumental);
+            // Every source has answered. Unless a word-by-word sheet already
+            // settled the question, this is the best there is and nothing may
+            // replace it afterwards.
+            if !self.settled {
+                log::debug!("lyrics: settling on the best answer");
+                self.settled = true;
+                self.pin(hits, displayed);
+                self.state = state_for(&self.hits, instrumental);
+            }
             cx.notify();
             self.prefetch(cx);
         }
@@ -383,10 +447,14 @@ impl Lyrics {
     }
 }
 
+/// What a sheet is worth: word-by-word beats timed, timed beats untimed.
+const WORDED: u8 = 3;
+const TIMED: u8 = 2;
+
 fn depth(lyrics: &Sheet) -> u8 {
     match (lyrics.worded(), lyrics.synced()) {
-        (true, _) => 3,
-        (false, true) => 2,
+        (true, _) => WORDED,
+        (false, true) => TIMED,
         (false, false) => 1,
     }
 }

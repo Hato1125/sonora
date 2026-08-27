@@ -7,6 +7,46 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-08-27
+
+### Changed
+
+- Lyrics settle once instead of improving in stages. Sonora asks every source at once, and used to
+  put up each answer that beat the last, so the words could change under you two or three times in
+  the first seconds of a song. It now shows the first answer that has timings, and swaps at most once
+  more: the moment a word-by-word sheet arrives, since nothing beats one, or else when every source
+  has answered and the best of them is known. That one change comes in through a blur and a fade
+  rather than appearing abruptly. Lyrics without timings are not shown at all until the search is
+  over, so a plain sheet no longer flashes up in place of the synced one that was still coming.
+
+### Fixed
+
+- Lyrics blur and dim smoothly as they move rather than in three visible steps. The depth of field
+  was rounded to whole pixels so neighbouring lines could share a filter, which left a line jumping
+  between a handful of levels instead of following the scroll.
+- Scrubbing a track that is still loading no longer starts it from the beginning. The seek was sent
+  to an engine that was not ready for it and lost, so playback began wherever the track had loaded
+  and the position jumped back a moment later. It is now applied again as soon as playback starts,
+  which matters most on YouTube, where a track can take seconds to come up.
+- A verse growing into place no longer steps through a few sizes, and the sheet no longer settles
+  with a jolt once it has finished. The growth is drawn at the size the verse ends up and scaled into
+  place from its leading edge, so the text is measured and drawn once instead of once per frame, and
+  every line reserves the room the sung one needs, so becoming the sung line moves nothing around it.
+- The word-by-word highlight no longer slips backwards inside a word. Lyrics providers split a word
+  where it is sung in two — "nothing" arrives as "no" and "thing" — and the soft trail the highlight
+  carries hardened at every one of those boundaries and softened again on the next, which moved the
+  visible edge back about half a character. The trail now runs the whole way across a line and only
+  sharpens as the line fills.
+- A verse growing into place no longer costs a dropped frame. It was animated by setting a slightly
+  different text size on every frame, and both the shaped line and every rasterised glyph are keyed
+  by size, so the whole verse was measured and redrawn from scratch each frame. The size now lands
+  on the pixel grid, which asks for two or three sizes across the whole growth.
+- Lyrics no longer hitch as a track loads or as verses scroll into view. Measuring a line asked the
+  text system to shape every piece of it separately, which on Japanese, Chinese and Korean lyrics is
+  one shaping call per character and, on the frame a sheet first appears, hundreds of them at once.
+  A line is shaped once now, and the widths that come back also account for the kerning between one
+  piece and the next, so the highlight sits exactly where the glyphs do.
+
 ## [0.19.1] - 2026-08-27
 
 ### Changed
@@ -879,7 +919,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Initial release: a native Spotify client with playback, an interactive queue, the saved library,
 search, album, playlist, artist and song pages, context menus and adaptive theming.
 
-[unreleased]: https://github.com/nolight132/sonora/compare/v0.19.1...HEAD
+[unreleased]: https://github.com/nolight132/sonora/compare/v0.20.0...HEAD
+[0.20.0]: https://github.com/nolight132/sonora/compare/v0.19.1...v0.20.0
 [0.19.1]: https://github.com/nolight132/sonora/compare/v0.19.0...v0.19.1
 [0.19.0]: https://github.com/nolight132/sonora/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/nolight132/sonora/compare/v0.17.1...v0.18.0
