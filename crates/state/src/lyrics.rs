@@ -356,12 +356,14 @@ impl Lyrics {
 
     /// Takes up a sheet that was held back, once the verse it would have
     /// interrupted is over.
-    pub fn settle(&mut self, cx: &mut Context<Self>) {
+    /// Returns whether a sheet was waiting.
+    pub fn settle(&mut self, cx: &mut Context<Self>) -> bool {
         let Some((ranked, displayed)) = self.waiting.take() else {
-            return;
+            return false;
         };
         log::debug!("lyrics: taking up the sheet that was held back");
         self.apply(ranked, displayed.as_ref(), cx);
+        true
     }
 
     /// Whether a sheet with verses is on screen and playing, so swapping it
