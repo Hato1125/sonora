@@ -7,22 +7,29 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Lyrics settle once instead of improving in stages. Sonora asks every source at once, and used to
+  put up each answer that beat the last, so the words could change under you two or three times in
+  the first seconds of a song. It now shows the first answer that has timings, and swaps at most once
+  more: the moment a word-by-word sheet arrives, since nothing beats one, or else when every source
+  has answered and the best of them is known. That one change comes in through a blur and a fade
+  rather than appearing abruptly. Lyrics without timings are not shown at all until the search is
+  over, so a plain sheet no longer flashes up in place of the synced one that was still coming.
+
 ### Fixed
 
+- Lyrics blur and dim smoothly as they move rather than in three visible steps. The depth of field
+  was rounded to whole pixels so neighbouring lines could share a filter, which left a line jumping
+  between a handful of levels instead of following the scroll.
+- Scrubbing a track that is still loading no longer starts it from the beginning. The seek was sent
+  to an engine that was not ready for it and lost, so playback began wherever the track had loaded
+  and the position jumped back a moment later. It is now applied again as soon as playback starts,
+  which matters most on YouTube, where a track can take seconds to come up.
 - A verse growing into place no longer steps through a few sizes, and the sheet no longer settles
   with a jolt once it has finished. The growth is drawn at the size the verse ends up and scaled into
   place from its leading edge, so the text is measured and drawn once instead of once per frame, and
   every line reserves the room the sung one needs, so becoming the sung line moves nothing around it.
-
-- A better set of lyrics arriving mid-verse no longer takes over the line you are reading. Sonora
-  asks several sources at once and shows the best answer so far, upgrading from plain to synced to
-  word-by-word as they come in, which used to swap the words under you, snap the sheet to a new
-  position and start the highlight over. It now finishes the verse on screen and takes the better
-  sheet up at the next one, keeping the line that was already growing rather than replaying it. A
-  source you pick yourself still applies at once, and so does one that arrives while playback is
-  paused. The line being sung stays exactly where it is as the swap lands, and the verse that was
-  already growing is not grown again.
-
 - The word-by-word highlight no longer slips backwards inside a word. Lyrics providers split a word
   where it is sung in two — "nothing" arrives as "no" and "thing" — and the soft trail the highlight
   carries hardened at every one of those boundaries and softened again on the next, which moved the
