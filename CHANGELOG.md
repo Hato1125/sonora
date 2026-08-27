@@ -35,6 +35,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   when it flipped, and re-anchored the panel to the top left and slid it back under the window
   edge, on top of the menu it hangs off. A submenu now renders its panel directly and only the
   outer wrapper places it.
+- YouTube Music plays on an account without Premium again. Sonora asks for the guest audio streams
+  rather than the ones such an account cannot be handed.
 
 ## [0.21.0] - 2026-08-27
 
