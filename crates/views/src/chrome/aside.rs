@@ -802,6 +802,7 @@ impl Aside {
                     }
                 }
                 let slack = view.size.height * SPARE;
+                let grid = window.scale_factor();
                 let mut rendered = Vec::with_capacity(count);
 
                 for (index, line) in lines.iter().enumerate() {
@@ -1026,7 +1027,8 @@ impl Aside {
                                 ("verse-grow", self.arrival as usize),
                                 Animation::new(Motion::Base.span()).with_easing(ease_out_expo),
                                 move |this, t| {
-                                    let this = this.text_size(verse + ACTIVE_VERSE_GROWTH * t);
+                                    let this = this
+                                        .text_size(gridded(verse + ACTIVE_VERSE_GROWTH * t, grid));
                                     match karaoke {
                                         true => this,
                                         false => this.text_color(mix(unsung, lit, t)),
@@ -1039,8 +1041,11 @@ impl Aside {
                                 ("verse-shrink", self.departure as usize),
                                 Animation::new(Motion::Base.span()).with_easing(ease_out_expo),
                                 move |this, t| {
-                                    this.text_size(active_size - ACTIVE_VERSE_GROWTH * t)
-                                        .text_color(mix(lit, tint, t))
+                                    this.text_size(gridded(
+                                        active_size - ACTIVE_VERSE_GROWTH * t,
+                                        grid,
+                                    ))
+                                    .text_color(mix(lit, tint, t))
                                 },
                             )
                             .into_any_element(),
@@ -1520,9 +1525,7 @@ fn revealed(
     fade: Pixels,
 ) -> Reveal {
     let mut front = px(0.);
-    let mut landing = 0.;
     let mut offset = px(0.);
-    let mut soft = false;
     for index in plan.rows[row].clone() {
         let mine = plan.widths.get(index).copied().unwrap_or(px(0.));
         let word = plan.spoken.get(index).copied().unwrap_or(index);
@@ -1534,7 +1537,6 @@ fn revealed(
         // a wide character or a phrase timed as one word fills at an even pace;
         // the eased curve only reads as a flourish across Latin letters
         let even = plan.evenly.get(word).copied().unwrap_or(false);
-        soft |= even;
         let share = match even {
             true => progress_between(start, end, position),
             false => swept(start, end, position, last),
@@ -1550,20 +1552,19 @@ fn revealed(
             let reach = offset + mine * part;
             if part > 0. && reach > front {
                 front = reach;
-                landing = match share < 1. {
-                    true => ((1. - share) / LANDING).min(1.),
-                    false => 0.,
-                };
             }
         }
         offset += mine;
     }
 
-    // an even fill holds one soft edge, never wider than the text left to
-    // reveal: hardening it on every character would drag the edge back each time
-    if soft && fade > px(0.) {
-        landing = ((offset - front) / fade).min(1.);
-    }
+    // The edge keeps one soft trail the whole way across a row, no wider than
+    // the text left to reveal. Letting it harden at every word would drag the
+    // visible edge back each time, and a word can end mid-word: providers split
+    // "nothing" into "no" and "thing".
+    let landing = match fade > px(0.) {
+        true => ((offset - front) / fade).min(1.),
+        false => 0.,
+    };
 
     Reveal {
         shown: front > px(0.),
@@ -1761,6 +1762,13 @@ fn needs_space(left: &str, right: &str) -> bool {
             first,
             ')' | ']' | '}' | ',' | '.' | '!' | '?' | ';' | ':' | '%' | '\'' | '’' | '-' | '—'
         )
+}
+
+// A text size lands on the device pixel grid, so growing a verse asks the text
+// system for two or three sizes rather than one per frame: both the shaped line
+// and every rasterised glyph are keyed by size.
+fn gridded(size: Pixels, grid: f32) -> Pixels {
+    px((size / px(1.) * grid).round() / grid)
 }
 
 fn active_verse_size(verse: Pixels) -> Pixels {
