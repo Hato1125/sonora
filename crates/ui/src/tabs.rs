@@ -6,7 +6,8 @@ use crate::theme::ActiveTheme as _;
 
 const GAP: f32 = 0.25;
 const LINE: f32 = 1.;
-const TICK: f32 = 6.;
+const INDENT: f32 = 16.;
+const ICON: f32 = 20.;
 
 #[derive(IntoElement)]
 pub struct Tabs {
@@ -112,11 +113,11 @@ impl RenderOnce for Tabs {
             .flex()
             .flex_col()
             .gap_1()
-            .ml_4()
+            .ml(px(INDENT))
             .child(
                 div()
                     .absolute()
-                    .left_0()
+                    .left(px(ICON - INDENT))
                     .top_0()
                     .bottom(middle)
                     .w(px(LINE))
@@ -129,15 +130,6 @@ impl RenderOnce for Tabs {
                     .items_center()
                     .h(height)
                     .pl_3()
-                    .child(
-                        div()
-                            .absolute()
-                            .left_0()
-                            .top(middle)
-                            .w(px(TICK))
-                            .h(px(LINE))
-                            .bg(border),
-                    )
                     .child(div().flex().flex_1().child(item))
             }));
 

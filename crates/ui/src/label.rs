@@ -5,6 +5,10 @@ use crate::metrics::Text;
 use crate::theme::ActiveTheme as _;
 
 pub fn eyebrow(label: impl Into<SharedString>, cx: &App) -> Div {
+    faint(cx).child(upper(label))
+}
+
+pub fn faint(cx: &App) -> Div {
     let theme = cx.theme();
 
     div()
@@ -12,7 +16,6 @@ pub fn eyebrow(label: impl Into<SharedString>, cx: &App) -> Div {
         .text_size(theme.text(Text::Small))
         .text_color(theme.muted_foreground)
         .font_weight(FontWeight::SEMIBOLD)
-        .child(upper(label))
 }
 
 pub fn upper(label: impl Into<SharedString>) -> SharedString {

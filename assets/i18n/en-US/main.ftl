@@ -91,9 +91,7 @@ menu-make-playlist-public = Make public
 menu-make-playlist-private = Make private
 menu-open-album = Open album
 menu-play-album = Play album
-menu-add-album-to-queue = Add album to queue
 menu-play-artist = Play artist
-menu-add-artist-to-queue = Add artist to queue
 
 # playlist editor
 playlist-name-placeholder = Playlist name

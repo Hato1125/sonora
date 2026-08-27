@@ -63,7 +63,7 @@ pub use input::{
     Input, Left, Paste, Right, SelectAll, SelectEnd, SelectHome, SelectLeft, SelectRight,
     SelectWordLeft, SelectWordRight, Space, WordLeft, WordRight,
 };
-pub use label::{eyebrow, heading, upper, vacant};
+pub use label::{eyebrow, faint, heading, upper, vacant};
 pub use layout::{ALWAYS, MIN_CONTENT, ROOMY, Room, SNUG, VAST, WIDE};
 pub use menu::{MENU_CONTEXT, Menu, MenuItem, SubmenuState};
 pub use metrics::{LEADING, Metrics, Rounding, Text, snapped, tucked};

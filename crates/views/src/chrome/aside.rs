@@ -18,7 +18,7 @@ use state::{
 use ui::{
     ActiveTheme as _, Button, Card, DraggedPin, Edge, Motion, Motioned as _, Pin, Pinnable as _,
     Popup, Scrollbar, Scroller, Spot, Text, drop_gap, drop_marker, ease_out_cubic, ease_out_expo,
-    eyebrow, mix, slip, snapped, vacant,
+    eyebrow, faint, mix, slip, snapped, vacant,
 };
 
 use crate::chrome::{Chrome, section_label};
@@ -634,7 +634,6 @@ impl Aside {
             .truncate(),
         )
         .tint(title)
-        .underline()
         .when(track.explicit, Card::explicit)
         .play(
             playing,
@@ -1590,7 +1589,7 @@ impl Aside {
                                             .text_color(cx.theme().muted_foreground)
                                             .child(BULLET),
                                     )
-                                    .child(eyebrow(t!("queue-from"), cx))
+                                    .child(faint(cx).child(t!("queue-from")))
                                     .child(source_link(name, place, cx))
                                     .into_any_element(),
                                 _ => label.into_any_element(),

@@ -328,7 +328,6 @@ fn pick(
 
     Card::new((id, place), SharedString::from(track.name.clone()))
         .cover(track.cover.clone())
-        .underline()
         .tint(tint)
         .when(track.explicit, |card| card.explicit())
         .when_some(artists, Card::bare_meta)
