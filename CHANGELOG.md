@@ -39,7 +39,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Korean only. Albums, playlists and artists open as cards, an artist's own page as a list, and both
   sidebars are a little narrower. Anything you have already set is left alone.
 - The lyric line being sung is set a little larger than the rest, and grows into that size as it
-  arrives instead of only brightening.
+  arrives instead of only brightening. Entering or leaving fullscreen no longer replays that growth
+  for a line that arrived a while ago.
+- Background vocals only show on the line being sung. They fade in as the line arrives and fade out
+  as it leaves, instead of sitting under every line in the sheet, and the space they take opens and
+  closes with them so the lines below do not jump.
+- Lyrics blur and dim by how far a line sits from the one being sung on screen, not by how many
+  lines away it is. The lines next to the sung one are already slightly soft, and every line further
+  out is softer than the one before it, all the way to the edge of the panel. A line never fades so
+  far that it cannot be read, and pointing at one still brings it back sharp. The panel also takes
+  longer to carry the next line into place. Scrolling the lyrics by hand is unchanged.
 
 ### Removed
 
@@ -48,6 +57,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Lyrics no longer run past the edge of the panel. Japanese, Chinese and Korean lines had no place to
+  break, because a line was only ever split where it had a space, so a whole verse was laid out as
+  one unbreakable row. They now break between characters, and never before a closing bracket or a
+  mark like a comma that has to stay with the character in front of it.
+- Turning Karaoke lyrics on no longer widens the gaps between words. The line being sung was laid
+  out one box per word so it could be highlighted piece by piece, and each box was measured on its
+  own; it is now a single run per line with the highlight clipped over it, which is what every other
+  line already did.
+- The word-by-word highlight keeps pace with Japanese, Chinese and Korean lines, where it used to
+  stall and then jump ahead to catch up. It travels on an eased curve, which reads as a flourish
+  across a word of Latin letters but not across a single wide character, and lyrics for those
+  languages are timed one character at a time or, worse, a whole phrase at a time: the highlight
+  raced most of the way over a character and then crawled the rest. Wide characters and phrases now
+  fill at an even pace, and the soft edge the highlight carries no longer hardens on every character
+  it crosses, which was dragging the visible edge back half a character at a time. A word followed
+  by a rest also finishes where it is sung instead of drifting on through the silence.
+- Japanese, Chinese and Korean lyrics keep their spacing when a line's word timings do not line up
+  with its text. Sonora fell back to spacing the words out as if they were English, which put a gap
+  between every character.
 - Album covers no longer leave a thin line across the player bar as they scroll past it. Card grids
   and the shelves on Home were drawing one row beyond the edge of what you can see, and a single
   pixel of it fell outside the clip.
@@ -56,7 +84,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   scrolled.
 - A word-by-word lyric line never breaks in the middle of a word. Each word is laid out on its own
   so it would be squeezed rather than moved down when it did not fit, splitting "upon" across two
-  lines as "u" and "pon". A word that does not fit now moves to the next line whole.
+  lines as "u" and "pon". A word that does not fit now moves to the next line whole. Punctuation
+  timed as its own word goes with it, so a line no longer wraps to leave a lone "?" or "," on the
+  last row.
 - Turning volume normalisation or gapless playback on or off keeps the song you are on. Both
   settings can only take effect on a fresh player, so Sonora used to drop the track and send you
   back to nothing; it now rebuilds the player and puts the song back where it was. A song that was
