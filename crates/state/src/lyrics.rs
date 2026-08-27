@@ -2,12 +2,12 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use gpui::{App, Context, Entity, Task};
+use gpui::{Context, Entity, Task};
 use music::{Lyrics as Sheet, LyricsHit, LyricsProvider, LyricsQuery, MusicApi, Track, TrackKey};
 use tokio::task::JoinSet;
 
 use crate::sheets::Sheets;
-use crate::{Io, Playback, PlaybackState, Queue, Session, join};
+use crate::{Io, Playback, Queue, Session, join};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LyricsState {
@@ -28,15 +28,13 @@ struct Native {
     id: String,
 }
 
-type Waiting = (Vec<LyricsHit>, Option<LyricsHit>);
-
 pub struct Lyrics {
     state: LyricsState,
     hits: Vec<LyricsHit>,
     chosen: usize,
     picked: bool,
+    settled: bool,
     revision: u64,
-    waiting: Option<Waiting>,
     following: Option<String>,
     cache: HashMap<String, Found>,
     store: Sheets,
@@ -76,8 +74,8 @@ impl Lyrics {
             hits: Vec::new(),
             chosen: 0,
             picked: false,
+            settled: false,
             revision: 0,
-            waiting: None,
             following: None,
             cache: HashMap::new(),
             store: Sheets::new(),
@@ -119,7 +117,6 @@ impl Lyrics {
         }
         self.chosen = index;
         self.picked = true;
-        self.waiting = None;
         self.revision = self.revision.wrapping_add(1);
         cx.notify();
     }
@@ -145,11 +142,12 @@ impl Lyrics {
         self.following = Some(id.clone());
         self.chosen = 0;
         self.picked = false;
-        self.waiting = None;
+        self.settled = false;
         self.revision = self.revision.wrapping_add(1);
 
         if let Some(found) = self.remembered(&id, cx) {
             self.task = None;
+            self.settled = true;
             self.hits = found.hits;
             self.state = state_for(&self.hits, found.instrumental);
             cx.notify();
@@ -193,7 +191,7 @@ impl Lyrics {
         self.hits.clear();
         self.chosen = 0;
         self.picked = false;
-        self.waiting = None;
+        self.settled = false;
         self.revision = self.revision.wrapping_add(1);
         self.state = LyricsState::Idle;
         cx.notify();
@@ -318,25 +316,39 @@ impl Lyrics {
         })
     }
 
+    /// Shows an answer that arrived while others are still being looked for.
+    ///
+    /// A word-by-word sheet is the best there is, so it goes up the moment it
+    /// turns up and settles the question rather than waiting for the slowest
+    /// source to answer. Short of that, the first timed answer is put up and
+    /// nothing replaces it until the search is over: the reader is never walked
+    /// through a series of ever better sheets, and an untimed one is not shown at
+    /// all while something better could still arrive.
     fn paint(
         &mut self,
         ranked: Vec<LyricsHit>,
         displayed: Option<&LyricsHit>,
         cx: &mut Context<Self>,
     ) {
-        // A better sheet arriving part-way through a verse would swap the words
-        // under the reader and restart the highlight, so it waits for the line
-        // on screen to be sung.
-        if self.mid_verse(cx) && self.differs(&ranked, displayed) {
-            log::debug!("lyrics: holding a better sheet until the next verse");
-            self.waiting = Some((ranked, displayed.cloned()));
+        if self.settled {
             return;
         }
-        if self.current().is_some() && self.differs(&ranked, displayed) {
-            log::debug!(
-                "lyrics: swapping the sheet at once, playing {:?}",
-                self.playback.read(cx).state()
-            );
+        let kind = self
+            .prospect(&ranked, displayed)
+            .map(|hit| depth(&hit.lyrics));
+        let best = kind == Some(WORDED);
+        if !best && !self.hits.is_empty() {
+            return;
+        }
+        if !best && kind != Some(TIMED) {
+            return;
+        }
+        match best {
+            true => {
+                log::debug!("lyrics: settling on a word-by-word answer as it arrives");
+                self.settled = true;
+            }
+            false => log::debug!("lyrics: showing the first timed answer while the rest arrive"),
         }
         self.apply(ranked, displayed, cx);
     }
@@ -354,38 +366,19 @@ impl Lyrics {
         cx.notify();
     }
 
-    /// Takes up a sheet that was held back, once the verse it would have
-    /// interrupted is over.
-    /// Returns whether a sheet was waiting.
-    pub fn settle(&mut self, cx: &mut Context<Self>) -> bool {
-        let Some((ranked, displayed)) = self.waiting.take() else {
-            return false;
-        };
-        log::debug!("lyrics: taking up the sheet that was held back");
-        self.apply(ranked, displayed.as_ref(), cx);
-        true
-    }
-
-    /// Whether a sheet with verses is on screen and playing, so swapping it
-    /// would interrupt the reader.
-    fn mid_verse(&self, cx: &App) -> bool {
-        if *self.playback.read(cx).state() != PlaybackState::Playing {
-            return false;
-        }
-        self.current()
-            .is_some_and(|hit| matches!(hit.lyrics, music::Lyrics::Synced { .. }))
-    }
-
-    /// Whether taking this ranking up would change the words on screen.
-    fn differs(&self, ranked: &[LyricsHit], displayed: Option<&LyricsHit>) -> bool {
+    /// The hit a ranking would put on screen.
+    fn prospect<'a>(
+        &'a self,
+        ranked: &'a [LyricsHit],
+        displayed: Option<&'a LyricsHit>,
+    ) -> Option<&'a LyricsHit> {
         let anchor = match self.picked {
             true => self.hits.get(self.chosen),
             false => displayed,
         };
-        let next = anchor
+        anchor
             .and_then(|anchor| ranked.iter().find(|hit| same(hit, anchor)))
-            .or_else(|| ranked.first());
-        next.map(|hit| &hit.lyrics) != self.current().map(|hit| &hit.lyrics)
+            .or_else(|| ranked.first())
     }
 
     fn remember(
@@ -411,15 +404,14 @@ impl Lyrics {
             },
         );
         if current {
-            match self.mid_verse(cx) && self.differs(&hits, displayed) {
-                true => {
-                    log::debug!("lyrics: holding the settled sheet until the next verse");
-                    self.waiting = Some((hits, displayed.cloned()));
-                }
-                false => {
-                    self.pin(hits, displayed);
-                    self.state = state_for(&self.hits, instrumental);
-                }
+            // Every source has answered. Unless a word-by-word sheet already
+            // settled the question, this is the best there is and nothing may
+            // replace it afterwards.
+            if !self.settled {
+                log::debug!("lyrics: settling on the best answer");
+                self.settled = true;
+                self.pin(hits, displayed);
+                self.state = state_for(&self.hits, instrumental);
             }
             cx.notify();
             self.prefetch(cx);
@@ -455,10 +447,14 @@ impl Lyrics {
     }
 }
 
+/// What a sheet is worth: word-by-word beats timed, timed beats untimed.
+const WORDED: u8 = 3;
+const TIMED: u8 = 2;
+
 fn depth(lyrics: &Sheet) -> u8 {
     match (lyrics.worded(), lyrics.synced()) {
-        (true, _) => 3,
-        (false, true) => 2,
+        (true, _) => WORDED,
+        (false, true) => TIMED,
         (false, false) => 1,
     }
 }

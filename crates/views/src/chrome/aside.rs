@@ -42,7 +42,12 @@ const LYRICS_HORIZONTAL_INSET_REM: f32 = 1.5;
 const PINNED_SHARE: f32 = 0.25;
 const PIN: f32 = 0.3;
 const SPARE: f32 = 1.;
-const HAZE_STEPS: f32 = 8.;
+// Below this a blur is not worth a layer of its own.
+const HAZE_LEAST: Pixels = px(0.05);
+// What a sheet settling on the best answer comes in through: it blurs and fades
+// on the way, once, on a curve that is the same going in as coming out.
+const RESOLVE_BLUR: f32 = 0.2;
+const RESOLVE_FADE: f32 = 0.5;
 const SETTLE: std::time::Duration = std::time::Duration::from_secs(4);
 const INSTRUMENTAL_BREAK: std::time::Duration = std::time::Duration::from_secs(5);
 const GLYPH: f32 = 0.35;
@@ -225,7 +230,8 @@ pub(crate) struct Aside {
     lyrics_wraps: HashMap<usize, Wrapped>,
     lane_rooms: HashMap<usize, Pixels>,
     row_heights: Vec<Pixels>,
-    swapped: bool,
+    showed: bool,
+    resolving: bool,
 }
 
 impl Aside {
@@ -307,7 +313,8 @@ impl Aside {
             lyrics_wraps: HashMap::new(),
             lane_rooms: HashMap::new(),
             row_heights: Vec::new(),
-            swapped: false,
+            showed: false,
+            resolving: false,
         }
     }
 
@@ -691,9 +698,6 @@ impl Aside {
         let theme = *cx.theme();
         let position = self.playback.read(cx).live_position();
         let singing = matches!(self.playback.read(cx).state(), PlaybackState::Playing);
-        if !singing {
-            self.lyrics.update(cx, |lyrics, cx| lyrics.settle(cx));
-        }
         let lyrics = self.lyrics.read(cx);
         let state = lyrics.state().clone();
         let shown = lyrics.current().map(|hit| hit.lyrics.clone());
@@ -729,10 +733,13 @@ impl Aside {
                 .update(cx, |bar, _| bar.remember_offset(scroll.offset().y));
         } else if self.verse_take != take {
             self.verse_take = take;
+            // Nothing was on screen before, so there is no change to play: the
+            // sheet is simply put up.
+            self.resolving = self.showed;
             self.forget_verse();
             self.anchor_verse();
-            self.swapped = true;
         }
+        self.showed = shown.is_some();
 
         let empty = |key: &'static str, cx: &mut Context<Self>| {
             vacant(i18n::lookup(key, None), cx)
@@ -768,20 +775,6 @@ impl Aside {
                     && active_line.is_some_and(|index| lines[index].worded())
                 {
                     window.request_animation_frame();
-                }
-                let adopted = std::mem::take(&mut self.swapped);
-                if adopted {
-                    self.previous_active_line = active_line;
-                }
-                // A sheet held back comes in as a verse starts, never as one ends.
-                // Without karaoke the panel only draws on the engine's position
-                // reports, so it asks for the next frame rather than letting the
-                // verse grow for half a second before the swap lands.
-                if self.previous_active_line != active_line && active_line.is_some() {
-                    let swap = self.lyrics.update(cx, |lyrics, cx| lyrics.settle(cx));
-                    if swap {
-                        window.request_animation_frame();
-                    }
                 }
                 if self.previous_active_line != active_line {
                     if self.previous_active_line.is_some() {
@@ -841,7 +834,7 @@ impl Aside {
                     let haze = |depth: f32| match (waking, settling) {
                         (true, _) => depth * (1. - sharpen),
                         (false, true) => depth * sharpen,
-                        (false, false) => stepped(depth),
+                        (false, false) => depth,
                     };
                     if has_instrumental {
                         let row = rendered.len();
@@ -875,8 +868,8 @@ impl Aside {
                             this.seek_lyrics(instrumental_start, cx);
                         }))
                         .when(softness > 0., |this| this.opacity(1. - VEIL * softness))
-                        .map(|this| match (blur * softness).round() {
-                            soft if soft > px(0.) => this.blur(soft),
+                        .map(|this| match blur * softness {
+                            soft if soft > HAZE_LEAST => this.blur(soft),
                             _ => this,
                         });
                         rendered.push(notes.into_any_element());
@@ -919,10 +912,8 @@ impl Aside {
                     };
 
                     let dimming = (animations && departing).then_some(self.departure);
-                    let growing = animations
-                        && active
-                        && !adopted
-                        && self.arrived.elapsed() < Motion::Base.span();
+                    let growing =
+                        animations && active && self.arrived.elapsed() < Motion::Base.span();
 
                     let primary = match (primary_karaoke, line.words.as_ref(), wrapped) {
                         (true, Some(words), Some(plan)) => {
@@ -1035,8 +1026,8 @@ impl Aside {
 
                     let verse_line = verse_line
                         .when(softness > 0., |this| this.opacity(1. - VEIL * softness))
-                        .map(|this| match (blur * softness).round() {
-                            soft if soft > px(0.) => this.blur(soft),
+                        .map(|this| match blur * softness {
+                            soft if soft > HAZE_LEAST => this.blur(soft),
                             _ => this,
                         });
                     let shrinking = dimming.is_some();
@@ -1148,7 +1139,7 @@ impl Aside {
             None => (px(REST), px(REST)),
         };
 
-        Scroller::new("lyrics", &self.verse_bar)
+        let sheet = Scroller::new("lyrics", &self.verse_bar)
             .flex()
             .flex_col()
             .gap_1()
@@ -1161,7 +1152,23 @@ impl Aside {
                 let fade = verse * VERSE_FADE;
                 this.fade_edges(fade, fade)
             })
-            .children(body)
+            .children(body);
+
+        // A sheet only ever replaces another once, when every source has
+        // answered, and that is the one change worth showing.
+        match self.resolving && ui::motion::animates(cx) {
+            true => sheet
+                .with_animation(
+                    ("verse-sheet", self.verse_take as usize),
+                    Animation::new(Motion::Base.span()).with_easing(ui::ease_in_out_cubic),
+                    move |this, t| {
+                        this.blur(verse * RESOLVE_BLUR * (1. - t))
+                            .opacity(1. - RESOLVE_FADE * (1. - t))
+                    },
+                )
+                .into_any_element(),
+            false => sheet.into_any_element(),
+        }
     }
 
     fn verse_slack(&self, count: usize, window: &Window, cx: &App) -> (Pixels, Pixels) {
@@ -2153,11 +2160,6 @@ fn spared(scroll: &ScrollHandle, row: usize, view: Bounds<Pixels>, slack: Pixels
     }
     let top = item.origin.y - view.origin.y + scroll.offset().y;
     top + item.size.height + slack < px(0.) || top - slack > height
-}
-
-// bucketed depth keeps neighbouring rows on one filter instead of one each
-fn stepped(depth: f32) -> f32 {
-    (depth * HAZE_STEPS).round() / HAZE_STEPS
 }
 
 fn viewport_haze(scroll: &ScrollHandle, row: usize, view: Bounds<Pixels>, margin: Pixels) -> f32 {
