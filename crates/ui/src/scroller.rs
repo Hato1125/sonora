@@ -65,10 +65,10 @@ impl RenderOnce for Scroller {
             .restrict_scroll_to_axis()
             .track_scroll(&scroll)
             .on_scroll_wheel(move |event: &ScrollWheelEvent, window, cx| {
-                if event.delta.precise() {
-                    return;
+                match event.delta.precise() {
+                    true => gliding.update(cx, |bar, _| bar.stirred()),
+                    false => gliding.update(cx, |bar, _| bar.nudge(window)),
                 }
-                gliding.update(cx, |bar, _| bar.nudge(window));
             })
             .children(children);
 
