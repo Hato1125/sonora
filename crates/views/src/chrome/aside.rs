@@ -18,7 +18,7 @@ use state::{
 use ui::{
     ActiveTheme as _, Button, Card, DraggedPin, Edge, Motion, Motioned as _, Pin, Pinnable as _,
     Popup, Scrollbar, Scroller, Spot, Text, drop_gap, drop_marker, ease_out_cubic, ease_out_expo,
-    eyebrow, mix, slip, snapped, vacant,
+    eyebrow, mix, snapped, vacant,
 };
 
 use crate::chrome::{Chrome, section_label};
@@ -494,12 +494,21 @@ impl Aside {
     }
 
     // only automatic scrolls
-    fn lagged(&mut self, scroll: &ScrollHandle, verse: Pixels, nudges: u64) -> Drag {
+    fn lagged(
+        &mut self,
+        scroll: &ScrollHandle,
+        presentation: Pixels,
+        verse: Pixels,
+        nudges: u64,
+    ) -> Drag {
         let now = std::time::Instant::now();
         let beat = now.duration_since(self.slid).as_secs_f32().min(LAG_STALL);
         self.slid = now;
 
-        let offset = scroll.offset().y;
+        // Spring scrolling commits the destination to layout immediately. Follow the composited
+        // presentation position here, otherwise every row receives that whole layout jump as a
+        // second impulse before the sheet itself has visibly moved.
+        let offset = scroll.offset().y + presentation;
         let step = offset - self.seen;
         self.seen = offset;
         if nudges != self.nudges {
@@ -935,13 +944,16 @@ impl Aside {
         let reach = verse * REACH;
         let wrap_size = active_verse_size(verse);
         let scroll = self.verse_bar.read(cx).scroll().clone();
-        let nudges = self.verse_bar.read(cx).nudges();
+        let (nudges, presentation) = {
+            let bar = self.verse_bar.read(cx);
+            (bar.nudges(), bar.presentation().y)
+        };
         let animations = ui::motion::animates(cx);
         if !animations {
             self.drifts.clear();
         }
         let drag = match (lines.is_some(), animations) {
-            (true, true) => self.lagged(&scroll, verse, nudges),
+            (true, true) => self.lagged(&scroll, presentation, verse, nudges),
             _ => Drag::default(),
         };
         let inset = window.rem_size() * LYRICS_HORIZONTAL_INSET_REM;
@@ -1078,7 +1090,11 @@ impl Aside {
                             soft if soft > HAZE_LEAST => this.blur(soft),
                             _ => this,
                         });
-                        rendered.push(slip(notes, notes_drift).into_any_element());
+                        rendered.push(
+                            notes
+                                .layer_translate(gpui::point(px(0.), notes_drift))
+                                .into_any_element(),
+                        );
                     }
 
                     let row = rendered.len();
@@ -1286,7 +1302,11 @@ impl Aside {
                         }
                         _ => verse_line,
                     };
-                    rendered.push(slip(verse_line, drift).into_any_element());
+                    rendered.push(
+                        verse_line
+                            .layer_translate(gpui::point(px(0.), drift))
+                            .into_any_element(),
+                    );
                 }
 
                 rendered
@@ -1330,24 +1350,22 @@ impl Aside {
             let along = viewport_along(&scroll, credit, scroll.bounds(), drag.downward);
             let drift = self.dragged(credit, along, drag, window);
             body.push(
-                slip(
-                    div()
-                        .w_full()
-                        .max_w(reach)
-                        .px_2()
-                        .pt_2()
-                        .flex()
-                        .flex_col()
-                        .text_size(theme.text(Text::Small))
-                        .text_color(theme.muted_foreground)
-                        .child(t!("lyrics-source", source = *source))
-                        .when(!writers.is_empty(), |this| {
-                            let writers = writers.join(", ");
-                            this.child(t!("lyrics-writers", writers = writers.as_str()))
-                        }),
-                    drift,
-                )
-                .into_any_element(),
+                div()
+                    .w_full()
+                    .max_w(reach)
+                    .px_2()
+                    .pt_2()
+                    .flex()
+                    .flex_col()
+                    .text_size(theme.text(Text::Small))
+                    .text_color(theme.muted_foreground)
+                    .child(t!("lyrics-source", source = *source))
+                    .when(!writers.is_empty(), |this| {
+                        let writers = writers.join(", ");
+                        this.child(t!("lyrics-writers", writers = writers.as_str()))
+                    })
+                    .layer_translate(gpui::point(px(0.), drift))
+                    .into_any_element(),
             );
         }
 
@@ -1485,8 +1503,8 @@ impl Aside {
         };
         self.aiming = false;
         let view = scroll.bounds();
-        // Preserve the fractional target. Every lyric row paints through `slip`, which disables
-        // GPUI's device-pixel offset snapping for this animated subtree.
+        // Preserve the fractional target. Spring scrolls are presented by the compositor, so the
+        // text never has to walk the raster grid while the layer is settling.
         let goal = anchored_lyrics_offset(
             view.origin.y,
             item.origin.y,

@@ -220,6 +220,10 @@ impl Scrollbar {
         self.glide.goal(&self.scroll).y
     }
 
+    pub fn presentation(&self) -> gpui::Point<Pixels> {
+        self.glide.presentation(&self.scroll)
+    }
+
     pub fn sync(&self) {
         self.glide.sync(&self.scroll);
     }

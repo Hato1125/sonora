@@ -89,8 +89,11 @@ impl Glide {
     }
 
     pub fn aim(&self, scroll: &ScrollHandle, to: Point<Pixels>, window: &mut Window) {
-        {
+        let layout = {
             let mut drift = self.drift.borrow_mut();
+            if !drift.gliding {
+                drift.shown = scroll.offset();
+            }
             drift.target = held(to, scroll);
             drift.gliding = true;
             let springing = self.spring.is_some();
@@ -99,6 +102,13 @@ impl Glide {
             }
             drift.springing = springing;
             drift.eased = Some(self.pace);
+            springing.then_some(drift.target)
+        };
+        // A physical scroll presents its motion the same way Core Animation does: layout lands at
+        // the destination immediately, while the composited layer keeps the old visual position
+        // and springs its presentation transform to zero.
+        if let Some(layout) = layout {
+            scroll.set_offset(layout);
         }
         self.schedule_frame(scroll, window);
     }
@@ -142,6 +152,15 @@ impl Glide {
         }
     }
 
+    pub fn presentation(&self, scroll: &ScrollHandle) -> Point<Pixels> {
+        let drift = self.drift.borrow();
+
+        match drift.gliding && drift.springing {
+            true => drift.shown - scroll.offset(),
+            false => Point::default(),
+        }
+    }
+
     fn schedule_frame(&self, scroll: &ScrollHandle, window: &mut Window) {
         {
             let mut drift = self.drift.borrow_mut();
@@ -171,7 +190,8 @@ impl Glide {
                 .map(|beat| now.duration_since(beat).min(STALL))
                 .unwrap_or(Duration::from_secs_f32(1. / HERTZ));
             let target = held(drift.target, scroll);
-            let settled = if drift.springing {
+            let springing = drift.springing;
+            let settled = if springing {
                 let spring = self.spring.expect("a springing glide has a spring");
                 let x = spring.step(
                     SpringState {
@@ -200,7 +220,7 @@ impl Glide {
                 drift.shown += point(step.x * ease, step.y * ease);
                 step.x.abs() < REST && step.y.abs() < REST
             };
-            match settled {
+            let shown = match settled {
                 true => {
                     drift.shown = target;
                     drift.gliding = false;
@@ -211,6 +231,10 @@ impl Glide {
                     target
                 }
                 false => held(drift.shown, scroll),
+            };
+            match springing {
+                true => target,
+                false => shown,
             }
         };
 

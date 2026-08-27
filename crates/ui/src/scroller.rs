@@ -56,6 +56,7 @@ impl RenderOnce for Scroller {
         let scroll = bar.read(cx).scroll().clone();
         let overrides = std::mem::take(base.style());
         bar.read(cx).sync();
+        let presentation = bar.read(cx).presentation();
         let gliding = bar.clone();
 
         let mut surface = base
@@ -73,6 +74,7 @@ impl RenderOnce for Scroller {
             .children(children);
 
         surface.style().refine(&overrides);
+        surface = surface.layer_translate(presentation);
 
         div()
             .relative()
