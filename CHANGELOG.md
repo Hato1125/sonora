@@ -28,6 +28,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   that way. A saved position that no longer lands on a connected display is dropped, so unplugging
   a monitor cannot leave the window off screen. Wayland does not hand a window its position, so
   there only the size and the maximized state come back.
+- Settings, Appearance can pick the interface font. The list is searchable and holds every font
+  installed on the machine that can actually set the interface, so the script-only families a system
+  carries do not clutter it, and Bundled keeps the Inter that ships with Sonora.
 
 ### Changed
 
@@ -61,6 +64,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   break, because a line was only ever split where it had a space, so a whole verse was laid out as
   one unbreakable row. They now break between characters, and never before a closing bracket or a
   mark like a comma that has to stay with the character in front of it.
+- Non-Latin lyrics are set in the same weight as the rest of the text. Inter carries no Japanese,
+  Chinese or Korean glyphs, so those came from whatever the system offered and arrived at regular
+  weight next to bold Latin.
 - Turning Karaoke lyrics on no longer widens the gaps between words. The line being sung was laid
   out one box per word so it could be highlighted piece by piece, and each box was measured on its
   own; it is now a single run per line with the highlight clipped over it, which is what every other
