@@ -345,15 +345,9 @@ impl Aside {
     }
 
     fn forget_verse(&mut self) {
-        self.reset_verse();
-        self.placing = true;
-    }
-
-    /// Drops what was measured and which line was sung, leaving the panel to
-    /// carry itself to the new line rather than jump there.
-    fn reset_verse(&mut self) {
         self.previous_active_line = None;
         self.departing_line = None;
+        self.placing = true;
         self.forget_measurements();
     }
 
@@ -735,7 +729,7 @@ impl Aside {
                 .update(cx, |bar, _| bar.remember_offset(scroll.offset().y));
         } else if self.verse_take != take {
             self.verse_take = take;
-            self.reset_verse();
+            self.forget_verse();
             self.anchor_verse();
             self.swapped = true;
         }
@@ -775,12 +769,19 @@ impl Aside {
                 {
                     window.request_animation_frame();
                 }
-                if std::mem::take(&mut self.swapped) {
+                let adopted = std::mem::take(&mut self.swapped);
+                if adopted {
                     self.previous_active_line = active_line;
                 }
-                // A sheet held back comes in as a verse starts, never as one ends
+                // A sheet held back comes in as a verse starts, never as one ends.
+                // Without karaoke the panel only draws on the engine's position
+                // reports, so it asks for the next frame rather than letting the
+                // verse grow for half a second before the swap lands.
                 if self.previous_active_line != active_line && active_line.is_some() {
-                    self.lyrics.update(cx, |lyrics, cx| lyrics.settle(cx));
+                    let swap = self.lyrics.update(cx, |lyrics, cx| lyrics.settle(cx));
+                    if swap {
+                        window.request_animation_frame();
+                    }
                 }
                 if self.previous_active_line != active_line {
                     if self.previous_active_line.is_some() {
@@ -918,8 +919,10 @@ impl Aside {
                     };
 
                     let dimming = (animations && departing).then_some(self.departure);
-                    let growing =
-                        animations && active && self.arrived.elapsed() < Motion::Base.span();
+                    let growing = animations
+                        && active
+                        && !adopted
+                        && self.arrived.elapsed() < Motion::Base.span();
 
                     let primary = match (primary_karaoke, line.words.as_ref(), wrapped) {
                         (true, Some(words), Some(plan)) => {

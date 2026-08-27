@@ -19,8 +19,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   word-by-word as they come in, which used to swap the words under you, snap the sheet to a new
   position and start the highlight over. It now finishes the verse on screen and takes the better
   sheet up at the next one, keeping the line that was already growing rather than replaying it. A
-  source you pick yourself still applies at once, and so does one that arrives between verses or
-  while playback is paused.
+  source you pick yourself still applies at once, and so does one that arrives while playback is
+  paused. The line being sung stays exactly where it is as the swap lands, and the verse that was
+  already growing is not grown again.
 
 - The word-by-word highlight no longer slips backwards inside a word. Lyrics providers split a word
   where it is sung in two — "nothing" arrives as "no" and "thing" — and the soft trail the highlight
