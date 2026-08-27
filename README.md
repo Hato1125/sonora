@@ -46,6 +46,8 @@ Stream Spotify, YouTube Music, and local files all in one **native** app.
 
 ### macOS
 
+Install with [Brew](https://brew.sh/).
+
 ```sh
 brew install --cask nolight132/tap/sonora
 ```
@@ -57,9 +59,17 @@ xattr -dr com.apple.quarantine /Applications/Sonora.app
 
 ### Linux
 
-```sh
-AUR, COPR, .deb coming soon.
+#### Arch
+
+Install from the AUR with your AUR helper of choice.
+
 ```
+yay -S sonora
+```
+
+#### Other
+
+Flatpak coming soon.
 
 ### Nix
 Just use the flake in the project root.
@@ -71,7 +81,14 @@ inputs.sonora.packages.${system}.default
 The flake installs the latest tagged release binary.
 
 ### Windows
-Download the latest `.exe` for your architecture from [Releases](https://github.com/nolight132/sonora/releases/latest). There isn't a proper Windows installer yet.
+
+#### Installer
+
+Download and run the [installer](https://github.com/nolight132/sonora/releases/latest/download/Sonora-Setup.exe).
+
+#### Portable
+
+Download the latest `windows-msvc.exe` for your architecture from [Releases](https://github.com/nolight132/sonora/releases/latest).
 
 ## Translations
 
