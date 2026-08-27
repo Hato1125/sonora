@@ -7,6 +7,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.19.1] - 2026-08-27
+
 ### Changed
 
 - Sonora redraws far less of the window at once. A word-by-word lyric line, a melody break and a
@@ -877,7 +879,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Initial release: a native Spotify client with playback, an interactive queue, the saved library,
 search, album, playlist, artist and song pages, context menus and adaptive theming.
 
-[unreleased]: https://github.com/nolight132/sonora/compare/v0.19.0...HEAD
+[unreleased]: https://github.com/nolight132/sonora/compare/v0.19.1...HEAD
+[0.19.1]: https://github.com/nolight132/sonora/compare/v0.19.0...v0.19.1
 [0.19.0]: https://github.com/nolight132/sonora/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/nolight132/sonora/compare/v0.17.1...v0.18.0
 [0.17.1]: https://github.com/nolight132/sonora/compare/v0.17.0...v0.17.1
