@@ -937,6 +937,21 @@ impl Aside {
             _ => None,
         };
 
+        // `pin_verse` may commit the destination scroll offset immediately. Do that before reading
+        // the presentation transform below, so the same frame gets the inverse compositor offset
+        // instead of flashing the destination row for one frame.
+        if let Some(lines) = &lines {
+            let live = active_lyrics_row(lines, position);
+            let focus = match self.pinning {
+                Some(row) if Some(row) != live => Some(row),
+                _ => {
+                    self.pinning = None;
+                    live
+                }
+            };
+            self.pin_verse(focus, window, cx);
+        }
+
         let verse = match self.titled {
             true => theme.text(Text::Large),
             false => theme.text(Text::Title),
@@ -1036,10 +1051,11 @@ impl Aside {
                         }
                         let notes_along = viewport_along(&scroll, notes_row, view, drag.downward);
                         let notes_drift = self.dragged(notes_row, notes_along, drag, window);
+                        let notes_translation = presentation + notes_drift;
                         let softness = match hazing && instrumental_line != Some(index) {
                             true => clearing(
                                 notes_touch,
-                                viewport_haze(&scroll, notes_row, view, blur, notes_drift),
+                                viewport_haze(&scroll, notes_row, view, blur, notes_translation),
                             ),
                             false => 0.,
                         };
@@ -1092,7 +1108,7 @@ impl Aside {
                         });
                         rendered.push(
                             notes
-                                .layer_translate(gpui::point(px(0.), notes_drift))
+                                .layer_translate(gpui::point(px(0.), notes_translation))
                                 .into_any_element(),
                         );
                     }
@@ -1100,6 +1116,7 @@ impl Aside {
                     let row = rendered.len();
                     let along = viewport_along(&scroll, row, view, drag.downward);
                     let drift = self.dragged(row, along, drag, window);
+                    let translation = presentation + drift;
                     let active = Some(index) == active_line;
                     let departing = Some(index) == self.departing_line;
                     let karaoke = Some(index) == active_line && line.worded() && karaoke_effects;
@@ -1241,7 +1258,7 @@ impl Aside {
                         });
 
                     let softness = match hazing && Some(index) != active_line {
-                        true => haze(viewport_haze(&scroll, row, view, blur, drift)),
+                        true => haze(viewport_haze(&scroll, row, view, blur, translation)),
                         false => 0.,
                     };
                     let traded = index
@@ -1304,7 +1321,7 @@ impl Aside {
                     };
                     rendered.push(
                         verse_line
-                            .layer_translate(gpui::point(px(0.), drift))
+                            .layer_translate(gpui::point(px(0.), translation))
                             .into_any_element(),
                     );
                 }
@@ -1349,6 +1366,10 @@ impl Aside {
             let credit = body.len();
             let along = viewport_along(&scroll, credit, scroll.bounds(), drag.downward);
             let drift = self.dragged(credit, along, drag, window);
+            let translation = match lines.is_some() {
+                true => presentation + drift,
+                false => px(0.),
+            };
             body.push(
                 div()
                     .w_full()
@@ -1364,21 +1385,9 @@ impl Aside {
                         let writers = writers.join(", ");
                         this.child(t!("lyrics-writers", writers = writers.as_str()))
                     })
-                    .layer_translate(gpui::point(px(0.), drift))
+                    .layer_translate(gpui::point(px(0.), translation))
                     .into_any_element(),
             );
-        }
-
-        if let Some(lines) = &lines {
-            let live = active_lyrics_row(lines, position);
-            let focus = match self.pinning {
-                Some(row) if Some(row) != live => Some(row),
-                _ => {
-                    self.pinning = None;
-                    live
-                }
-            };
-            self.pin_verse(focus, window, cx);
         }
 
         let (over, under) = match &lines {
@@ -1387,6 +1396,7 @@ impl Aside {
         };
 
         let sheet = Scroller::new("lyrics", &self.verse_bar)
+            .when(lines.is_some(), Scroller::manual_presentation)
             .flex()
             .flex_col()
             .items_center()

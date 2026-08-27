@@ -12,6 +12,7 @@ pub struct Scroller {
     id: ElementId,
     bar: Entity<Scrollbar>,
     children: Vec<AnyElement>,
+    present_surface: bool,
 }
 
 impl Scroller {
@@ -22,7 +23,15 @@ impl Scroller {
             id: id.into(),
             bar: bar.clone(),
             children: Vec::new(),
+            present_surface: true,
         }
+    }
+
+    /// Lets a caller merge the scroll presentation into child transforms, avoiding nested
+    /// compositor sampling when those children already have their own spring motion.
+    pub fn manual_presentation(mut self) -> Self {
+        self.present_surface = false;
+        self
     }
 }
 
@@ -51,6 +60,7 @@ impl RenderOnce for Scroller {
             id,
             bar,
             children,
+            present_surface,
         } = self;
 
         let scroll = bar.read(cx).scroll().clone();
@@ -74,7 +84,9 @@ impl RenderOnce for Scroller {
             .children(children);
 
         surface.style().refine(&overrides);
-        surface = surface.layer_translate(presentation);
+        if present_surface {
+            surface = surface.layer_translate(presentation);
+        }
 
         div()
             .relative()
