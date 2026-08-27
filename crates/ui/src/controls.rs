@@ -125,6 +125,7 @@ impl RenderOnce for WindowControls {
                     .child(
                         svg()
                             .path(control.icon())
+                            .id("glyph")
                             .size(GLYPH)
                             .flex_none()
                             .text_color(theme.muted_foreground)
