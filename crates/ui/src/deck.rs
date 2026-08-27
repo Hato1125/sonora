@@ -5,8 +5,6 @@ use gpui::{AnyElement, App, Div, ElementId, Pixels, StyleRefinement, Window, div
 
 use crate::grid::Viewport;
 
-const OVERSCAN: usize = 1;
-
 type Draw = Box<dyn Fn(usize, &mut Window, &mut App) -> AnyElement>;
 type Measure = Box<dyn Fn(Pixels, &mut Window, &mut App)>;
 
@@ -175,8 +173,8 @@ fn span(tops: &[Pixels], rows: &[Pixels], viewport: Viewport) -> Range<usize> {
     }
 
     let bottom = viewport.top + viewport.height;
-    let first = passed(tops, rows, viewport.top).saturating_sub(OVERSCAN);
-    let last = (tops.partition_point(|top| *top < bottom) + OVERSCAN).min(tops.len());
+    let first = passed(tops, rows, viewport.top);
+    let last = tops.partition_point(|top| *top < bottom);
 
     first..last.max(first)
 }
