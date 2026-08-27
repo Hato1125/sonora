@@ -529,6 +529,17 @@ impl AppSettings {
         self.schedule_save(cx);
     }
 
+    pub fn set_resume_origin(&mut self, origin: Option<crate::Origin>, cx: &mut Context<Self>) {
+        let Some(resume) = self.values.resume.as_mut() else {
+            return;
+        };
+        if resume.origin == origin {
+            return;
+        }
+        resume.origin = origin;
+        self.save_quietly(cx);
+    }
+
     pub fn set_resume_position(&mut self, position: f32, cx: &mut Context<Self>) {
         let Some(resume) = self.values.resume.as_mut() else {
             return;
@@ -799,9 +810,12 @@ fn take(pins: &mut Pins, slug: &str, pin: &Pin) -> bool {
 
 fn carry(previous: Option<&Resume>, next: &mut Resume) {
     let playing = |resume: &Resume| resume.current.as_ref().map(|stub| stub.id.clone());
-    next.position = previous
-        .filter(|old| old.provider == next.provider && playing(old) == playing(next))
+    let same = previous.filter(|old| old.provider == next.provider);
+    next.position = same
+        .filter(|old| playing(old) == playing(next))
         .map_or(0., |old| old.position);
+    // the queue moving on does not change where it came from
+    next.origin = same.and_then(|old| old.origin.clone());
 }
 
 fn place(pinned: &mut Vec<Pin>, pin: Pin, gap: Option<usize>) -> bool {

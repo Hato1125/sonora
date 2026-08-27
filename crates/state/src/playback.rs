@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use anyhow::Result;
-use gpui::{App, Context, Entity, EventEmitter, Task};
+use gpui::{App, Context, Entity, EventEmitter, SharedString, Task};
 use music::{
     MusicApi, PlaybackConfig, PlaybackEvent as BackendEvent, PlaybackEvents, PlaybackFactory,
     Player, Track,
@@ -163,19 +163,82 @@ pub enum Repeat {
     One,
 }
 
-#[derive(Clone, PartialEq, Eq)]
-pub enum Origin {
-    Album(String),
-    Playlist(String),
-    Artist(String),
-    Radio(String),
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Whence {
+    Album,
+    Playlist,
+    Artist,
+    Radio,
+    Saved,
+    Local,
 }
 
+// same thing, same origin
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Origin {
+    pub whence: Whence,
+    pub id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<SharedString>,
+}
+
+impl PartialEq for Origin {
+    fn eq(&self, other: &Self) -> bool {
+        self.whence == other.whence && self.id == other.id
+    }
+}
+
+impl Eq for Origin {}
+
 impl Origin {
-    fn id(&self) -> &str {
-        match self {
-            Origin::Album(id) | Origin::Playlist(id) | Origin::Artist(id) | Origin::Radio(id) => id,
+    pub fn album(id: impl Into<String>) -> Self {
+        Self::of(Whence::Album, id)
+    }
+
+    pub fn playlist(id: impl Into<String>) -> Self {
+        Self::of(Whence::Playlist, id)
+    }
+
+    pub fn artist(id: impl Into<String>) -> Self {
+        Self::of(Whence::Artist, id)
+    }
+
+    pub fn radio(id: impl Into<String>) -> Self {
+        Self::of(Whence::Radio, id)
+    }
+
+    pub fn saved() -> Self {
+        Self::of(Whence::Saved, String::new())
+    }
+
+    pub fn local() -> Self {
+        Self::of(Whence::Local, String::new())
+    }
+
+    pub fn named(mut self, name: impl Into<SharedString>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    fn of(whence: Whence, id: impl Into<String>) -> Self {
+        Self {
+            whence,
+            id: id.into(),
+            name: None,
         }
+    }
+}
+
+impl From<&Pin> for Origin {
+    fn from(pin: &Pin) -> Self {
+        let origin = match pin.kind {
+            PinKind::Album => Origin::album(pin.id.clone()),
+            PinKind::Playlist => Origin::playlist(pin.id.clone()),
+            PinKind::Artist => Origin::artist(pin.id.clone()),
+            PinKind::Song => Origin::radio(pin.id.clone()),
+        };
+        origin.named(pin.title.clone())
     }
 }
 
@@ -386,9 +449,15 @@ impl Playback {
         }));
     }
 
-    pub fn start(&mut self, tracks: Vec<Track>, index: usize, cx: &mut Context<Self>) {
+    pub fn start(
+        &mut self,
+        tracks: Vec<Track>,
+        index: usize,
+        origin: Option<Origin>,
+        cx: &mut Context<Self>,
+    ) {
         self.fetch = None;
-        self.begin(tracks, index, None, cx);
+        self.begin(tracks, index, origin, cx);
     }
 
     pub fn play_radio(&mut self, seed: &Track, cx: &mut Context<Self>) {
@@ -399,7 +468,7 @@ impl Playback {
             return self.failed(format!("{} is not available to stream", seed.name), cx);
         }
 
-        let origin = Origin::Radio(id.clone());
+        let origin = Origin::radio(id.clone()).named(seed.name.clone());
         let seed = seed.clone();
         self.gather(origin, cx, move |client| {
             Box::pin(async move {
@@ -412,9 +481,8 @@ impl Playback {
         });
     }
 
-    pub fn play_track(&mut self, track_id: &str, cx: &mut Context<Self>) {
-        let origin = Origin::Radio(track_id.to_owned());
-        let id = track_id.to_owned();
+    fn play_radio_of(&mut self, origin: Origin, cx: &mut Context<Self>) {
+        let id = origin.id.clone();
         self.gather(origin, cx, move |client| {
             Box::pin(async move {
                 let mut tracks = client.track_radio(&id).await?;
@@ -530,17 +598,15 @@ impl Playback {
         });
     }
 
-    pub fn play_album(&mut self, album: &str, cx: &mut Context<Self>) {
-        let origin = Origin::Album(album.to_owned());
-        let album = album.to_owned();
+    fn play_album_of(&mut self, origin: Origin, cx: &mut Context<Self>) {
+        let album = origin.id.clone();
         self.gather(origin, cx, move |client| {
             Box::pin(async move { client.album_tracks(&album).await })
         });
     }
 
-    pub fn play_artist(&mut self, artist: &str, cx: &mut Context<Self>) {
-        let origin = Origin::Artist(artist.to_owned());
-        let artist = artist.to_owned();
+    fn play_artist_of(&mut self, origin: Origin, cx: &mut Context<Self>) {
+        let artist = origin.id.clone();
         self.gather(origin, cx, move |client| {
             Box::pin(async move { client.artist(&artist).await.map(|found| found.top_tracks) })
         });
@@ -578,9 +644,8 @@ impl Playback {
         });
     }
 
-    pub fn play_playlist(&mut self, playlist: &str, cx: &mut Context<Self>) {
-        let origin = Origin::Playlist(playlist.to_owned());
-        let playlist = playlist.to_owned();
+    fn play_playlist_of(&mut self, origin: Origin, cx: &mut Context<Self>) {
+        let playlist = origin.id.clone();
         self.gather(origin, cx, move |client| {
             Box::pin(async move { client.playlist_tracks(&playlist).await })
         });
@@ -659,6 +724,9 @@ impl Playback {
             return;
         };
         self.origin = origin;
+        let stored = self.origin.clone();
+        self.settings
+            .update(cx, |settings, cx| settings.set_resume_origin(stored, cx));
         self.play(&track, cx);
     }
 
@@ -666,7 +734,7 @@ impl Playback {
     where
         F: FnOnce(Arc<dyn MusicApi>) -> Fetch + Send + 'static,
     {
-        let Some(client) = self.client_for(origin.id(), cx) else {
+        let Some(client) = self.client_for(&origin.id, cx) else {
             return;
         };
 
@@ -1008,9 +1076,11 @@ impl Playback {
         };
 
         let at = Duration::from_secs_f32(resume.position.max(0.));
+        let origin = resume.origin.clone();
         let Some(track) = self.queue.update(cx, |queue, cx| queue.revive(resume, cx)) else {
             return;
         };
+        self.origin = origin;
         self.track = Some(track);
         self.state = PlaybackState::Paused;
         self.position = at;
@@ -1046,16 +1116,22 @@ impl Playback {
         }
     }
 
+    pub fn play_origin(&mut self, origin: Origin, cx: &mut Context<Self>) {
+        match origin.whence {
+            Whence::Album => self.play_album_of(origin, cx),
+            Whence::Playlist => self.play_playlist_of(origin, cx),
+            Whence::Artist => self.play_artist_of(origin, cx),
+            Whence::Radio => self.play_radio_of(origin, cx),
+            // the table plays these
+            Whence::Saved | Whence::Local => {}
+        }
+    }
+
     pub fn toggle_origin(&mut self, origin: &Origin, cx: &mut Context<Self>) {
         match self.playing_from(origin) {
             Some(PlaybackState::Playing) => self.pause(cx),
             Some(PlaybackState::Paused) => self.resume(cx),
-            _ => match origin {
-                Origin::Album(id) => self.play_album(id, cx),
-                Origin::Playlist(id) => self.play_playlist(id, cx),
-                Origin::Artist(id) => self.play_artist(id, cx),
-                Origin::Radio(id) => self.play_track(id, cx),
-            },
+            _ => self.play_origin(origin.clone(), cx),
         }
     }
 

@@ -16,7 +16,7 @@ pub(crate) fn album_card(
 ) -> Card {
     let theme = *cx.theme();
     let cover = album.cover_large.clone().or_else(|| album.cover.clone());
-    let origin = Origin::Album(album.id.clone());
+    let origin = Origin::album(album.id.clone()).named(album.name.clone());
     let playing = matches!(
         playback.read(cx).playing_from(&origin),
         Some(PlaybackState::Playing)
@@ -51,7 +51,7 @@ pub(crate) fn playlist_card(
     playback: &Entity<Playback>,
     cx: &App,
 ) -> Card {
-    let origin = Origin::Playlist(playlist.id.clone());
+    let origin = Origin::playlist(playlist.id.clone()).named(playlist.name.clone());
     let playing = matches!(
         playback.read(cx).playing_from(&origin),
         Some(PlaybackState::Playing)
@@ -72,9 +72,20 @@ pub(crate) fn playlist_card(
         .when_some(pin, Pinnable::pin)
 }
 
-pub(crate) fn artist_card(id: impl Into<ElementId>, artist: &SavedArtist) -> Card {
+pub(crate) fn artist_card(
+    id: impl Into<ElementId>,
+    artist: &SavedArtist,
+    playback: &Entity<Playback>,
+    cx: &App,
+) -> Card {
+    let origin = Origin::artist(artist.id.clone()).named(artist.name.clone());
+    let playing = matches!(
+        playback.read(cx).playing_from(&origin),
+        Some(PlaybackState::Playing)
+    );
     let pin = artist.pin();
     let opened = SharedString::from(artist.id.clone());
+    let toggled = playback.clone();
 
     Card::new(id, SharedString::from(artist.name.clone()))
         .cover(artist.cover.clone())
@@ -82,6 +93,9 @@ pub(crate) fn artist_card(id: impl Into<ElementId>, artist: &SavedArtist) -> Car
         .weight(FontWeight::SEMIBOLD)
         .underline()
         .meta(i18n::lookup("artist-eyebrow", None))
+        .play(playing, move |_, _, cx| {
+            toggled.update(cx, |playback, cx| playback.toggle_origin(&origin, cx));
+        })
         .press(move |_, _, cx| navigate(Destination::Artist(opened.clone()), cx))
         .when_some(pin, Pinnable::pin)
 }

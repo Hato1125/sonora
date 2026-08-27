@@ -25,7 +25,7 @@ pub use genre::{GenreDetails, Genres};
 pub use home::Home;
 pub use library::{Library, LibraryEvent, LibraryPart, LibraryState, Problem};
 pub use lyrics::{Lyrics, LyricsState};
-pub use playback::{Origin, Playback, PlaybackState, Repeat};
+pub use playback::{Origin, Playback, PlaybackState, Repeat, Whence};
 pub use queue::{Named, Queue, Resume, Stub};
 pub use remote::{Remote, attach as attach_remote};
 pub use search::{AlbumHit, ArtistHit, Hit, Kind, PlaylistHit, Search};

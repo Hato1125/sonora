@@ -109,6 +109,7 @@ playlist-again-add = Додати ще раз
 queue-title = Черга
 queue-history = Історія
 queue-now-playing = Зараз грає
+queue-from = З
 queue-up-next = Далі
 queue-reset = Скинути
 queue-clear = Очистити

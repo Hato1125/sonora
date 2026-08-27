@@ -10,9 +10,10 @@ use gpui::{
 };
 use i18n::t;
 use music::{Track, Voice};
+use router::{Destination, LibraryTab, Link as _};
 use state::{
     AppSettings, Lyrics, LyricsState, Playback, PlaybackState, Queue, RomanizationScripts, SideTab,
-    Sonora,
+    Sonora, Whence,
 };
 use ui::{
     ActiveTheme as _, Button, Card, DraggedPin, Edge, Motion, Motioned as _, Pin, Pinnable as _,
@@ -26,6 +27,7 @@ use crate::shared::menu::ItemMenu;
 use crate::shared::pins::Pinned as _;
 
 const QUEUE: &str = "queue";
+const BULLET: SharedString = SharedString::new_static("·");
 const FADE: f32 = 96.;
 const REST: f32 = FADE * 0.75;
 const TAIL_ROWS: usize = 2;
@@ -1277,8 +1279,30 @@ impl Aside {
         self.anchor = false;
     }
 
+    // unnamed origins stay unlabelled
+    fn playing_from(&self, cx: &App) -> Option<(SharedString, Destination)> {
+        let origin = self.playback.read(cx).origin()?;
+        let id = SharedString::from(origin.id.clone());
+        let place = match origin.whence {
+            Whence::Album => Destination::Album(id),
+            Whence::Playlist => Destination::Playlist(id),
+            Whence::Artist => Destination::Artist(id),
+            Whence::Radio => Destination::Song(id),
+            Whence::Saved => Destination::Library(LibraryTab::Songs),
+            Whence::Local => Destination::Library(LibraryTab::Local),
+        };
+        let name = match origin.whence {
+            Whence::Saved => t!("library-liked-songs"),
+            Whence::Local => t!("nav-local"),
+            _ => origin.name.clone()?,
+        };
+
+        Some((name, place))
+    }
+
     fn rows(&self, sections: Sections, cx: &mut Context<Self>) -> gpui::UniformList {
         let queue = self.queue.clone();
+        let from = self.playing_from(cx);
         let drop_gap = self.drop_gap;
         let upcoming = sections.upcoming;
         let audible = matches!(self.playback.read(cx).state(), PlaybackState::Playing);
@@ -1308,7 +1332,25 @@ impl Aside {
                     .map(|(index, slot, found)| match (slot, found) {
                         (None, _) => div().into_any_element(),
                         (Some(Slot::Header(key)), _) => {
-                            section_label(key, window, cx).into_any_element()
+                            let label = section_label(key, window, cx);
+                            match (key, from.clone()) {
+                                ("queue-now-playing", Some((name, place))) => label
+                                    .w_full()
+                                    .min_w_0()
+                                    .overflow_hidden()
+                                    .gap_1()
+                                    .child(
+                                        div()
+                                            .flex_none()
+                                            .text_size(cx.theme().text(Text::Small))
+                                            .text_color(cx.theme().muted_foreground)
+                                            .child(BULLET),
+                                    )
+                                    .child(eyebrow(t!("queue-from"), cx))
+                                    .child(source_link(name, place, cx))
+                                    .into_any_element(),
+                                _ => label.into_any_element(),
+                            }
                         }
                         (Some(Slot::Track(position)), Some(found)) => {
                             let drop_line = match (position.upcoming(), drop_gap) {
@@ -1429,6 +1471,23 @@ impl Render for Aside {
             )
             .children(self.menu(cx))
     }
+}
+
+fn source_link(name: SharedString, to: Destination, cx: &App) -> impl IntoElement {
+    let theme = *cx.theme();
+
+    div()
+        .id("queue-source")
+        .min_w_0()
+        .flex_shrink(1.)
+        .truncate()
+        .text_size(theme.text(Text::Small))
+        .text_color(theme.muted_foreground)
+        .font_weight(FontWeight::SEMIBOLD)
+        .cursor_pointer()
+        .hover(|style| style.text_color(theme.foreground).underline())
+        .link(to)
+        .child(name)
 }
 
 fn fixed_lyrics_lane(rows: &[SharedString], voice: Voice) -> Div {

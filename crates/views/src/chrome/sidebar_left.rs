@@ -1,6 +1,6 @@
 use ui::{
-    ActiveTheme as _, Button, Card, DraggedPin, Edge, Panel, Pin, PinKind, Pinnable as _, Popup,
-    SNUG, Scrollbar, Scroller, Shield, Side, Tabs, Text, drop_gap, drop_marker,
+    ActiveTheme as _, Button, Card, DraggedPin, Edge, Panel, Pin, Pinnable as _, Popup, SNUG,
+    Scrollbar, Scroller, Shield, Side, Tabs, Text, drop_gap, drop_marker,
 };
 
 use gpui::prelude::*;
@@ -227,7 +227,7 @@ impl SidebarLeft {
             _ => None,
         };
 
-        let origin = origin_of(&pin);
+        let origin = Origin::from(&pin);
         let playing = matches!(
             self.playback.read(cx).playing_from(&origin),
             Some(PlaybackState::Playing)
@@ -482,15 +482,6 @@ impl Render for SidebarLeft {
                 .child(panel)
                 .into_any_element(),
         }
-    }
-}
-
-fn origin_of(pin: &Pin) -> Origin {
-    match pin.kind {
-        PinKind::Album => Origin::Album(pin.id.clone()),
-        PinKind::Playlist => Origin::Playlist(pin.id.clone()),
-        PinKind::Artist => Origin::Artist(pin.id.clone()),
-        PinKind::Song => Origin::Radio(pin.id.clone()),
     }
 }
 

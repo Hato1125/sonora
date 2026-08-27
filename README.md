@@ -100,12 +100,12 @@ partial translation is welcome — pick a language below and fill in what it lac
 
 | Language | Translated | Coverage |
 | --- | --- | --- |
-| English (`en-US`) | 399/399 | 100% |
-| Deutsch (`de`) | 368/399 | 92% |
-| Français (`fr`) | 368/399 | 92% |
-| Русский (`ru`) | 387/399 | 97% |
-| Українська (`uk`) | 387/399 | 97% |
-| Polski (`pl`) | 387/399 | 97% |
+| English (`en-US`) | 413/413 | 100% |
+| Deutsch (`de`) | 369/413 | 89% |
+| Français (`fr`) | 369/413 | 89% |
+| Русский (`ru`) | 388/413 | 94% |
+| Українська (`uk`) | 388/413 | 94% |
+| Polski (`pl`) | 388/413 | 94% |
 
 <!-- i18n:end -->
 

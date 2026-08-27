@@ -7,7 +7,7 @@ use gpui::{
 };
 use i18n::t;
 use music::Track;
-use state::{Playback, PlaybackState};
+use state::{Origin, Playback, PlaybackState};
 use ui::{
     ActiveTheme as _, Artwork, Button, ExplicitBadge, GridState, LEADING, Pin, Pinnable as _, Text,
     upper,
@@ -116,6 +116,13 @@ impl Listing {
             Self::Listed(table) => tracks::ordered(table, cx),
         }
     }
+
+    fn whence(&self, cx: &App) -> Option<Origin> {
+        match self {
+            Self::Owned(_) => None,
+            Self::Listed(table) => tracks::whence(table, cx),
+        }
+    }
 }
 
 #[derive(IntoElement)]
@@ -123,6 +130,7 @@ pub(crate) struct HeroPlayButton {
     id: ElementId,
     label: SharedString,
     listing: Listing,
+    from: Option<Origin>,
     playback: Entity<Playback>,
 }
 
@@ -137,8 +145,14 @@ impl HeroPlayButton {
             id: id.into(),
             label: label.into(),
             listing: Listing::Owned(tracks),
+            from: None,
             playback,
         }
+    }
+
+    pub(crate) fn from(mut self, origin: Option<Origin>) -> Self {
+        self.from = origin;
+        self
     }
 
     pub(crate) fn listed(
@@ -151,6 +165,7 @@ impl HeroPlayButton {
             id: id.into(),
             label: label.into(),
             listing: Listing::Listed(table.clone()),
+            from: None,
             playback,
         }
     }
@@ -175,6 +190,7 @@ impl RenderOnce for HeroPlayButton {
         let disabled = first_playable.is_none() || blocked;
         let first_playable = first_playable.unwrap_or_default();
         let listing = self.listing;
+        let from = self.from;
         let playback = self.playback;
 
         div().flex().child(
@@ -190,7 +206,8 @@ impl RenderOnce for HeroPlayButton {
                         Some(PlaybackState::Loading) => {}
                         _ => {
                             let queued = listing.queue(cx);
-                            playback.start(queued, first_playable, cx)
+                            let from = from.clone().or_else(|| listing.whence(cx));
+                            playback.start(queued, first_playable, from, cx)
                         }
                     });
                 }),
