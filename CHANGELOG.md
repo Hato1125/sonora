@@ -9,6 +9,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- A verse growing into place no longer steps through a few sizes, and the sheet no longer settles
+  with a jolt once it has finished. The growth is drawn at the size the verse ends up and scaled into
+  place from its leading edge, so the text is measured and drawn once instead of once per frame, and
+  every line reserves the room the sung one needs, so becoming the sung line moves nothing around it.
+
 - A better set of lyrics arriving mid-verse no longer takes over the line you are reading. Sonora
   asks several sources at once and shows the best answer so far, upgrading from plain to synced to
   word-by-word as they come in, which used to swap the words under you, snap the sheet to a new
