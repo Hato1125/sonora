@@ -225,6 +225,7 @@ pub(crate) struct Aside {
     lyrics_wraps: HashMap<usize, Wrapped>,
     lane_rooms: HashMap<usize, Pixels>,
     row_heights: Vec<Pixels>,
+    swapped: bool,
 }
 
 impl Aside {
@@ -306,6 +307,7 @@ impl Aside {
             lyrics_wraps: HashMap::new(),
             lane_rooms: HashMap::new(),
             row_heights: Vec::new(),
+            swapped: false,
         }
     }
 
@@ -343,9 +345,15 @@ impl Aside {
     }
 
     fn forget_verse(&mut self) {
+        self.reset_verse();
+        self.placing = true;
+    }
+
+    /// Drops what was measured and which line was sung, leaving the panel to
+    /// carry itself to the new line rather than jump there.
+    fn reset_verse(&mut self) {
         self.previous_active_line = None;
         self.departing_line = None;
-        self.placing = true;
         self.forget_measurements();
     }
 
@@ -689,6 +697,9 @@ impl Aside {
         let theme = *cx.theme();
         let position = self.playback.read(cx).live_position();
         let singing = matches!(self.playback.read(cx).state(), PlaybackState::Playing);
+        if !singing {
+            self.lyrics.update(cx, |lyrics, cx| lyrics.settle(cx));
+        }
         let lyrics = self.lyrics.read(cx);
         let state = lyrics.state().clone();
         let shown = lyrics.current().map(|hit| hit.lyrics.clone());
@@ -724,8 +735,9 @@ impl Aside {
                 .update(cx, |bar, _| bar.remember_offset(scroll.offset().y));
         } else if self.verse_take != take {
             self.verse_take = take;
-            self.forget_verse();
+            self.reset_verse();
             self.anchor_verse();
+            self.swapped = true;
         }
 
         let empty = |key: &'static str, cx: &mut Context<Self>| {
@@ -763,7 +775,11 @@ impl Aside {
                 {
                     window.request_animation_frame();
                 }
+                if std::mem::take(&mut self.swapped) {
+                    self.previous_active_line = active_line;
+                }
                 if self.previous_active_line != active_line {
+                    self.lyrics.update(cx, |lyrics, cx| lyrics.settle(cx));
                     if self.previous_active_line.is_some() {
                         self.departing_line = self.previous_active_line;
                         self.departure = self.departure.wrapping_add(1);

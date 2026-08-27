@@ -2,12 +2,12 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use gpui::{Context, Entity, Task};
+use gpui::{App, Context, Entity, Task};
 use music::{Lyrics as Sheet, LyricsHit, LyricsProvider, LyricsQuery, MusicApi, Track, TrackKey};
 use tokio::task::JoinSet;
 
 use crate::sheets::Sheets;
-use crate::{Io, Playback, Queue, Session, join};
+use crate::{Io, Playback, PlaybackState, Queue, Session, join};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LyricsState {
@@ -28,12 +28,15 @@ struct Native {
     id: String,
 }
 
+type Waiting = (Vec<LyricsHit>, Option<LyricsHit>);
+
 pub struct Lyrics {
     state: LyricsState,
     hits: Vec<LyricsHit>,
     chosen: usize,
     picked: bool,
     revision: u64,
+    waiting: Option<Waiting>,
     following: Option<String>,
     cache: HashMap<String, Found>,
     store: Sheets,
@@ -74,6 +77,7 @@ impl Lyrics {
             chosen: 0,
             picked: false,
             revision: 0,
+            waiting: None,
             following: None,
             cache: HashMap::new(),
             store: Sheets::new(),
@@ -115,6 +119,7 @@ impl Lyrics {
         }
         self.chosen = index;
         self.picked = true;
+        self.waiting = None;
         self.revision = self.revision.wrapping_add(1);
         cx.notify();
     }
@@ -140,6 +145,7 @@ impl Lyrics {
         self.following = Some(id.clone());
         self.chosen = 0;
         self.picked = false;
+        self.waiting = None;
         self.revision = self.revision.wrapping_add(1);
 
         if let Some(found) = self.remembered(&id, cx) {
@@ -187,6 +193,7 @@ impl Lyrics {
         self.hits.clear();
         self.chosen = 0;
         self.picked = false;
+        self.waiting = None;
         self.revision = self.revision.wrapping_add(1);
         self.state = LyricsState::Idle;
         cx.notify();
@@ -317,11 +324,63 @@ impl Lyrics {
         displayed: Option<&LyricsHit>,
         cx: &mut Context<Self>,
     ) {
+        // A better sheet arriving part-way through a verse would swap the words
+        // under the reader and restart the highlight, so it waits for the line
+        // on screen to be sung.
+        if self.mid_verse(cx) && self.differs(&ranked, displayed) {
+            self.waiting = Some((ranked, displayed.cloned()));
+            return;
+        }
+        self.apply(ranked, displayed, cx);
+    }
+
+    fn apply(
+        &mut self,
+        ranked: Vec<LyricsHit>,
+        displayed: Option<&LyricsHit>,
+        cx: &mut Context<Self>,
+    ) {
         self.pin(ranked, displayed);
         if !self.hits.is_empty() {
             self.state = LyricsState::Ready;
         }
         cx.notify();
+    }
+
+    /// Takes up a sheet that was held back, once the verse it would have
+    /// interrupted is over.
+    pub fn settle(&mut self, cx: &mut Context<Self>) {
+        let Some((ranked, displayed)) = self.waiting.take() else {
+            return;
+        };
+        self.apply(ranked, displayed.as_ref(), cx);
+    }
+
+    /// Whether a verse of the sheet on screen is being sung right now.
+    fn mid_verse(&self, cx: &App) -> bool {
+        let playback = self.playback.read(cx);
+        if *playback.state() != PlaybackState::Playing {
+            return false;
+        }
+        let Some(hit) = self.current() else {
+            return false;
+        };
+        let music::Lyrics::Synced { lines } = &hit.lyrics else {
+            return false;
+        };
+        music::lyrics::active(lines, playback.live_position()).is_some()
+    }
+
+    /// Whether taking this ranking up would change the words on screen.
+    fn differs(&self, ranked: &[LyricsHit], displayed: Option<&LyricsHit>) -> bool {
+        let anchor = match self.picked {
+            true => self.hits.get(self.chosen),
+            false => displayed,
+        };
+        let next = anchor
+            .and_then(|anchor| ranked.iter().find(|hit| same(hit, anchor)))
+            .or_else(|| ranked.first());
+        next.map(|hit| &hit.lyrics) != self.current().map(|hit| &hit.lyrics)
     }
 
     fn remember(
@@ -347,8 +406,13 @@ impl Lyrics {
             },
         );
         if current {
-            self.pin(hits, displayed);
-            self.state = state_for(&self.hits, instrumental);
+            match self.mid_verse(cx) && self.differs(&hits, displayed) {
+                true => self.waiting = Some((hits, displayed.cloned())),
+                false => {
+                    self.pin(hits, displayed);
+                    self.state = state_for(&self.hits, instrumental);
+                }
+            }
             cx.notify();
             self.prefetch(cx);
         }
