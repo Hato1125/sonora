@@ -7,6 +7,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-08-27
+
 ### Added
 
 - Right-clicking an artist now offers Play artist, Play next, Add artist to queue, Follow and Copy
@@ -857,7 +859,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Initial release: a native Spotify client with playback, an interactive queue, the saved library,
 search, album, playlist, artist and song pages, context menus and adaptive theming.
 
-[unreleased]: https://github.com/nolight132/sonora/compare/v0.18.0...HEAD
+[unreleased]: https://github.com/nolight132/sonora/compare/v0.19.0...HEAD
+[0.19.0]: https://github.com/nolight132/sonora/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/nolight132/sonora/compare/v0.17.1...v0.18.0
 [0.17.1]: https://github.com/nolight132/sonora/compare/v0.17.0...v0.17.1
 [0.17.0]: https://github.com/nolight132/sonora/compare/v0.16.3...v0.17.0
