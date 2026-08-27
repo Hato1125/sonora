@@ -154,10 +154,6 @@ impl SidebarLeft {
         cx.notify();
     }
 
-    pub(crate) fn shown_width(&self) -> Pixels {
-        self.width
-    }
-
     pub fn occupied_width(&self) -> Pixels {
         match self.is_open() && !self.overlays() {
             true => self.width,
