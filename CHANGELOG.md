@@ -9,6 +9,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The word-by-word highlight no longer slips backwards inside a word. Lyrics providers split a word
+  where it is sung in two — "nothing" arrives as "no" and "thing" — and the soft trail the highlight
+  carries hardened at every one of those boundaries and softened again on the next, which moved the
+  visible edge back about half a character. The trail now runs the whole way across a line and only
+  sharpens as the line fills.
+- A verse growing into place no longer costs a dropped frame. It was animated by setting a slightly
+  different text size on every frame, and both the shaped line and every rasterised glyph are keyed
+  by size, so the whole verse was measured and redrawn from scratch each frame. The size now lands
+  on the pixel grid, which asks for two or three sizes across the whole growth.
 - Lyrics no longer hitch as a track loads or as verses scroll into view. Measuring a line asked the
   text system to shape every piece of it separately, which on Japanese, Chinese and Korean lyrics is
   one shaping call per character and, on the frame a sheet first appears, hundreds of them at once.
