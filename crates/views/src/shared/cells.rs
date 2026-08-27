@@ -92,6 +92,7 @@ pub(crate) fn index<F>(
     let dimmed = |icon, color| {
         svg()
             .path(icon)
+            .id(("index-glyph", cell.row))
             .size(glyph(&theme))
             .flex_none()
             .text_color(color)
@@ -102,6 +103,7 @@ pub(crate) fn index<F>(
         Some(PlaybackState::Playing) => dimmed(PLAYING, theme.foreground),
         Some(_) => dimmed(PAUSE, theme.muted_foreground),
         None => div()
+            .id(("index-number", cell.row))
             .text_color(match playable {
                 true => theme.muted_foreground,
                 false => faded,

@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
 use gpui::prelude::*;
-use gpui::{AnyView, App, Context, Entity, FocusHandle, Render, px};
+use gpui::{AnyView, App, Context, Entity, FocusHandle, Render, StyleRefinement, px};
 use gpui::{Window, div};
 use input::WORKSPACE_CONTEXT;
 use state::{Playback, Queue, SideTab};
@@ -225,7 +225,14 @@ impl Render for Workspace {
                                     .layer_scale(scale)
                                     .opacity(1. - hidden)
                                     .blur(VIEW_BLUR * hidden)
-                                    .child(self.content.clone()),
+                                    .child(match hidden > 0. {
+                                        true => self.content.clone().into_any_element(),
+                                        false => self
+                                            .content
+                                            .clone()
+                                            .cached(StyleRefinement::default().size_full())
+                                            .into_any_element(),
+                                    }),
                             ),
                     )
                     .child(self.sidebar_right.clone())

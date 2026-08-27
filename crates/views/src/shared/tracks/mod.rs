@@ -41,6 +41,30 @@ pub(crate) trait Tracks: 'static {
     fn is_loading(&self, cx: &App) -> bool;
 }
 
+pub(crate) fn first_playable(table: &Entity<GridState<TrackSource>>, cx: &App) -> Option<usize> {
+    let state = table.read(cx);
+    let delegate = state.delegate();
+
+    (0..delegate.row_count()).find(|display| {
+        delegate
+            .source()
+            .peek(delegate.row(*display), cx)
+            .is_some_and(|track| track.playable)
+    })
+}
+
+pub(crate) fn holds(table: &Entity<GridState<TrackSource>>, id: &str, cx: &App) -> bool {
+    let state = table.read(cx);
+    let delegate = state.delegate();
+
+    (0..delegate.row_count()).any(|display| {
+        delegate
+            .source()
+            .peek(delegate.row(display), cx)
+            .is_some_and(|track| track.id.as_deref() == Some(id))
+    })
+}
+
 pub(crate) fn ordered(table: &Entity<GridState<TrackSource>>, cx: &App) -> Vec<Track> {
     let state = table.read(cx);
     let delegate = state.delegate();
@@ -292,6 +316,10 @@ impl TrackSource {
 
     pub(crate) fn at(&self, row: usize, cx: &App) -> Option<Track> {
         self.provider.tracks(cx).get(row).cloned()
+    }
+
+    pub(crate) fn peek<'a>(&self, row: usize, cx: &'a App) -> Option<&'a Track> {
+        self.provider.tracks(cx).get(row)
     }
 
     pub(crate) fn menu(&self) -> &ItemMenu {

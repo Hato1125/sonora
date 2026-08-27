@@ -201,11 +201,12 @@ impl LibraryView {
             |section: Section, cx: &App| settings.read(cx).view_or(section.key(), section.mode());
         let views = Section::ALL.map(|section| viewed(section, cx));
 
-        let scrollbar = cx.new(|_| Scrollbar::new(ScrollHandle::new()));
+        let id = cx.entity_id();
+        let scrollbar = cx.new(|_| Scrollbar::new(ScrollHandle::new()).watching(id));
         let scroll = scrollbar.read(cx).scroll().clone();
 
         let tracks = cx.new(|cx| {
-            let playlist_scrollbar = cx.new(|_| Scrollbar::inset());
+            let playlist_scrollbar = cx.new(|_| Scrollbar::inset().watching(id));
             let source = TrackSource::new(
                 LIBRARY_COLUMNS,
                 LibraryTracks(library.clone()),
@@ -278,6 +279,7 @@ impl LibraryView {
             for table in this.tables() {
                 table.refresh(cx);
             }
+            cx.notify();
         })
         .detach();
 
@@ -317,7 +319,7 @@ impl LibraryView {
         let me = cx.entity();
         let toolbar = Toolbar::searchable(&me, cx);
 
-        let card_scrollbar = cx.new(|_| Scrollbar::new(ScrollHandle::new()));
+        let card_scrollbar = cx.new(|_| Scrollbar::new(ScrollHandle::new()).watching(id));
 
         Self {
             library,
@@ -471,10 +473,10 @@ impl LibraryView {
             .accent()
             .eyebrow(t!("detail-playlist"))
             .meta(strip)
-            .actions(HeroPlayButton::new(
+            .actions(HeroPlayButton::listed(
                 "play-liked-songs",
                 t!("library-play-liked-songs"),
-                tracks::ordered(&self.tracks, cx),
+                &self.tracks,
                 self.playback.clone(),
             ))
             .into_any_element()

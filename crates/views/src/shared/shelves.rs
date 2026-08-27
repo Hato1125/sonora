@@ -1,7 +1,7 @@
 use gpui::prelude::*;
 use gpui::{
-    AnyElement, App, Context, Div, ElementId, Entity, FontWeight, MouseDownEvent, Pixels, Point,
-    ScrollHandle, ScrollWheelEvent, SharedString, WeakEntity, Window, div, point, px,
+    AnyElement, App, Context, Div, ElementId, Entity, EntityId, FontWeight, MouseDownEvent, Pixels,
+    Point, ScrollHandle, ScrollWheelEvent, SharedString, WeakEntity, Window, div, point, px,
 };
 use std::cell::Cell;
 use std::rc::Rc;
@@ -34,6 +34,7 @@ type Rail = (ScrollHandle, Glide);
 
 pub(crate) struct Shelves {
     id: &'static str,
+    host: EntityId,
     playback: Entity<Playback>,
     rails: Vec<Rail>,
     above: Rc<Cell<Option<Pixels>>>,
@@ -41,9 +42,10 @@ pub(crate) struct Shelves {
 }
 
 impl Shelves {
-    pub(crate) fn new(id: &'static str, playback: Entity<Playback>) -> Self {
+    pub(crate) fn new(id: &'static str, host: EntityId, playback: Entity<Playback>) -> Self {
         Self {
             id,
+            host,
             playback,
             rails: Vec::new(),
             above: Rc::new(Cell::new(None)),
@@ -110,7 +112,9 @@ impl Shelves {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         while self.rails.len() < sections.len() {
-            self.rails.push((ScrollHandle::new(), Glide::default()));
+            let mut glide = Glide::default();
+            glide.watch(self.host);
+            self.rails.push((ScrollHandle::new(), glide));
         }
         for (scroll, glide) in &self.rails {
             glide.sync(scroll);

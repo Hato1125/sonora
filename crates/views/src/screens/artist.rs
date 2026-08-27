@@ -123,8 +123,9 @@ impl ArtistView {
         cx: &mut Context<Self>,
     ) -> Self {
         let width = MIN_CONTENT;
-        let scrollbar = cx.new(|_| Scrollbar::new(ScrollHandle::new()));
-        let playlist_scrollbar = cx.new(|_| Scrollbar::inset());
+        let id = cx.entity_id();
+        let scrollbar = cx.new(|_| Scrollbar::new(ScrollHandle::new()).watching(id));
+        let playlist_scrollbar = cx.new(|_| Scrollbar::inset().watching(id));
         let settings = Sonora::global(cx).settings.clone();
         let saved = settings.read(cx).table(SECTION);
         let sorting = settings.read(cx).sorting(SECTION);
@@ -134,7 +135,7 @@ impl ArtistView {
         let scroll = scrollbar.read(cx).scroll().clone();
         let shown = Rc::new(Cell::new(LISTED));
         let table = cx.new(|cx| {
-            let menu_scrollbar = cx.new(|_| Scrollbar::inset());
+            let menu_scrollbar = cx.new(|_| Scrollbar::inset().watching(id));
             let source = TrackSource::new(
                 columns,
                 ArtistTracks {
@@ -215,7 +216,7 @@ impl ArtistView {
             releases_expanded: false,
             width,
             scrollbar,
-            about_bar: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
+            about_bar: cx.new(|_| Scrollbar::new(ScrollHandle::new()).watching(id)),
             about_open: false,
             table,
             shown,
