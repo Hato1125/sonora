@@ -2,7 +2,7 @@ use crate::chrome::Chrome;
 use crate::shared::menu::ItemMenu;
 use gpui::prelude::*;
 use gpui::{Context, Entity, Pixels, Point, Render, ScrollHandle, Window, div, px};
-use state::{Home, Playback};
+use state::{Home, Playback, Sonora};
 use ui::{ActiveTheme as _, Mode, Popup, Scrollbar, Scroller};
 
 use crate::shared::cells;
@@ -31,7 +31,8 @@ impl HomeView {
         playback: Entity<Playback>,
         cx: &mut Context<Self>,
     ) -> Self {
-        let playlist_scrollbar = cx.new(|_| Scrollbar::inset());
+        let me = cx.entity_id();
+        let playlist_scrollbar = cx.new(|_| Scrollbar::inset().watching(me));
         let track_menu = ItemMenu::new(playlist_scrollbar);
 
         cx.observe(&home, |this, _, cx| {
@@ -44,7 +45,10 @@ impl HomeView {
         let chrome = Chrome::entity(cx);
         cx.observe(&chrome, |_, _, cx| cx.notify()).detach();
 
-        let shelves = cx.new(|_| Shelves::new("home-shelf", playback.clone()));
+        let library = Sonora::global(cx).library.clone();
+        cx.observe(&library, |_, _, cx| cx.notify()).detach();
+
+        let shelves = cx.new(|_| Shelves::new("home-shelf", me, playback.clone()));
         cx.observe(&shelves, |_, _, cx| cx.notify()).detach();
 
         let current_playback = playback_status(&playback, cx);
@@ -65,7 +69,7 @@ impl HomeView {
             width: Pixels::ZERO,
             quick_picks_columns: 0,
             quick_picks_page: 0,
-            scrollbar: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
+            scrollbar: cx.new(|_| Scrollbar::new(ScrollHandle::new()).watching(me)),
             track_menu,
             context_menu: None,
         }

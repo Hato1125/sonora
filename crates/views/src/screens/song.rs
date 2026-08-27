@@ -6,7 +6,7 @@ use gpui::{
 use i18n::t;
 use music::{Credit, Track};
 use router::{Destination, Link as _};
-use state::{Playback, SongDetail};
+use state::{Playback, SongDetail, Sonora};
 use ui::{
     ActiveTheme as _, Avatar, Button, Fact, InfoCard, Initials, Popup, Scrollbar, Scroller,
     Skeleton, Text, clock,
@@ -72,13 +72,16 @@ impl SongView {
         })
         .detach();
         cx.observe(&playback, |_, _, cx| cx.notify()).detach();
-        let playlist_scrollbar = cx.new(|_| Scrollbar::inset());
+        let library = Sonora::global(cx).library.clone();
+        cx.observe(&library, |_, _, cx| cx.notify()).detach();
+        let me = cx.entity_id();
+        let playlist_scrollbar = cx.new(|_| Scrollbar::inset().watching(me));
 
         Self {
             detail,
             playback,
-            scrollbar: cx.new(|_| Scrollbar::new(gpui::ScrollHandle::new())),
-            about_bar: cx.new(|_| Scrollbar::new(gpui::ScrollHandle::new())),
+            scrollbar: cx.new(|_| Scrollbar::new(gpui::ScrollHandle::new()).watching(me)),
+            about_bar: cx.new(|_| Scrollbar::new(gpui::ScrollHandle::new()).watching(me)),
             about_open: false,
             track_menu: ItemMenu::new(playlist_scrollbar),
             context_menu: None,

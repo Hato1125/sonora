@@ -35,7 +35,8 @@ impl GenreView {
     ) -> Self {
         let settings = Sonora::global(cx).settings.clone();
         let mode = settings.read(cx).view_or(SECTION, Mode::Cards);
-        let shelves = cx.new(|_| Shelves::new("genre-shelf", playback.clone()));
+        let id = cx.entity_id();
+        let shelves = cx.new(|_| Shelves::new("genre-shelf", id, playback.clone()));
 
         cx.observe(&detail, |this, _, cx| {
             this.shelves.update(cx, |shelves, _| shelves.reset());
@@ -54,7 +55,7 @@ impl GenreView {
             detail,
             settings,
             shelves,
-            scrollbar: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
+            scrollbar: cx.new(|_| Scrollbar::new(ScrollHandle::new()).watching(id)),
             toolbar,
             popovers: Popovers::default(),
             mode,

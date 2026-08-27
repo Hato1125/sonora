@@ -50,7 +50,8 @@ impl PlayerBar {
         cx.observe(&library, |_, _, cx| cx.notify()).detach();
         cx.observe(&settings, |_, _, cx| cx.notify()).detach();
 
-        let playlist_scrollbar = cx.new(|_| Scrollbar::inset());
+        let me = cx.entity_id();
+        let playlist_scrollbar = cx.new(|_| Scrollbar::inset().watching(me));
 
         Self {
             playback,

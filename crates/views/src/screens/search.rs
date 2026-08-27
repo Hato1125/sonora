@@ -10,7 +10,7 @@ use ui::Input;
 
 use crate::chrome::Chrome;
 use crate::shared::menu::{ItemMenu, item_menu};
-use state::{Genres, Hit, Kind, Playback, Search};
+use state::{Genres, Hit, Kind, Playback, Search, Sonora};
 use ui::ActiveTheme as _;
 use ui::{
     Card, Deck, Pin, Pinnable, Popup, Room, Scrollbar, Scroller, Separator, Text, Theme, VAST,
@@ -94,6 +94,8 @@ impl SearchView {
         .detach();
         let chrome = Chrome::entity(cx);
         cx.observe(&chrome, |_, _, cx| cx.notify()).detach();
+        let library = Sonora::global(cx).library.clone();
+        cx.observe(&library, |_, _, cx| cx.notify()).detach();
         let current_playback = playback_status(&playback, cx);
         cx.observe(&playback, |this, playback, cx| {
             let current = playback_status(&playback, cx);
@@ -107,7 +109,8 @@ impl SearchView {
         let asked = input.read(cx).text().to_owned();
         search.update(cx, |search, cx| search.ask(&asked, cx));
 
-        let playlist_scrollbar = cx.new(|_| Scrollbar::inset());
+        let me = cx.entity_id();
+        let playlist_scrollbar = cx.new(|_| Scrollbar::inset().watching(me));
 
         Self {
             input,
@@ -115,11 +118,11 @@ impl SearchView {
             genres,
             playback,
             playback_status: current_playback,
-            songs: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
-            artists: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
-            albums: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
-            mixed: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
-            browsing: cx.new(|_| Scrollbar::new(ScrollHandle::new())),
+            songs: cx.new(|_| Scrollbar::new(ScrollHandle::new()).watching(me)),
+            artists: cx.new(|_| Scrollbar::new(ScrollHandle::new()).watching(me)),
+            albums: cx.new(|_| Scrollbar::new(ScrollHandle::new()).watching(me)),
+            mixed: cx.new(|_| Scrollbar::new(ScrollHandle::new()).watching(me)),
+            browsing: cx.new(|_| Scrollbar::new(ScrollHandle::new()).watching(me)),
             track_menu: ItemMenu::new(playlist_scrollbar),
             context_menu: None,
         }
