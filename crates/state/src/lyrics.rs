@@ -328,8 +328,15 @@ impl Lyrics {
         // under the reader and restart the highlight, so it waits for the line
         // on screen to be sung.
         if self.mid_verse(cx) && self.differs(&ranked, displayed) {
+            log::debug!("lyrics: holding a better sheet until the next verse");
             self.waiting = Some((ranked, displayed.cloned()));
             return;
+        }
+        if self.current().is_some() && self.differs(&ranked, displayed) {
+            log::debug!(
+                "lyrics: swapping the sheet at once, playing {:?}",
+                self.playback.read(cx).state()
+            );
         }
         self.apply(ranked, displayed, cx);
     }
@@ -353,22 +360,18 @@ impl Lyrics {
         let Some((ranked, displayed)) = self.waiting.take() else {
             return;
         };
+        log::debug!("lyrics: taking up the sheet that was held back");
         self.apply(ranked, displayed.as_ref(), cx);
     }
 
-    /// Whether a verse of the sheet on screen is being sung right now.
+    /// Whether a sheet with verses is on screen and playing, so swapping it
+    /// would interrupt the reader.
     fn mid_verse(&self, cx: &App) -> bool {
-        let playback = self.playback.read(cx);
-        if *playback.state() != PlaybackState::Playing {
+        if *self.playback.read(cx).state() != PlaybackState::Playing {
             return false;
         }
-        let Some(hit) = self.current() else {
-            return false;
-        };
-        let music::Lyrics::Synced { lines } = &hit.lyrics else {
-            return false;
-        };
-        music::lyrics::active(lines, playback.live_position()).is_some()
+        self.current()
+            .is_some_and(|hit| matches!(hit.lyrics, music::Lyrics::Synced { .. }))
     }
 
     /// Whether taking this ranking up would change the words on screen.
@@ -407,7 +410,10 @@ impl Lyrics {
         );
         if current {
             match self.mid_verse(cx) && self.differs(&hits, displayed) {
-                true => self.waiting = Some((hits, displayed.cloned())),
+                true => {
+                    log::debug!("lyrics: holding the settled sheet until the next verse");
+                    self.waiting = Some((hits, displayed.cloned()));
+                }
                 false => {
                     self.pin(hits, displayed);
                     self.state = state_for(&self.hits, instrumental);

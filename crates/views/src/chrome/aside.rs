@@ -778,8 +778,11 @@ impl Aside {
                 if std::mem::take(&mut self.swapped) {
                     self.previous_active_line = active_line;
                 }
-                if self.previous_active_line != active_line {
+                // A sheet held back comes in as a verse starts, never as one ends
+                if self.previous_active_line != active_line && active_line.is_some() {
                     self.lyrics.update(cx, |lyrics, cx| lyrics.settle(cx));
+                }
+                if self.previous_active_line != active_line {
                     if self.previous_active_line.is_some() {
                         self.departing_line = self.previous_active_line;
                         self.departure = self.departure.wrapping_add(1);
@@ -818,7 +821,6 @@ impl Aside {
                     }
                 }
                 let slack = view.size.height * SPARE;
-                let grid = window.scale_factor();
                 let mut rendered = Vec::with_capacity(count);
 
                 for (index, line) in lines.iter().enumerate() {
@@ -1017,6 +1019,7 @@ impl Aside {
                         .cursor_pointer()
                         .hover(|style| style.bg(theme.table_hover))
                         .text_size(verse)
+                        .line_height(active_verse_size(verse) * ui::LEADING)
                         .text_color(tint)
                         .font_weight(FontWeight::SEMIBOLD)
                         .on_hover(cx.listener(move |this, over: &bool, _, cx| {
@@ -1037,14 +1040,24 @@ impl Aside {
                     let active_size = active_verse_size(verse);
                     let unsung = theme.muted_foreground.opacity(AHEAD);
                     let lit = theme.foreground;
+                    // The verse is drawn at the size it ends up and scaled into place,
+                    // so the text system is asked for one size rather than one per
+                    // frame, and nothing around it has to move.
+                    let small = verse / active_size;
+                    let from = match line.voice.lead() {
+                        true => gpui::point(0., 0.5),
+                        false => gpui::point(1., 0.5),
+                    };
                     let verse_line = match (growing, shrinking) {
                         (true, _) => verse_line
+                            .text_size(active_size)
                             .with_animation(
                                 ("verse-grow", self.arrival as usize),
                                 Animation::new(Motion::Base.span()).with_easing(ease_out_expo),
                                 move |this, t| {
                                     let this = this
-                                        .text_size(gridded(verse + ACTIVE_VERSE_GROWTH * t, grid));
+                                        .layer_scale(small + (1. - small) * t)
+                                        .layer_scale_origin(from);
                                     match karaoke {
                                         true => this,
                                         false => this.text_color(mix(unsung, lit, t)),
@@ -1053,15 +1066,14 @@ impl Aside {
                             )
                             .into_any_element(),
                         (_, true) => verse_line
+                            .text_size(active_size)
                             .with_animation(
                                 ("verse-shrink", self.departure as usize),
                                 Animation::new(Motion::Base.span()).with_easing(ease_out_expo),
                                 move |this, t| {
-                                    this.text_size(gridded(
-                                        active_size - ACTIVE_VERSE_GROWTH * t,
-                                        grid,
-                                    ))
-                                    .text_color(mix(lit, tint, t))
+                                    this.layer_scale(1. - (1. - small) * t)
+                                        .layer_scale_origin(from)
+                                        .text_color(mix(lit, tint, t))
                                 },
                             )
                             .into_any_element(),
@@ -1778,13 +1790,6 @@ fn needs_space(left: &str, right: &str) -> bool {
             first,
             ')' | ']' | '}' | ',' | '.' | '!' | '?' | ';' | ':' | '%' | '\'' | '’' | '-' | '—'
         )
-}
-
-// A text size lands on the device pixel grid, so growing a verse asks the text
-// system for two or three sizes rather than one per frame: both the shaped line
-// and every rasterised glyph are keyed by size.
-fn gridded(size: Pixels, grid: f32) -> Pixels {
-    px((size / px(1.) * grid).round() / grid)
 }
 
 fn active_verse_size(verse: Pixels) -> Pixels {
