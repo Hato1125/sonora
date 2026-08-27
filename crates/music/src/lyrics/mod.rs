@@ -69,7 +69,7 @@ fn layered(lyrics: &Lyrics) -> bool {
         .any(|line| !line.secondary.is_empty() || !line.voice.lead())
 }
 
-fn eligible(query: &LyricsQuery, hit: &LyricsHit) -> bool {
+pub fn eligible(query: &LyricsQuery, hit: &LyricsHit) -> bool {
     matched(query, hit) && !hit.lyrics.is_empty() && !low_quality(&hit.lyrics)
 }
 
@@ -87,7 +87,7 @@ fn matched(query: &LyricsQuery, hit: &LyricsHit) -> bool {
     })
 }
 
-fn score(query: &LyricsQuery, hit: &LyricsHit) -> i64 {
+pub fn score(query: &LyricsQuery, hit: &LyricsHit) -> i64 {
     let mut score: i64 = i64::from(hit.trust);
     if let Some(duration) = hit.duration {
         let drift = duration.as_secs().abs_diff(query.duration.as_secs());
