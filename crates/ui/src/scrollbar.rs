@@ -119,6 +119,7 @@ pub struct Scrollbar {
     linger: Option<Task<()>>,
     glide: Glide,
     following: bool,
+    nudges: u64,
 }
 
 impl Scrollbar {
@@ -137,6 +138,7 @@ impl Scrollbar {
             linger: None,
             glide: Glide::default(),
             following: false,
+            nudges: 0,
         }
     }
 
@@ -157,6 +159,16 @@ impl Scrollbar {
         self
     }
 
+    pub fn paced(mut self, pace: f32) -> Self {
+        self.glide.set_pace(pace);
+        self
+    }
+
+    pub fn watching(mut self, view: EntityId) -> Self {
+        self.glide.watch(view);
+        self
+    }
+
     pub fn track_inset(mut self, inset: Pixels) -> Self {
         self.track_inset = inset;
         self
@@ -166,8 +178,13 @@ impl Scrollbar {
         self.seen = offset;
     }
 
+    pub fn nudges(&self) -> u64 {
+        self.nudges
+    }
+
     pub fn nudge(&mut self, window: &mut Window) {
         self.following = false;
+        self.nudges = self.nudges.wrapping_add(1);
         self.glide.nudge(&self.scroll, window);
     }
 
@@ -242,6 +259,7 @@ impl Scrollbar {
     }
 
     fn moved(&mut self, offset: Pixels, cx: &mut Context<Self>) {
+        self.nudges = self.nudges.wrapping_add(1);
         if let Some(maximum) = self
             .scroll_guard
             .as_ref()
