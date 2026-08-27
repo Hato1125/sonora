@@ -9,11 +9,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Sonora redraws far less of the window at once. A word-by-word lyric line, a melody break and a
+  verse change each rebuilt the player bar, the sidebar and the toolbar on every frame they
+  animated, and scrolling a busy screen rebuilt the same things again, so the two together could not
+  keep pace. Scrolling Home or your songs while the lyrics move is smooth now.
 - Sonora looks for a newer version on Linux and macOS too, where the setting for it was already
   offered but never did anything. It only tells you: installing in place stays a Windows-only path,
   because that is the only build Sonora ships an installer for. The setting starts off there, since
   a distribution or a tap can trail a release by weeks and there is nothing to act on until it
   catches up, and the notice says to update Sonora the way you installed it.
+
+### Fixed
+
+- Long descriptions in Settings wrap onto a second line instead of being cut off.
+- The lyrics panel measures a line once per panel width rather than on every frame, and a verse well
+  outside the panel holds its place without being laid out at all.
 
 ## [0.19.0] - 2026-08-27
 
