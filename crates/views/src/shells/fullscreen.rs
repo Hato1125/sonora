@@ -2,9 +2,9 @@ use std::time::{Duration, Instant};
 
 use gpui::prelude::*;
 use gpui::{
-    AnyView, App, Context, Entity, FocusHandle, KeyDownEvent, MouseButton, MouseDownEvent,
-    MouseMoveEvent, MouseUpEvent, Pixels, Point, Render, ScrollWheelEvent, SharedString, Task,
-    ease_in_out,
+    AnyView, App, Context, Entity, FocusHandle, FontWeight, KeyDownEvent, MouseButton,
+    MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, Point, Render, ScrollWheelEvent,
+    SharedString, Task, ease_in_out,
 };
 use gpui::{Window, div, px, relative};
 use i18n::t;
@@ -330,6 +330,7 @@ impl FullscreenView {
                             .min_w_0()
                             .truncate()
                             .text_size(theme.text(Text::Title))
+                            .font_weight(FontWeight::SEMIBOLD)
                             .when_some(album, |this, album| {
                                 this.cursor_pointer()
                                     .hover(|style| style.underline())
@@ -424,6 +425,7 @@ impl FullscreenView {
                                     .id("strip-title")
                                     .min_w_0()
                                     .truncate()
+                                    .font_weight(FontWeight::SEMIBOLD)
                                     .when_some(album, |this, album| {
                                         this.cursor_pointer()
                                             .hover(|style| style.underline())
