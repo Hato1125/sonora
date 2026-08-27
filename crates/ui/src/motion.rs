@@ -110,6 +110,10 @@ pub fn ease_out_cubic(progress: f32) -> f32 {
     cubic_bezier(progress.clamp(0., 1.), 0.33, 1., 0.68, 1.)
 }
 
+pub fn ease_in_out_cubic(progress: f32) -> f32 {
+    cubic_bezier(progress.clamp(0., 1.), 0.65, 0., 0.35, 1.)
+}
+
 pub fn ease_in_out_expo(progress: f32) -> f32 {
     cubic_bezier(progress.clamp(0., 1.), 0.87, 0., 0.13, 1.)
 }
