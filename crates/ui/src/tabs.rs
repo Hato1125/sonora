@@ -1,8 +1,10 @@
 use gpui::prelude::*;
 use gpui::{AnyElement, App, Div, StyleRefinement, Window, div, px};
 
+use crate::button::Button;
 use crate::theme::ActiveTheme as _;
 
+const GAP: f32 = 0.25;
 const LINE: f32 = 1.;
 const TICK: f32 = 6.;
 
@@ -10,6 +12,61 @@ const TICK: f32 = 6.;
 pub struct Tabs {
     base: Div,
     items: Vec<AnyElement>,
+}
+
+#[derive(IntoElement)]
+pub struct TabBar {
+    base: Div,
+    items: Vec<Button>,
+}
+
+impl Default for TabBar {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl TabBar {
+    pub fn new() -> Self {
+        Self {
+            base: div(),
+            items: Vec::new(),
+        }
+    }
+
+    pub fn items(mut self, items: impl IntoIterator<Item = Button>) -> Self {
+        self.items = items.into_iter().collect();
+        self
+    }
+}
+
+impl Styled for TabBar {
+    fn style(&mut self) -> &mut StyleRefinement {
+        self.base.style()
+    }
+}
+
+impl RenderOnce for TabBar {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let Self { mut base, items } = self;
+        let theme = cx.theme();
+        let radius = (theme.radius - window.rem_size() * GAP).max(px(0.));
+        let overrides = std::mem::take(base.style());
+
+        let mut bar = base
+            .flex()
+            .items_center()
+            .gap_1()
+            .p_1()
+            .rounded(theme.radius)
+            .bg(theme.secondary)
+            .border_1()
+            .border_color(theme.border)
+            .children(items.into_iter().map(|item| item.rounded(radius)));
+
+        bar.style().refine(&overrides);
+        bar
+    }
 }
 
 impl Default for Tabs {

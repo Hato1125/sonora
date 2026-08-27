@@ -87,7 +87,7 @@ pub use shield::Shield;
 pub use skeleton::{Initials, Skeleton};
 pub use slip::slip;
 pub use switch::Switch;
-pub use tabs::Tabs;
+pub use tabs::{TabBar, Tabs};
 pub use theme::{
     ActiveTheme, Look, MAX_FONT, MAX_TRANSPARENCY, MIN_FONT, Theme, ThemeKind, ThemeOverrides,
 };

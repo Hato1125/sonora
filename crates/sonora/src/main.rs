@@ -161,6 +161,8 @@ fn open_window(
         },
         |window, cx| {
             window.set_rem_size(cx.theme().font_size);
+            #[cfg(target_os = "windows")]
+            strip_system_controls(window);
             state::attach_remote(window_handle(window), cx);
             state::remember_window(window, cx);
             cx.new(|cx| Root::new(session, library, playback, queue, window, cx))
@@ -182,4 +184,37 @@ fn window_handle(window: &gpui::Window) -> Option<*mut std::ffi::c_void> {
 #[cfg(not(target_os = "windows"))]
 fn window_handle(_window: &gpui::Window) -> Option<*mut std::ffi::c_void> {
     None
+}
+
+#[cfg(target_os = "windows")]
+fn strip_system_controls(window: &gpui::Window) {
+    const GWL_STYLE: i32 = -16;
+    const WS_SYSMENU: i32 = 0x00080000;
+    const WS_MINIMIZEBOX: i32 = 0x00020000;
+    const WS_MAXIMIZEBOX: i32 = 0x00010000;
+    const SWP_REFRESH_FRAME: u32 = 0x0037;
+
+    unsafe extern "system" {
+        fn GetWindowLongW(window: *mut std::ffi::c_void, index: i32) -> i32;
+        fn SetWindowLongW(window: *mut std::ffi::c_void, index: i32, value: i32) -> i32;
+        fn SetWindowPos(
+            window: *mut std::ffi::c_void,
+            after: *mut std::ffi::c_void,
+            x: i32,
+            y: i32,
+            width: i32,
+            height: i32,
+            flags: u32,
+        ) -> i32;
+    }
+
+    let Some(handle) = window_handle(window) else {
+        return;
+    };
+    let controls = WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX;
+    unsafe {
+        let style = GetWindowLongW(handle, GWL_STYLE);
+        SetWindowLongW(handle, GWL_STYLE, style & !controls);
+        SetWindowPos(handle, std::ptr::null_mut(), 0, 0, 0, 0, SWP_REFRESH_FRAME);
+    }
 }
