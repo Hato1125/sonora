@@ -5,8 +5,8 @@ use std::time::Duration;
 use gpui::prelude::*;
 use gpui::{
     Anchor, AnyElement, AnyWindowHandle, App, Bounds, ClickEvent, Div, ElementId, Entity,
-    Interactivity, MouseButton, Pixels, Point, SharedString, Size, Stateful, StyleRefinement,
-    Window, anchored, deferred, div, point, px, svg,
+    Interactivity, MouseButton, Pixels, Point, ScrollWheelEvent, SharedString, Size, Stateful,
+    StyleRefinement, Window, anchored, deferred, div, point, px, svg,
 };
 
 use crate::Artwork;
@@ -16,14 +16,13 @@ use crate::separator::Separator;
 use crate::shield::Shield;
 use crate::theme::ActiveTheme as _;
 
+pub const MENU_CONTEXT: &str = "Menu";
+
 const SUBMENU_CLOSE_DELAY: Duration = Duration::from_millis(160);
 const SUBMENU_FALLBACK_WIDTH: Pixels = px(236.);
 const SUBMENU_TOP: Pixels = px(-14.);
-const SCROLLBAR_GUTTER: Pixels = px(8.);
 const WINDOW_MARGIN: Pixels = px(8.);
 const PANEL_SLACK: Pixels = px(6.);
-const PAD: f32 = 0.25;
-const BORDER: Pixels = px(1.);
 
 type Press = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 type Dismiss = Box<dyn Fn(&(), &mut Window, &mut App) + 'static>;
@@ -158,6 +157,7 @@ pub struct MenuItem {
     disabled: bool,
     separator: bool,
     content: Option<AnyElement>,
+    face: Option<SharedString>,
     icon: Option<&'static str>,
     artwork: Option<Option<SharedString>>,
     press: Option<Press>,
@@ -173,6 +173,7 @@ impl MenuItem {
             label: label.into(),
             selected: false,
             checked: false,
+            face: None,
             disabled: false,
             separator: false,
             content: None,
@@ -202,6 +203,7 @@ impl MenuItem {
             disabled: true,
             separator: true,
             content: None,
+            face: None,
             icon: None,
             artwork: None,
             press: None,
@@ -212,6 +214,11 @@ impl MenuItem {
     pub fn content(mut self, content: impl IntoElement) -> Self {
         self.content = Some(content.into_any_element());
         self.disabled = true;
+        self
+    }
+
+    pub fn face(mut self, family: impl Into<SharedString>) -> Self {
+        self.face = Some(family.into());
         self
     }
 
@@ -258,6 +265,7 @@ pub struct Menu {
     priority: usize,
     deferred: bool,
     scrollbar: Option<Entity<Scrollbar>>,
+    header: Option<AnyElement>,
     hover_guard: Option<SubmenuState>,
     trigger: Option<Trigger>,
 }
@@ -273,6 +281,7 @@ impl Menu {
             priority: 1,
             deferred: true,
             scrollbar: None,
+            header: None,
             hover_guard: None,
             trigger: None,
         }
@@ -316,6 +325,11 @@ impl Menu {
         self
     }
 
+    pub fn header(mut self, header: impl IntoElement) -> Self {
+        self.header = Some(header.into_any_element());
+        self
+    }
+
     fn inline(mut self) -> Self {
         self.deferred = false;
         self
@@ -346,6 +360,7 @@ impl RenderOnce for Menu {
             priority,
             deferred: should_defer,
             scrollbar,
+            header,
             hover_guard,
             trigger,
         } = self;
@@ -367,7 +382,7 @@ impl RenderOnce for Menu {
             .collect();
         let bounds_guards = dismiss_guards.clone();
         let viewport_width = window.viewport_size().width;
-        let tucked = (theme.radius - window.rem_size() * PAD - BORDER).max(Pixels::ZERO);
+        let tucked = crate::metrics::tucked(theme.radius, window);
 
         let rows = items.into_iter().map(move |item| {
             let MenuItem {
@@ -378,6 +393,7 @@ impl RenderOnce for Menu {
                 disabled,
                 separator,
                 content,
+                face,
                 icon,
                 artwork,
                 press,
@@ -391,7 +407,6 @@ impl RenderOnce for Menu {
                     .w_full()
                     .min_w_0()
                     .flex_col()
-                    .px_3()
                     .py_1()
                     .child(content)
                     .into_any_element();
@@ -444,7 +459,12 @@ impl RenderOnce for Menu {
                                 },
                             ))
                         })
-                        .child(div().truncate().child(label)),
+                        .child(
+                            div()
+                                .truncate()
+                                .when_some(face, |this, family| this.font(gpui::font(family)))
+                                .child(label),
+                        ),
                 )
                 .when(selected || checked, |this| this.child("✓"))
                 .when(submenu.is_some(), |this| this.child("›"))
@@ -530,19 +550,29 @@ impl RenderOnce for Menu {
         });
 
         let content = match scrollbar.as_ref() {
-            Some(scrollbar) => div()
-                .id("menu-scroll-content")
-                .flex()
-                .flex_1()
-                .w_full()
-                .min_w_0()
-                .min_h_0()
-                .flex_col()
-                .pr(SCROLLBAR_GUTTER)
-                .overflow_y_scroll()
-                .track_scroll(scrollbar.read(cx).scroll())
-                .children(rows)
-                .into_any_element(),
+            Some(scrollbar) => {
+                scrollbar.read(cx).sync();
+                let gliding = scrollbar.clone();
+
+                div()
+                    .id("menu-scroll-content")
+                    .flex()
+                    .flex_1()
+                    .w_full()
+                    .min_w_0()
+                    .min_h_0()
+                    .flex_col()
+                    .overflow_y_scroll()
+                    .track_scroll(scrollbar.read(cx).scroll())
+                    .on_scroll_wheel(move |event: &ScrollWheelEvent, window, cx| {
+                        if event.delta.precise() {
+                            return;
+                        }
+                        gliding.update(cx, |bar, _| bar.nudge(window));
+                    })
+                    .children(rows)
+                    .into_any_element()
+            }
             None => div()
                 .flex()
                 .flex_col()
@@ -579,10 +609,33 @@ impl RenderOnce for Menu {
                 .into_any_element(),
             None => content,
         };
+        let body = match header {
+            Some(header) => div()
+                .flex()
+                .flex_col()
+                .flex_1()
+                .w_full()
+                .min_w_0()
+                .min_h_0()
+                .gap_1()
+                .child(div().w_full().py_1().child(header))
+                .child(body)
+                .into_any_element(),
+            None => body,
+        };
         let shielded = should_defer && !nested;
         let chrome = snapped(theme.metrics.title_bar, window);
-        let mut menu = base
-            .absolute()
+        let mut overrides = overrides;
+        let width = overrides.size.width.take();
+        let ceiling = overrides.max_size.height.take();
+        let corner = match (
+            overrides.inset.left.is_some(),
+            overrides.inset.right.is_some(),
+        ) {
+            (false, true) => Anchor::TopRight,
+            _ => Anchor::TopLeft,
+        };
+        let panel_looks = div()
             .flex()
             .flex_col()
             .p_1()
@@ -592,7 +645,15 @@ impl RenderOnce for Menu {
             .border_color(theme.border)
             .bg(theme.popover)
             .text_color(theme.popover_foreground)
+            .key_context(MENU_CONTEXT)
+            .when_some(width, |this, width| this.w(width))
+            .when_some(ceiling, |this, ceiling| this.max_h(ceiling))
             .occlude()
+            .child(body);
+        let mut menu = base
+            .absolute()
+            .flex()
+            .flex_col()
             .when_some(dismiss, |this, dismiss| {
                 let blocked = move |position: Point<Pixels>| {
                     let reachable = !shielded || position.y < chrome;
@@ -619,7 +680,12 @@ impl RenderOnce for Menu {
                     ),
                 )
             })
-            .child(body);
+            .child(
+                anchored()
+                    .anchor(corner)
+                    .snap_to_window_with_margin(WINDOW_MARGIN)
+                    .child(panel_looks),
+            );
 
         menu.style().refine(&overrides);
 
