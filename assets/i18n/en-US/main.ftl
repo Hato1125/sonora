@@ -468,10 +468,11 @@ lyrics-writers = Written by { $writers }
 
 update-available = Sonora { $version } is out
 update-detail = You are on { $running }. Read what changed, or update now.
+update-detail-notes = You are on { $running }. Read what changed, then update Sonora the way you installed it.
 update-notes = What's new
 update-now = Update
 update-later = Later
 update-working = Downloading the update…
 update-failed = The update could not be installed. Try again from the releases page.
 settings-check-updates = Check for updates
-settings-check-updates-detail = Ask GitHub once at startup whether a newer version is out
+settings-check-updates-detail = Ask GitHub once at startup whether a newer version is out. Sonora installs the update itself on Windows only; elsewhere it points you at what changed

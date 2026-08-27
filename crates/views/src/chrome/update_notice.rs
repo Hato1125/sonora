@@ -98,7 +98,12 @@ impl Render for UpdateNotice {
                     div()
                         .text_size(theme.text(Text::Small))
                         .text_color(theme.muted_foreground)
-                        .child(t!("update-detail", running = env!("CARGO_PKG_VERSION"))),
+                        .child(match installable {
+                            true => t!("update-detail", running = env!("CARGO_PKG_VERSION")),
+                            false => {
+                                t!("update-detail-notes", running = env!("CARGO_PKG_VERSION"))
+                            }
+                        }),
                 )
             })
             .child(
