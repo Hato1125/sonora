@@ -41,6 +41,8 @@ const ACTIVE_VERSE_GROWTH: Pixels = px(2.);
 const LYRICS_HORIZONTAL_INSET_REM: f32 = 1.5;
 const PINNED_SHARE: f32 = 0.25;
 const PIN: f32 = 0.3;
+const SPARE: f32 = 1.;
+const HAZE_STEPS: f32 = 8.;
 const SETTLE: std::time::Duration = std::time::Duration::from_secs(4);
 const INSTRUMENTAL_BREAK: std::time::Duration = std::time::Duration::from_secs(5);
 const GLYPH: f32 = 0.35;
@@ -221,6 +223,8 @@ pub(crate) struct Aside {
     lyrics_wrap_width: Option<Pixels>,
     lyrics_wrap_size: Option<Pixels>,
     lyrics_wraps: HashMap<usize, Wrapped>,
+    lane_rooms: HashMap<usize, Pixels>,
+    row_heights: Vec<Pixels>,
 }
 
 impl Aside {
@@ -300,6 +304,8 @@ impl Aside {
             lyrics_wrap_width: None,
             lyrics_wrap_size: None,
             lyrics_wraps: HashMap::new(),
+            lane_rooms: HashMap::new(),
+            row_heights: Vec::new(),
         }
     }
 
@@ -340,7 +346,13 @@ impl Aside {
         self.previous_active_line = None;
         self.departing_line = None;
         self.placing = true;
+        self.forget_measurements();
+    }
+
+    fn forget_measurements(&mut self) {
         self.lyrics_wraps.clear();
+        self.lane_rooms.clear();
+        self.row_heights.clear();
     }
 
     fn set_hovered(&mut self, index: usize, over: bool, cx: &mut Context<Self>) {
@@ -738,7 +750,7 @@ impl Aside {
         if self.lyrics_wrap_width != Some(wrap_width) || self.lyrics_wrap_size != Some(wrap_size) {
             self.lyrics_wrap_width = Some(wrap_width);
             self.lyrics_wrap_size = Some(wrap_size);
-            self.lyrics_wraps.clear();
+            self.forget_measurements();
             window.request_animation_frame();
         }
 
@@ -775,7 +787,22 @@ impl Aside {
                 if hazing && scroll.bounds_for_item(0).is_none() {
                     window.request_animation_frame();
                 }
-                let mut rendered = Vec::with_capacity(lyric_row_count(lines));
+                let count = lyric_row_count(lines);
+                if self.row_heights.len() != count {
+                    self.row_heights = vec![px(0.); count];
+                }
+                let holds = |line: Option<usize>| line.map(|line| line_row(lines, line));
+                let grown = [holds(active_line), holds(self.departing_line)];
+                for row in 0..count {
+                    if grown.contains(&Some(row)) {
+                        continue;
+                    }
+                    if let Some(item) = scroll.bounds_for_item(row) {
+                        self.row_heights[row] = item.size.height;
+                    }
+                }
+                let slack = view.size.height * SPARE;
+                let mut rendered = Vec::with_capacity(count);
 
                 for (index, line) in lines.iter().enumerate() {
                     let seek = line.start;
@@ -794,9 +821,18 @@ impl Aside {
                     let haze = |depth: f32| match (waking, settling) {
                         (true, _) => depth * (1. - sharpen),
                         (false, true) => depth * sharpen,
-                        (false, false) => depth,
+                        (false, false) => stepped(depth),
                     };
                     if has_instrumental {
+                        let row = rendered.len();
+                        if let Some(held) = spared(&scroll, row, view, slack)
+                            .then(|| self.row_heights.get(row).copied())
+                            .flatten()
+                            .filter(|held| *held > px(0.))
+                        {
+                            rendered.push(div().h(held).flex_none().into_any_element());
+                            continue;
+                        }
                         if singing && instrumental_line == Some(index) {
                             window.request_animation_frame();
                         }
@@ -826,17 +862,33 @@ impl Aside {
                         rendered.push(notes.into_any_element());
                     }
 
-                    let text = SharedString::from(line.text.clone());
+                    let active = Some(index) == active_line;
+                    let departing = Some(index) == self.departing_line;
+                    let row = rendered.len();
+                    if !active
+                        && !departing
+                        && let Some(held) = spared(&scroll, row, view, slack)
+                            .then(|| self.row_heights.get(row).copied())
+                            .flatten()
+                            .filter(|held| *held > px(0.))
+                    {
+                        rendered.push(div().h(held).flex_none().into_any_element());
+                        continue;
+                    }
+
                     let karaoke = Some(index) == active_line && line.worded() && karaoke_effects;
                     let primary_karaoke = karaoke && line.words.is_some();
-                    let fragments = lyrics_fragments(&line.text, line.words.as_deref());
-                    let wrapped = match self.lyrics_wraps.get(&index) {
-                        Some(wrapped) => Some(wrapped.clone()),
-                        None => lyrics_wrap_rows(&fragments, wrap_size, wrap_width, window)
-                            .inspect(|wrapped| {
-                                self.lyrics_wraps.insert(index, wrapped.clone());
-                            }),
-                    };
+                    if let std::collections::hash_map::Entry::Vacant(slot) =
+                        self.lyrics_wraps.entry(index)
+                    {
+                        let parts = lyrics_parts(&line.text, line.words.as_deref());
+                        if let Some(wrapped) =
+                            lyrics_wrap_rows(&parts, wrap_size, wrap_width, window)
+                        {
+                            slot.insert(wrapped);
+                        }
+                    }
+                    let wrapped = self.lyrics_wraps.get(&index);
                     let line_has_ended = active_line.is_some_and(|active| index < active)
                         || line_has_passed(line, position);
                     let tint = match (Some(index) == active_line, line_has_ended) {
@@ -846,29 +898,21 @@ impl Aside {
                         (false, false) => theme.muted_foreground.opacity(AHEAD),
                     };
 
-                    let active = Some(index) == active_line;
-                    let departing = Some(index) == self.departing_line;
                     let dimming = (animations && departing).then_some(self.departure);
                     let growing =
                         animations && active && self.arrived.elapsed() < Motion::Base.span();
 
                     let primary = match (primary_karaoke, line.words.as_ref(), wrapped) {
-                        (true, Some(words), Some(wrapped)) => karaoke_lane(
-                            &line.text,
-                            line.start,
-                            words,
-                            position,
-                            verse,
-                            line.voice,
-                            sung,
-                            Some(wrapped),
-                        )
-                        .into_any_element(),
-                        (_, _, Some(wrapped)) => {
-                            fixed_lyrics_lane(&fragments, &wrapped.rows, line.voice)
+                        (true, Some(words), Some(plan)) => {
+                            karaoke_lane(plan, line.start, words, position, verse, line.voice, sung)
                                 .into_any_element()
                         }
-                        _ => div().child(text).into_any_element(),
+                        (_, _, Some(plan)) => {
+                            fixed_lyrics_lane(&plan.text, line.voice).into_any_element()
+                        }
+                        _ => div()
+                            .child(SharedString::from(line.text.clone()))
+                            .into_any_element(),
                     };
                     let fade = match (line.secondary.is_empty(), active, departing) {
                         (true, _, _) => None,
@@ -876,9 +920,9 @@ impl Aside {
                         (_, _, true) => Some(("lane-out", self.departure, animations)),
                         _ => None,
                     };
-                    let lanes =
-                        fade.map(|(tag, take, animated)| {
-                            let arriving = tag == "lane-in";
+                    let room = fade.map(|_| match self.lane_rooms.get(&index) {
+                        Some(room) => *room,
+                        None => {
                             let room = lanes_room(
                                 &line.secondary,
                                 romanization_scripts,
@@ -886,6 +930,13 @@ impl Aside {
                                 wrap_width,
                                 window,
                             );
+                            self.lane_rooms.insert(index, room);
+                            room
+                        }
+                    });
+                    let lanes =
+                        fade.zip(room).map(|((tag, take, animated), room)| {
+                            let arriving = tag == "lane-in";
                             let group = div().flex().flex_col().gap_1().children(
                                 line.secondary.iter().map(|lane| {
                                     let sung_by_end = line
@@ -1337,46 +1388,55 @@ impl Render for Aside {
     }
 }
 
-fn fixed_lyrics_lane(fragments: &[String], rows: &[Range<usize>], voice: Voice) -> Div {
+fn fixed_lyrics_lane(rows: &[SharedString], voice: Voice) -> Div {
     div().flex().flex_col().children(rows.iter().map(|row| {
-        let text = fragments[row.clone()].concat();
         div()
             .w_full()
             .when(!voice.lead(), |this| this.text_right())
-            .child(SharedString::from(text))
+            .child(row.clone())
     }))
 }
 
+// a lane with no measured plan of its own, split on the spot
+fn loose_plan(line: &str, words: &[music::LyricsWord]) -> Wrapped {
+    let parts = karaoke_parts(line, words);
+    let fragments = parts
+        .iter()
+        .map(|(text, _)| SharedString::from(text.clone()))
+        .collect::<Vec<_>>();
+    let spoken = parts.iter().map(|(_, word)| *word).collect::<Vec<_>>();
+    Wrapped {
+        spans: Vec::new(),
+        evenly: evenly_filled(&fragments, &spoken),
+        fragments,
+        spoken,
+        rows: Vec::new(),
+        widths: Vec::new(),
+        text: Vec::new(),
+    }
+}
+
 fn karaoke_lane(
-    line: &str,
+    plan: &Wrapped,
     line_start: std::time::Duration,
     words: &[music::LyricsWord],
     position: std::time::Duration,
     verse: Pixels,
     voice: Voice,
     sung: Sung,
-    wrapped: Option<Wrapped>,
 ) -> Div {
     let theme = &sung.theme;
     let edge_fade = verse * REVEAL;
-    let parts = karaoke_parts(line, words);
-    let fragments = parts
-        .iter()
-        .map(|(text, _)| text.clone())
-        .collect::<Vec<_>>();
-    let spoken = parts.iter().map(|(_, word)| *word).collect::<Vec<_>>();
+    let Wrapped {
+        fragments,
+        spoken,
+        evenly,
+        ..
+    } = plan;
     let windows = (0..words.len())
         .map(|word| {
             let (start, end) = karaoke_window(line_start, words, word);
             (start, end, word + 1 >= words.len())
-        })
-        .collect::<Vec<_>>();
-    let evenly = (0..words.len())
-        .map(|word| {
-            parts.iter().filter(|(_, spoke)| *spoke == word).count() > 1
-                || parts
-                    .iter()
-                    .any(|(text, spoke)| *spoke == word && text.chars().any(wide))
         })
         .collect::<Vec<_>>();
     let sweep = |word: usize| match (windows.get(word), evenly.get(word)) {
@@ -1411,24 +1471,19 @@ fn karaoke_lane(
             })
     };
 
-    match wrapped {
-        Some(Wrapped { rows, widths }) => {
-            div()
-                .flex()
-                .flex_col()
-                .text_left()
-                .children(rows.into_iter().map(|row| {
-                    let text = SharedString::from(fragments[row.clone()].concat());
-                    let reveal = revealed(
-                        row, &widths, &spoken, &windows, &evenly, position, edge_fade,
-                    );
-                    div()
-                        .flex()
-                        .when(!voice.lead(), |this| this.justify_end())
-                        .child(lit(text, reveal))
-                }))
-        }
-        None => div()
+    match plan.rows.is_empty() {
+        false => div()
+            .flex()
+            .flex_col()
+            .text_left()
+            .children((0..plan.rows.len()).map(|row| {
+                let reveal = revealed(plan, row, &windows, position, edge_fade);
+                div()
+                    .flex()
+                    .when(!voice.lead(), |this| this.justify_end())
+                    .child(lit(plan.text[row].clone(), reveal))
+            })),
+        true => div()
             .flex()
             .flex_wrap()
             .text_left()
@@ -1444,7 +1499,7 @@ fn karaoke_lane(
                         false => 0.,
                     },
                 };
-                lit(SharedString::from(fragments[index].clone()), reveal)
+                lit(fragments[index].clone(), reveal)
             })),
     }
 }
@@ -1458,11 +1513,9 @@ struct Reveal {
 }
 
 fn revealed(
-    row: Range<usize>,
-    widths: &[Pixels],
-    spoken: &[usize],
+    plan: &Wrapped,
+    row: usize,
     windows: &[(std::time::Duration, std::time::Duration, bool)],
-    evenly: &[bool],
     position: std::time::Duration,
     fade: Pixels,
 ) -> Reveal {
@@ -1470,9 +1523,9 @@ fn revealed(
     let mut landing = 0.;
     let mut offset = px(0.);
     let mut soft = false;
-    for index in row {
-        let mine = widths.get(index).copied().unwrap_or(px(0.));
-        let word = spoken.get(index).copied().unwrap_or(index);
+    for index in plan.rows[row].clone() {
+        let mine = plan.widths.get(index).copied().unwrap_or(px(0.));
+        let word = plan.spoken.get(index).copied().unwrap_or(index);
         let Some(&(start, end, last)) = windows.get(word) else {
             offset += mine;
             continue;
@@ -1480,7 +1533,7 @@ fn revealed(
 
         // a wide character or a phrase timed as one word fills at an even pace;
         // the eased curve only reads as a flourish across Latin letters
-        let even = evenly.get(word).copied().unwrap_or(false);
+        let even = plan.evenly.get(word).copied().unwrap_or(false);
         soft |= even;
         let share = match even {
             true => progress_between(start, end, position),
@@ -1489,15 +1542,7 @@ fn revealed(
         if share > 0. {
             // a word covering several fragments hands each its own slice of the
             // sweep, and the edge follows whichever reaches furthest
-            let before: Pixels = (0..index)
-                .filter(|place| spoken.get(*place).copied() == Some(word))
-                .filter_map(|place| widths.get(place).copied())
-                .sum();
-            let whole: Pixels = before
-                + (index..spoken.len())
-                    .filter(|place| spoken.get(*place).copied() == Some(word))
-                    .filter_map(|place| widths.get(place).copied())
-                    .sum();
+            let (before, whole) = plan.spans.get(index).copied().unwrap_or((px(0.), mine));
             let part = match mine > px(0.) {
                 true => ((whole * share - before) / mine).clamp(0., 1.),
                 false => 0.,
@@ -1555,7 +1600,13 @@ fn secondary_lyrics_lane(
         .text_size(size)
         .map(|this| match (karaoke_capable, lane.words.as_ref()) {
             (true, Some(words)) => this.child(karaoke_lane(
-                &lane.text, lane.start, words, position, size, voice, sung, None,
+                &loose_plan(&lane.text, words),
+                lane.start,
+                words,
+                position,
+                size,
+                voice,
+                sung,
             )),
             _ => this.child(SharedString::from(lane.text.clone())),
         });
@@ -1631,6 +1682,7 @@ fn karaoke_window(
     (start, end)
 }
 
+#[cfg(test)]
 fn karaoke_fragments(line: &str, words: &[music::LyricsWord]) -> Vec<String> {
     karaoke_parts(line, words)
         .into_iter()
@@ -1715,10 +1767,14 @@ fn active_verse_size(verse: Pixels) -> Pixels {
     verse + ACTIVE_VERSE_GROWTH
 }
 
-fn lyrics_fragments(line: &str, words: Option<&[music::LyricsWord]>) -> Vec<String> {
+fn lyrics_parts(line: &str, words: Option<&[music::LyricsWord]>) -> Vec<(String, usize)> {
     match words {
-        Some(words) if !words.is_empty() => karaoke_fragments(line, words),
-        _ => plain_lyrics_fragments(line),
+        Some(words) if !words.is_empty() => karaoke_parts(line, words),
+        _ => plain_lyrics_fragments(line)
+            .into_iter()
+            .enumerate()
+            .map(|(index, piece)| (piece, index))
+            .collect(),
     }
 }
 
@@ -1743,14 +1799,20 @@ fn plain_lyrics_fragments(line: &str) -> Vec<String> {
     fragments
 }
 
+// everything a line needs to lay out and light up, measured once per width
 #[derive(Clone)]
 struct Wrapped {
+    fragments: Vec<SharedString>,
+    spoken: Vec<usize>,
     rows: Vec<Range<usize>>,
     widths: Vec<Pixels>,
+    spans: Vec<(Pixels, Pixels)>,
+    evenly: Vec<bool>,
+    text: Vec<SharedString>,
 }
 
 fn lyrics_wrap_rows(
-    fragments: &[String],
+    parts: &[(String, usize)],
     font_size: Pixels,
     width: Pixels,
     window: &mut Window,
@@ -1761,18 +1823,18 @@ fn lyrics_wrap_rows(
 
     let mut style = window.text_style();
     style.font_weight = FontWeight::SEMIBOLD;
+    let fragments = parts
+        .iter()
+        .map(|(text, _)| SharedString::from(text.clone()))
+        .collect::<Vec<_>>();
+    let spoken = parts.iter().map(|(_, word)| *word).collect::<Vec<_>>();
     let widths = fragments
         .iter()
         .map(|fragment| {
             let run = style.to_run(fragment.len());
             window
                 .text_system()
-                .shape_line(
-                    SharedString::from(fragment.clone()),
-                    font_size,
-                    &[run],
-                    None,
-                )
+                .shape_line(fragment.clone(), font_size, &[run], None)
                 .width
         })
         .collect::<Vec<_>>();
@@ -1784,10 +1846,63 @@ fn lyrics_wrap_rows(
             None => true,
         })
         .collect::<Vec<_>>();
+    let rows = wrap_fragment_widths(&widths, &breaks, width);
+    let text = rows
+        .iter()
+        .map(|row| {
+            SharedString::from(parts[row.clone()].iter().fold(
+                String::new(),
+                |mut whole, (piece, _)| {
+                    whole.push_str(piece);
+                    whole
+                },
+            ))
+        })
+        .collect::<Vec<_>>();
+
     Some(Wrapped {
-        rows: wrap_fragment_widths(&widths, &breaks, width),
+        spans: word_spans(&spoken, &widths),
+        evenly: evenly_filled(&fragments, &spoken),
+        fragments,
+        spoken,
+        rows,
         widths,
+        text,
     })
+}
+
+// a fragment's own slice of the word it belongs to
+fn word_spans(spoken: &[usize], widths: &[Pixels]) -> Vec<(Pixels, Pixels)> {
+    let words = spoken.iter().copied().max().map_or(0, |last| last + 1);
+    let mut wholes = vec![px(0.); words];
+    for (index, word) in spoken.iter().enumerate() {
+        wholes[*word] += widths.get(index).copied().unwrap_or(px(0.));
+    }
+    let mut befores = vec![px(0.); words];
+    spoken
+        .iter()
+        .enumerate()
+        .map(|(index, word)| {
+            let before = befores[*word];
+            befores[*word] += widths.get(index).copied().unwrap_or(px(0.));
+            (before, wholes[*word])
+        })
+        .collect()
+}
+
+fn evenly_filled(fragments: &[SharedString], spoken: &[usize]) -> Vec<bool> {
+    let words = spoken.iter().copied().max().map_or(0, |last| last + 1);
+    let mut pieces = vec![0usize; words];
+    let mut broad = vec![false; words];
+    for (index, word) in spoken.iter().enumerate() {
+        pieces[*word] += 1;
+        broad[*word] |= fragments[index].chars().any(wide);
+    }
+    pieces
+        .into_iter()
+        .zip(broad)
+        .map(|(pieces, broad)| pieces > 1 || broad)
+        .collect()
 }
 
 fn separable(left: &str, right: &str) -> bool {
@@ -1979,8 +2094,26 @@ fn lanes_room(
 }
 
 fn wrapped_rows(text: &str, size: Pixels, width: Pixels, window: &mut Window) -> usize {
-    let fragments = plain_lyrics_fragments(text);
-    lyrics_wrap_rows(&fragments, size, width, window).map_or(1, |wrapped| wrapped.rows.len().max(1))
+    let parts = lyrics_parts(text, None);
+    lyrics_wrap_rows(&parts, size, width, window).map_or(1, |wrapped| wrapped.rows.len().max(1))
+}
+
+// rows this far outside the panel are held open by their measured height alone
+fn spared(scroll: &ScrollHandle, row: usize, view: Bounds<Pixels>, slack: Pixels) -> bool {
+    let height = view.size.height;
+    let Some(item) = scroll.bounds_for_item(row) else {
+        return false;
+    };
+    if height <= px(0.) {
+        return false;
+    }
+    let top = item.origin.y - view.origin.y + scroll.offset().y;
+    top + item.size.height + slack < px(0.) || top - slack > height
+}
+
+// bucketed depth keeps neighbouring rows on one filter instead of one each
+fn stepped(depth: f32) -> f32 {
+    (depth * HAZE_STEPS).round() / HAZE_STEPS
 }
 
 fn viewport_haze(scroll: &ScrollHandle, row: usize, view: Bounds<Pixels>, margin: Pixels) -> f32 {
