@@ -109,6 +109,7 @@ playlist-again-add = Добавить ещё раз
 queue-title = Очередь
 queue-history = История
 queue-now-playing = Сейчас играет
+queue-from = Из
 queue-up-next = Далее
 queue-reset = Сбросить
 queue-clear = Очистить

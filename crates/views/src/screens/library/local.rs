@@ -5,7 +5,7 @@ use gpui::{
 };
 use i18n::t;
 use music::{Album, Track};
-use state::{AppSettings, Library, LibraryPart, LibraryState, Playback, Sonora};
+use state::{AppSettings, Library, LibraryPart, LibraryState, Origin, Playback, Sonora};
 use ui::{
     ActiveTheme as _, Button, FlagAxis, GridDelegate, GridEvent, GridState, Popovers, Popup,
     RangeAxis, Scrollbar, Scroller, SortAxis, Table as _, Unit, grid, vacant,
@@ -124,7 +124,8 @@ impl LocalView {
                 LocalTracks(library.clone()),
                 playback.clone(),
                 playlist_scrollbar,
-            );
+            )
+            .from(|_| Some(Origin::local()));
             let source = source.table(cx.weak_entity());
             let mut delegate = GridDelegate::new(source, width, cx);
             let (layout, sorting) = stored(Section::Tracks, cx);

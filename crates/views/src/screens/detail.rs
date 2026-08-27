@@ -6,7 +6,7 @@ use gpui::{
 
 use i18n::t;
 use music::{Album, Playlist, Track};
-use state::{AppSettings, Collection, Detail, LibraryEvent, Playback, Sonora};
+use state::{AppSettings, Collection, Detail, LibraryEvent, Origin, Playback, Sonora};
 use ui::{ActiveTheme as _, Button, Menu, Picker, Popovers, Popup, SortAxis};
 use ui::{
     ColumnSpec, FlagAxis, GridDelegate, GridEvent, GridState, MIN_CONTENT, Pin, PinKind, RangeAxis,
@@ -96,6 +96,21 @@ impl DetailView {
                 true => source.with_album(detail.clone()),
                 false => source,
             };
+            let source = source.from({
+                let detail = detail.clone();
+                move |cx: &App| {
+                    let detail = detail.read(cx);
+                    match (detail.album(), detail.playlist()) {
+                        (Some(album), _) => {
+                            Some(Origin::album(album.id.clone()).named(album.name.clone()))
+                        }
+                        (_, Some(list)) => {
+                            Some(Origin::playlist(list.id.clone()).named(list.name.clone()))
+                        }
+                        _ => None,
+                    }
+                }
+            });
             let source = source.table(cx.weak_entity());
             let mut delegate = GridDelegate::new(source, width, cx);
             delegate.set_layout(saved, cx);

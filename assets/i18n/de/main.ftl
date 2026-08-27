@@ -109,6 +109,7 @@ playlist-again-add = Erneut hinzufügen
 queue-title = Warteschlange
 queue-history = Verlauf
 queue-now-playing = Läuft gerade
+queue-from = Aus
 queue-up-next = Als Nächstes
 queue-reset = Zurücksetzen
 queue-clear = Leeren

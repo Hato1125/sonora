@@ -2,7 +2,7 @@ use gpui::{App, ClipboardItem, Entity, Styled as _};
 use i18n::t;
 use music::{Album, MediaKind, Playlist, SavedArtist, Track};
 use router::{Destination, navigate};
-use state::{Detail, LibraryState, Playback, Sonora};
+use state::{Detail, LibraryState, Origin, Playback, Sonora};
 use ui::{Menu, MenuItem, Pin, PinKind, Scrollbar, SubmenuState};
 
 use crate::shared::playlist_editor::{Edit, PlaylistEditor};
@@ -346,7 +346,7 @@ pub(crate) fn album_menu(
 ) -> Menu {
     let album_id = album.id.clone();
     let opened = album_id.clone();
-    let played = album_id.clone();
+    let played = Origin::album(album_id.clone()).named(album.name.clone());
     let next = album_id.clone();
     let queued = album_id.clone();
     let copied = album_id.clone();
@@ -371,7 +371,7 @@ pub(crate) fn album_menu(
                 MenuItem::new("play-album", t!("menu-play-album"))
                     .icon("icons/play.svg")
                     .on_click(move |_, _, cx| {
-                        playing.update(cx, |playback, cx| playback.play_album(&played, cx));
+                        playing.update(cx, |playback, cx| playback.play_origin(played.clone(), cx));
                     }),
                 MenuItem::new("play-album-next", t!("menu-play-next"))
                     .icon("icons/list-plus.svg")
@@ -425,7 +425,7 @@ pub(crate) fn artist_menu(
 ) -> Menu {
     let artist_id = artist.id.clone();
     let opened = artist_id.clone();
-    let played = artist_id.clone();
+    let played = Origin::artist(artist_id.clone()).named(artist.name.clone());
     let next = artist_id.clone();
     let queued = artist_id.clone();
     let copied = artist_id.clone();
@@ -450,7 +450,7 @@ pub(crate) fn artist_menu(
                 MenuItem::new("play-artist", t!("menu-play-artist"))
                     .icon("icons/play.svg")
                     .on_click(move |_, _, cx| {
-                        playing.update(cx, |playback, cx| playback.play_artist(&played, cx));
+                        playing.update(cx, |playback, cx| playback.play_origin(played.clone(), cx));
                     }),
                 MenuItem::new("play-artist-next", t!("menu-play-next"))
                     .icon("icons/list-plus.svg")
@@ -506,7 +506,7 @@ pub(crate) fn playlist_menu(
     cx: &App,
 ) -> Menu {
     let opened = playlist.id.clone();
-    let played = playlist.id.clone();
+    let played = Origin::playlist(playlist.id.clone()).named(playlist.name.clone());
     let next = playlist.id.clone();
     let queued = playlist.id.clone();
     let copied = playlist.id.clone();
@@ -570,7 +570,7 @@ pub(crate) fn playlist_menu(
                 MenuItem::new("play-playlist", t!("menu-play-playlist"))
                     .icon("icons/play.svg")
                     .on_click(move |_, _, cx| {
-                        playing.update(cx, |playback, cx| playback.play_playlist(&played, cx));
+                        playing.update(cx, |playback, cx| playback.play_origin(played.clone(), cx));
                     }),
                 MenuItem::new("play-playlist-next", t!("menu-play-next"))
                     .icon("icons/list-plus.svg")
@@ -674,7 +674,7 @@ fn open_key(kind: PinKind) -> &'static str {
 }
 
 fn transport_items(pin: &Pin, playback: Entity<Playback>) -> Vec<MenuItem> {
-    let played = pin.id.clone();
+    let played = Origin::from(pin);
     let next = pin.id.clone();
     let queued = pin.id.clone();
     let nexting = playback.clone();
@@ -685,7 +685,7 @@ fn transport_items(pin: &Pin, playback: Entity<Playback>) -> Vec<MenuItem> {
             MenuItem::new("play-pin", t!("menu-play-album"))
                 .icon("icons/play.svg")
                 .on_click(move |_, _, cx| {
-                    playback.update(cx, |playback, cx| playback.play_album(&played, cx));
+                    playback.update(cx, |playback, cx| playback.play_origin(played.clone(), cx));
                 }),
             MenuItem::new("play-pin-next", t!("menu-play-next"))
                 .icon("icons/list-plus.svg")
@@ -702,7 +702,7 @@ fn transport_items(pin: &Pin, playback: Entity<Playback>) -> Vec<MenuItem> {
             MenuItem::new("play-pin", t!("menu-play-playlist"))
                 .icon("icons/play.svg")
                 .on_click(move |_, _, cx| {
-                    playback.update(cx, |playback, cx| playback.play_playlist(&played, cx));
+                    playback.update(cx, |playback, cx| playback.play_origin(played.clone(), cx));
                 }),
             MenuItem::new("play-pin-next", t!("menu-play-next"))
                 .icon("icons/list-plus.svg")
@@ -719,7 +719,7 @@ fn transport_items(pin: &Pin, playback: Entity<Playback>) -> Vec<MenuItem> {
             MenuItem::new("play-pin", t!("menu-play-artist"))
                 .icon("icons/play.svg")
                 .on_click(move |_, _, cx| {
-                    playback.update(cx, |playback, cx| playback.play_artist(&played, cx));
+                    playback.update(cx, |playback, cx| playback.play_origin(played.clone(), cx));
                 }),
             MenuItem::new("play-pin-next", t!("menu-play-next"))
                 .icon("icons/list-plus.svg")
@@ -736,7 +736,7 @@ fn transport_items(pin: &Pin, playback: Entity<Playback>) -> Vec<MenuItem> {
             MenuItem::new("play-pin", t!("menu-song-radio"))
                 .icon("icons/radio.svg")
                 .on_click(move |_, _, cx| {
-                    playback.update(cx, |playback, cx| playback.play_track(&played, cx));
+                    playback.update(cx, |playback, cx| playback.play_origin(played.clone(), cx));
                 }),
         ],
     }

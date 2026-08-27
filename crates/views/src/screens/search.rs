@@ -221,7 +221,10 @@ impl SearchView {
                     .press(pressed(Press::Song(Box::new(track.clone())), me))
             }
             Hit::Artist(artist) => {
-                let origin = artist.id.clone().map(state::Origin::Artist);
+                let origin = artist
+                    .id
+                    .clone()
+                    .map(|id| state::Origin::artist(id).named(artist.name.clone()));
                 let playing = origin.as_ref().is_some_and(|origin| {
                     self.playback.read(cx).playing_from(origin)
                         == Some(state::PlaybackState::Playing)
@@ -249,7 +252,7 @@ impl SearchView {
                 }
             }
             Hit::Album(album) => {
-                let origin = state::Origin::Album(album.id.clone());
+                let origin = state::Origin::album(album.id.clone()).named(album.name.clone());
                 let playing = self.playback.read(cx).playing_from(&origin)
                     == Some(state::PlaybackState::Playing);
                 let toggled = me.clone();
@@ -268,7 +271,7 @@ impl SearchView {
                     .press(pressed(Press::Album(album.id.clone()), me))
             }
             Hit::Playlist(list) => {
-                let origin = state::Origin::Playlist(list.id.clone());
+                let origin = state::Origin::playlist(list.id.clone()).named(list.name.clone());
                 let playing = self.playback.read(cx).playing_from(&origin)
                     == Some(state::PlaybackState::Playing);
                 let toggled = me.clone();
