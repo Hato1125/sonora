@@ -48,6 +48,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The Songs tab in Your Library no longer stutters on a large collection. Its play button was
+  building a copy of every song in the list on every frame, so the bigger the library the worse it
+  scrolled.
 - A word-by-word lyric line never breaks in the middle of a word. Each word is laid out on its own
   so it would be squeezed rather than moved down when it did not fit, splitting "upon" across two
   lines as "u" and "pon". A word that does not fit now moves to the next line whole.
