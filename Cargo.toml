@@ -29,8 +29,8 @@ env_logger = "0.11"
 fastrand = "2.5"
 futures = "0.3"
 fluent-bundle = "0.16"
-gpui = { git = "https://github.com/nolight132/zed", rev = "1b8071574557dcdd870e460529d14be4c86ed602" }
-gpui_platform = { git = "https://github.com/nolight132/zed", rev = "1b8071574557dcdd870e460529d14be4c86ed602", features = [
+gpui = { git = "https://github.com/nolight132/gpui", rev = "f8741c100fe36515d012bd3887dc49854b985b2c" }
+gpui_platform = { git = "https://github.com/nolight132/gpui", rev = "f8741c100fe36515d012bd3887dc49854b985b2c", features = [
   "font-kit",
   "wayland",
   "x11",
@@ -110,6 +110,3 @@ opt-level = 2
 debug = false
 opt-level = 2
 
-[patch."https://github.com/nolight132/zed"]
-gpui = { git = "https://github.com/nolight132/gpui", rev = "c780e4abaf71e57bd9749d1a1fe3c46595308506" }
-gpui_platform = { git = "https://github.com/nolight132/gpui", rev = "c780e4abaf71e57bd9749d1a1fe3c46595308506" }
