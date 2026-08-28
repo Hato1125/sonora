@@ -33,12 +33,12 @@ impl Screen {
     pub const ALL: [Self; 8] = [
         Self::Home,
         Self::Search,
-        Self::History,
         Self::Songs,
         Self::Albums,
         Self::Artists,
         Self::Playlists,
         Self::Imported,
+        Self::History,
     ];
 
     pub fn id(self) -> &'static str {

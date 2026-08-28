@@ -10,7 +10,7 @@ use rusqlite::{Connection, params};
 use crate::playback::PlaybackEvent;
 use crate::{Io, Playback, Session, SessionEvent, SessionState, join};
 
-const LOCAL_LIMIT: usize = 1_000;
+const LOCAL_LIMIT: usize = 500;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum HistoryState {
@@ -92,6 +92,41 @@ impl Store {
                 ],
             )
             .context("cannot save listening history")?;
+        self.prune(scope)
+    }
+
+    fn prune(&self, scope: &str) -> Result<()> {
+        self.open()?
+            .execute(
+                "DELETE FROM plays
+                 WHERE scope = ?1
+                   AND rowid NOT IN (
+                       SELECT rowid FROM plays
+                       WHERE scope = ?1
+                       ORDER BY played_at DESC
+                       LIMIT ?2
+                   )",
+                params![scope, LOCAL_LIMIT],
+            )
+            .context("cannot trim listening history")?;
+        Ok(())
+    }
+
+    fn delete(&self, scope: &str, track_id: &str, played_at: i64) -> Result<()> {
+        self.open()?
+            .execute(
+                "DELETE FROM plays
+                 WHERE scope = ? AND track_id = ? AND played_at >= ? AND played_at < ?",
+                params![scope, track_id, played_at, played_at + 1_000],
+            )
+            .context("cannot remove a play")?;
+        Ok(())
+    }
+
+    fn wipe(&self, scope: &str) -> Result<()> {
+        self.open()?
+            .execute("DELETE FROM plays WHERE scope = ?", params![scope])
+            .context("cannot clear listening history")?;
         Ok(())
     }
 
@@ -162,7 +197,7 @@ impl History {
     ) -> Self {
         cx.subscribe(&session, |this, _, event, cx| match event {
             SessionEvent::SignedIn | SessionEvent::Reconnected => this.refresh(cx),
-            SessionEvent::SignedOut => this.clear(cx),
+            SessionEvent::SignedOut => this.reset(cx),
             SessionEvent::LocalChanged => {}
         })
         .detach();
@@ -195,12 +230,56 @@ impl History {
         &self.tracks
     }
 
+    pub fn remove(&mut self, track: &Track, cx: &mut Context<Self>) {
+        let (Some(track_id), Some(played_at)) = (track.id.clone(), track.added_at) else {
+            return;
+        };
+        let Some(scope) = self.scope(cx) else {
+            return;
+        };
+        self.tracks
+            .retain(|held| held.id != track.id || held.added_at != track.added_at);
+        self.pending
+            .retain(|held| held.id != track.id || held.added_at != track.added_at);
+        cx.notify();
+
+        let store = self.store.clone();
+        let played_at = played_at.saturating_mul(1_000);
+        self.io.spawn(async move {
+            let removed =
+                tokio::task::spawn_blocking(move || store.delete(&scope, &track_id, played_at))
+                    .await;
+            match removed {
+                Ok(Ok(())) => {}
+                Ok(Err(error)) => log::warn!("history: cannot remove a play: {error:#}"),
+                Err(error) => log::warn!("history: remove task failed: {error}"),
+            }
+        });
+    }
+
+    pub fn clear(&mut self, cx: &mut Context<Self>) {
+        let Some(scope) = self.scope(cx) else {
+            return;
+        };
+        self.reset(cx);
+
+        let store = self.store.clone();
+        self.io.spawn(async move {
+            let cleared = tokio::task::spawn_blocking(move || store.wipe(&scope)).await;
+            match cleared {
+                Ok(Ok(())) => {}
+                Ok(Err(error)) => log::warn!("history: cannot clear plays: {error:#}"),
+                Err(error) => log::warn!("history: clear task failed: {error}"),
+            }
+        });
+    }
+
     pub fn refresh(&mut self, cx: &mut Context<Self>) {
         if self.task.is_some() {
             return;
         }
         let Some(scope) = self.scope(cx) else {
-            return self.clear(cx);
+            return self.reset(cx);
         };
         let store = self.store.clone();
         let io = self.io.clone();
@@ -288,7 +367,7 @@ impl History {
         Some(format!("{provider}:{}", profile.id))
     }
 
-    fn clear(&mut self, cx: &mut Context<Self>) {
+    fn reset(&mut self, cx: &mut Context<Self>) {
         self.task = None;
         self.active = None;
         self.tracks.clear();

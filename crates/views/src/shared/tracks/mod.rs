@@ -15,7 +15,7 @@ use gpui::{
 };
 use music::Track;
 use router::Destination;
-use state::{Detail, Library, Origin, Playback, PlaybackState, Sonora};
+use state::{Detail, History, Library, Origin, Playback, PlaybackState, Sonora};
 use ui::{Button, Cell, ColumnSpec, GridSource, GridState, Menu, Pin, ROW_GROUP, Scrollbar, clock};
 
 use crate::shared::cells;
@@ -88,6 +88,7 @@ pub(crate) struct TrackSource {
     is_liked: Option<Entity<Library>>,
     album: Option<Entity<Detail>>,
     playlist: Option<Entity<Detail>>,
+    history: Option<Entity<History>>,
     menu: ItemMenu,
     table: Option<WeakEntity<GridState<TrackSource>>>,
     sieve: TrackSieve,
@@ -114,6 +115,7 @@ impl TrackSource {
             is_liked: None,
             album: None,
             playlist: None,
+            history: None,
             menu: ItemMenu::new(playlist_scrollbar),
             table: None,
             sieve: TrackSieve::default(),
@@ -194,6 +196,11 @@ impl TrackSource {
         self
     }
 
+    pub(crate) fn with_history(mut self, history: Entity<History>) -> Self {
+        self.history = Some(history);
+        self
+    }
+
     fn artist_cell(&self, cell: &Cell<TrackField>, track: &Track, color: Hsla) -> AnyElement {
         cells::artists(
             cell,
@@ -218,7 +225,7 @@ impl TrackSource {
     }
 
     fn index_cell(&self, cell: &Cell<TrackField>, track: &Track, cx: &App) -> AnyElement {
-        let state = self.now_playing(track, cx);
+        let state = self.now_playing(cell.row, cx);
         let (preload, press) = match track.playable {
             false => (None, None),
             true => {
@@ -333,10 +340,18 @@ impl TrackSource {
         )
     }
 
-    fn now_playing(&self, track: &Track, cx: &App) -> Option<PlaybackState> {
+    pub(crate) fn now_playing(&self, row: usize, cx: &App) -> Option<PlaybackState> {
         let playback = self.playback.read(cx);
-        let current = playback.track()?;
-        (current.id.is_some() && current.id == track.id).then(|| playback.state().clone())
+        let current = playback.track()?.id.as_deref()?;
+        let tracks = self.provider.tracks(cx);
+        if tracks.get(row)?.id.as_deref() != Some(current) {
+            return None;
+        }
+        let sole = tracks
+            .iter()
+            .position(|track| track.id.as_deref() == Some(current))?;
+
+        (sole == row).then(|| playback.state().clone())
     }
 
     pub(crate) fn at(&self, row: usize, cx: &App) -> Option<Track> {
@@ -395,10 +410,7 @@ impl GridSource for TrackSource {
     }
 
     fn playing(&self, row: usize, cx: &App) -> bool {
-        self.provider
-            .tracks(cx)
-            .get(row)
-            .is_some_and(|track| self.now_playing(track, cx).is_some())
+        self.now_playing(row, cx).is_some()
     }
 
     fn is_loading(&self, cx: &App) -> bool {
@@ -462,6 +474,12 @@ impl GridSource for TrackSource {
             },
             false => TrackColumns::default(),
         };
+        if let Some(history) = &self.history {
+            return Some(
+                self.menu
+                    .for_history_track(track, history.clone(), columns, cx),
+            );
+        }
         Some(match (&self.album, &self.playlist) {
             (Some(detail), _) => {
                 let id = detail.read(cx).id()?;

@@ -6,8 +6,8 @@ use i18n::t;
 use music::Track;
 use state::{History, HistoryState, Playback};
 use ui::{
-    ActiveTheme as _, GridDelegate, GridEvent, GridState, Scrollbar, Scroller, Table as _, clock,
-    grid, vacant,
+    ActiveTheme as _, Button, GridDelegate, GridEvent, GridState, Modal, Scrollbar, Scroller,
+    Table as _, clock, grid, vacant,
 };
 
 use crate::chrome::{Searchable, Toolbar, Tooled};
@@ -35,6 +35,7 @@ pub(crate) struct HistoryView {
     scrollbar: Entity<Scrollbar>,
     table: Entity<GridState<TrackSource>>,
     toolbar: Entity<Toolbar>,
+    clearing: bool,
 }
 
 impl HistoryView {
@@ -56,6 +57,7 @@ impl HistoryView {
                 playback.clone(),
                 menu,
             )
+            .with_history(history.clone())
             .table(cx.weak_entity());
             GridState::new(GridDelegate::new(source, width, cx), cx).follow(scroll)
         });
@@ -85,6 +87,7 @@ impl HistoryView {
             scrollbar,
             table,
             toolbar,
+            clearing: false,
         }
     }
 
@@ -103,7 +106,7 @@ impl HistoryView {
         }
     }
 
-    fn header(&self, cx: &Context<Self>) -> AnyElement {
+    fn header(&self, cx: &mut Context<Self>) -> AnyElement {
         let (count, duration) = {
             let history = self.history.read(cx);
             let tracks = history.tracks();
@@ -120,8 +123,46 @@ impl HistoryView {
             .accent()
             .eyebrow(t!("detail-playlist"))
             .meta(strip)
-            .actions(div().h(cx.theme().metrics.control))
+            .actions(
+                div().flex().items_center().child(
+                    Button::new("clear-history")
+                        .outline()
+                        .icon("icons/trash-2.svg")
+                        .label(t!("history-clear"))
+                        .disabled(count == 0)
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.clearing = true;
+                            cx.notify();
+                        })),
+                ),
+            )
             .into_any_element()
+    }
+
+    fn confirmation(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        Modal::new("clear-history", t!("history-clear-title"))
+            .detail(t!("history-clear-confirm"))
+            .action(
+                Button::new("cancel-clear-history")
+                    .ghost()
+                    .label(t!("common-cancel"))
+                    .on_click(cx.listener(|this, _, _, cx| this.dismiss(cx))),
+            )
+            .action(
+                Button::new("apply-clear-history")
+                    .danger()
+                    .label(t!("common-delete"))
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.history.update(cx, |history, cx| history.clear(cx));
+                        this.dismiss(cx);
+                    })),
+            )
+            .on_dismiss(cx.listener(|this, _, _, cx| this.dismiss(cx)))
+    }
+
+    fn dismiss(&mut self, cx: &mut Context<Self>) {
+        self.clearing = false;
+        cx.notify();
     }
 }
 
@@ -147,7 +188,10 @@ impl Render for HistoryView {
             .child(grid(&self.table))
             .when_some(note, |this, note| this.child(vacant(note, cx)));
 
-        div().size_full().child(page)
+        div()
+            .size_full()
+            .child(page)
+            .when(self.clearing, |this| this.child(self.confirmation(cx)))
     }
 }
 
