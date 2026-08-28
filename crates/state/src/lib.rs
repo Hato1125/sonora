@@ -3,6 +3,7 @@ mod catalog;
 mod cover;
 mod detail;
 mod genre;
+mod history;
 mod home;
 mod library;
 mod lyrics;
@@ -23,6 +24,7 @@ pub use artist::ArtistDetail;
 pub use cover::Cover;
 pub use detail::{Collection, Detail, Header};
 pub use genre::{GenreDetails, Genres};
+pub use history::{History, HistoryState};
 pub use home::Home;
 pub use library::{Library, LibraryEvent, LibraryPart, LibraryState, Problem};
 pub use lyrics::{Lyrics, LyricsState};
@@ -83,6 +85,7 @@ pub struct Sonora {
     pub session: Entity<Session>,
     pub cover: Entity<Cover>,
     pub library: Entity<Library>,
+    pub history: Entity<History>,
     pub lyrics: Entity<Lyrics>,
     pub playback: Entity<Playback>,
     pub queue: Entity<Queue>,
@@ -113,6 +116,7 @@ pub fn init(
     let library = cx.new(|cx| Library::new(session.clone(), io.clone(), cx));
     let queue = cx.new(|cx| Queue::new(session.clone(), settings.clone(), cx));
     let playback = cx.new(|cx| Playback::new(session.clone(), queue.clone(), settings.clone(), cx));
+    let history = cx.new(|cx| History::new(session.clone(), playback.clone(), io.clone(), cx));
     let lyrics = cx.new(|cx| {
         Lyrics::new(
             playback.clone(),
@@ -130,6 +134,7 @@ pub fn init(
         session,
         cover,
         library,
+        history,
         lyrics,
         playback,
         queue,

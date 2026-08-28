@@ -1,6 +1,7 @@
 pub(crate) mod artist;
 pub(crate) mod detail;
 pub(crate) mod genre;
+pub(crate) mod history;
 pub(crate) mod home;
 pub(crate) mod library;
 pub(crate) mod login;

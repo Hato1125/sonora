@@ -14,13 +14,18 @@ use state::{AppSettings, Origin, Playback, PlaybackState, Session, Sonora};
 
 use crate::shared::menu::{ItemMenu, pin_menu};
 
-const NAV: [(&str, &str, Option<Destination>); 4] = [
+const NAV: [(&str, &str, Option<Destination>); 5] = [
     ("nav-home", "icons/house.svg", Some(Destination::Home)),
     ("nav-search", "icons/search.svg", Some(Destination::Search)),
     (
         "nav-library",
         "icons/library-big.svg",
         Some(Destination::Library(LibraryTab::Songs)),
+    ),
+    (
+        "nav-history",
+        "icons/rotate-ccw-clock.svg",
+        Some(Destination::History),
     ),
     (
         "nav-settings",

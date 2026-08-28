@@ -19,6 +19,7 @@ common-clear = Clear
 number-group = { "," }
 
 # navigation
+nav-history = History
 nav-home = Home
 nav-search = Search
 nav-library = Your Library
@@ -53,6 +54,7 @@ app-sign-out = Sign Out
 app-quit = Quit
 
 # table columns
+column-played-at = Played
 column-index = #
 column-title = Title
 column-artist = Artist
@@ -132,6 +134,9 @@ player-fullscreen-leave = Leave fullscreen
 fullscreen-artwork = Artwork
 
 # filters
+filter-history = Filter listening history
+history-empty = Tracks you play will appear here.
+history-not-loaded = Listening history could not be loaded.
 filter-library = Filter your library
 filter-album = Filter album tracks
 filter-reset = Reset filters
@@ -312,6 +317,7 @@ count-songs =
     }
 
 # dates
+date-time = { $date }, { $time }
 date-full = { $month } { $day }, { $year }
 month-1 = Jan
 month-2 = Feb

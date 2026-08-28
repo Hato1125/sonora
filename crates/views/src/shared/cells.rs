@@ -301,6 +301,18 @@ pub(crate) fn stamp(seconds: Option<i64>) -> SharedString {
         .unwrap_or_default()
 }
 
+pub(crate) fn local_stamp(seconds: Option<i64>) -> SharedString {
+    seconds
+        .and_then(|seconds| jiff::Timestamp::new(seconds, 0).ok())
+        .map(|stamp| {
+            let local = stamp.to_zoned(jiff::tz::TimeZone::system());
+            let date = release_date_label(&local.strftime("%Y-%m-%d").to_string());
+            let time = local.strftime("%H:%M").to_string();
+            t!("date-time", date = &date, time = &time)
+        })
+        .unwrap_or_default()
+}
+
 pub(crate) fn count(value: u64) -> SharedString {
     let group = t!("number-group");
     let digits = value.to_string();

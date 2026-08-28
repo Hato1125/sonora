@@ -19,6 +19,7 @@ common-clear = Effacer
 number-group = { " " }
 
 # navigation
+nav-history = Historique
 nav-home = Accueil
 nav-search = Recherche
 nav-library = Ma bibliothèque
@@ -53,6 +54,7 @@ app-sign-out = Se déconnecter
 app-quit = Quitter
 
 # table columns
+column-played-at = Écouté
 column-index = #
 column-title = Titre
 column-artist = Artiste
@@ -132,6 +134,9 @@ player-fullscreen-leave = Quitter le plein écran
 fullscreen-artwork = Pochette
 
 # filters
+filter-history = Filtrer l’historique d’écoute
+history-empty = Les titres écoutés apparaîtront ici.
+history-not-loaded = Impossible de charger l’historique d’écoute.
 filter-library = Filtrer la bibliothèque
 filter-album = Filtrer les titres de l'album
 filter-reset = Réinitialiser les filtres
@@ -313,6 +318,7 @@ count-songs =
     }
 
 # dates
+date-time = { $date }, { $time }
 date-full = { $day } { $month } { $year }
 month-1 = janv.
 month-2 = févr.

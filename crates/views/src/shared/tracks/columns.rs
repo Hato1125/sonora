@@ -13,6 +13,7 @@ pub(crate) enum TrackField {
     Album,
     AddedAt,
     AddedBy,
+    PlayedAt,
     Plays,
     Duration,
 }
@@ -98,6 +99,15 @@ const DURATION: ColumnSpec<TrackField> = ColumnSpec {
     ..COLUMN
 };
 
+const PLAYED_AT: ColumnSpec<TrackField> = ColumnSpec {
+    field: TrackField::PlayedAt,
+    key: "played-at",
+    header: "column-played-at",
+    width: Width::Fixed(px(168.)),
+    rank: NICE,
+    ..COLUMN
+};
+
 const ALBUM_TITLE: ColumnSpec<TrackField> = ColumnSpec {
     width: Width::Fill(0.665),
     ..TITLE
@@ -126,6 +136,9 @@ pub(crate) const PLAYLIST_COLUMNS_SHARED: &[ColumnSpec<TrackField>] =
 
 pub(crate) const PLAYLIST_COLUMNS_BLEND: &[ColumnSpec<TrackField>] =
     &[INDEX, COVER, TITLE, ARTISTS, ALBUM, ADDED_BY, DURATION];
+
+pub(crate) const HISTORY_COLUMNS: &[ColumnSpec<TrackField>] =
+    &[INDEX, COVER, TITLE, ARTISTS, ALBUM, PLAYED_AT, DURATION];
 
 pub(crate) const ARTIST_COLUMNS: &[ColumnSpec<TrackField>] = &[
     INDEX,

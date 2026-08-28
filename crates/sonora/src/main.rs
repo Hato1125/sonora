@@ -114,6 +114,7 @@ fn main() {
             session,
             cover: _,
             library,
+            history: _,
             lyrics: _,
             playback,
             queue,

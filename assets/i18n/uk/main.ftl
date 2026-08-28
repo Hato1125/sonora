@@ -19,6 +19,7 @@ common-clear = Очистити
 number-group = { "\u00A0" }
 
 # navigation
+nav-history = Історія
 nav-home = Головна
 nav-search = Пошук
 nav-library = Моя медіатека
@@ -53,6 +54,7 @@ app-sign-out = Вийти
 app-quit = Вихід
 
 # table columns
+column-played-at = Прослухано
 column-index = #
 column-title = Назва
 column-artist = Виконавець
@@ -132,6 +134,9 @@ player-fullscreen-leave = Вийти з повноекранного режим�
 fullscreen-artwork = Обкладинка
 
 # filters
+filter-history = Фільтрувати історію прослуховувань
+history-empty = Прослухані треки з’являться тут.
+history-not-loaded = Не вдалося завантажити історію прослуховувань.
 filter-library = Фільтр медіатеки
 filter-album = Фільтр треків альбому
 filter-reset = Скинути фільтри
@@ -318,6 +323,7 @@ count-songs =
     }
 
 # dates
+date-time = { $date }, { $time }
 date-full = { $day } { $month } { $year }
 month-1 = січ.
 month-2 = лют.

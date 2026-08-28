@@ -22,7 +22,7 @@ use crate::shared::cells;
 use crate::shared::pins::Pinned as _;
 
 pub(crate) use columns::{
-    LIBRARY_COLUMNS, TrackField, album_columns, artist_columns, playlist_columns,
+    HISTORY_COLUMNS, LIBRARY_COLUMNS, TrackField, album_columns, artist_columns, playlist_columns,
 };
 pub(crate) use sieve::TrackSieve;
 pub(crate) use sort::initial;
@@ -372,7 +372,9 @@ impl GridSource for TrackSource {
         match field {
             TrackField::Artists => tracks.iter().any(|track| !track.artists.is_empty()),
             TrackField::Album => tracks.iter().any(|track| !track.album.is_empty()),
-            TrackField::AddedAt => tracks.iter().any(|track| track.added_at.is_some()),
+            TrackField::AddedAt | TrackField::PlayedAt => {
+                tracks.iter().any(|track| track.added_at.is_some())
+            }
             TrackField::AddedBy => tracks.iter().any(|track| track.added_by.is_some()),
             TrackField::Plays => tracks.iter().any(|track| track.playcount.is_some()),
             _ => true,
@@ -438,6 +440,7 @@ impl GridSource for TrackSource {
                 Some(added) => cells::added_by(&cell, added, detail),
                 None => cells::blank(&cell),
             },
+            TrackField::PlayedAt => cells::dim(&cell, cells::local_stamp(track.added_at), detail),
             TrackField::Plays => cells::dim(
                 &cell,
                 track.playcount.map(cells::count).unwrap_or_default(),
