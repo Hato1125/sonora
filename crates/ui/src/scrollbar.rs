@@ -12,6 +12,8 @@ use crate::glide::Glide;
 use crate::theme::ActiveTheme as _;
 
 const BAR: Pixels = px(6.);
+const REACH: Pixels = px(2.);
+const THUMB_INSET: Pixels = px(4.);
 const REACHED: Pixels = px(0.5);
 const MIN_THUMB: Pixels = px(24.);
 const TRACK_INSET: Pixels = px(4.);
@@ -337,8 +339,8 @@ impl Render for Scrollbar {
             .occlude()
             .absolute()
             .top(self.track_inset)
-            .right_0()
-            .w(BAR)
+            .right(-REACH)
+            .w(BAR + REACH)
             .h(track)
             .on_hover(cx.listener(move |this, hovered: &bool, window, cx| {
                 this.hovered = *hovered;
@@ -362,7 +364,7 @@ impl Render for Scrollbar {
                     .id("scrollbar-thumb")
                     .absolute()
                     .top(travel * progress)
-                    .right_1()
+                    .right(THUMB_INSET + REACH)
                     .w(BAR)
                     .h(thumb)
                     .rounded_full()
