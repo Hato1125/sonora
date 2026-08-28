@@ -13,6 +13,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the focused window: light, medium or strong, for 90, 60 or 30 frames a second. It is off by
   default, and a change applies from the next launch.
 
+### Fixed
+
+- Switches appear already on or off when a screen opens, instead of sliding into place after it.
+
 ## [0.22.0] - 2026-08-28
 
 ### Added
