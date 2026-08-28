@@ -9,6 +9,34 @@ pub struct UserProfile {
     pub display_name: String,
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct UserDetail {
+    pub id: String,
+    pub name: String,
+    pub avatar: Option<String>,
+    pub followers: Option<u64>,
+    pub following: Option<u64>,
+    pub playlists: Vec<Playlist>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Contributor {
+    pub id: String,
+    pub name: String,
+    pub avatar: Option<String>,
+}
+
+impl Contributor {
+    pub fn unnamed(id: impl Into<String>) -> Self {
+        let id = id.into();
+        Self {
+            name: id.clone(),
+            id,
+            avatar: None,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ArtistRef {
     pub name: String,
@@ -34,6 +62,7 @@ pub struct Track {
     pub cover: Option<String>,
     pub duration: Duration,
     pub added_at: Option<i64>,
+    pub added_by: Option<Arc<Contributor>>,
     pub playcount: Option<u64>,
     pub popularity: u32,
     pub explicit: bool,
@@ -49,8 +78,10 @@ pub struct Playlist {
     pub id: String,
     pub name: String,
     pub owner: String,
+    pub owner_id: String,
     pub owned: bool,
     pub collaborative: bool,
+    pub blend: bool,
     pub public: bool,
     pub cover: Option<String>,
     pub track_count: u32,

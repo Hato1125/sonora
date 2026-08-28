@@ -13,7 +13,7 @@ use crate::spotify::{
 };
 use crate::{
     Album, AlbumDetail, Artist, ArtistProfile, Genre, GenreDetail, GenreSection, Lyrics, Playlist,
-    PlaylistDetail, SavedArtist, Track, UserProfile,
+    PlaylistDetail, SavedArtist, Track, UserDetail, UserProfile,
 };
 
 const MADE_FOR_YOU: &str = "0JQ5DAt0tbjZptfcdMSKl3";
@@ -61,6 +61,10 @@ impl MusicApi for LibrespotClient {
             display_name: profile.label().unwrap_or(&username).to_owned(),
             id: username,
         })
+    }
+
+    async fn user(&self, user_id: &str) -> Result<UserDetail> {
+        profiles::profile(&self.session, user_id).await
     }
 
     async fn artist(&self, artist_id: &str) -> Result<Artist> {
@@ -121,8 +125,8 @@ impl MusicApi for LibrespotClient {
 
     async fn playlist(&self, playlist_id: &str) -> Result<PlaylistDetail> {
         let mut detail = playlists::playlist(&self.session, playlist_id).await?;
-        let owner = detail.playlist.owner.clone();
-        if owner != wire::UNKNOWN {
+        let owner = detail.playlist.owner_id.clone();
+        if !owner.is_empty() {
             let names =
                 profiles::display_names(&self.session, HashSet::from([owner.clone()])).await;
             if let Some(name) = names.get(&owner) {
@@ -218,8 +222,8 @@ impl MusicApi for LibrespotClient {
 
         let owners = playlists
             .iter()
-            .map(|playlist| playlist.owner.clone())
-            .filter(|owner| owner != wire::UNKNOWN)
+            .map(|playlist| playlist.owner_id.clone())
+            .filter(|owner| !owner.is_empty())
             .collect();
         let ids = playlists
             .iter()
@@ -231,8 +235,8 @@ impl MusicApi for LibrespotClient {
         );
 
         for playlist in &mut playlists {
-            playlist.owned = playlist.owner == self.session.username();
-            if let Some(name) = names.get(&playlist.owner) {
+            playlist.owned = playlist.owner_id == self.session.username();
+            if let Some(name) = names.get(&playlist.owner_id) {
                 playlist.owner = name.clone();
             }
             playlist.modified_at = stamps.get(&playlist.id).copied();

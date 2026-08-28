@@ -13,17 +13,17 @@ use gpui::{
     AnyElement, App, Entity, Hsla, InteractiveElement as _, IntoElement as _, SharedString,
     Styled as _, WeakEntity,
 };
-use jiff::Timestamp;
 use music::Track;
 use router::Destination;
 use state::{Detail, Library, Origin, Playback, PlaybackState, Sonora};
 use ui::{Button, Cell, ColumnSpec, GridSource, GridState, Menu, Pin, ROW_GROUP, Scrollbar, clock};
 
 use crate::shared::cells;
-use crate::shared::hero::release_date_label;
 use crate::shared::pins::Pinned as _;
 
-pub(crate) use columns::{LIBRARY_COLUMNS, TrackField, album_columns, artist_columns};
+pub(crate) use columns::{
+    LIBRARY_COLUMNS, TrackField, album_columns, artist_columns, playlist_columns,
+};
 pub(crate) use sieve::TrackSieve;
 pub(crate) use sort::initial;
 
@@ -119,6 +119,12 @@ impl TrackSource {
             sieve: TrackSieve::default(),
             spread: RefCell::new(None),
         }
+    }
+
+    pub(crate) fn set_columns(&mut self, columns: &'static [ColumnSpec<TrackField>]) -> bool {
+        let changed = !std::ptr::eq(self.columns.as_ptr(), columns.as_ptr());
+        self.columns = columns;
+        changed
     }
 
     pub(crate) fn sieve(&self) -> TrackSieve {
@@ -367,6 +373,7 @@ impl GridSource for TrackSource {
             TrackField::Artists => tracks.iter().any(|track| !track.artists.is_empty()),
             TrackField::Album => tracks.iter().any(|track| !track.album.is_empty()),
             TrackField::AddedAt => tracks.iter().any(|track| track.added_at.is_some()),
+            TrackField::AddedBy => tracks.iter().any(|track| track.added_by.is_some()),
             TrackField::Plays => tracks.iter().any(|track| track.playcount.is_some()),
             _ => true,
         }
@@ -421,17 +428,16 @@ impl GridSource for TrackSource {
             TrackField::Title => self.title_cell(&cell, track, title, cx),
             TrackField::Artists => self.artist_cell(&cell, track, detail),
             TrackField::Album => self.album_cell(&cell, track, detail),
-            TrackField::AddedAt => cells::dim(
+            TrackField::AddedAt => cells::credited(
                 &cell,
-                track
-                    .added_at
-                    .and_then(|seconds| Timestamp::new(seconds, 0).ok())
-                    .map(|timestamp| {
-                        release_date_label(&timestamp.strftime("%Y-%m-%d").to_string())
-                    })
-                    .unwrap_or_default(),
+                track.added_by.as_deref(),
+                cells::stamp(track.added_at),
                 detail,
             ),
+            TrackField::AddedBy => match track.added_by.as_deref() {
+                Some(added) => cells::added_by(&cell, added, detail),
+                None => cells::blank(&cell),
+            },
             TrackField::Plays => cells::dim(
                 &cell,
                 track.playcount.map(cells::count).unwrap_or_default(),
@@ -494,6 +500,7 @@ mod fixture {
             cover: None,
             duration: Duration::from_secs(seconds),
             added_at: None,
+            added_by: None,
             playcount: None,
             popularity: 0,
             explicit,

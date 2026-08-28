@@ -7,6 +7,7 @@ use crate::models;
 
 pub const UNKNOWN: &str = "Unknown";
 const IMAGE_CDN: &str = "https://i.scdn.co/image/";
+const BLEND: &str = "blend";
 const BY_SIZE: [&str; 4] = ["xlarge", "large", "default", "small"];
 
 pub fn image_url(file_id: &[u8]) -> Option<String> {
@@ -19,6 +20,17 @@ pub fn image_url(file_id: &[u8]) -> Option<String> {
         hex
     });
     Some(format!("{IMAGE_CDN}{hex}"))
+}
+
+pub fn blend(attributes: &ListAttributes) -> bool {
+    if attributes.format().to_ascii_lowercase().contains(BLEND) {
+        return true;
+    }
+
+    attributes
+        .format_attributes
+        .iter()
+        .any(|attribute| attribute.key().to_ascii_lowercase().starts_with(BLEND))
 }
 
 fn playlist_cover(attributes: &ListAttributes) -> Option<String> {
@@ -71,8 +83,10 @@ pub fn playlist_from(id: &str, content: &RootList, username: &str) -> models::Pl
         id: id.to_owned(),
         name: name.to_owned(),
         owner: owner.to_owned(),
+        owner_id: content.owner_username().to_owned(),
         owned: owner == username,
         collaborative: content.attributes.collaborative(),
+        blend: blend(&content.attributes),
         public: false,
         cover: playlist_cover(&content.attributes),
         track_count: content.length().max(0) as u32,
@@ -105,8 +119,13 @@ pub fn playlists_from(rootlist: &RootList) -> Vec<models::Playlist> {
                 id: id.to_owned(),
                 name: name.to_owned(),
                 owner: owner.to_owned(),
+                owner_id: meta
+                    .map(|meta| meta.owner_username())
+                    .unwrap_or_default()
+                    .to_owned(),
                 owned: false,
                 collaborative: meta.is_some_and(|meta| meta.attributes.collaborative()),
+                blend: meta.is_some_and(|meta| blend(&meta.attributes)),
                 public: item.attributes.public(),
                 cover: meta.and_then(|meta| playlist_cover(&meta.attributes)),
                 track_count: meta.map(|meta| meta.length()).unwrap_or_default().max(0) as u32,

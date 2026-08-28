@@ -263,8 +263,10 @@ fn item(item: Item) -> Option<GenreItem> {
                 .and_then(|owner| owner.data)
                 .map(|data| data.name)
                 .unwrap_or_default(),
+            owner_id: String::new(),
             owned: false,
             collaborative: false,
+            blend: false,
             public: true,
             cover: playlist.images.items.first().and_then(image),
             track_count: 0,

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use gpui::{Context, Entity, Task};
 use i18n::t;
-use music::{Album, AlbumDetail, ArtistRef, Playlist, PlaylistDetail, Track};
+use music::{Album, AlbumDetail, ArtistRef, Contributor, Playlist, PlaylistDetail, Track};
 
 use crate::{Io, Library, LibraryEvent, Session, SessionEvent, join, mosaic};
 
@@ -22,6 +22,7 @@ pub struct Header {
     pub title: String,
     pub artist: Option<String>,
     pub artist_refs: Vec<ArtistRef>,
+    pub owner: Option<Contributor>,
     pub release_date: Option<String>,
     pub meta: Vec<String>,
     pub cover: Option<String>,
@@ -364,6 +365,7 @@ fn album_header(album: &Album) -> Header {
         title: album.name.clone(),
         artist: Some(album.artists.clone()),
         artist_refs: album.artist_refs.clone(),
+        owner: None,
         release_date: match album.release_date.is_empty() {
             true => (album.year > 0).then(|| album.year.to_string()),
             false => Some(album.release_date.clone()),
@@ -374,7 +376,18 @@ fn album_header(album: &Album) -> Header {
 }
 
 fn playlist_header(playlist: &Playlist) -> Header {
-    let mut parts = vec![playlist.owner.clone()];
+    let owner = match playlist.owner_id.is_empty() {
+        true => None,
+        false => Some(Contributor {
+            id: playlist.owner_id.clone(),
+            name: playlist.owner.clone(),
+            avatar: None,
+        }),
+    };
+    let mut parts = match owner.is_some() {
+        true => Vec::new(),
+        false => vec![playlist.owner.clone()],
+    };
     if playlist.track_count > 0 {
         parts.push(t!("count-songs", count = playlist.track_count).to_string());
     }
@@ -384,6 +397,7 @@ fn playlist_header(playlist: &Playlist) -> Header {
         title: playlist.name.clone(),
         artist: None,
         artist_refs: Vec::new(),
+        owner,
         release_date: None,
         meta: parts,
         cover: playlist.cover.clone(),

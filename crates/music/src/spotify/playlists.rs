@@ -1,4 +1,5 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 use anyhow::{Context as _, Result, anyhow};
 use http::Method;
@@ -11,8 +12,8 @@ use librespot_protocol::playlist4_external::{
 use protobuf::{Message as _, MessageField};
 use tokio::task::JoinSet;
 
-use crate::spotify::{collection, wire};
-use crate::{GenreItem, GenreSection, Playlist, PlaylistDetail, Track};
+use crate::spotify::{collection, profiles, wire};
+use crate::{Contributor, GenreItem, GenreSection, Playlist, PlaylistDetail, Track};
 
 const TRACK_PREFIX: &str = "spotify:track:";
 const PLAYLIST_PREFIX: &str = "spotify:playlist:";
@@ -129,9 +130,35 @@ pub async fn remove_track(session: &Session, playlist_id: &str, track_id: &str) 
 pub async fn playlist(session: &Session, playlist_id: &str) -> Result<PlaylistDetail> {
     let content = snapshot(session, playlist_id).await?;
     let playlist = wire::playlist_from(playlist_id, &content, &session.username());
-    let tracks = tracks_from(session, &content).await?;
+    let mut tracks = tracks_from(session, &content).await?;
+    credit(session, &playlist, &mut tracks).await;
 
     Ok(PlaylistDetail { playlist, tracks })
+}
+
+async fn credit(session: &Session, playlist: &Playlist, tracks: &mut [Track]) {
+    let ids: HashSet<String> = tracks
+        .iter()
+        .filter_map(|track| track.added_by.as_ref())
+        .map(|added| added.id.clone())
+        .collect();
+
+    if ids.len() < 2 && !playlist.blend {
+        for track in tracks.iter_mut() {
+            track.added_by = None;
+        }
+        return;
+    }
+
+    let known = profiles::contributors(session, ids).await;
+    for track in tracks {
+        let Some(added) = track.added_by.as_mut() else {
+            continue;
+        };
+        if let Some(found) = known.get(&added.id) {
+            *added = Arc::new(found.clone());
+        }
+    }
 }
 
 pub async fn header(session: &Session, playlist_id: &str) -> Result<Playlist> {
@@ -222,7 +249,7 @@ pub async fn covers(session: &Session, playlist_id: &str, wanted: usize) -> Resu
 }
 
 async fn tracks_from(session: &Session, content: &SelectedListContent) -> Result<Vec<Track>> {
-    let added: Vec<(String, Option<i64>)> = content
+    let added: Vec<(String, Option<i64>, Option<String>)> = content
         .contents
         .items
         .iter()
@@ -231,6 +258,7 @@ async fn tracks_from(session: &Session, content: &SelectedListContent) -> Result
             (
                 item.uri().to_owned(),
                 wire::seconds(item.attributes.timestamp()),
+                contributor(item),
             )
         })
         .collect();
@@ -238,16 +266,22 @@ async fn tracks_from(session: &Session, content: &SelectedListContent) -> Result
         return Ok(Vec::new());
     }
 
-    let uris: Vec<String> = added.iter().map(|(uri, _)| uri.clone()).collect();
+    let uris: Vec<String> = added.iter().map(|(uri, _, _)| uri.clone()).collect();
     let known = collection::metadata(session, &uris).await?;
     Ok(added
         .iter()
-        .filter_map(|(uri, added_at)| {
+        .filter_map(|(uri, added_at, added_by)| {
             let mut track = known.get(uri).cloned()?;
             track.added_at = *added_at;
+            track.added_by = added_by.clone().map(Contributor::unnamed).map(Arc::new);
             Some(track)
         })
         .collect())
+}
+
+fn contributor(item: &Item) -> Option<String> {
+    let added_by = profiles::username(item.attributes.added_by());
+    (!added_by.is_empty()).then_some(added_by)
 }
 
 pub async fn modified(session: &Session, ids: Vec<String>) -> HashMap<String, i64> {

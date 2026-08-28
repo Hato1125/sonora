@@ -706,6 +706,7 @@ mod tests {
             cover: None,
             duration: Duration::ZERO,
             added_at: None,
+            added_by: None,
             playcount: None,
             popularity: 0,
             explicit: false,
