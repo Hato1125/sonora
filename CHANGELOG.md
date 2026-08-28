@@ -7,12 +7,36 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Spotify listeners now have a page of their own, with their avatar, display name, follower and
+  following counts and public playlists. Open it from a playlist owner, from the person who added a
+  track, or from a `spotify:user:` link.
+
+### Changed
+
+- Lyrics are set three pixels larger on the fullscreen now playing screen. The lyrics panel beside
+  the app is unchanged.
+
 ### Fixed
 
+- A Blend lists who added each track in place of the date, which moves every day and says little.
+  Other playlists with more than one contributor keep the date and put that person's avatar next to
+  it, and a playlist you built alone looks exactly as it did.
+- Imported songs no longer offer Add to playlist. A local file cannot go into a Spotify playlist,
+  so the action never did anything.
+- The left sidebar scrollbar is easier to hit. Its resize edge starts a few pixels further in, so
+  dragging the scrollbar scrolls the list instead of resizing the panel.
 - The typeface picker opens at once on a machine with many fonts installed: it previews only the
   names in view, a few families per frame, rather than loading every one up front.
 - Enter picks the highlighted typeface, and filtering the list moves the highlight to the first
   match instead of leaving it on a row that is no longer there.
+- On Windows, dragging Sonora to a screen edge snaps it, hovering the maximize button opens Snap
+  Layouts, and clicking its taskbar icon minimizes the window.
+- On Windows, a maximized Sonora no longer runs under the taskbar, so nothing is cut off at the
+  bottom of the screen.
+- The Windows installer offers to create a desktop shortcut with the box already ticked. Untick it
+  before installing to go without.
 
 ## [0.23.0] - 2026-08-28
 

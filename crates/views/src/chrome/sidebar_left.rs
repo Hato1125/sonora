@@ -416,6 +416,7 @@ impl Render for SidebarLeft {
         let panel = Panel::new("sidebar-left", Side::Left, self.width)
             .limits(MIN_WIDTH, MAX_WIDTH)
             .reach(self.ceiling(window, cx))
+            .clears_scrollbar()
             .on_resize(cx.listener(|this, width: &Pixels, _, cx| {
                 this.width = *width;
                 this.persist(cx);

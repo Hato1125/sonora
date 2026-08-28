@@ -19,6 +19,7 @@ pub(super) fn compare(tracks: &[Track], field: TrackField, a: usize, b: usize) -
             .get(a)
             .and_then(|track| track.added_at)
             .cmp(&tracks.get(b).and_then(|track| track.added_at)),
+        TrackField::AddedBy => folded(contributor),
         TrackField::Plays => tracks
             .get(a)
             .and_then(|track| track.playcount)
@@ -38,8 +39,17 @@ pub(super) fn group(tracks: &[Track], field: TrackField, row: usize) -> Option<S
         TrackField::Title => Some(initial(&track.name)),
         TrackField::Artists => Some(initial(&track.artists)),
         TrackField::Album => Some(initial(&track.album)),
+        TrackField::AddedBy => Some(initial(contributor(track))),
         _ => None,
     }
+}
+
+fn contributor(track: &Track) -> &str {
+    track
+        .added_by
+        .as_ref()
+        .map(|added| added.name.as_str())
+        .unwrap_or_default()
 }
 
 pub(crate) fn initial(text: &str) -> SharedString {
@@ -57,6 +67,8 @@ pub(super) fn hits(track: &Track, query: &str) -> bool {
 
     [&track.name, &track.artists, &track.album]
         .into_iter()
+        .map(String::as_str)
+        .chain(std::iter::once(contributor(track)))
         .any(|field| holds(field, query))
 }
 

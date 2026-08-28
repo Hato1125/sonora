@@ -257,6 +257,7 @@ mod tests {
             cover: None,
             duration: Duration::from_secs(180),
             added_at: None,
+            added_by: None,
             playcount: None,
             popularity: 0,
             explicit: false,

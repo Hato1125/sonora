@@ -58,6 +58,7 @@ column-title = Назва
 column-artist = Виконавець
 column-album = Альбом
 column-date-added = Дата додавання
+column-added-by = Додав
 column-modified = Змінено
 column-length = Тривалість
 column-plays = Прослуховування
@@ -211,6 +212,21 @@ artist-filter-all = Усі
 artist-filter-albums = Альбоми
 artist-filter-singles = Сингли
 artist-filter-eps = EP
+
+# user profile page
+user-eyebrow = Профіль
+user-followers = { $count ->
+    [one] { $value } підписник
+    [few] { $value } підписники
+   *[other] { $value } підписників
+}
+user-following = { $count ->
+    [one] { $value } підписка
+    [few] { $value } підписки
+   *[other] { $value } підписок
+}
+user-playlists = Публічні плейлісти
+user-playlists-empty = Поки немає публічних плейлістів
 
 # release kinds
 release-album = Альбом

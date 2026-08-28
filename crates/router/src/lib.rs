@@ -96,6 +96,7 @@ pub enum Destination {
     Song(SharedString),
     Playlist(SharedString),
     Artist(SharedString),
+    User(SharedString),
     Genre(SharedString),
     Search,
     Settings(SettingsTab),

@@ -102,6 +102,7 @@ impl ItemMenu {
         cx: &App,
     ) -> Menu {
         let library = Sonora::global(cx).library.clone();
+        let local = track.id.as_deref().is_some_and(music::is_local_id);
         let playlists = match library.read(cx).state() {
             LibraryState::Ready { playlists, .. } => playlists
                 .iter()
@@ -307,15 +308,19 @@ impl ItemMenu {
                 .disabled(),
         };
 
+        let add_to_playlist = (!local).then(|| {
+            MenuItem::new("add-to-playlist", t!("menu-add-to-playlist"))
+                .icon("icons/list-plus.svg")
+                .submenu(playlist_menu, self.playlist_submenu.clone())
+        });
+
         sections(
             Menu::new("track-context-menu").relative().w(gpui::px(210.)),
             vec![
-                vec![
-                    MenuItem::new("add-to-playlist", t!("menu-add-to-playlist"))
-                        .icon("icons/list-plus.svg")
-                        .submenu(playlist_menu, self.playlist_submenu.clone()),
-                    library_action.unwrap_or(toggle_library),
-                ],
+                add_to_playlist
+                    .into_iter()
+                    .chain([library_action.unwrap_or(toggle_library)])
+                    .collect(),
                 vec![next, queue, radio],
                 album.into_iter().chain(artist).collect(),
                 vec![details, copy],

@@ -7,8 +7,8 @@ use input::{
 };
 use router::{Destination, LibraryTab, NavigationEvent, SettingsTab, back, forward, navigate};
 use state::{
-    ArtistDetail, Detail, GenreDetails, Genres, Home, Io, Library, Playback, Queue, SYSTEM_FONT,
-    Search, Session, SessionState, SideTab, SongDetail, Sonora,
+    ArtistDetail, Detail, GenreDetails, Genres, Home, Io, Library, Playback, Profile, Queue,
+    SYSTEM_FONT, Search, Session, SessionState, SideTab, SongDetail, Sonora,
 };
 use ui::{ActiveTheme as _, Dismiss, Look, Theme, ThemeKind};
 
@@ -19,7 +19,7 @@ use crate::shells::Shell;
 use crate::shells::workspace::Workspace;
 use crate::{
     Adaptive, ArtistView, DetailView, FullscreenView, GenreView, HomeView, LibraryView, LocalView,
-    LoginView, SettingsView, SongView,
+    LoginView, SettingsView, SongView, UserView,
 };
 
 struct Screens {
@@ -32,6 +32,8 @@ struct Screens {
     album_detail: Option<Entity<Detail>>,
     song: Entity<SongView>,
     song_detail: Entity<SongDetail>,
+    user: Entity<UserView>,
+    user_profile: Entity<Profile>,
     playlist: Option<Entity<DetailView>>,
     playlist_detail: Option<Entity<Detail>>,
     search: Entity<SearchView>,
@@ -128,6 +130,9 @@ impl Root {
         let song_detail = cx.new(|cx| SongDetail::new(session.clone(), io.clone(), cx));
         let song = cx.new(|cx| SongView::new(song_detail.clone(), playback.clone(), cx));
 
+        let user_profile = cx.new(|cx| Profile::new(session.clone(), io.clone(), cx));
+        let user = cx.new(|cx| UserView::new(user_profile.clone(), playback.clone(), cx));
+
         let start = navigation.read(cx).current();
         let workspace = cx.new(|cx| {
             Workspace::new(
@@ -201,6 +206,8 @@ impl Root {
                 album_detail: None,
                 song,
                 song_detail,
+                user,
+                user_profile,
                 playlist: None,
                 playlist_detail: None,
                 search,
@@ -422,6 +429,12 @@ impl Root {
                 detail.update(cx, |detail, cx| detail.open_playlist(&id, cx));
                 toolbar = Some(playlist.read(cx).toolbar());
                 playlist.into()
+            }
+            Destination::User(id) => {
+                self.screens
+                    .user_profile
+                    .update(cx, |profile, cx| profile.open(&id, cx));
+                self.screens.user.clone().into()
             }
             Destination::Artist(id) => {
                 let (artist, detail) = self.artist(cx);

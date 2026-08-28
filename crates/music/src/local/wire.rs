@@ -107,6 +107,7 @@ pub fn track_from_file(
         cover,
         duration,
         added_at: None,
+        added_by: None,
         playcount: None,
         popularity: 0,
         explicit: false,

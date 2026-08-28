@@ -349,18 +349,13 @@ impl FullscreenView {
                             )
                             .child(title),
                     )
-                    .child(match hide < 1. {
-                        true => div()
+                    .child(
+                        div()
                             .flex()
                             .flex_none()
                             .opacity(1. - hide)
-                            .child(like(track.clone(), cx))
-                            .into_any_element(),
-                        false => div()
-                            .w(theme.metrics.control_small)
-                            .flex_none()
-                            .into_any_element(),
-                    }),
+                            .child(like(track.clone(), cx)),
+                    ),
             )
             .when_some(track, |this, track| {
                 this.child(
@@ -446,15 +441,13 @@ impl FullscreenView {
                                     )
                                     .child(title),
                             )
-                            .when(hide < 1., |this| {
-                                this.child(
-                                    div()
-                                        .flex()
-                                        .flex_none()
-                                        .opacity(1. - hide)
-                                        .child(like(track.clone(), cx)),
-                                )
-                            }),
+                            .child(
+                                div()
+                                    .flex()
+                                    .flex_none()
+                                    .opacity(1. - hide)
+                                    .child(like(track.clone(), cx)),
+                            ),
                     )
                     .when_some(track, |this, track| {
                         this.child(

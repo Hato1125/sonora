@@ -18,7 +18,7 @@ type ContextMenu = Rc<dyn Fn(Album, Point<Pixels>, &mut App)>;
 pub(crate) struct CardLayout {
     pub(crate) columns: usize,
     pub(crate) card: Pixels,
-    gap: Pixels,
+    pub(crate) gap: Pixels,
 }
 
 impl CardLayout {

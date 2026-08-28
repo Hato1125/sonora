@@ -12,11 +12,14 @@ pub(crate) enum TrackField {
     Artists,
     Album,
     AddedAt,
+    AddedBy,
     Plays,
     Duration,
 }
 
 const LENGTH: Pixels = px(84.);
+const CREDITED: Pixels = px(144.);
+const CONTRIBUTOR: Pixels = px(168.);
 const ALBUM_LENGTH: Pixels = px(120.);
 const ALBUM_PLAYS: Pixels = px(108.);
 
@@ -62,6 +65,20 @@ const ADDED_AT: ColumnSpec<TrackField> = ColumnSpec {
     ..COLUMN
 };
 
+const ADDED_BY: ColumnSpec<TrackField> = ColumnSpec {
+    field: TrackField::AddedBy,
+    key: "added-by",
+    header: "column-added-by",
+    width: Width::Fixed(CONTRIBUTOR),
+    rank: NICE,
+    ..COLUMN
+};
+
+const CREDITED_AT: ColumnSpec<TrackField> = ColumnSpec {
+    width: Width::Fixed(CREDITED),
+    ..ADDED_AT
+};
+
 const PLAYS: ColumnSpec<TrackField> = ColumnSpec {
     field: TrackField::Plays,
     key: "plays",
@@ -104,6 +121,12 @@ const ALBUM_DURATION: ColumnSpec<TrackField> = ColumnSpec {
 pub(crate) const LIBRARY_COLUMNS: &[ColumnSpec<TrackField>] =
     &[INDEX, COVER, TITLE, ARTISTS, ALBUM, ADDED_AT, DURATION];
 
+pub(crate) const PLAYLIST_COLUMNS_SHARED: &[ColumnSpec<TrackField>] =
+    &[INDEX, COVER, TITLE, ARTISTS, ALBUM, CREDITED_AT, DURATION];
+
+pub(crate) const PLAYLIST_COLUMNS_BLEND: &[ColumnSpec<TrackField>] =
+    &[INDEX, COVER, TITLE, ARTISTS, ALBUM, ADDED_BY, DURATION];
+
 pub(crate) const ARTIST_COLUMNS: &[ColumnSpec<TrackField>] = &[
     INDEX,
     COVER,
@@ -133,6 +156,14 @@ pub(crate) const ALBUM_COLUMNS: &[ColumnSpec<TrackField>] = &[
 
 pub(crate) const ALBUM_COLUMNS_LEAN: &[ColumnSpec<TrackField>] =
     &[INDEX, ALBUM_TITLE, ALBUM_ARTISTS, ALBUM_DURATION];
+
+pub(crate) fn playlist_columns(blend: bool, shared: bool) -> &'static [ColumnSpec<TrackField>] {
+    match (blend, shared) {
+        (true, _) => PLAYLIST_COLUMNS_BLEND,
+        (false, true) => PLAYLIST_COLUMNS_SHARED,
+        (false, false) => LIBRARY_COLUMNS,
+    }
+}
 
 pub(crate) fn artist_columns(playcounts: bool) -> &'static [ColumnSpec<TrackField>] {
     match playcounts {

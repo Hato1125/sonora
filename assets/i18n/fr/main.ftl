@@ -58,6 +58,7 @@ column-title = Titre
 column-artist = Artiste
 column-album = Album
 column-date-added = Date d'ajout
+column-added-by = Ajouté par
 column-modified = Modifié
 column-length = Durée
 column-plays = Écoutes
@@ -210,6 +211,19 @@ artist-filter-all = Toutes
 artist-filter-albums = Albums
 artist-filter-singles = Singles
 artist-filter-eps = EP
+
+# user profile page
+user-eyebrow = Profil
+user-followers = { $count ->
+    [one] { $value } abonné
+   *[other] { $value } abonnés
+}
+user-following = { $count ->
+    [one] { $value } abonnement
+   *[other] { $value } abonnements
+}
+user-playlists = Playlists publiques
+user-playlists-empty = Aucune playlist publique pour le moment
 
 # release kinds
 release-album = Album

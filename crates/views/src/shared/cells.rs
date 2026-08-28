@@ -4,11 +4,11 @@ use std::time::Duration;
 
 use gpui::prelude::*;
 use gpui::{
-    AnyElement, App, Context, Div, Entity, Hsla, MouseButton, Pixels, SharedString, Task, Window,
-    div, px, svg,
+    AnyElement, App, Context, Div, Entity, Hsla, MouseButton, Pixels, SharedString, Stateful, Task,
+    Window, div, px, svg,
 };
 use i18n::t;
-use music::ArtistRef;
+use music::{ArtistRef, Contributor};
 use router::{Destination, Link as _, navigate};
 use state::{Playback, PlaybackState};
 use ui::{
@@ -24,6 +24,7 @@ const PLAYING: &str = "icons/music-2.svg";
 const PAUSE: &str = "icons/pause.svg";
 const UNAVAILABLE: &str = "icons/play-off.svg";
 const HOVER_PRELOAD_DELAY: Duration = Duration::from_millis(200);
+const PERSON: &str = "icons/user.svg";
 
 pub(crate) type Tap = Box<dyn Fn(&mut App)>;
 
@@ -32,6 +33,7 @@ pub(crate) const TRAILING: Pixels = px(72.);
 pub(crate) const DATE: Pixels = px(112.);
 pub(crate) const YEAR: Pixels = px(64.);
 pub(crate) const HIT: Pixels = px(18.);
+pub(crate) const FACE: Pixels = px(20.);
 
 pub(crate) fn glyph(theme: &Theme) -> Pixels {
     px((theme.metrics.row / px(1.) * 0.23).round())
@@ -354,6 +356,57 @@ pub(crate) fn artwork<F>(cell: &Cell<F>, url: Option<String>) -> AnyElement {
 
 pub(crate) fn avatar<F>(cell: &Cell<F>, url: Option<String>) -> AnyElement {
     cell.middle().child(Face { url }).into_any_element()
+}
+
+fn portrait(added: &Contributor, row: usize) -> Stateful<Div> {
+    div()
+        .id(("added-face", row))
+        .flex_none()
+        .cursor_pointer()
+        .link(Destination::User(added.id.clone().into()))
+        .child(
+            Artwork::new(added.avatar.clone())
+                .circle()
+                .size(FACE)
+                .fallback(PERSON),
+        )
+}
+
+pub(crate) fn added_by<F>(cell: &Cell<F>, added: &Contributor, color: Hsla) -> AnyElement {
+    line(cell, Some(color))
+        .flex()
+        .items_center()
+        .gap_2()
+        .child(portrait(added, cell.row))
+        .child(
+            div()
+                .id(("added-name", cell.row))
+                .min_w_0()
+                .truncate()
+                .hover(|style| style.underline())
+                .link(Destination::User(added.id.clone().into()))
+                .child(SharedString::from(added.name.clone())),
+        )
+        .into_any_element()
+}
+
+pub(crate) fn credited<F>(
+    cell: &Cell<F>,
+    added: Option<&Contributor>,
+    value: impl Into<SharedString>,
+    color: Hsla,
+) -> AnyElement {
+    let Some(added) = added else {
+        return dim(cell, value, color);
+    };
+
+    line(cell, Some(color))
+        .flex()
+        .items_center()
+        .gap_2()
+        .child(portrait(added, cell.row))
+        .child(div().min_w_0().truncate().child(value.into()))
+        .into_any_element()
 }
 
 pub(crate) fn blank<F>(cell: &Cell<F>) -> AnyElement {
