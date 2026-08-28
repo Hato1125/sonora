@@ -24,6 +24,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Switches appear already on or off when a screen opens, instead of sliding into place after it.
 - With the theme set to System, Sonora no longer opens as a light window and fades into the dark
   palette. It remembers what the system last reported and starts there.
+- On macOS the lyrics sheet showed only the lines around the one being sung. The rows it blurs
+  above and below render again.
 
 ## [0.22.0] - 2026-08-28
 
