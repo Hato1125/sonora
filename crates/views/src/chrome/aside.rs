@@ -40,6 +40,7 @@ const PAST: f32 = 0.4;
 const AHEAD: f32 = 0.6;
 const REVEAL: f32 = 0.6;
 const ACTIVE_VERSE_GROWTH: Pixels = px(2.);
+const FULLSCREEN_VERSE_GROWTH: Pixels = px(3.);
 const LYRICS_HORIZONTAL_INSET_REM: f32 = 1.5;
 const PINNED_SHARE: f32 = 0.25;
 const PIN: f32 = 0.3;
@@ -978,7 +979,7 @@ impl Aside {
 
         let verse = match self.titled {
             true => theme.text(Text::Large),
-            false => theme.text(Text::Title),
+            false => theme.text(Text::Title) + FULLSCREEN_VERSE_GROWTH,
         };
         let reach = verse * REACH;
         let wrap_size = active_verse_size(verse);
