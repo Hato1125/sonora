@@ -3172,7 +3172,7 @@ dependencies = [
 
 [[package]]
 name = "i18n"
-version = "0.22.0"
+version = "0.23.0"
 dependencies = [
  "fluent-bundle",
  "gpui",
@@ -3383,7 +3383,7 @@ dependencies = [
 
 [[package]]
 name = "input"
-version = "0.22.0"
+version = "0.23.0"
 dependencies = [
  "gpui",
  "ui",
@@ -4217,7 +4217,7 @@ dependencies = [
 
 [[package]]
 name = "music"
-version = "0.22.0"
+version = "0.23.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6053,7 +6053,7 @@ dependencies = [
 
 [[package]]
 name = "router"
-version = "0.22.0"
+version = "0.23.0"
 dependencies = [
  "gpui",
  "ui",
@@ -6799,7 +6799,7 @@ dependencies = [
 
 [[package]]
 name = "sonora"
-version = "0.22.0"
+version = "0.23.0"
 dependencies = [
  "anyhow",
  "dirs",
@@ -6929,7 +6929,7 @@ dependencies = [
 
 [[package]]
 name = "state"
-version = "0.22.0"
+version = "0.23.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7950,7 +7950,7 @@ dependencies = [
 
 [[package]]
 name = "ui"
-version = "0.22.0"
+version = "0.23.0"
 dependencies = [
  "gpui",
  "i18n",
@@ -8275,7 +8275,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "views"
-version = "0.22.0"
+version = "0.23.0"
 dependencies = [
  "gpui",
  "i18n",

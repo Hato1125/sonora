@@ -7,6 +7,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-08-28
+
 ### Added
 
 - A battery saving setting under Appearance caps the frame rate of animations while Sonora is not
@@ -1037,7 +1039,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Initial release: a native Spotify client with playback, an interactive queue, the saved library,
 search, album, playlist, artist and song pages, context menus and adaptive theming.
 
-[unreleased]: https://github.com/nolight132/sonora/compare/v0.22.0...HEAD
+[unreleased]: https://github.com/nolight132/sonora/compare/v0.23.0...HEAD
+[0.23.0]: https://github.com/nolight132/sonora/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/nolight132/sonora/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/nolight132/sonora/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/nolight132/sonora/compare/v0.19.1...v0.20.0
