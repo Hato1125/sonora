@@ -6,12 +6,13 @@ use i18n::t;
 use music::Track;
 use state::{History, HistoryState, Playback};
 use ui::{
-    ActiveTheme as _, GridDelegate, GridEvent, GridState, Scrollbar, Scroller, Table as _, grid,
-    vacant,
+    ActiveTheme as _, GridDelegate, GridEvent, GridState, Scrollbar, Scroller, Table as _, clock,
+    grid, vacant,
 };
 
 use crate::chrome::{Searchable, Toolbar, Tooled};
 use crate::shared::cells;
+use crate::shared::hero::{HeroMetaStrip, PageHero};
 use crate::shared::page;
 use crate::shared::tracks::{HISTORY_COLUMNS, TrackSource, Tracks};
 
@@ -101,6 +102,27 @@ impl HistoryView {
             _ => Some(t!("history-empty")),
         }
     }
+
+    fn header(&self, cx: &Context<Self>) -> AnyElement {
+        let (count, duration) = {
+            let history = self.history.read(cx);
+            let tracks = history.tracks();
+            let duration: std::time::Duration = tracks.iter().map(|track| track.duration).sum();
+            (tracks.len(), duration)
+        };
+        let mut strip = HeroMetaStrip::new().text(t!("count-songs", count = count));
+        if !duration.is_zero() {
+            strip = strip.text(clock(duration));
+        }
+
+        PageHero::new("history-hero", t!("nav-history"))
+            .fallback("icons/rotate-ccw-clock.svg")
+            .accent()
+            .eyebrow(t!("detail-playlist"))
+            .meta(strip)
+            .actions(div().h(cx.theme().metrics.control))
+            .into_any_element()
+    }
 }
 
 impl Render for HistoryView {
@@ -121,6 +143,7 @@ impl Render for HistoryView {
         let page = Scroller::new("history-page", &self.scrollbar)
             .pt(inset)
             .pb(inset)
+            .child(div().px(inset).child(self.header(cx)))
             .child(grid(&self.table))
             .when_some(note, |this, note| this.child(vacant(note, cx)));
 
