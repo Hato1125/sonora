@@ -7,6 +7,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-08-28
+
 ### Added
 
 - Escape closes any open menu, not only the ones that hold a text field. It watches keystrokes
@@ -15,6 +17,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The sign-in screen gives each service its own tab instead of standing them side by side, and
+  guest sign-in is one button underneath rather than a row of them.
+- The lyrics sheet travels on a spring, overshooting a little and settling, where it used to ease to
+  a stop. The rows still trail behind it one at a time.
+- On Windows the frame no longer carries the system window buttons, leaving only the ones Sonora
+  draws.
 - Context menu entries that queue something now read "Add to queue" instead of naming the album or
   the artist a second time. The row you right-clicked already says what it is.
 - The queue writes "from" in lower case beside Now playing.
@@ -37,6 +45,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   outer wrapper places it.
 - YouTube Music plays on an account without Premium again. Sonora asks for the guest audio streams
   rather than the ones such an account cannot be handed.
+- Seeking far into a track scrolls the lyrics to the new verse. The sheet went blank for a moment and
+  then dropped the verses in from off screen, because it moved to the destination at once and only
+  presented the journey.
+- A verse no longer loses its lower half while the sheet is in motion. Rows were drawn where they had
+  been laid out and shifted afterwards, so whatever reached past the edge of the panel was cut away
+  before it moved.
+- A line keeps the colour it already had while it hands over to the next one. It used to flash white
+  first, which was wrong for lines lit word by word and for anything on screen while paused.
+- A wrapped lyric line no longer starts its second row with a space.
 
 ## [0.21.0] - 2026-08-27
 
@@ -1000,7 +1017,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Initial release: a native Spotify client with playback, an interactive queue, the saved library,
 search, album, playlist, artist and song pages, context menus and adaptive theming.
 
-[unreleased]: https://github.com/nolight132/sonora/compare/v0.21.0...HEAD
+[unreleased]: https://github.com/nolight132/sonora/compare/v0.22.0...HEAD
+[0.22.0]: https://github.com/nolight132/sonora/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/nolight132/sonora/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/nolight132/sonora/compare/v0.19.1...v0.20.0
 [0.19.1]: https://github.com/nolight132/sonora/compare/v0.19.0...v0.19.1
