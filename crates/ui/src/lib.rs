@@ -31,7 +31,6 @@ mod scrubber;
 mod separator;
 mod shield;
 mod skeleton;
-mod slip;
 mod switch;
 mod tabs;
 mod theme;
@@ -85,7 +84,6 @@ pub use scrubber::{Scrubber, ScrubberState};
 pub use separator::Separator;
 pub use shield::Shield;
 pub use skeleton::{Initials, Skeleton};
-pub use slip::slip;
 pub use switch::Switch;
 pub use tabs::{TabBar, Tabs};
 pub use theme::{
