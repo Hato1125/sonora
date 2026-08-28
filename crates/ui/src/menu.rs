@@ -10,7 +10,7 @@ use gpui::{
 };
 
 use crate::Artwork;
-use crate::metrics::{LEADING, Text, snapped};
+use crate::metrics::snapped;
 use crate::scrollbar::Scrollbar;
 use crate::separator::Separator;
 use crate::shield::Shield;
@@ -493,10 +493,7 @@ impl RenderOnce for Menu {
                         .child(
                             div()
                                 .truncate()
-                                .when_some(face, |this, family| {
-                                    this.font(gpui::font(family))
-                                        .line_height(theme.text(Text::Body) * LEADING)
-                                })
+                                .when_some(face, |this, family| this.font(gpui::font(family)))
                                 .child(label),
                         ),
                 )
