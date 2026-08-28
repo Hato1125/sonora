@@ -323,6 +323,16 @@ count-songs =
     }
 
 # dates
+date-just-now = Przed chwilą
+date-minute-ago = Minutę temu
+date-minutes-ago =
+    { $count ->
+        [one] { $count } minutę temu
+        [few] { $count } minuty temu
+       *[other] { $count } minut temu
+    }
+date-today = Dzisiaj o { $time }
+date-yesterday = Wczoraj o { $time }
 date-time = { $date }, { $time }
 date-full = { $day } { $month } { $year }
 month-1 = sty

@@ -323,6 +323,16 @@ count-songs =
     }
 
 # dates
+date-just-now = Щойно
+date-minute-ago = Хвилину тому
+date-minutes-ago =
+    { $count ->
+        [one] { $count } хвилину тому
+        [few] { $count } хвилини тому
+       *[other] { $count } хвилин тому
+    }
+date-today = Сьогодні о { $time }
+date-yesterday = Вчора о { $time }
 date-time = { $date }, { $time }
 date-full = { $day } { $month } { $year }
 month-1 = січ.

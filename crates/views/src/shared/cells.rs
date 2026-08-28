@@ -301,16 +301,30 @@ pub(crate) fn stamp(seconds: Option<i64>) -> SharedString {
         .unwrap_or_default()
 }
 
-pub(crate) fn local_stamp(seconds: Option<i64>) -> SharedString {
-    seconds
-        .and_then(|seconds| jiff::Timestamp::new(seconds, 0).ok())
-        .map(|stamp| {
-            let local = stamp.to_zoned(jiff::tz::TimeZone::system());
-            let date = release_date_label(&local.strftime("%Y-%m-%d").to_string());
-            let time = local.strftime("%H:%M").to_string();
+pub(crate) fn relative_stamp(seconds: Option<i64>) -> SharedString {
+    let Some(stamp) = seconds.and_then(|seconds| jiff::Timestamp::new(seconds, 0).ok()) else {
+        return SharedString::default();
+    };
+    let zone = jiff::tz::TimeZone::system();
+    let now = jiff::Timestamp::now();
+    let played = stamp.to_zoned(zone.clone());
+    let today = now.to_zoned(zone).date();
+    let minutes = (now.as_second() - stamp.as_second()) / 60;
+    let time = played.strftime("%H:%M").to_string();
+
+    match (minutes, played.date()) {
+        (..=0, _) => t!("date-just-now"),
+        (1, _) => t!("date-minute-ago"),
+        (..=59, _) => t!("date-minutes-ago", count = minutes),
+        (_, day) if day == today => t!("date-today", time = &time),
+        (_, day) if today.yesterday().is_ok_and(|past| past == day) => {
+            t!("date-yesterday", time = &time)
+        }
+        _ => {
+            let date = release_date_label(&played.strftime("%Y-%m-%d").to_string());
             t!("date-time", date = &date, time = &time)
-        })
-        .unwrap_or_default()
+        }
+    }
 }
 
 pub(crate) fn count(value: u64) -> SharedString {

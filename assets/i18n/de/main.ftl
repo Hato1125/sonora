@@ -317,6 +317,11 @@ count-songs =
     }
 
 # dates
+date-just-now = Gerade eben
+date-minute-ago = Vor einer Minute
+date-minutes-ago = Vor { $count } Minuten
+date-today = Heute um { $time }
+date-yesterday = Gestern um { $time }
 date-time = { $date }, { $time }
 date-full = { $day }. { $month } { $year }
 month-1 = Jan.

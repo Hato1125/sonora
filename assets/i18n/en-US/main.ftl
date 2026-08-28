@@ -317,6 +317,11 @@ count-songs =
     }
 
 # dates
+date-just-now = Just now
+date-minute-ago = A minute ago
+date-minutes-ago = { $count } minutes ago
+date-today = Today at { $time }
+date-yesterday = Yesterday at { $time }
 date-time = { $date }, { $time }
 date-full = { $month } { $day }, { $year }
 month-1 = Jan
