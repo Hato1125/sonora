@@ -13,6 +13,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the focused window: light, medium or strong, for 90, 60 or 30 frames a second. It is off by
   default, and a change applies from the next launch.
 
+### Changed
+
+- The karaoke sweep advances on a clock of its own instead of following the display refresh rate,
+  so a fast panel no longer spends frames on it, and battery saving paces it too while Sonora is in
+  the background.
+
 ### Fixed
 
 - Switches appear already on or off when a screen opens, instead of sliding into place after it.

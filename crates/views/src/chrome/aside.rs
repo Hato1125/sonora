@@ -471,11 +471,16 @@ impl Aside {
         cx.notify();
     }
 
-    fn sweep_karaoke(&mut self, cx: &mut Context<Self>) {
+    fn sweep_karaoke(&mut self, window: &Window, cx: &mut Context<Self>) {
         if self.sweeping.is_some() {
             return;
         }
-        let wait = KARAOKE_FRAME.saturating_sub(self.swept_frame.elapsed());
+        let saved = match window.is_window_active() {
+            true => None,
+            false => self.settings.read(cx).saver().interval(),
+        };
+        let interval = KARAOKE_FRAME.max(saved.unwrap_or_default());
+        let wait = interval.saturating_sub(self.swept_frame.elapsed());
         self.sweeping = Some(cx.spawn(async move |this, cx| {
             cx.background_executor().timer(wait).await;
             this.update(cx, |this, cx| {
@@ -1008,7 +1013,7 @@ impl Aside {
                     && karaoke_effects
                     && active_line.is_some_and(|index| lines[index].worded())
                 {
-                    self.sweep_karaoke(cx);
+                    self.sweep_karaoke(window, cx);
                 }
                 if self.previous_active_line != active_line {
                     if self.previous_active_line.is_some() {
