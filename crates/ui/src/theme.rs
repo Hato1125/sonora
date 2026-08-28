@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::{Duration, Instant};
 
 use gpui::{App, Global, Hsla, Pixels, Rgba, SharedString, Task, WindowAppearance, px, rgb, rgba};
@@ -100,12 +101,41 @@ impl ThemeKind {
 
     pub fn resolved(self, cx: &App) -> Self {
         match self {
-            Self::System => match cx.window_appearance() {
-                WindowAppearance::Light | WindowAppearance::VibrantLight => Self::Light,
-                WindowAppearance::Dark | WindowAppearance::VibrantDark => Self::Dark,
-            },
+            Self::System => assumed().unwrap_or_else(|| Self::reported(cx)),
             kind => kind,
         }
+    }
+
+    pub fn reported(cx: &App) -> Self {
+        match cx.window_appearance() {
+            WindowAppearance::Light | WindowAppearance::VibrantLight => Self::Light,
+            WindowAppearance::Dark | WindowAppearance::VibrantDark => Self::Dark,
+        }
+    }
+
+    // what system means meanwhile
+    pub fn assume(kind: Self) {
+        ASSUMED.store(
+            match kind {
+                Self::Light => 1,
+                _ => 2,
+            },
+            Ordering::Relaxed,
+        );
+    }
+
+    pub fn assumed() -> Option<Self> {
+        assumed()
+    }
+}
+
+static ASSUMED: AtomicU8 = AtomicU8::new(0);
+
+fn assumed() -> Option<ThemeKind> {
+    match ASSUMED.load(Ordering::Relaxed) {
+        1 => Some(ThemeKind::Light),
+        2 => Some(ThemeKind::Dark),
+        _ => None,
     }
 }
 
