@@ -12,8 +12,8 @@ use input::{ToggleFullscreen, WORKSPACE_CONTEXT};
 use router::{Destination, navigate};
 use state::{Cover, Playback, Queue, SideTab, Sonora};
 use ui::{
-    ActiveTheme as _, Artwork, Button, InlineLink, InlineLinks, Motion, Motioned as _, Popup, Room,
-    Scrollbar, Scrubber, ScrubberState, Text, clock, snapped,
+    ActiveTheme as _, Artwork, Button, ExplicitBadge, InlineLink, InlineLinks, Motion,
+    Motioned as _, Popup, Room, Scrollbar, Scrubber, ScrubberState, Text, clock, snapped,
 };
 
 use crate::chrome::{Aside, TitleBarOptions};
@@ -306,6 +306,7 @@ impl FullscreenView {
             None => t!("player-nothing-playing"),
         };
         let album = track.as_ref().and_then(|track| track.album_id.clone());
+        let explicit = track.as_ref().is_some_and(|track| track.explicit);
         let held = track.clone();
 
         div()
@@ -323,6 +324,7 @@ impl FullscreenView {
                     .gap_2()
                     .w_full()
                     .min_w_0()
+                    .when(explicit, |this| this.child(div().size_4().flex_none()))
                     .child(div().w(theme.metrics.control_small).flex_none())
                     .child(
                         div()
@@ -349,18 +351,16 @@ impl FullscreenView {
                             )
                             .child(title),
                     )
-                    .child(match hide < 1. {
-                        true => div()
+                    .when(explicit, |this| {
+                        this.child(div().flex_none().child(ExplicitBadge::new()))
+                    })
+                    .child(
+                        div()
                             .flex()
                             .flex_none()
                             .opacity(1. - hide)
-                            .child(like(track.clone(), cx))
-                            .into_any_element(),
-                        false => div()
-                            .w(theme.metrics.control_small)
-                            .flex_none()
-                            .into_any_element(),
-                    }),
+                            .child(like(track.clone(), cx)),
+                    ),
             )
             .when_some(track, |this, track| {
                 this.child(
@@ -390,6 +390,7 @@ impl FullscreenView {
             None => t!("player-nothing-playing"),
         };
         let album = track.as_ref().and_then(|track| track.album_id.clone());
+        let explicit = track.as_ref().is_some_and(|track| track.explicit);
         let held = track.clone();
 
         div()
@@ -446,15 +447,16 @@ impl FullscreenView {
                                     )
                                     .child(title),
                             )
-                            .when(hide < 1., |this| {
-                                this.child(
-                                    div()
-                                        .flex()
-                                        .flex_none()
-                                        .opacity(1. - hide)
-                                        .child(like(track.clone(), cx)),
-                                )
-                            }),
+                            .when(explicit, |this| {
+                                this.child(div().flex_none().child(ExplicitBadge::new()))
+                            })
+                            .child(
+                                div()
+                                    .flex()
+                                    .flex_none()
+                                    .opacity(1. - hide)
+                                    .child(like(track.clone(), cx)),
+                            ),
                     )
                     .when_some(track, |this, track| {
                         this.child(

@@ -13,17 +13,17 @@ use gpui::{
     AnyElement, App, Entity, Hsla, InteractiveElement as _, IntoElement as _, SharedString,
     Styled as _, WeakEntity,
 };
-use jiff::Timestamp;
 use music::Track;
 use router::Destination;
-use state::{Detail, Library, Origin, Playback, PlaybackState, Sonora};
+use state::{Detail, History, Library, Origin, Playback, PlaybackState, Sonora};
 use ui::{Button, Cell, ColumnSpec, GridSource, GridState, Menu, Pin, ROW_GROUP, Scrollbar, clock};
 
 use crate::shared::cells;
-use crate::shared::hero::release_date_label;
 use crate::shared::pins::Pinned as _;
 
-pub(crate) use columns::{LIBRARY_COLUMNS, TrackField, album_columns, artist_columns};
+pub(crate) use columns::{
+    HISTORY_COLUMNS, LIBRARY_COLUMNS, TrackField, album_columns, artist_columns, playlist_columns,
+};
 pub(crate) use sieve::TrackSieve;
 pub(crate) use sort::initial;
 
@@ -88,6 +88,7 @@ pub(crate) struct TrackSource {
     is_liked: Option<Entity<Library>>,
     album: Option<Entity<Detail>>,
     playlist: Option<Entity<Detail>>,
+    history: Option<Entity<History>>,
     menu: ItemMenu,
     table: Option<WeakEntity<GridState<TrackSource>>>,
     sieve: TrackSieve,
@@ -114,11 +115,18 @@ impl TrackSource {
             is_liked: None,
             album: None,
             playlist: None,
+            history: None,
             menu: ItemMenu::new(playlist_scrollbar),
             table: None,
             sieve: TrackSieve::default(),
             spread: RefCell::new(None),
         }
+    }
+
+    pub(crate) fn set_columns(&mut self, columns: &'static [ColumnSpec<TrackField>]) -> bool {
+        let changed = !std::ptr::eq(self.columns.as_ptr(), columns.as_ptr());
+        self.columns = columns;
+        changed
     }
 
     pub(crate) fn sieve(&self) -> TrackSieve {
@@ -188,6 +196,11 @@ impl TrackSource {
         self
     }
 
+    pub(crate) fn with_history(mut self, history: Entity<History>) -> Self {
+        self.history = Some(history);
+        self
+    }
+
     fn artist_cell(&self, cell: &Cell<TrackField>, track: &Track, color: Hsla) -> AnyElement {
         cells::artists(
             cell,
@@ -212,7 +225,7 @@ impl TrackSource {
     }
 
     fn index_cell(&self, cell: &Cell<TrackField>, track: &Track, cx: &App) -> AnyElement {
-        let state = self.now_playing(track, cx);
+        let state = self.now_playing(cell.row, cx);
         let (preload, press) = match track.playable {
             false => (None, None),
             true => {
@@ -327,10 +340,18 @@ impl TrackSource {
         )
     }
 
-    fn now_playing(&self, track: &Track, cx: &App) -> Option<PlaybackState> {
+    pub(crate) fn now_playing(&self, row: usize, cx: &App) -> Option<PlaybackState> {
         let playback = self.playback.read(cx);
-        let current = playback.track()?;
-        (current.id.is_some() && current.id == track.id).then(|| playback.state().clone())
+        let current = playback.track()?.id.as_deref()?;
+        let tracks = self.provider.tracks(cx);
+        if tracks.get(row)?.id.as_deref() != Some(current) {
+            return None;
+        }
+        let sole = tracks
+            .iter()
+            .position(|track| track.id.as_deref() == Some(current))?;
+
+        (sole == row).then(|| playback.state().clone())
     }
 
     pub(crate) fn at(&self, row: usize, cx: &App) -> Option<Track> {
@@ -366,7 +387,10 @@ impl GridSource for TrackSource {
         match field {
             TrackField::Artists => tracks.iter().any(|track| !track.artists.is_empty()),
             TrackField::Album => tracks.iter().any(|track| !track.album.is_empty()),
-            TrackField::AddedAt => tracks.iter().any(|track| track.added_at.is_some()),
+            TrackField::AddedAt | TrackField::PlayedAt => {
+                tracks.iter().any(|track| track.added_at.is_some())
+            }
+            TrackField::AddedBy => tracks.iter().any(|track| track.added_by.is_some()),
             TrackField::Plays => tracks.iter().any(|track| track.playcount.is_some()),
             _ => true,
         }
@@ -386,10 +410,7 @@ impl GridSource for TrackSource {
     }
 
     fn playing(&self, row: usize, cx: &App) -> bool {
-        self.provider
-            .tracks(cx)
-            .get(row)
-            .is_some_and(|track| self.now_playing(track, cx).is_some())
+        self.now_playing(row, cx).is_some()
     }
 
     fn is_loading(&self, cx: &App) -> bool {
@@ -421,17 +442,19 @@ impl GridSource for TrackSource {
             TrackField::Title => self.title_cell(&cell, track, title, cx),
             TrackField::Artists => self.artist_cell(&cell, track, detail),
             TrackField::Album => self.album_cell(&cell, track, detail),
-            TrackField::AddedAt => cells::dim(
+            TrackField::AddedAt => cells::credited(
                 &cell,
-                track
-                    .added_at
-                    .and_then(|seconds| Timestamp::new(seconds, 0).ok())
-                    .map(|timestamp| {
-                        release_date_label(&timestamp.strftime("%Y-%m-%d").to_string())
-                    })
-                    .unwrap_or_default(),
+                track.added_by.as_deref(),
+                cells::stamp(track.added_at),
                 detail,
             ),
+            TrackField::AddedBy => match track.added_by.as_deref() {
+                Some(added) => cells::added_by(&cell, added, detail),
+                None => cells::blank(&cell),
+            },
+            TrackField::PlayedAt => {
+                cells::dim(&cell, cells::relative_stamp(track.added_at), detail)
+            }
             TrackField::Plays => cells::dim(
                 &cell,
                 track.playcount.map(cells::count).unwrap_or_default(),
@@ -451,6 +474,12 @@ impl GridSource for TrackSource {
             },
             false => TrackColumns::default(),
         };
+        if let Some(history) = &self.history {
+            return Some(
+                self.menu
+                    .for_history_track(track, history.clone(), columns, cx),
+            );
+        }
         Some(match (&self.album, &self.playlist) {
             (Some(detail), _) => {
                 let id = detail.read(cx).id()?;
@@ -494,6 +523,7 @@ mod fixture {
             cover: None,
             duration: Duration::from_secs(seconds),
             added_at: None,
+            added_by: None,
             playcount: None,
             popularity: 0,
             explicit,

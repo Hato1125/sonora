@@ -248,6 +248,7 @@ fn track_from(track: PathTrack, album: &Album) -> Result<Track> {
         cover: album.cover.clone(),
         duration: Duration::from_millis(track.duration.milliseconds),
         added_at: None,
+        added_by: None,
         playcount,
         popularity: 0,
         explicit: track.content_rating.label == "EXPLICIT",

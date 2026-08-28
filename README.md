@@ -6,6 +6,7 @@
 [![License](https://img.shields.io/github/license/nolight132/sonora)](./COPYING)
 
 ### A native music streaming client, built with Rust and GPUI.
+
 Stream Spotify, YouTube Music, and local files all in one **native** app.
 </div>
 
@@ -33,6 +34,7 @@ Stream Spotify, YouTube Music, and local files all in one **native** app.
 </div>
 
 ## Features
+
 - **Spotify**, **YouTube**, and local playback.
 - Library management within supported providers.
 - Gapless playback.
@@ -51,6 +53,7 @@ Install with [Brew](https://brew.sh/).
 ```sh
 brew install --cask nolight132/tap/sonora
 ```
+
 After installing (thanks Apple):
 
 ```sh
@@ -72,6 +75,7 @@ yay -S sonora
 Flatpak coming soon.
 
 ### Nix
+
 Just use the flake in the project root.
 
 ```sh
@@ -98,14 +102,14 @@ partial translation is welcome — pick a language below and fill in what it lac
 
 <!-- i18n:start -->
 
-| Language | Translated | Coverage |
-| --- | --- | --- |
-| English (`en-US`) | 417/417 | 100% |
-| Deutsch (`de`) | 417/417 | 100% |
-| Français (`fr`) | 417/417 | 100% |
-| Русский (`ru`) | 417/417 | 100% |
-| Українська (`uk`) | 417/417 | 100% |
-| Polski (`pl`) | 417/417 | 100% |
+| Language          | Translated | Coverage |
+| ----------------- | ---------- | -------- |
+| English (`en-US`) | 433/433    | 100%     |
+| Deutsch (`de`)    | 433/433    | 100%     |
+| Français (`fr`)   | 433/433    | 100%     |
+| Русский (`ru`)    | 433/433    | 100%     |
+| Українська (`uk`) | 433/433    | 100%     |
+| Polski (`pl`)     | 433/433    | 100%     |
 
 <!-- i18n:end -->
 
@@ -113,14 +117,15 @@ To add a language, create `assets/i18n/<locale>/main.ftl` and register it in
 `crates/i18n/src/language.rs`. Regenerate the table with `scripts/i18n-coverage.py`.
 
 ## AI policy
-We have nothing against the usage of LLMs in the project — in fact, we use them ourselves. 
-We believe that AI can speed up development in a lot of meaningful ways and be a useful 
-tool for learning new concepts. We have also found it particularly helpful for 
-contributing to substantial codebases such as GPUI and librespot, where it has helped 
+
+We have nothing against the usage of LLMs in the project — in fact, we use them ourselves.
+We believe that AI can speed up development in a lot of meaningful ways and be a useful
+tool for learning new concepts. We have also found it particularly helpful for
+contributing to substantial codebases such as GPUI and librespot, where it has helped
 us quickly locate the relevant parts of the code.
 
-**However**, using AI cannot act as an excuse for failing to 
-understand, review, and test the changes proposed. Furthermore, we expect communication 
+**However**, using AI cannot act as an excuse for failing to
+understand, review, and test the changes proposed. Furthermore, we expect communication
 with a real person, not a computer. This includes but is not limited to PR/issue text
 generation, comments in discussions, etc. A summary of changes can be generated
 and does not need to be disclosed explicitly, but the reasoning and motivation

@@ -19,6 +19,7 @@ common-clear = Effacer
 number-group = { " " }
 
 # navigation
+nav-history = Historique
 nav-home = Accueil
 nav-search = Recherche
 nav-library = Ma bibliothèque
@@ -53,11 +54,13 @@ app-sign-out = Se déconnecter
 app-quit = Quitter
 
 # table columns
+column-played-at = Écouté
 column-index = #
 column-title = Titre
 column-artist = Artiste
 column-album = Album
 column-date-added = Date d'ajout
+column-added-by = Ajouté par
 column-modified = Modifié
 column-length = Durée
 column-plays = Écoutes
@@ -73,6 +76,7 @@ menu-no-playlists = Aucune playlist
 menu-add-to-library = Ajouter à la bibliothèque
 menu-remove-from-library = Retirer de la bibliothèque
 menu-remove-from-playlist = Retirer de la playlist
+menu-remove-from-history = Retirer de l’historique
 menu-play-next = Lire juste après
 menu-add-to-queue = Ajouter à la file d'attente
 menu-song-radio = Ouvrir la radio du titre
@@ -131,6 +135,12 @@ player-fullscreen-leave = Quitter le plein écran
 fullscreen-artwork = Pochette
 
 # filters
+filter-history = Filtrer l’historique d’écoute
+history-empty = Les titres écoutés apparaîtront ici.
+history-not-loaded = Impossible de charger l’historique d’écoute.
+history-clear = Effacer l’historique
+history-clear-title = Effacer l’historique d’écoute
+history-clear-confirm = Toutes les écoutes seront supprimées de cet appareil. Cette action est irréversible.
 filter-library = Filtrer la bibliothèque
 filter-album = Filtrer les titres de l'album
 filter-reset = Réinitialiser les filtres
@@ -210,6 +220,19 @@ artist-filter-all = Toutes
 artist-filter-albums = Albums
 artist-filter-singles = Singles
 artist-filter-eps = EP
+
+# user profile page
+user-eyebrow = Profil
+user-followers = { $count ->
+    [one] { $value } abonné
+   *[other] { $value } abonnés
+}
+user-following = { $count ->
+    [one] { $value } abonnement
+   *[other] { $value } abonnements
+}
+user-playlists = Playlists publiques
+user-playlists-empty = Aucune playlist publique pour le moment
 
 # release kinds
 release-album = Album
@@ -299,6 +322,12 @@ count-songs =
     }
 
 # dates
+date-just-now = À l'instant
+date-minute-ago = Il y a une minute
+date-minutes-ago = Il y a { $count } minutes
+date-today = Aujourd'hui à { $time }
+date-yesterday = Hier à { $time }
+date-time = { $date }, { $time }
 date-full = { $day } { $month } { $year }
 month-1 = janv.
 month-2 = févr.

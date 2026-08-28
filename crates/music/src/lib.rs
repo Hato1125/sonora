@@ -19,10 +19,10 @@ use anyhow::Result;
 use async_trait::async_trait;
 
 pub use models::{
-    Album, AlbumDetail, Artist, ArtistProfile, ArtistRef, Credit, Genre, GenreDetail, GenreItem,
-    GenreSection, Lyrics, LyricsHit, LyricsLane, LyricsLine, LyricsQuery, LyricsWord, Playlist,
-    PlaylistDetail, ReleaseType, RomanizedText, SavedArtist, Track, TrackKey, UserProfile, Voice,
-    WritingSystem,
+    Album, AlbumDetail, Artist, ArtistProfile, ArtistRef, Contributor, Credit, Genre, GenreDetail,
+    GenreItem, GenreSection, Lyrics, LyricsHit, LyricsLane, LyricsLine, LyricsQuery, LyricsWord,
+    Playlist, PlaylistDetail, ReleaseType, RomanizedText, SavedArtist, Track, TrackKey, UserDetail,
+    UserProfile, Voice, WritingSystem,
 };
 
 pub const LOCAL_TRACK_PREFIX: &str = "local:";
@@ -65,6 +65,11 @@ pub trait MusicApi: Send + Sync {
 
     fn share_url(&self, kind: MediaKind, id: &str) -> Option<String>;
     async fn profile(&self) -> Result<UserProfile>;
+
+    async fn user(&self, _user_id: &str) -> Result<UserDetail> {
+        anyhow::bail!("user profiles are not supported")
+    }
+
     async fn artist(&self, artist_id: &str) -> Result<Artist>;
     async fn artist_profile(&self, artist_id: &str) -> Result<ArtistProfile>;
     async fn artist_images(&self, ids: Vec<String>) -> Result<HashMap<String, String>>;

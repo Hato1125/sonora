@@ -21,6 +21,7 @@ pub enum LibraryTab {
 pub enum Screen {
     Home,
     Search,
+    History,
     Songs,
     Albums,
     Playlists,
@@ -29,7 +30,7 @@ pub enum Screen {
 }
 
 impl Screen {
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 8] = [
         Self::Home,
         Self::Search,
         Self::Songs,
@@ -37,12 +38,14 @@ impl Screen {
         Self::Artists,
         Self::Playlists,
         Self::Imported,
+        Self::History,
     ];
 
     pub fn id(self) -> &'static str {
         match self {
             Self::Home => "home",
             Self::Search => "search",
+            Self::History => "history",
             Self::Songs => "songs",
             Self::Albums => "albums",
             Self::Playlists => "playlists",
@@ -55,6 +58,7 @@ impl Screen {
         match self {
             Self::Home => "nav-home",
             Self::Search => "nav-search",
+            Self::History => "nav-history",
             Self::Songs => "nav-songs",
             Self::Albums => "nav-albums",
             Self::Playlists => "nav-playlists",
@@ -71,6 +75,7 @@ impl Screen {
         match self {
             Self::Home => Destination::Home,
             Self::Search => Destination::Search,
+            Self::History => Destination::History,
             Self::Songs => Destination::Library(LibraryTab::Songs),
             Self::Albums => Destination::Library(LibraryTab::Albums),
             Self::Playlists => Destination::Library(LibraryTab::Playlists),
@@ -91,11 +96,13 @@ pub enum SettingsTab {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Destination {
     Home,
+    History,
     Library(LibraryTab),
     Album(SharedString),
     Song(SharedString),
     Playlist(SharedString),
     Artist(SharedString),
+    User(SharedString),
     Genre(SharedString),
     Search,
     Settings(SettingsTab),

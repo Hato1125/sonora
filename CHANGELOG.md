@@ -7,6 +7,53 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-08-29
+
+### Added
+
+- Sonora keeps a listening history on this device: the last 500 tracks you played and when you
+  played them. Open it from the sidebar, play anything back from it, drop a single play from its
+  context menu, or clear the whole list.
+- The explicit badge sits next to the track title in the player bar and on the fullscreen now
+  playing screen, the same way it does in a table.
+- Spotify listeners now have a page of their own, with their avatar, display name, follower and
+  following counts and public playlists. Open it from a playlist owner, from the person who added a
+  track, or from a `spotify:user:` link.
+- A playlist on someone's profile answers a right click with the same menu as everywhere else.
+
+### Changed
+
+- The startup screen picker lists screens in sidebar order, with History at the end.
+- Lyrics are set three pixels larger on the fullscreen now playing screen. The lyrics panel beside
+  the app is unchanged.
+
+### Fixed
+
+- Autoplay of similar tracks is remembered between runs instead of turning itself off at every
+  start.
+- The fullscreen title holds still while the like button beside it fades in and out.
+- Blur is drawn cleanly across a wide surface, so a translucent background no longer smears at its
+  edges.
+- A song that appears more than once in a list no longer lights up every copy while it plays. Only
+  the first row is marked, and in the listening history that is the most recent play.
+- A Blend lists who added each track in place of the date, which moves every day and says little.
+  Other playlists with more than one contributor keep the date and put that person's avatar next to
+  it, and a playlist you built alone looks exactly as it did.
+- Imported songs no longer offer Add to playlist. A local file cannot go into a Spotify playlist,
+  so the action never did anything.
+- The left sidebar scrollbar is easier to hit. Its resize edge starts a few pixels further in, so
+  dragging the scrollbar scrolls the list instead of resizing the panel.
+- The typeface picker opens at once on a machine with many fonts installed: it previews only the
+  names in view, a few families per frame, rather than loading every one up front.
+- Enter picks the highlighted typeface, and filtering the list moves the highlight to the first
+  match instead of leaving it on a row that is no longer there.
+- On Windows, dragging Sonora to a screen edge snaps it, hovering the maximize button opens Snap
+  Layouts, and clicking its taskbar icon minimizes the window.
+- On Windows, a maximized Sonora no longer runs under the taskbar, so nothing is cut off at the
+  bottom of the screen.
+- The Windows installer offers to create a desktop shortcut with the box already ticked. Untick it
+  before installing to go without.
+
 ## [0.23.0] - 2026-08-28
 
 ### Added
@@ -1039,7 +1086,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Initial release: a native Spotify client with playback, an interactive queue, the saved library,
 search, album, playlist, artist and song pages, context menus and adaptive theming.
 
-[unreleased]: https://github.com/nolight132/sonora/compare/v0.23.0...HEAD
+[unreleased]: https://github.com/nolight132/sonora/compare/v0.24.0...HEAD
+[0.24.0]: https://github.com/nolight132/sonora/compare/v0.23.0...v0.24.0
 [0.23.0]: https://github.com/nolight132/sonora/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/nolight132/sonora/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/nolight132/sonora/compare/v0.20.0...v0.21.0

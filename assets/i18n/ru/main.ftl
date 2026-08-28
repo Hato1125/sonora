@@ -19,6 +19,7 @@ common-clear = Очистить
 number-group = { "\u00A0" }
 
 # navigation
+nav-history = История
 nav-home = Главная
 nav-search = Поиск
 nav-library = Моя медиатека
@@ -53,11 +54,13 @@ app-sign-out = Выйти
 app-quit = Выход
 
 # table columns
+column-played-at = Прослушано
 column-index = #
 column-title = Название
 column-artist = Исполнитель
 column-album = Альбом
 column-date-added = Дата добавления
+column-added-by = Добавил
 column-modified = Изменён
 column-length = Длительность
 column-plays = Прослушивания
@@ -73,6 +76,7 @@ menu-no-playlists = Нет плейлистов
 menu-add-to-library = Добавить в медиатеку
 menu-remove-from-library = Удалить из медиатеки
 menu-remove-from-playlist = Удалить из плейлиста
+menu-remove-from-history = Удалить из истории
 menu-play-next = Воспроизвести следующим
 menu-add-to-queue = Добавить в очередь
 menu-song-radio = Радио по треку
@@ -131,6 +135,12 @@ player-fullscreen-leave = Выйти из полноэкранного режи�
 fullscreen-artwork = Обложка
 
 # filters
+filter-history = Фильтр истории прослушиваний
+history-empty = Прослушанные треки появятся здесь.
+history-not-loaded = Не удалось загрузить историю прослушиваний.
+history-clear = Очистить историю
+history-clear-title = Очистить историю прослушиваний
+history-clear-confirm = Все прослушивания будут удалены с этого устройства. Отменить это нельзя.
 filter-library = Фильтр медиатеки
 filter-album = Фильтр треков альбома
 filter-reset = Сбросить фильтры
@@ -211,6 +221,21 @@ artist-filter-all = Все
 artist-filter-albums = Альбомы
 artist-filter-singles = Синглы
 artist-filter-eps = EP
+
+# user profile page
+user-eyebrow = Профиль
+user-followers = { $count ->
+    [one] { $value } подписчик
+    [few] { $value } подписчика
+   *[other] { $value } подписчиков
+}
+user-following = { $count ->
+    [one] { $value } подписка
+    [few] { $value } подписки
+   *[other] { $value } подписок
+}
+user-playlists = Публичные плейлисты
+user-playlists-empty = Пока нет публичных плейлистов
 
 # release kinds
 release-album = Альбом
@@ -302,6 +327,17 @@ count-songs =
     }
 
 # dates
+date-just-now = Только что
+date-minute-ago = Минуту назад
+date-minutes-ago =
+    { $count ->
+        [one] { $count } минуту назад
+        [few] { $count } минуты назад
+       *[other] { $count } минут назад
+    }
+date-today = Сегодня в { $time }
+date-yesterday = Вчера в { $time }
+date-time = { $date }, { $time }
 date-full = { $day } { $month } { $year }
 month-1 = янв.
 month-2 = фев.

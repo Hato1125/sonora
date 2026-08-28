@@ -92,6 +92,7 @@ const ICONS: &[(&str, &[u8])] = icons![
     "user",
     "repeat",
     "repeat-one",
+    "rotate-ccw-clock",
     "settings",
     "shuffle",
     "skip-back",

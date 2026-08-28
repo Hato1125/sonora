@@ -164,7 +164,16 @@ impl GridSource for PlaylistSource {
                 theme.foreground,
                 Destination::Playlist(playlist.id.clone().into()),
             ),
-            PlaylistField::Owner => cells::dim(&cell, playlist.owner.clone(), muted),
+            PlaylistField::Owner => match playlist.owner_id.is_empty() {
+                true => cells::dim(&cell, playlist.owner.clone(), muted),
+                false => cells::link(
+                    &cell,
+                    "playlist-owner",
+                    playlist.owner.clone(),
+                    muted,
+                    Destination::User(playlist.owner_id.clone().into()),
+                ),
+            },
             PlaylistField::TrackCount => {
                 cells::dim(&cell, format!("{}", playlist.track_count), muted)
             }

@@ -2,7 +2,7 @@ use gpui::{App, ClipboardItem, Entity, Styled as _};
 use i18n::t;
 use music::{Album, MediaKind, Playlist, SavedArtist, Track};
 use router::{Destination, navigate};
-use state::{Detail, LibraryState, Origin, Playback, Sonora};
+use state::{Detail, History, LibraryState, Origin, Playback, Sonora};
 use ui::{Menu, MenuItem, Pin, PinKind, Scrollbar, SubmenuState};
 
 use crate::shared::playlist_editor::{Edit, PlaylistEditor};
@@ -56,11 +56,11 @@ impl ItemMenu {
     }
 
     pub fn for_track(&self, track: &Track, cx: &App) -> Menu {
-        self.build(track, None, None, TrackColumns::default(), cx)
+        self.build(track, None, None, None, TrackColumns::default(), cx)
     }
 
     pub fn for_table_track(&self, track: &Track, columns: TrackColumns, cx: &App) -> Menu {
-        self.build(track, None, None, columns, cx)
+        self.build(track, None, None, None, columns, cx)
     }
 
     pub fn for_album_track(
@@ -70,7 +70,7 @@ impl ItemMenu {
         columns: TrackColumns,
         cx: &App,
     ) -> Menu {
-        self.build(track, None, Some(album_id), columns, cx)
+        self.build(track, None, None, Some(album_id), columns, cx)
     }
 
     pub fn for_playlist_track(
@@ -90,18 +90,36 @@ impl ItemMenu {
                 .icon("icons/x.svg")
                 .disabled(),
         };
-        self.build(track, Some(remove), None, columns, cx)
+        self.build(track, Some(remove), None, None, columns, cx)
+    }
+
+    pub fn for_history_track(
+        &self,
+        track: &Track,
+        history: Entity<History>,
+        columns: TrackColumns,
+        cx: &App,
+    ) -> Menu {
+        let held = track.clone();
+        let forget = MenuItem::new("remove-from-history", t!("menu-remove-from-history"))
+            .icon("icons/trash-2.svg")
+            .on_click(move |_, _, cx| {
+                history.update(cx, |history, cx| history.remove(&held, cx));
+            });
+        self.build(track, None, Some(forget), None, columns, cx)
     }
 
     fn build(
         &self,
         track: &Track,
         library_action: Option<MenuItem>,
+        trailing: Option<MenuItem>,
         current_album: Option<&str>,
         columns: TrackColumns,
         cx: &App,
     ) -> Menu {
         let library = Sonora::global(cx).library.clone();
+        let local = track.id.as_deref().is_some_and(music::is_local_id);
         let playlists = match library.read(cx).state() {
             LibraryState::Ready { playlists, .. } => playlists
                 .iter()
@@ -307,18 +325,23 @@ impl ItemMenu {
                 .disabled(),
         };
 
+        let add_to_playlist = (!local).then(|| {
+            MenuItem::new("add-to-playlist", t!("menu-add-to-playlist"))
+                .icon("icons/list-plus.svg")
+                .submenu(playlist_menu, self.playlist_submenu.clone())
+        });
+
         sections(
             Menu::new("track-context-menu").relative().w(gpui::px(210.)),
             vec![
-                vec![
-                    MenuItem::new("add-to-playlist", t!("menu-add-to-playlist"))
-                        .icon("icons/list-plus.svg")
-                        .submenu(playlist_menu, self.playlist_submenu.clone()),
-                    library_action.unwrap_or(toggle_library),
-                ],
+                add_to_playlist
+                    .into_iter()
+                    .chain([library_action.unwrap_or(toggle_library)])
+                    .collect(),
                 vec![next, queue, radio],
                 album.into_iter().chain(artist).collect(),
                 vec![details, copy],
+                trailing.into_iter().collect(),
             ],
         )
     }

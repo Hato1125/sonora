@@ -229,7 +229,9 @@ fn playlist(hit: PlaylistHit, username: &str) -> Option<Playlist> {
             .as_ref()
             .is_some_and(|account| account.username == username),
         owner: owner.map(|account| account.name).unwrap_or_default(),
+        owner_id: String::new(),
         collaborative: false,
+        blend: false,
         public: true,
         cover: playlist
             .images

@@ -19,6 +19,7 @@ common-clear = Clear
 number-group = { "," }
 
 # navigation
+nav-history = History
 nav-home = Home
 nav-search = Search
 nav-library = Your Library
@@ -53,11 +54,13 @@ app-sign-out = Sign Out
 app-quit = Quit
 
 # table columns
+column-played-at = Played
 column-index = #
 column-title = Title
 column-artist = Artist
 column-album = Album
 column-date-added = Date added
+column-added-by = Added by
 column-modified = Modified
 column-length = Length
 column-plays = Plays
@@ -73,6 +76,7 @@ menu-no-playlists = No playlists
 menu-add-to-library = Add to Library
 menu-remove-from-library = Remove from Library
 menu-remove-from-playlist = Remove from playlist
+menu-remove-from-history = Remove from history
 menu-play-next = Play next
 menu-add-to-queue = Add to queue
 menu-song-radio = Go to song radio
@@ -131,6 +135,12 @@ player-fullscreen-leave = Leave fullscreen
 fullscreen-artwork = Artwork
 
 # filters
+filter-history = Filter listening history
+history-empty = Tracks you play will appear here.
+history-not-loaded = Listening history could not be loaded.
+history-clear = Clear history
+history-clear-title = Clear listening history
+history-clear-confirm = Every play is removed from this device. This cannot be undone.
 filter-library = Filter your library
 filter-album = Filter album tracks
 filter-reset = Reset filters
@@ -210,6 +220,18 @@ artist-filter-all = All
 artist-filter-albums = Albums
 artist-filter-singles = Singles
 artist-filter-eps = EPs
+
+# user profile page
+user-eyebrow = Profile
+user-followers = { $count ->
+    [one] { $value } follower
+   *[other] { $value } followers
+}
+user-following = { $count ->
+   *[other] { $value } following
+}
+user-playlists = Public playlists
+user-playlists-empty = No public playlists yet
 
 # release kinds
 release-album = Album
@@ -299,6 +321,12 @@ count-songs =
     }
 
 # dates
+date-just-now = Just now
+date-minute-ago = A minute ago
+date-minutes-ago = { $count } minutes ago
+date-today = Today at { $time }
+date-yesterday = Yesterday at { $time }
+date-time = { $date }, { $time }
 date-full = { $month } { $day }, { $year }
 month-1 = Jan
 month-2 = Feb

@@ -19,6 +19,7 @@ common-clear = Wyczyść
 number-group = { "\u00A0" }
 
 # navigation
+nav-history = Historia
 nav-home = Strona główna
 nav-search = Szukaj
 nav-library = Twoja biblioteka
@@ -53,11 +54,13 @@ app-sign-out = Wyloguj się
 app-quit = Zakończ
 
 # table columns
+column-played-at = Odtworzono
 column-index = #
 column-title = Tytuł
 column-artist = Wykonawca
 column-album = Album
 column-date-added = Data dodania
+column-added-by = Dodane przez
 column-modified = Zmodyfikowano
 column-length = Czas
 column-plays = Odtworzenia
@@ -73,6 +76,7 @@ menu-no-playlists = Brak playlist
 menu-add-to-library = Dodaj do biblioteki
 menu-remove-from-library = Usuń z biblioteki
 menu-remove-from-playlist = Usuń z playlisty
+menu-remove-from-history = Usuń z historii
 menu-play-next = Odtwórz jako następny
 menu-add-to-queue = Dodaj do kolejki
 menu-song-radio = Radio utworu
@@ -131,6 +135,12 @@ player-fullscreen-leave = Wyjdź z trybu pełnoekranowego
 fullscreen-artwork = Okładka
 
 # filters
+filter-history = Filtruj historię słuchania
+history-empty = Odtworzone utwory pojawią się tutaj.
+history-not-loaded = Nie udało się wczytać historii słuchania.
+history-clear = Wyczyść historię
+history-clear-title = Wyczyść historię słuchania
+history-clear-confirm = Wszystkie odtworzenia zostaną usunięte z tego urządzenia. Nie można tego cofnąć.
 filter-library = Filtruj bibliotekę
 filter-album = Filtruj utwory albumu
 filter-reset = Wyczyść filtry
@@ -211,6 +221,21 @@ artist-filter-all = Wszystkie
 artist-filter-albums = Albumy
 artist-filter-singles = Single
 artist-filter-eps = EP
+
+# user profile page
+user-eyebrow = Profil
+user-followers = { $count ->
+    [one] { $value } obserwujący
+    [few] { $value } obserwujących
+   *[other] { $value } obserwujących
+}
+user-following = { $count ->
+    [one] { $value } obserwowany
+    [few] { $value } obserwowanych
+   *[other] { $value } obserwowanych
+}
+user-playlists = Publiczne playlisty
+user-playlists-empty = Brak publicznych playlist
 
 # release kinds
 release-album = Album
@@ -302,6 +327,17 @@ count-songs =
     }
 
 # dates
+date-just-now = Przed chwilą
+date-minute-ago = Minutę temu
+date-minutes-ago =
+    { $count ->
+        [one] { $count } minutę temu
+        [few] { $count } minuty temu
+       *[other] { $count } minut temu
+    }
+date-today = Dzisiaj o { $time }
+date-yesterday = Wczoraj o { $time }
+date-time = { $date }, { $time }
 date-full = { $day } { $month } { $year }
 month-1 = sty
 month-2 = lut

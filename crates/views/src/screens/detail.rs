@@ -6,8 +6,11 @@ use gpui::{
 
 use i18n::t;
 use music::{Album, Playlist, Track};
+use router::{Destination, navigate};
 use state::{AppSettings, Collection, Detail, LibraryEvent, Origin, Playback, Sonora};
-use ui::{ActiveTheme as _, Button, Menu, Picker, Popovers, Popup, SortAxis};
+use ui::{
+    ActiveTheme as _, Button, InlineLink, InlineLinks, Menu, Picker, Popovers, Popup, SortAxis,
+};
 use ui::{
     ColumnSpec, FlagAxis, GridDelegate, GridEvent, GridState, MIN_CONTENT, Pin, PinKind, RangeAxis,
     Scrollbar, Scroller, Table as _, Toggle, Unit, clock, grid,
@@ -19,7 +22,7 @@ use crate::chrome::tools::{self, Sift, Sliders};
 use crate::chrome::{Chrome, Searchable, Toolbar, Tooled};
 use crate::shared::hero::{HeroMetaStrip, HeroPlayButton, PageHero, release_date_label};
 use crate::shared::tracks::{
-    PlaybackStatus, TrackField, TrackSieve, TrackSource, Tracks, playback_status,
+    PlaybackStatus, TrackField, TrackSieve, TrackSource, Tracks, playback_status, playlist_columns,
 };
 use crate::shared::{cells, page};
 
@@ -123,6 +126,7 @@ impl DetailView {
                 .scroll()
                 .set_offset(gpui::Point::default());
             this.restore_sorting(cx);
+            this.retune(cx);
             this.rebuild(cx);
             cx.notify();
         })
@@ -202,6 +206,23 @@ impl DetailView {
         }
     }
 
+    fn retune(&mut self, cx: &mut Context<Self>) {
+        if self.section != "playlist" {
+            return;
+        }
+
+        let detail = self.detail.read(cx);
+        let blend = detail.playlist().is_some_and(|list| list.blend);
+        let shared = detail.tracks().iter().any(|track| track.added_by.is_some());
+        let columns = playlist_columns(blend, shared);
+
+        self.table.update(cx, |table, cx| {
+            if table.delegate_mut().source_mut().set_columns(columns) {
+                table.rebuild(cx);
+            }
+        });
+    }
+
     fn rebuild(&mut self, cx: &mut Context<Self>) {
         self.table.update(cx, |table, cx| {
             table.delegate_mut().clear_selection();
@@ -252,6 +273,7 @@ impl DetailView {
         let artist_refs = header
             .map(|header| header.artist_refs.clone())
             .unwrap_or_default();
+        let owner = header.and_then(|header| header.owner.clone());
         let release_date = header.and_then(|header| header.release_date.as_deref());
         let meta = header.map(|header| header.meta.clone()).unwrap_or_default();
         let listed = self.detail.read(cx).tracks();
@@ -269,6 +291,18 @@ impl DetailView {
                 artist,
                 muted,
             ));
+        }
+        if let Some(owner) = owner {
+            strip = strip.item(
+                InlineLinks::new(
+                    SharedString::new_static("detail-owner"),
+                    [InlineLink::new(owner.name.clone(), Some(owner.id.into()))],
+                    owner.name,
+                    muted,
+                )
+                .on_click(|id, cx| navigate(Destination::User(id), cx))
+                .truncate(),
+            );
         }
         if let Some(release_date) = release_date {
             strip = strip.text(release_date_label(release_date));

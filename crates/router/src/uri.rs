@@ -16,8 +16,11 @@ fn from_uri(rest: &str) -> Option<Destination> {
     let mut parts = rest.split(':');
     match parts.next()? {
         "user" => {
-            parts.next()?;
-            route(parts.next()?, parts.next()?)
+            let user = parts.next()?;
+            match (parts.next(), parts.next()) {
+                (Some(kind), Some(id)) => route(kind, id),
+                _ => route("user", user),
+            }
         }
         kind => route(kind, parts.next()?),
     }
@@ -46,6 +49,7 @@ fn route(kind: &str, id: &str) -> Option<Destination> {
         "album" => Some(Destination::Album(id.to_owned().into())),
         "playlist" => Some(Destination::Playlist(id.to_owned().into())),
         "artist" => Some(Destination::Artist(id.to_owned().into())),
+        "user" => Some(Destination::User(id.to_owned().into())),
         _ => None,
     }
 }

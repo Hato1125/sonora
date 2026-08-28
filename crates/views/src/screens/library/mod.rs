@@ -685,11 +685,12 @@ impl LibraryView {
         let playable = track.playable;
         let pressed = (self.tracks.clone(), self.playback.clone());
         let played = pressed.clone();
-        let current = self.playback.read(cx);
-        let state = current
-            .track()
-            .filter(|playing| playing.id.is_some() && playing.id == track.id)
-            .map(|_| current.state().clone());
+        let state = self
+            .tracks
+            .read(cx)
+            .delegate()
+            .source()
+            .now_playing(row, cx);
         let playing = matches!(state, Some(PlaybackState::Playing));
         let artists = cells::artist_links(
             SharedString::from(format!("library-track-artist-{display}")),
