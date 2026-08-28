@@ -9,17 +9,27 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Sonora keeps a listening history on this device: the last 500 tracks you played and when you
+  played them. Open it from the sidebar, play anything back from it, drop a single play from its
+  context menu, or clear the whole list.
+- The explicit badge sits next to the track title in the player bar and on the fullscreen now
+  playing screen, the same way it does in a table.
 - Spotify listeners now have a page of their own, with their avatar, display name, follower and
   following counts and public playlists. Open it from a playlist owner, from the person who added a
   track, or from a `spotify:user:` link.
 
 ### Changed
 
+- The startup screen picker lists screens in sidebar order, with History at the end.
 - Lyrics are set three pixels larger on the fullscreen now playing screen. The lyrics panel beside
   the app is unchanged.
 
 ### Fixed
 
+- Autoplay of similar tracks is remembered between runs instead of turning itself off at every
+  start.
+- A song that appears more than once in a list no longer lights up every copy while it plays. Only
+  the first row is marked, and in the listening history that is the most recent play.
 - A Blend lists who added each track in place of the date, which moves every day and says little.
   Other playlists with more than one contributor keep the date and put that person's avatar next to
   it, and a playlist you built alone looks exactly as it did.

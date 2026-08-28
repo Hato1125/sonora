@@ -18,12 +18,13 @@ use crate::shared::tracks::{LIBRARY_COLUMNS, album_columns};
 use crate::shells::Shell;
 use crate::shells::workspace::Workspace;
 use crate::{
-    Adaptive, ArtistView, DetailView, FullscreenView, GenreView, HomeView, LibraryView, LocalView,
-    LoginView, SettingsView, SongView, UserView,
+    Adaptive, ArtistView, DetailView, FullscreenView, GenreView, HistoryView, HomeView,
+    LibraryView, LocalView, LoginView, SettingsView, SongView, UserView,
 };
 
 struct Screens {
     home: Entity<HomeView>,
+    history: Entity<HistoryView>,
     library: Entity<LibraryView>,
     local: Entity<LocalView>,
     artist: Option<Entity<ArtistView>>,
@@ -118,6 +119,8 @@ impl Root {
         let io = Io::global(cx);
         let home_state = cx.new(|cx| Home::new(library.clone(), session.clone(), io.clone(), cx));
         let home = cx.new(|cx| HomeView::new(home_state, playback.clone(), cx));
+        let history = Sonora::global(cx).history.clone();
+        let history = cx.new(|cx| HistoryView::new(history, playback.clone(), window, cx));
 
         let search_library = library.clone();
 
@@ -198,6 +201,7 @@ impl Root {
             navigation_transition: None,
             screens: Screens {
                 home,
+                history,
                 library: library_view,
                 local: local_view,
                 artist: None,
@@ -399,6 +403,12 @@ impl Root {
         let content: AnyView = match destination {
             Destination::Fullscreen => return,
             Destination::Home => self.screens.home.clone().into(),
+            Destination::History => {
+                let history = self.screens.history.clone();
+                history.update(cx, |history, cx| history.refresh(cx));
+                toolbar = Some(history.read(cx).toolbar());
+                history.into()
+            }
             Destination::Library(LibraryTab::Local) => {
                 let local = self.screens.local.clone();
                 toolbar = Some(local.read(cx).toolbar());

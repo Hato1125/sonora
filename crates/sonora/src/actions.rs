@@ -1,6 +1,7 @@
 use gpui::{App, Menu, MenuItem};
 use i18n::t;
 use input::{Quit, RefreshLibrary, SignOut, TogglePlayback};
+use router::Destination;
 use state::Sonora;
 
 pub fn register(cx: &mut App) {
@@ -20,10 +21,18 @@ pub fn register(cx: &mut App) {
         session.update(cx, |session, cx| session.sign_out(cx));
     });
 
-    cx.on_action(|_: &RefreshLibrary, cx: &mut App| {
-        let library = Sonora::global(cx).library.clone();
-        library.update(cx, |library, cx| library.refresh(cx));
-    });
+    cx.on_action(
+        |_: &RefreshLibrary, cx: &mut App| match router::trail(cx).read(cx).current() {
+            Destination::History => {
+                let history = Sonora::global(cx).history.clone();
+                history.update(cx, |history, cx| history.refresh(cx));
+            }
+            _ => {
+                let library = Sonora::global(cx).library.clone();
+                library.update(cx, |library, cx| library.refresh(cx));
+            }
+        },
+    );
 
     cx.on_action(|_: &TogglePlayback, cx: &mut App| {
         let playback = Sonora::global(cx).playback.clone();

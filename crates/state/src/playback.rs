@@ -316,6 +316,7 @@ impl Playback {
         let normalisation = settings.read(cx).normalisation();
         let gapless = settings.read(cx).gapless();
         let repeat = settings.read(cx).repeat();
+        let radio = settings.read(cx).radio();
 
         Self {
             state: PlaybackState::Idle,
@@ -332,7 +333,7 @@ impl Playback {
             normalisation,
             gapless,
             repeat,
-            radio: false,
+            radio,
             seeded: None,
             task: None,
             local_task: None,
@@ -805,7 +806,10 @@ impl Playback {
 
     pub fn toggle_radio(&mut self, cx: &mut Context<Self>) {
         self.radio = !self.radio;
-        match self.radio {
+        let radio = self.radio;
+        self.settings
+            .update(cx, |settings, cx| settings.set_radio(radio, cx));
+        match radio {
             true => self.suggest_similar(cx),
             false => self.forget_similar(cx),
         }

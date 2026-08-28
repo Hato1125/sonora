@@ -8,6 +8,7 @@ pub use root::Root;
 use screens::artist::ArtistView;
 use screens::detail::DetailView;
 use screens::genre::GenreView;
+use screens::history::HistoryView;
 use screens::home::HomeView;
 pub use screens::library::LibraryView;
 use screens::library::LocalView;

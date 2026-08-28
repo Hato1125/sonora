@@ -37,7 +37,7 @@ impl Contributor {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ArtistRef {
     pub name: String,
     pub id: Option<String>,

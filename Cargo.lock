@@ -6943,6 +6943,7 @@ dependencies = [
  "moka",
  "music",
  "reqwest",
+ "rusqlite",
  "serde",
  "serde_json",
  "sha2",

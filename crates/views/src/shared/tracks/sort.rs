@@ -15,7 +15,7 @@ pub(super) fn compare(tracks: &[Track], field: TrackField, a: usize, b: usize) -
         TrackField::Title => folded(|track| &track.name),
         TrackField::Artists => folded(|track| &track.artists),
         TrackField::Album => folded(|track| &track.album),
-        TrackField::AddedAt => tracks
+        TrackField::AddedAt | TrackField::PlayedAt => tracks
             .get(a)
             .and_then(|track| track.added_at)
             .cmp(&tracks.get(b).and_then(|track| track.added_at)),

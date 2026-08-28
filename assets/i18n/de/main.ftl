@@ -19,6 +19,7 @@ common-clear = Leeren
 number-group = { "." }
 
 # navigation
+nav-history = Wiedergabeverlauf
 nav-home = Start
 nav-search = Suche
 nav-library = Deine Bibliothek
@@ -53,6 +54,7 @@ app-sign-out = Abmelden
 app-quit = Beenden
 
 # table columns
+column-played-at = Abgespielt
 column-index = #
 column-title = Titel
 column-artist = Künstler
@@ -74,6 +76,7 @@ menu-no-playlists = Keine Playlists
 menu-add-to-library = Zur Bibliothek hinzufügen
 menu-remove-from-library = Aus der Bibliothek entfernen
 menu-remove-from-playlist = Aus der Playlist entfernen
+menu-remove-from-history = Aus dem Verlauf entfernen
 menu-play-next = Als Nächstes spielen
 menu-add-to-queue = Zur Warteschlange hinzufügen
 menu-song-radio = Song-Radio öffnen
@@ -132,6 +135,12 @@ player-fullscreen-leave = Vollbild verlassen
 fullscreen-artwork = Cover
 
 # filters
+filter-history = Wiedergabeverlauf filtern
+history-empty = Abgespielte Titel erscheinen hier.
+history-not-loaded = Der Wiedergabeverlauf konnte nicht geladen werden.
+history-clear = Verlauf löschen
+history-clear-title = Wiedergabeverlauf löschen
+history-clear-confirm = Alle Wiedergaben werden von diesem Gerät entfernt. Das lässt sich nicht rückgängig machen.
 filter-library = Bibliothek filtern
 filter-album = Albumtitel filtern
 filter-reset = Filter zurücksetzen
@@ -312,6 +321,12 @@ count-songs =
     }
 
 # dates
+date-just-now = Gerade eben
+date-minute-ago = Vor einer Minute
+date-minutes-ago = Vor { $count } Minuten
+date-today = Heute um { $time }
+date-yesterday = Gestern um { $time }
+date-time = { $date }, { $time }
 date-full = { $day }. { $month } { $year }
 month-1 = Jan.
 month-2 = Feb.
