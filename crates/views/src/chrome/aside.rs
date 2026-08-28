@@ -2302,7 +2302,11 @@ fn evenly_filled(fragments: &[SharedString], spoken: &[usize]) -> Vec<bool> {
 }
 
 fn separable(left: &str, right: &str) -> bool {
-    if left.ends_with(char::is_whitespace) || right.starts_with(char::is_whitespace) {
+    // spacing ends a row
+    if right.starts_with(char::is_whitespace) {
+        return false;
+    }
+    if left.ends_with(char::is_whitespace) {
         return true;
     }
 
