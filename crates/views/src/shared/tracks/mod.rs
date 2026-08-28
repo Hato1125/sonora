@@ -440,7 +440,9 @@ impl GridSource for TrackSource {
                 Some(added) => cells::added_by(&cell, added, detail),
                 None => cells::blank(&cell),
             },
-            TrackField::PlayedAt => cells::dim(&cell, cells::local_stamp(track.added_at), detail),
+            TrackField::PlayedAt => {
+                cells::dim(&cell, cells::relative_stamp(track.added_at), detail)
+            }
             TrackField::Plays => cells::dim(
                 &cell,
                 track.playcount.map(cells::count).unwrap_or_default(),
