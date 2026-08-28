@@ -197,7 +197,6 @@ impl SearchView {
                 Card::new(("song", place), track.name.clone())
                     .cover(track.cover.clone())
                     .tint(tint)
-                    .underline()
                     .meta(meta)
                     .play(playing, move |_, _, cx| {
                         toggled

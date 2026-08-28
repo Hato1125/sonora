@@ -378,7 +378,7 @@ pub(crate) fn album_menu(
                     .on_click(move |_, _, cx| {
                         nexting.update(cx, |playback, cx| playback.play_album_next(&next, cx));
                     }),
-                MenuItem::new("enqueue-album", t!("menu-add-album-to-queue"))
+                MenuItem::new("enqueue-album", t!("menu-add-to-queue"))
                     .icon("icons/list-end.svg")
                     .on_click(move |_, _, cx| {
                         queueing.update(cx, |playback, cx| playback.enqueue_album(&queued, cx));
@@ -457,7 +457,7 @@ pub(crate) fn artist_menu(
                     .on_click(move |_, _, cx| {
                         nexting.update(cx, |playback, cx| playback.play_artist_next(&next, cx));
                     }),
-                MenuItem::new("enqueue-artist", t!("menu-add-artist-to-queue"))
+                MenuItem::new("enqueue-artist", t!("menu-add-to-queue"))
                     .icon("icons/list-end.svg")
                     .on_click(move |_, _, cx| {
                         queueing.update(cx, |playback, cx| playback.enqueue_artist(&queued, cx));
@@ -692,7 +692,7 @@ fn transport_items(pin: &Pin, playback: Entity<Playback>) -> Vec<MenuItem> {
                 .on_click(move |_, _, cx| {
                     nexting.update(cx, |playback, cx| playback.play_album_next(&next, cx));
                 }),
-            MenuItem::new("enqueue-pin", t!("menu-add-album-to-queue"))
+            MenuItem::new("enqueue-pin", t!("menu-add-to-queue"))
                 .icon("icons/list-end.svg")
                 .on_click(move |_, _, cx| {
                     queueing.update(cx, |playback, cx| playback.enqueue_album(&queued, cx));
@@ -726,7 +726,7 @@ fn transport_items(pin: &Pin, playback: Entity<Playback>) -> Vec<MenuItem> {
                 .on_click(move |_, _, cx| {
                     nexting.update(cx, |playback, cx| playback.play_artist_next(&next, cx));
                 }),
-            MenuItem::new("enqueue-pin", t!("menu-add-artist-to-queue"))
+            MenuItem::new("enqueue-pin", t!("menu-add-to-queue"))
                 .icon("icons/list-end.svg")
                 .on_click(move |_, _, cx| {
                     queueing.update(cx, |playback, cx| playback.enqueue_artist(&queued, cx));

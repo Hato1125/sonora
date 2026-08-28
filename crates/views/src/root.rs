@@ -518,7 +518,13 @@ impl Render for Root {
             None => {}
         }
 
-        let options = self.options(cx);
+        let options = match show_sign_in {
+            true => TitleBarOptions {
+                border: false,
+                ..TitleBarOptions::default()
+            },
+            false => self.options(cx),
+        };
         self.title_bar
             .update(cx, |bar, cx| bar.set_options(options, cx));
 
@@ -554,11 +560,12 @@ impl Render for Root {
             .on_action(
                 cx.listener(|this, _: &ToggleLyrics, _, cx| this.show_side(SideTab::Lyrics, cx)),
             )
+            .child(self.title_bar.clone())
             .when_else(
                 show_sign_in,
-                |this| this.child(self.login.clone()),
+                |this| this.child(div().flex().flex_1().min_h_0().child(self.login.clone())),
                 |this| {
-                    this.child(self.title_bar.clone()).child(match self.view {
+                    this.child(match self.view {
                         RootView::Workspace => self.shells.workspace.clone().into_any_element(),
                         RootView::Fullscreen => self.shells.fullscreen.clone().into_any_element(),
                     })

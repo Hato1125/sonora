@@ -9,11 +9,10 @@ use i18n::t;
 use music::{AccountChoice, SignIn, SignInPrompt};
 use state::{Session, SessionState};
 use ui::ActiveTheme as _;
-use ui::{Button, Input, Modal, Separator, Text};
+use ui::{Button, Input, Modal, TabBar, Text};
 
 const COLUMN: Pixels = px(280.);
 const LOGO: Pixels = px(48.);
-const RULE: Pixels = px(220.);
 
 struct Column {
     slug: &'static str,
@@ -27,6 +26,7 @@ pub struct LoginView {
     session: Entity<Session>,
     secret: Entity<Input>,
     browsers: Option<(&'static str, Vec<SharedString>)>,
+    tab: usize,
 }
 
 impl LoginView {
@@ -36,6 +36,7 @@ impl LoginView {
             session,
             secret: cx.new(|cx| Input::new("login-cookie-hint", cx)),
             browsers: None,
+            tab: 0,
         }
     }
 
@@ -213,54 +214,15 @@ impl LoginView {
             )
     }
 
-    fn guest_mode(
-        &self,
-        guests: Vec<(&'static str, &'static str)>,
-        pending: bool,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement {
-        let theme = *cx.theme();
-        let alone = guests.len() == 1;
-        let mut buttons = Vec::new();
-        for (slug, name) in guests {
-            let label = match alone {
-                true => t!("login-guest-use"),
-                false => t!("login-use", provider = name),
-            };
-            buttons.push(
-                Button::new(SharedString::from(format!("guest-{slug}")))
-                    .label(label)
-                    .outline()
-                    .disabled(pending)
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        this.start(slug, SignIn::Anonymous, cx);
-                    })),
-            );
-        }
-
-        div()
-            .flex()
-            .flex_col()
-            .items_center()
-            .gap_2()
-            .pt_4()
-            .border_t_1()
-            .border_color(theme.border)
-            .w(COLUMN * 2. + px(64.))
-            .child(
-                div()
-                    .font_weight(FontWeight::MEDIUM)
-                    .child(t!("login-guest-title")),
-            )
-            .child(
-                div()
-                    .max_w(px(420.))
-                    .text_center()
-                    .text_size(theme.text(Text::Small))
-                    .text_color(theme.muted_foreground)
-                    .child(t!("login-guest-detail")),
-            )
-            .child(div().flex().gap_2().children(buttons))
+    fn guest_mode(&self, slug: &'static str, pending: bool, cx: &mut Context<Self>) -> Button {
+        Button::new("guest-mode")
+            .label(t!("login-guest-title"))
+            .outline()
+            .w_full()
+            .disabled(pending)
+            .on_click(cx.listener(move |this, _, _, cx| {
+                this.start(slug, SignIn::Anonymous, cx);
+            }))
     }
 
     fn code_prompt(&self, code: String, url: String, cx: &mut Context<Self>) -> impl IntoElement {
@@ -356,15 +318,15 @@ impl Render for LoginView {
         let state = self.session.read(cx).state().clone();
         let pending = self.session.read(cx).is_pending();
         let providers: Vec<state::ProviderInfo> = self.session.read(cx).providers().collect();
-        let guests: Vec<(&'static str, &'static str)> = providers
+        let guest = providers
             .iter()
             .filter(|info| {
                 info.options
                     .iter()
                     .any(|option| matches!(option, SignIn::Anonymous))
             })
-            .map(|info| (info.slug, info.name))
-            .collect();
+            .map(|info| info.slug)
+            .next();
         let waiting = match &state {
             SessionState::Authorizing(prompt) => !matches!(
                 prompt,
@@ -372,16 +334,29 @@ impl Render for LoginView {
             ),
             _ => false,
         };
-        let columns: Vec<Column> = providers
-            .into_iter()
-            .map(|info| Column {
-                slug: info.slug,
-                name: info.name,
-                options: info.options,
-                disabled: pending,
-                cancel: waiting && info.pending,
+        let tabs = providers
+            .iter()
+            .enumerate()
+            .map(|(index, info)| {
+                Button::new(SharedString::from(format!("login-tab-{}", info.slug)))
+                    .label(SharedString::from(info.name))
+                    .small()
+                    .ghost()
+                    .selected(index == self.tab)
+                    .flex_1()
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.tab = index;
+                        cx.notify();
+                    }))
             })
-            .collect();
+            .collect::<Vec<_>>();
+        let column = providers.into_iter().nth(self.tab).map(|info| Column {
+            slug: info.slug,
+            name: info.name,
+            options: info.options,
+            disabled: pending,
+            cancel: waiting && info.pending,
+        });
 
         let failure = match &state {
             SessionState::Failed(failure) => Some(failure.clone()),
@@ -451,18 +426,25 @@ impl Render for LoginView {
             .when_some(code, |this, (code, url)| {
                 this.child(self.code_prompt(code, url, cx).into_any_element())
             })
-            .child(
-                div()
-                    .flex()
-                    .items_start()
-                    .justify_center()
-                    .gap_8()
-                    .children(interleave(columns, cx, |column, cx| {
-                        self.column(column, cx).into_any_element()
-                    })),
-            )
-            .when(!guests.is_empty(), |this| {
-                this.child(self.guest_mode(guests, pending, cx))
+            .child(TabBar::new().w(COLUMN).items(tabs))
+            .when_some(column, |this, column| this.child(self.column(column, cx)))
+            .when_some(guest, |this, slug| {
+                this.child(
+                    div()
+                        .flex()
+                        .flex_col()
+                        .items_center()
+                        .gap_2()
+                        .w(COLUMN)
+                        .child(self.guest_mode(slug, pending, cx))
+                        .child(
+                            div()
+                                .text_center()
+                                .text_size(theme.text(Text::Small))
+                                .text_color(theme.muted_foreground)
+                                .child(t!("login-guest-detail")),
+                        ),
+                )
             })
             .when(secret, |this| {
                 this.child(self.secret_prompt(cx).into_any_element())
@@ -474,23 +456,4 @@ impl Render for LoginView {
                 this.child(self.account_modal(accounts, cx).into_any_element())
             })
     }
-}
-
-fn interleave<F>(
-    columns: Vec<Column>,
-    cx: &mut Context<LoginView>,
-    mut render: F,
-) -> Vec<AnyElement>
-where
-    F: FnMut(Column, &mut Context<LoginView>) -> AnyElement,
-{
-    let last = columns.len().saturating_sub(1);
-    let mut children = Vec::new();
-    for (index, column) in columns.into_iter().enumerate() {
-        children.push(render(column, cx));
-        if index < last {
-            children.push(Separator::vertical().h(RULE).into_any_element());
-        }
-    }
-    children
 }
