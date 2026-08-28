@@ -17,8 +17,8 @@ const FRAME: Duration = Duration::from_millis(8);
 const SURFACE_TINT: f32 = 0.5;
 const BORDER_TINT: f32 = 0.4;
 const TEXT_TINT: f32 = 0.12;
-const MAX_WASH_SATURATION: f32 = 0.5;
-const MIN_ACCENT_SATURATION: f32 = 0.4;
+const MAX_WASH_SATURATION: f32 = 0.7;
+const MIN_ACCENT_SATURATION: f32 = 0.6;
 const MAX_ACCENT_SATURATION: f32 = 0.85;
 
 #[derive(Clone, Copy, Debug, PartialEq)]

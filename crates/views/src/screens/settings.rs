@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -32,6 +34,8 @@ const TYPEFACE_HEIGHT: Pixels = px(320.);
 const TYPEFACE_LEAD: usize = 2;
 // faces previewed before a measurement
 const TYPEFACE_GUESS: usize = 24;
+// faces loaded per frame
+const TYPEFACE_BATCH: usize = 3;
 const STARTUP: &str = "startup";
 const MOTION: &str = "motion";
 const PACE: &str = "pace";
@@ -128,6 +132,7 @@ pub struct SettingsView {
     typeface_scroll: Entity<Scrollbar>,
     typeface_cursor: usize,
     typeface_asked: String,
+    typeface_faced: RefCell<HashSet<SharedString>>,
     installed: Option<Vec<SharedString>>,
     picking: bool,
     picking_typeface: bool,
@@ -180,6 +185,7 @@ impl SettingsView {
             typeface_scroll: cx.new(|_| Scrollbar::inset().watching(me)),
             typeface_cursor: 0,
             typeface_asked: String::new(),
+            typeface_faced: RefCell::new(HashSet::new()),
             installed: None,
             picking: false,
             picking_typeface: false,
@@ -441,6 +447,49 @@ impl SettingsView {
             (TYPEFACE_HEIGHT / row).ceil() as usize
         });
         let previewed = first.saturating_sub(TYPEFACE_LEAD)..first + shown + TYPEFACE_LEAD;
+        let picking = self.popovers.shows(TYPEFACES);
+
+        let mut budget = TYPEFACE_BATCH;
+        let mut waiting = false;
+        let mut faced = self.typeface_faced.borrow_mut();
+        let items = entries
+            .into_iter()
+            .enumerate()
+            .map(|(place, (id, label))| {
+                let name = id.clone();
+                let preview = name.clone();
+                let wanted = picking && name.as_ref() != SYSTEM_FONT && previewed.contains(&place);
+                let shows = match (wanted, faced.contains(&name)) {
+                    (false, _) => false,
+                    (true, true) => true,
+                    (true, false) => match budget {
+                        0 => {
+                            waiting = true;
+                            false
+                        }
+                        _ => {
+                            budget -= 1;
+                            faced.insert(name.clone());
+                            true
+                        }
+                    },
+                };
+                MenuItem::new(id, label)
+                    .selected(place == cursor)
+                    .checked(chosen == name.as_ref())
+                    .when(shows, |item| item.face(preview))
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        let name = name.to_string();
+                        this.settings
+                            .update(cx, |settings, cx| settings.set_font(name, cx));
+                        cx.notify();
+                    }))
+            })
+            .collect::<Vec<_>>();
+        drop(faced);
+        if waiting {
+            cx.notify();
+        }
 
         let picker = Picker::new(TYPEFACES, &self.popovers, current)
             .width(Picker::WIDE)
@@ -451,23 +500,7 @@ impl SettingsView {
                     .scrollbar(self.typeface_scroll.clone())
                     .header(self.typefaces.clone()),
             )
-            .items(entries.into_iter().enumerate().map(|(place, (id, label))| {
-                let name = id.clone();
-                let preview = name.clone();
-                MenuItem::new(id, label)
-                    .selected(place == cursor)
-                    .checked(chosen == name.as_ref())
-                    .when(
-                        name.as_ref() != SYSTEM_FONT && previewed.contains(&place),
-                        |item| item.face(preview),
-                    )
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        let name = name.to_string();
-                        this.settings
-                            .update(cx, |settings, cx| settings.set_font(name, cx));
-                        cx.notify();
-                    }))
-            }))
+            .items(items)
             .when(barren, |picker| {
                 picker
                     .item(MenuItem::new("typeface-empty", t!("settings-typeface-none")).disabled())
