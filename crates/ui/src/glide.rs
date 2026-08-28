@@ -6,6 +6,8 @@ use gpui::{
     App, EntityId, Pixels, Point, ScrollHandle, SpringConfig, SpringState, Window, point, px,
 };
 
+use crate::snapped;
+
 const EASE: f32 = 0.12;
 const HERTZ: f32 = 180.;
 const STALL: Duration = Duration::from_millis(64);
@@ -89,7 +91,7 @@ impl Glide {
     }
 
     pub fn aim(&self, scroll: &ScrollHandle, to: Point<Pixels>, window: &mut Window) {
-        let layout = {
+        {
             let mut drift = self.drift.borrow_mut();
             if !drift.gliding {
                 drift.shown = scroll.offset();
@@ -102,13 +104,6 @@ impl Glide {
             }
             drift.springing = springing;
             drift.eased = Some(self.pace);
-            springing.then_some(drift.target)
-        };
-        // A physical scroll presents its motion the same way Core Animation does: layout lands at
-        // the destination immediately, while the composited layer keeps the old visual position
-        // and springs its presentation transform to zero.
-        if let Some(layout) = layout {
-            scroll.set_offset(layout);
         }
         self.schedule_frame(scroll, window);
     }
@@ -220,7 +215,7 @@ impl Glide {
                 drift.shown += point(step.x * ease, step.y * ease);
                 step.x.abs() < REST && step.y.abs() < REST
             };
-            let shown = match settled {
+            match settled {
                 true => {
                     drift.shown = target;
                     drift.gliding = false;
@@ -230,11 +225,11 @@ impl Glide {
                     drift.eased = None;
                     target
                 }
-                false => held(drift.shown, scroll),
-            };
-            match springing {
-                true => target,
-                false => shown,
+                // layout walks the pixel grid
+                false => match springing {
+                    true => grid(held(drift.shown, scroll), window),
+                    false => held(drift.shown, scroll),
+                },
             }
         };
 
@@ -245,6 +240,10 @@ impl Glide {
         }
         self.schedule_frame(scroll, window);
     }
+}
+
+fn grid(at: Point<Pixels>, window: &Window) -> Point<Pixels> {
+    point(snapped(at.x, window), snapped(at.y, window))
 }
 
 fn held(at: Point<Pixels>, scroll: &ScrollHandle) -> Point<Pixels> {

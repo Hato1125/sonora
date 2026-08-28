@@ -505,9 +505,7 @@ impl Aside {
         let beat = now.duration_since(self.slid).as_secs_f32().min(LAG_STALL);
         self.slid = now;
 
-        // Spring scrolling commits the destination to layout immediately. Follow the composited
-        // presentation position here, otherwise every row receives that whole layout jump as a
-        // second impulse before the sheet itself has visibly moved.
+        // follow the seen position
         let offset = scroll.offset().y + presentation;
         let step = offset - self.seen;
         self.seen = offset;
@@ -937,9 +935,7 @@ impl Aside {
             _ => None,
         };
 
-        // `pin_verse` may commit the destination scroll offset immediately. Do that before reading
-        // the presentation transform below, so the same frame gets the inverse compositor offset
-        // instead of flashing the destination row for one frame.
+        // aim before reading
         if let Some(lines) = &lines {
             let live = active_lyrics_row(lines, position);
             let focus = match self.pinning {
@@ -1106,11 +1102,7 @@ impl Aside {
                             soft if soft > HAZE_LEAST => this.blur(soft),
                             _ => this,
                         });
-                        rendered.push(
-                            notes
-                                .layer_translate(gpui::point(px(0.), notes_translation))
-                                .into_any_element(),
-                        );
+                        rendered.push(adrift(notes, notes_translation, window).into_any_element());
                     }
 
                     let row = rendered.len();
@@ -1134,12 +1126,14 @@ impl Aside {
                     let wrapped = self.lyrics_wraps.get(&index);
                     let line_has_ended = active_line.is_some_and(|active| index < active)
                         || line_has_passed(line, position);
-                    let tint = match (Some(index) == active_line, line_has_ended) {
-                        (true, _) if primary_karaoke => theme.muted_foreground,
+                    let worded = karaoke_effects && line.worded() && line.words.is_some();
+                    let shade = |singing: bool| match (singing, line_has_ended) {
+                        (true, _) if worded => theme.muted_foreground,
                         (true, _) => theme.foreground,
                         (false, true) => theme.muted_foreground.opacity(PAST),
                         (false, false) => theme.muted_foreground.opacity(AHEAD),
                     };
+                    let tint = shade(Some(index) == active_line);
 
                     let dimming = (animations && departing).then_some(self.departure);
                     let growing =
@@ -1148,9 +1142,6 @@ impl Aside {
                     let active_size = active_verse_size(verse);
                     let small = verse / active_size;
                     let big = active_size / verse;
-                    let unsung = theme.muted_foreground.opacity(AHEAD);
-                    let lit = theme.foreground;
-
                     // both ways land on 1
                     let lift = match (growing, shrinking) {
                         (true, _) => small + (1. - small) * ramp(self.arrived, window),
@@ -1158,8 +1149,8 @@ impl Aside {
                         _ => 1.,
                     };
                     let paint = match (growing, shrinking) {
-                        (true, _) => mix(unsung, tint, ramp(self.arrived, window)),
-                        (_, true) => mix(lit, tint, ramp(self.departed, window)),
+                        (true, _) => mix(shade(false), tint, ramp(self.arrived, window)),
+                        (_, true) => mix(shade(true), tint, ramp(self.departed, window)),
                         _ => tint,
                     };
                     let sung = Sung {
@@ -1319,11 +1310,7 @@ impl Aside {
                         }
                         _ => verse_line,
                     };
-                    rendered.push(
-                        verse_line
-                            .layer_translate(gpui::point(px(0.), translation))
-                            .into_any_element(),
-                    );
+                    rendered.push(adrift(verse_line, translation, window).into_any_element());
                 }
 
                 rendered
@@ -1370,24 +1357,21 @@ impl Aside {
                 true => presentation + drift,
                 false => px(0.),
             };
-            body.push(
-                div()
-                    .w_full()
-                    .max_w(reach)
-                    .px_2()
-                    .pt_2()
-                    .flex()
-                    .flex_col()
-                    .text_size(theme.text(Text::Small))
-                    .text_color(theme.muted_foreground)
-                    .child(t!("lyrics-source", source = *source))
-                    .when(!writers.is_empty(), |this| {
-                        let writers = writers.join(", ");
-                        this.child(t!("lyrics-writers", writers = writers.as_str()))
-                    })
-                    .layer_translate(gpui::point(px(0.), translation))
-                    .into_any_element(),
-            );
+            let note = div()
+                .w_full()
+                .max_w(reach)
+                .px_2()
+                .pt_2()
+                .flex()
+                .flex_col()
+                .text_size(theme.text(Text::Small))
+                .text_color(theme.muted_foreground)
+                .child(t!("lyrics-source", source = *source))
+                .when(!writers.is_empty(), |this| {
+                    let writers = writers.join(", ");
+                    this.child(t!("lyrics-writers", writers = writers.as_str()))
+                });
+            body.push(adrift(note, translation, window).into_any_element());
         }
 
         let (over, under) = match &lines {
@@ -1960,17 +1944,21 @@ fn secondary_lyrics_lane(
     sung: Sung,
 ) -> gpui::AnyElement {
     let theme = &sung.theme;
-    let active =
-        line_active && position >= lane.start && lane.sung_end().is_none_or(|end| position < end);
     let passed = line_passed || lane.sung_end().is_some_and(|end| position >= end);
-    let karaoke =
-        secondary_karaoke_visible(lane, line_active, position) && sung.karaoke && lane.worded();
-    let tint = match (active, passed, karaoke) {
-        (_, _, true) => theme.muted_foreground,
-        (true, _, false) => theme.foreground,
-        (false, true, false) => theme.muted_foreground.opacity(PAST),
-        (false, false, false) => theme.muted_foreground.opacity(AHEAD),
+    let shade = |singing: bool| {
+        let active =
+            singing && position >= lane.start && lane.sung_end().is_none_or(|end| position < end);
+        let karaoke =
+            secondary_karaoke_visible(lane, singing, position) && sung.karaoke && lane.worded();
+
+        match (active, passed, karaoke) {
+            (_, _, true) => theme.muted_foreground,
+            (true, _, false) => theme.foreground,
+            (false, true, false) => theme.muted_foreground.opacity(PAST),
+            (false, false, false) => theme.muted_foreground.opacity(AHEAD),
+        }
     };
+    let tint = shade(line_active);
     let size = theme.text(Text::Body);
     let karaoke_capable = sung.karaoke && lane.worded();
     let lyrics = div()
@@ -1987,11 +1975,11 @@ fn secondary_lyrics_lane(
             )),
             _ => this.child(SharedString::from(lane.text.clone())),
         });
-    let lit = theme.foreground;
+    let held = shade(true);
     let lyrics = match dimming {
         Some(departure) => lyrics
             .motion(("lane-dim", departure as usize), Motion::Quick, {
-                move |this, t| this.text_color(mix(lit, tint, t))
+                move |this, t| this.text_color(mix(held, tint, t))
             })
             .into_any_element(),
         None => lyrics.text_color(tint).into_any_element(),
@@ -2508,6 +2496,16 @@ fn lanes_room(
 fn wrapped_rows(text: &str, size: Pixels, width: Pixels, window: &mut Window) -> usize {
     let parts = lyrics_parts(text, None);
     lyrics_wrap_rows(&parts, size, width, window).map_or(1, |wrapped| wrapped.rows.len().max(1))
+}
+
+// culling needs layout
+fn adrift(row: impl Styled + IntoElement, shift: Pixels, window: &Window) -> Div {
+    let grid = snapped(shift, window);
+
+    div().w_full().flex().flex_col().items_center().child(
+        row.top(grid)
+            .layer_translate(gpui::point(px(0.), shift - grid)),
+    )
 }
 
 struct Place {
