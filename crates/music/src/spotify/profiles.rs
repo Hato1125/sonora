@@ -5,6 +5,7 @@ use librespot_core::Session;
 use serde::Deserialize;
 use tokio::task::JoinSet;
 
+use crate::spotify::wire;
 use crate::{Contributor, Playlist, UserDetail};
 
 const USER_PREFIX: &str = "spotify:user:";
@@ -184,7 +185,7 @@ fn listed(found: &Listed) -> Option<Playlist> {
         cover: found
             .image_url
             .as_deref()
-            .filter(|url| !url.is_empty())
+            .filter(|url| wire::fetchable(url))
             .map(str::to_owned),
         track_count: 0,
         modified_at: None,

@@ -33,13 +33,17 @@ pub fn blend(attributes: &ListAttributes) -> bool {
         .any(|attribute| attribute.key().to_ascii_lowercase().starts_with(BLEND))
 }
 
+pub fn fetchable(url: &str) -> bool {
+    url.starts_with("http://") || url.starts_with("https://")
+}
+
 fn playlist_cover(attributes: &ListAttributes) -> Option<String> {
     for target in BY_SIZE {
         if let Some(size) = attributes
             .picture_size
             .iter()
             .find(|size| size.target_name() == target)
-            .filter(|size| !size.url().is_empty())
+            .filter(|size| fetchable(size.url()))
         {
             return Some(size.url().to_owned());
         }
@@ -49,7 +53,7 @@ fn playlist_cover(attributes: &ListAttributes) -> Option<String> {
         .picture_size
         .first()
         .map(|size| size.url())
-        .filter(|url| !url.is_empty())
+        .filter(|url| fetchable(url))
         .map(str::to_owned)
         .or_else(|| image_url(attributes.picture()))
 }
