@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use gpui::prelude::*;
 use gpui::{
     App, ClickEvent, Div, ElementId, Interactivity, Stateful, StyleRefinement, Window, div, px,
@@ -104,7 +106,7 @@ impl RenderOnce for Switch {
         };
 
         let movement = window.use_keyed_state((id, "movement"), cx, |_, _| Movement::new(checked));
-        let animates = movement.update(cx, |movement, _| movement.moved_since_mount(checked));
+        let animates = movement.update(cx, |movement, _| movement.turning(checked));
         let knob = div().size(thumb).flex_none().rounded(thumb / 2.);
 
         let mut switch = base
@@ -169,23 +171,24 @@ impl RenderOnce for Switch {
 
 struct Movement {
     drawn: bool,
-    moved: bool,
+    turned: Option<Instant>,
 }
 
 impl Movement {
     fn new(checked: bool) -> Self {
         Self {
             drawn: checked,
-            moved: false,
+            turned: None,
         }
     }
 
-    fn moved_since_mount(&mut self, checked: bool) -> bool {
+    fn turning(&mut self, checked: bool) -> bool {
         if self.drawn != checked {
             self.drawn = checked;
-            self.moved = true;
+            self.turned = Some(Instant::now());
         }
 
-        self.moved
+        self.turned
+            .is_some_and(|turned| turned.elapsed() < Motion::Control.span())
     }
 }
