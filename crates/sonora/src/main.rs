@@ -17,6 +17,7 @@ use music::LyricsProvider;
 use router::Screen;
 use state::{Library, Playback, Queue, Session, Sonora};
 use ui::ActiveTheme as _;
+use ui::ThemeKind;
 use views::Root;
 
 const LEAST_SIZE: Size<Pixels> = size(px(480.), px(400.));
@@ -79,7 +80,7 @@ fn main() {
                 .destination()
         });
         router::init(start, cx);
-        let (look, overrides, language, stillness, pace) = {
+        let (look, overrides, language, stillness, pace, remembered) = {
             let settings = Sonora::global(cx).settings.read(cx);
             (
                 settings.look(),
@@ -87,10 +88,23 @@ fn main() {
                 settings.language().to_owned(),
                 settings.stillness(),
                 settings.pace(),
+                settings.system_theme(),
             )
         };
         i18n::set(i18n::resolve(&language));
         ui::motion::apply(stillness, pace, cx);
+        // linux answers late
+        let reported = match cfg!(any(target_os = "linux", target_os = "freebsd")) {
+            true => None,
+            false => Some(ThemeKind::reported(cx)),
+        };
+        ThemeKind::assume(reported.unwrap_or(remembered));
+        if let Some(reported) = reported.filter(|reported| *reported != remembered) {
+            Sonora::global(cx)
+                .settings
+                .clone()
+                .update(cx, |settings, cx| settings.set_system_theme(reported, cx));
+        }
         ui::Theme::init(look, &overrides, cx);
 
         actions::register(cx);

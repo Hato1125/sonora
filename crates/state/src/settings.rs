@@ -187,6 +187,7 @@ struct Appearance {
     reduce_motion: String,
     motion_pace: String,
     battery_saver: String,
+    system_theme: String,
     theme_overrides: ThemeOverrides,
 }
 
@@ -250,6 +251,7 @@ impl Default for Appearance {
             reduce_motion: Stillness::default().id().to_owned(),
             motion_pace: Pace::default().id().to_owned(),
             battery_saver: Saver::default().id().to_owned(),
+            system_theme: ThemeKind::Dark.id().to_owned(),
             theme_overrides: ThemeOverrides::default(),
         }
     }
@@ -384,6 +386,10 @@ impl AppSettings {
 
     pub fn saver(&self) -> Saver {
         Saver::from_id(&self.values.appearance.battery_saver)
+    }
+
+    pub fn system_theme(&self) -> ThemeKind {
+        ThemeKind::from_id(&self.values.appearance.system_theme)
     }
 
     pub fn look(&self) -> Look {
@@ -676,6 +682,14 @@ impl AppSettings {
         }
         self.values.appearance.motion_pace = pace.id().to_owned();
         ui::motion::apply(self.stillness(), pace, cx);
+        self.schedule_save(cx);
+    }
+
+    pub fn set_system_theme(&mut self, kind: ThemeKind, cx: &mut Context<Self>) {
+        if self.system_theme() == kind {
+            return;
+        }
+        self.values.appearance.system_theme = kind.id().to_owned();
         self.schedule_save(cx);
     }
 
