@@ -7,6 +7,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-08-29
+
 ### Added
 
 - Sonora keeps a listening history on this device: the last 500 tracks you played and when you
@@ -17,6 +19,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Spotify listeners now have a page of their own, with their avatar, display name, follower and
   following counts and public playlists. Open it from a playlist owner, from the person who added a
   track, or from a `spotify:user:` link.
+- A playlist on someone's profile answers a right click with the same menu as everywhere else.
 
 ### Changed
 
@@ -28,6 +31,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Autoplay of similar tracks is remembered between runs instead of turning itself off at every
   start.
+- The fullscreen title holds still while the like button beside it fades in and out.
+- Blur is drawn cleanly across a wide surface, so a translucent background no longer smears at its
+  edges.
 - A song that appears more than once in a list no longer lights up every copy while it plays. Only
   the first row is marked, and in the listening history that is the most recent play.
 - A Blend lists who added each track in place of the date, which moves every day and says little.
@@ -1080,7 +1086,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Initial release: a native Spotify client with playback, an interactive queue, the saved library,
 search, album, playlist, artist and song pages, context menus and adaptive theming.
 
-[unreleased]: https://github.com/nolight132/sonora/compare/v0.23.0...HEAD
+[unreleased]: https://github.com/nolight132/sonora/compare/v0.24.0...HEAD
+[0.24.0]: https://github.com/nolight132/sonora/compare/v0.23.0...v0.24.0
 [0.23.0]: https://github.com/nolight132/sonora/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/nolight132/sonora/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/nolight132/sonora/compare/v0.20.0...v0.21.0
