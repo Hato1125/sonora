@@ -7,6 +7,54 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-08-28
+
+### Added
+
+- Escape closes any open menu, not only the ones that hold a text field. It watches keystrokes
+  rather than the Dismiss action, which the fullscreen and search-field handlers were swallowing
+  before it could reach a menu.
+
+### Changed
+
+- The sign-in screen gives each service its own tab instead of standing them side by side, and
+  guest sign-in is one button underneath rather than a row of them.
+- The lyrics sheet travels on a spring, overshooting a little and settling, where it used to ease to
+  a stop. The rows still trail behind it one at a time.
+- On Windows the frame no longer carries the system window buttons, leaving only the ones Sonora
+  draws.
+- Context menu entries that queue something now read "Add to queue" instead of naming the album or
+  the artist a second time. The row you right-clicked already says what it is.
+- The queue writes "from" in lower case beside Now playing.
+- Track titles no longer underline when the pointer is over them, in the queue, on the home page,
+  in search results and on the library card grid. Clicking one plays it, it does not open a page,
+  so the underline promised a link that was never there.
+- The sidebar's nested tabs drop the small dash beside each row, and the vertical guide moves under
+  the icon of the row that opened them.
+- German, French, Polish, Russian and Ukrainian cover every string again. The font picker, the
+  lyrics settings, the romanization list, the sign-in problems and the update prompts had been
+  falling back to English.
+
+### Fixed
+
+- A submenu with no room to its right opens to the left of the menu instead of sliding over it.
+  0.21.0 claimed this, but a submenu carried a second window-fitting wrapper of its own, and that
+  inner wrapper both hid the submenu's size from the outer one, which then had nothing to shift by
+  when it flipped, and re-anchored the panel to the top left and slid it back under the window
+  edge, on top of the menu it hangs off. A submenu now renders its panel directly and only the
+  outer wrapper places it.
+- YouTube Music plays on an account without Premium again. Sonora asks for the guest audio streams
+  rather than the ones such an account cannot be handed.
+- Seeking far into a track scrolls the lyrics to the new verse. The sheet went blank for a moment and
+  then dropped the verses in from off screen, because it moved to the destination at once and only
+  presented the journey.
+- A verse no longer loses its lower half while the sheet is in motion. Rows were drawn where they had
+  been laid out and shifted afterwards, so whatever reached past the edge of the panel was cut away
+  before it moved.
+- A line keeps the colour it already had while it hands over to the next one. It used to flash white
+  first, which was wrong for lines lit word by word and for anything on screen while paused.
+- A wrapped lyric line no longer starts its second row with a space.
+
 ## [0.21.0] - 2026-08-27
 
 ### Added
@@ -969,7 +1017,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Initial release: a native Spotify client with playback, an interactive queue, the saved library,
 search, album, playlist, artist and song pages, context menus and adaptive theming.
 
-[unreleased]: https://github.com/nolight132/sonora/compare/v0.21.0...HEAD
+[unreleased]: https://github.com/nolight132/sonora/compare/v0.22.0...HEAD
+[0.22.0]: https://github.com/nolight132/sonora/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/nolight132/sonora/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/nolight132/sonora/compare/v0.19.1...v0.20.0
 [0.19.1]: https://github.com/nolight132/sonora/compare/v0.19.0...v0.19.1

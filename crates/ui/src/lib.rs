@@ -31,7 +31,6 @@ mod scrubber;
 mod separator;
 mod shield;
 mod skeleton;
-mod slip;
 mod switch;
 mod tabs;
 mod theme;
@@ -63,7 +62,7 @@ pub use input::{
     Input, Left, Paste, Right, SelectAll, SelectEnd, SelectHome, SelectLeft, SelectRight,
     SelectWordLeft, SelectWordRight, Space, WordLeft, WordRight,
 };
-pub use label::{eyebrow, heading, upper, vacant};
+pub use label::{eyebrow, faint, heading, upper, vacant};
 pub use layout::{ALWAYS, MIN_CONTENT, ROOMY, Room, SNUG, VAST, WIDE};
 pub use menu::{MENU_CONTEXT, Menu, MenuItem, SubmenuState};
 pub use metrics::{LEADING, Metrics, Rounding, Text, snapped, tucked};
@@ -85,9 +84,8 @@ pub use scrubber::{Scrubber, ScrubberState};
 pub use separator::Separator;
 pub use shield::Shield;
 pub use skeleton::{Initials, Skeleton};
-pub use slip::slip;
 pub use switch::Switch;
-pub use tabs::Tabs;
+pub use tabs::{TabBar, Tabs};
 pub use theme::{
     ActiveTheme, Look, MAX_FONT, MAX_TRANSPARENCY, MIN_FONT, Theme, ThemeKind, ThemeOverrides,
 };

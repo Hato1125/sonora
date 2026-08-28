@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/*"]
 
 [workspace.package]
-version = "0.21.0"
+version = "0.22.0"
 edition = "2024"
 license = "GPL-3.0-or-later"
 repository = "https://github.com/nolight132/sonora"
@@ -29,8 +29,8 @@ env_logger = "0.11"
 fastrand = "2.5"
 futures = "0.3"
 fluent-bundle = "0.16"
-gpui = { git = "https://github.com/nolight132/gpui", rev = "cb1238e494c29cec8a87dae674a7cee70e9100a7" }
-gpui_platform = { git = "https://github.com/nolight132/gpui", rev = "cb1238e494c29cec8a87dae674a7cee70e9100a7", features = [
+gpui = { git = "https://github.com/nolight132/gpui", rev = "87d0ed566327d377abbc66cb5560facffafe884d" }
+gpui_platform = { git = "https://github.com/nolight132/gpui", rev = "87d0ed566327d377abbc66cb5560facffafe884d", features = [
   "font-kit",
   "wayland",
   "x11",
@@ -63,7 +63,7 @@ sha2 = "0.10"
 souvlaki = "0.8"
 sys-locale = "0.3"
 unic-langid = { version = "0.9", features = ["macros"] }
-ytmusic = { git = "https://github.com/nolight132/ytmusic-rs", rev = "f0f3298188104026b91630c1fe229f802133f9f4" }
+ytmusic = { git = "https://github.com/nolight132/ytmusic-rs", rev = "31e2c2e79ea2da7fd41c448371dbd4d91879d09d" }
 
 librespot-core = { version = "0.8.0", default-features = false, features = [
   "rustls-tls-native-roots",
@@ -109,4 +109,3 @@ opt-level = 2
 [profile.dev.package."*"]
 debug = false
 opt-level = 2
-

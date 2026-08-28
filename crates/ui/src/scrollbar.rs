@@ -5,7 +5,7 @@ use std::time::Duration;
 use gpui::prelude::*;
 use gpui::{
     AnyWindowHandle, App, Context, DragMoveEvent, Empty, EntityId, ListState, MouseButton,
-    MouseDownEvent, Pixels, Render, ScrollHandle, Task, Window, div, point, px,
+    MouseDownEvent, Pixels, Render, ScrollHandle, SpringConfig, Task, Window, div, point, px,
 };
 
 use crate::glide::Glide;
@@ -164,6 +164,11 @@ impl Scrollbar {
         self
     }
 
+    pub fn spring(mut self, spring: SpringConfig) -> Self {
+        self.glide.set_spring(spring);
+        self
+    }
+
     pub fn watching(mut self, view: EntityId) -> Self {
         self.glide.watch(view);
         self
@@ -186,6 +191,9 @@ impl Scrollbar {
     /// no smoothing, but it is still theirs, and anything following the view has
     /// to know to stop.
     pub fn stirred(&mut self) {
+        if self.glide.stop_spring(&self.scroll) {
+            self.following = false;
+        }
         self.nudges = self.nudges.wrapping_add(1);
     }
 
@@ -210,6 +218,10 @@ impl Scrollbar {
 
     pub fn goal(&self) -> Pixels {
         self.glide.goal(&self.scroll).y
+    }
+
+    pub fn presentation(&self) -> gpui::Point<Pixels> {
+        self.glide.presentation(&self.scroll)
     }
 
     pub fn sync(&self) {
@@ -266,6 +278,9 @@ impl Scrollbar {
     }
 
     fn moved(&mut self, offset: Pixels, cx: &mut Context<Self>) {
+        if self.glide.stop_spring(&self.scroll) {
+            self.following = false;
+        }
         self.nudges = self.nudges.wrapping_add(1);
         if let Some(maximum) = self
             .scroll_guard

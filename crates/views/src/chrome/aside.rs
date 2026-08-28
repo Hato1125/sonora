@@ -5,8 +5,8 @@ use gpui::prelude::*;
 use gpui::{
     Animation, AnimationExt as _, App, Bounds, Context, Div, DragMoveEvent, Entity, FontWeight,
     MouseDownEvent, Pixels, Point, Render, ScrollHandle, ScrollStrategy, ScrollWheelEvent,
-    SharedString, Task, UniformListScrollHandle, Window, div, ease_in_out, px, relative, svg,
-    uniform_list,
+    SharedString, SpringConfig, SpringState, Task, UniformListScrollHandle, Window, div,
+    ease_in_out, px, relative, svg, uniform_list,
 };
 use i18n::t;
 use music::{Track, Voice};
@@ -18,7 +18,7 @@ use state::{
 use ui::{
     ActiveTheme as _, Button, Card, DraggedPin, Edge, Motion, Motioned as _, Pin, Pinnable as _,
     Popup, Scrollbar, Scroller, Spot, Text, drop_gap, drop_marker, ease_out_cubic, ease_out_expo,
-    eyebrow, mix, slip, snapped, vacant,
+    eyebrow, faint, mix, snapped, vacant,
 };
 
 use crate::chrome::{Chrome, section_label};
@@ -35,7 +35,7 @@ const BLUR: f32 = 0.13;
 const VEIL: f32 = 0.3;
 const HAZE: f32 = 0.45;
 const VERSE_FADE: f32 = 1.25;
-const VERSE_GLIDE: f32 = 0.07;
+const VERSE_SPRING: SpringConfig = SpringConfig::new(170., 23., 1.);
 const PAST: f32 = 0.4;
 const AHEAD: f32 = 0.6;
 const REVEAL: f32 = 0.6;
@@ -49,12 +49,10 @@ const LAG: f32 = 24.;
 const LAG_SHARE: f32 = 0.28;
 // movement the last row skips
 const LAG_TRAIL: f32 = 0.9;
-// how fast the first row catches up
-const LAG_EASE: f32 = 0.08;
-// how much slower the last one is
-const LAG_STAGGER: f32 = 0.6;
-// how hard it lands
-const LAG_LAND: f32 = 24.;
+// The first row's physical spring. Rows farther along the viewport keep the same damping ratio but
+// use a lower natural frequency, producing the cascading iMessage-like settle.
+const LAG_SPRING: SpringConfig = SpringConfig::new(210., 22., 1.);
+const LAG_STAGGER: f32 = 0.35;
 const LAG_LEAST: Pixels = px(0.05);
 const LAG_STALL: f32 = 0.064;
 // Below this a blur is not worth a layer of its own.
@@ -274,7 +272,7 @@ pub(crate) struct Aside {
     flying: bool,
     flew: bool,
     slid: std::time::Instant,
-    drifts: HashMap<usize, Pixels>,
+    drifts: HashMap<usize, SpringState>,
     pinning: Option<usize>,
     held: Option<Warm>,
     rising: Option<Warm>,
@@ -319,7 +317,7 @@ impl Aside {
         cx.observe(&settings, |_, _, cx| cx.notify()).detach();
         let verse_bar = cx.new(|_| {
             Scrollbar::new(ScrollHandle::new())
-                .paced(VERSE_GLIDE)
+                .spring(VERSE_SPRING)
                 .watching(me)
         });
 
@@ -496,12 +494,19 @@ impl Aside {
     }
 
     // only automatic scrolls
-    fn lagged(&mut self, scroll: &ScrollHandle, verse: Pixels, nudges: u64) -> Drag {
+    fn lagged(
+        &mut self,
+        scroll: &ScrollHandle,
+        presentation: Pixels,
+        verse: Pixels,
+        nudges: u64,
+    ) -> Drag {
         let now = std::time::Instant::now();
         let beat = now.duration_since(self.slid).as_secs_f32().min(LAG_STALL);
         self.slid = now;
 
-        let offset = scroll.offset().y;
+        // follow the seen position
+        let offset = scroll.offset().y + presentation;
         let step = offset - self.seen;
         self.seen = offset;
         if nudges != self.nudges {
@@ -519,29 +524,26 @@ impl Aside {
         }
     }
 
-    // a spring per row
+    // A physical spring per row. Feeding the inverse scroll delta makes each row lag behind the
+    // sheet; retaining velocity lets it settle naturally and survive a retarget without restarting.
     fn dragged(&mut self, row: usize, along: f32, drag: Drag, window: &mut Window) -> Pixels {
         let held = self.drifts.get(&row).copied();
         if held.is_none() && drag.step == px(0.) {
             return px(0.);
         }
-        let rate = LAG_EASE * (1. - LAG_STAGGER * along);
-        let ease = 1. - (1. - rate).powf(drag.beat * 60.);
-        let fed = held.unwrap_or(px(0.)) - drag.step * (LAG_TRAIL * along);
-        let eased = (fed * (1. - ease)).clamp(-drag.most, drag.most);
-        let land = px(LAG_LAND * (eased.abs() / px(1.)).sqrt() * drag.beat);
-        let closer = (eased.abs() - land).max(px(0.));
-        let shown = match eased < px(0.) {
-            true => -closer,
-            false => closer,
-        };
-        if shown.abs() < LAG_LEAST {
+        let mut state = held.unwrap_or_default();
+        state.position = (px(state.position) - drag.step * (LAG_TRAIL * along))
+            .clamp(-drag.most, drag.most)
+            .as_f32();
+        let spring = lag_spring(along);
+        state = spring.step(state, 0., drag.beat);
+        if spring.is_settled(state, 0., LAG_LEAST.as_f32()) {
             self.drifts.remove(&row);
             return px(0.);
         }
-        self.drifts.insert(row, shown);
+        self.drifts.insert(row, state);
         window.request_animation_frame();
-        shown
+        px(state.position)
     }
 
     fn set_hovered(&mut self, spot: Warm, over: bool, cx: &mut Context<Self>) {
@@ -634,7 +636,6 @@ impl Aside {
             .truncate(),
         )
         .tint(title)
-        .underline()
         .when(track.explicit, Card::explicit)
         .play(
             playing,
@@ -933,6 +934,19 @@ impl Aside {
             _ => None,
         };
 
+        // aim before reading
+        if let Some(lines) = &lines {
+            let live = active_lyrics_row(lines, position);
+            let focus = match self.pinning {
+                Some(row) if Some(row) != live => Some(row),
+                _ => {
+                    self.pinning = None;
+                    live
+                }
+            };
+            self.pin_verse(focus, window, cx);
+        }
+
         let verse = match self.titled {
             true => theme.text(Text::Large),
             false => theme.text(Text::Title),
@@ -940,9 +954,16 @@ impl Aside {
         let reach = verse * REACH;
         let wrap_size = active_verse_size(verse);
         let scroll = self.verse_bar.read(cx).scroll().clone();
-        let nudges = self.verse_bar.read(cx).nudges();
-        let drag = match (lines.is_some(), ui::motion::animates(cx)) {
-            (true, true) => self.lagged(&scroll, verse, nudges),
+        let (nudges, presentation) = {
+            let bar = self.verse_bar.read(cx);
+            (bar.nudges(), bar.presentation().y)
+        };
+        let animations = ui::motion::animates(cx);
+        if !animations {
+            self.drifts.clear();
+        }
+        let drag = match (lines.is_some(), animations) {
+            (true, true) => self.lagged(&scroll, presentation, verse, nudges),
             _ => Drag::default(),
         };
         let inset = window.rem_size() * LYRICS_HORIZONTAL_INSET_REM;
@@ -981,7 +1002,6 @@ impl Aside {
                     self.departing_line = None;
                 }
                 let instrumental_line = active_instrumental(lines, position);
-                let animations = ui::motion::animates(cx);
                 let hazing = effects() && self.pinned;
                 let blur = verse * BLUR;
                 let sharpen = self.sharpen_progress(window);
@@ -1026,10 +1046,11 @@ impl Aside {
                         }
                         let notes_along = viewport_along(&scroll, notes_row, view, drag.downward);
                         let notes_drift = self.dragged(notes_row, notes_along, drag, window);
+                        let notes_translation = presentation + notes_drift;
                         let softness = match hazing && instrumental_line != Some(index) {
                             true => clearing(
                                 notes_touch,
-                                viewport_haze(&scroll, notes_row, view, blur, notes_drift),
+                                viewport_haze(&scroll, notes_row, view, blur, notes_translation),
                             ),
                             false => 0.,
                         };
@@ -1080,12 +1101,13 @@ impl Aside {
                             soft if soft > HAZE_LEAST => this.blur(soft),
                             _ => this,
                         });
-                        rendered.push(slip(notes, notes_drift).into_any_element());
+                        rendered.push(adrift(notes, notes_translation, window).into_any_element());
                     }
 
                     let row = rendered.len();
                     let along = viewport_along(&scroll, row, view, drag.downward);
                     let drift = self.dragged(row, along, drag, window);
+                    let translation = presentation + drift;
                     let active = Some(index) == active_line;
                     let departing = Some(index) == self.departing_line;
                     let karaoke = Some(index) == active_line && line.worded() && karaoke_effects;
@@ -1103,12 +1125,14 @@ impl Aside {
                     let wrapped = self.lyrics_wraps.get(&index);
                     let line_has_ended = active_line.is_some_and(|active| index < active)
                         || line_has_passed(line, position);
-                    let tint = match (Some(index) == active_line, line_has_ended) {
-                        (true, _) if primary_karaoke => theme.muted_foreground,
+                    let worded = karaoke_effects && line.worded() && line.words.is_some();
+                    let shade = |singing: bool| match (singing, line_has_ended) {
+                        (true, _) if worded => theme.muted_foreground,
                         (true, _) => theme.foreground,
                         (false, true) => theme.muted_foreground.opacity(PAST),
                         (false, false) => theme.muted_foreground.opacity(AHEAD),
                     };
+                    let tint = shade(Some(index) == active_line);
 
                     let dimming = (animations && departing).then_some(self.departure);
                     let growing =
@@ -1117,9 +1141,6 @@ impl Aside {
                     let active_size = active_verse_size(verse);
                     let small = verse / active_size;
                     let big = active_size / verse;
-                    let unsung = theme.muted_foreground.opacity(AHEAD);
-                    let lit = theme.foreground;
-
                     // both ways land on 1
                     let lift = match (growing, shrinking) {
                         (true, _) => small + (1. - small) * ramp(self.arrived, window),
@@ -1127,8 +1148,8 @@ impl Aside {
                         _ => 1.,
                     };
                     let paint = match (growing, shrinking) {
-                        (true, _) => mix(unsung, tint, ramp(self.arrived, window)),
-                        (_, true) => mix(lit, tint, ramp(self.departed, window)),
+                        (true, _) => mix(shade(false), tint, ramp(self.arrived, window)),
+                        (_, true) => mix(shade(true), tint, ramp(self.departed, window)),
                         _ => tint,
                     };
                     let sung = Sung {
@@ -1227,7 +1248,7 @@ impl Aside {
                         });
 
                     let softness = match hazing && Some(index) != active_line {
-                        true => haze(viewport_haze(&scroll, row, view, blur, drift)),
+                        true => haze(viewport_haze(&scroll, row, view, blur, translation)),
                         false => 0.,
                     };
                     let traded = index
@@ -1288,7 +1309,7 @@ impl Aside {
                         }
                         _ => verse_line,
                     };
-                    rendered.push(slip(verse_line, drift).into_any_element());
+                    rendered.push(adrift(verse_line, translation, window).into_any_element());
                 }
 
                 rendered
@@ -1331,38 +1352,25 @@ impl Aside {
             let credit = body.len();
             let along = viewport_along(&scroll, credit, scroll.bounds(), drag.downward);
             let drift = self.dragged(credit, along, drag, window);
-            body.push(
-                slip(
-                    div()
-                        .w_full()
-                        .max_w(reach)
-                        .px_2()
-                        .pt_2()
-                        .flex()
-                        .flex_col()
-                        .text_size(theme.text(Text::Small))
-                        .text_color(theme.muted_foreground)
-                        .child(t!("lyrics-source", source = *source))
-                        .when(!writers.is_empty(), |this| {
-                            let writers = writers.join(", ");
-                            this.child(t!("lyrics-writers", writers = writers.as_str()))
-                        }),
-                    drift,
-                )
-                .into_any_element(),
-            );
-        }
-
-        if let Some(lines) = &lines {
-            let live = active_lyrics_row(lines, position);
-            let focus = match self.pinning {
-                Some(row) if Some(row) != live => Some(row),
-                _ => {
-                    self.pinning = None;
-                    live
-                }
+            let translation = match lines.is_some() {
+                true => presentation + drift,
+                false => px(0.),
             };
-            self.pin_verse(focus, window, cx);
+            let note = div()
+                .w_full()
+                .max_w(reach)
+                .px_2()
+                .pt_2()
+                .flex()
+                .flex_col()
+                .text_size(theme.text(Text::Small))
+                .text_color(theme.muted_foreground)
+                .child(t!("lyrics-source", source = *source))
+                .when(!writers.is_empty(), |this| {
+                    let writers = writers.join(", ");
+                    this.child(t!("lyrics-writers", writers = writers.as_str()))
+                });
+            body.push(adrift(note, translation, window).into_any_element());
         }
 
         let (over, under) = match &lines {
@@ -1371,6 +1379,7 @@ impl Aside {
         };
 
         let sheet = Scroller::new("lyrics", &self.verse_bar)
+            .when(lines.is_some(), Scroller::manual_presentation)
             .flex()
             .flex_col()
             .items_center()
@@ -1452,6 +1461,8 @@ impl Aside {
         if self.nudges != nudges {
             self.nudges = nudges;
             self.pinned = false;
+            self.flying = false;
+            self.drifts.clear();
             self.nudged = Some(std::time::Instant::now());
         }
         if !self.pinned {
@@ -1487,18 +1498,16 @@ impl Aside {
         };
         self.aiming = false;
         let view = scroll.bounds();
-        // land on the grid
-        let goal = snapped(
-            anchored_lyrics_offset(
-                view.origin.y,
-                item.origin.y,
-                view.size.height,
-                scroll.max_offset().y,
-            ),
-            window,
+        // Preserve the fractional target. Spring scrolls are presented by the compositor, so the
+        // text never has to walk the raster grid while the layer is settling.
+        let goal = anchored_lyrics_offset(
+            view.origin.y,
+            item.origin.y,
+            view.size.height,
+            scroll.max_offset().y,
         );
         self.flown(goal, scroll.offset().y);
-        match std::mem::take(&mut self.placing) {
+        match std::mem::take(&mut self.placing) || cx.reduce_motion() {
             true => self.verse_bar.update(cx, |bar, _| bar.place(goal)),
             false => self.verse_bar.update(cx, |bar, _| bar.aim(goal, window)),
         }
@@ -1590,7 +1599,7 @@ impl Aside {
                                             .text_color(cx.theme().muted_foreground)
                                             .child(BULLET),
                                     )
-                                    .child(eyebrow(t!("queue-from"), cx))
+                                    .child(faint(cx).child(t!("queue-from")))
                                     .child(source_link(name, place, cx))
                                     .into_any_element(),
                                 _ => label.into_any_element(),
@@ -1934,17 +1943,21 @@ fn secondary_lyrics_lane(
     sung: Sung,
 ) -> gpui::AnyElement {
     let theme = &sung.theme;
-    let active =
-        line_active && position >= lane.start && lane.sung_end().is_none_or(|end| position < end);
     let passed = line_passed || lane.sung_end().is_some_and(|end| position >= end);
-    let karaoke =
-        secondary_karaoke_visible(lane, line_active, position) && sung.karaoke && lane.worded();
-    let tint = match (active, passed, karaoke) {
-        (_, _, true) => theme.muted_foreground,
-        (true, _, false) => theme.foreground,
-        (false, true, false) => theme.muted_foreground.opacity(PAST),
-        (false, false, false) => theme.muted_foreground.opacity(AHEAD),
+    let shade = |singing: bool| {
+        let active =
+            singing && position >= lane.start && lane.sung_end().is_none_or(|end| position < end);
+        let karaoke =
+            secondary_karaoke_visible(lane, singing, position) && sung.karaoke && lane.worded();
+
+        match (active, passed, karaoke) {
+            (_, _, true) => theme.muted_foreground,
+            (true, _, false) => theme.foreground,
+            (false, true, false) => theme.muted_foreground.opacity(PAST),
+            (false, false, false) => theme.muted_foreground.opacity(AHEAD),
+        }
     };
+    let tint = shade(line_active);
     let size = theme.text(Text::Body);
     let karaoke_capable = sung.karaoke && lane.worded();
     let lyrics = div()
@@ -1961,11 +1974,11 @@ fn secondary_lyrics_lane(
             )),
             _ => this.child(SharedString::from(lane.text.clone())),
         });
-    let lit = theme.foreground;
+    let held = shade(true);
     let lyrics = match dimming {
         Some(departure) => lyrics
             .motion(("lane-dim", departure as usize), Motion::Quick, {
-                move |this, t| this.text_color(mix(lit, tint, t))
+                move |this, t| this.text_color(mix(held, tint, t))
             })
             .into_any_element(),
         None => lyrics.text_color(tint).into_any_element(),
@@ -2288,7 +2301,11 @@ fn evenly_filled(fragments: &[SharedString], spoken: &[usize]) -> Vec<bool> {
 }
 
 fn separable(left: &str, right: &str) -> bool {
-    if left.ends_with(char::is_whitespace) || right.starts_with(char::is_whitespace) {
+    // spacing ends a row
+    if right.starts_with(char::is_whitespace) {
+        return false;
+    }
+    if left.ends_with(char::is_whitespace) {
         return true;
     }
 
@@ -2484,6 +2501,16 @@ fn wrapped_rows(text: &str, size: Pixels, width: Pixels, window: &mut Window) ->
     lyrics_wrap_rows(&parts, size, width, window).map_or(1, |wrapped| wrapped.rows.len().max(1))
 }
 
+// culling needs layout
+fn adrift(row: impl Styled + IntoElement, shift: Pixels, window: &Window) -> Div {
+    let grid = snapped(shift, window);
+
+    div().w_full().flex().flex_col().items_center().child(
+        row.top(grid)
+            .layer_translate(gpui::point(px(0.), shift - grid)),
+    )
+}
+
 struct Place {
     top: Pixels,
     height: Pixels,
@@ -2540,6 +2567,15 @@ struct Drag {
     beat: f32,
     downward: bool,
     most: Pixels,
+}
+
+fn lag_spring(along: f32) -> SpringConfig {
+    let frequency = 1. - LAG_STAGGER * along.clamp(0., 1.);
+    SpringConfig::new(
+        LAG_SPRING.stiffness * frequency * frequency,
+        LAG_SPRING.damping * frequency,
+        LAG_SPRING.mass,
+    )
 }
 
 // incoming rows last
@@ -2615,7 +2651,7 @@ mod tests {
 
     use super::{
         QueuePosition, Sections, Slot, active_lyrics_row, anchored_lyrics_offset,
-        karaoke_fragments, karaoke_window, line_has_passed, line_row, lyric_row_count,
+        karaoke_fragments, karaoke_window, lag_spring, line_has_passed, line_row, lyric_row_count,
         plain_lyrics_fragments, secondary_karaoke_visible, wrap_fragment_widths,
     };
     use gpui::px;
@@ -2795,6 +2831,13 @@ mod tests {
     }
 
     #[test]
+    fn lyrics_follow_preserves_a_subpixel_target() {
+        let offset = anchored_lyrics_offset(px(0.25), px(200.125), px(100.5), px(500.));
+
+        assert!((offset.as_f32() - -169.725).abs() < 0.001);
+    }
+
+    #[test]
     fn karaoke_uses_spacing_from_the_complete_line() {
         let text = "I said oooh I'm drowning in the night";
         let words = ["I", "said", "oooh", "I'm", "drowning", "in", "the", "night"]
@@ -2845,6 +2888,19 @@ mod tests {
         let rows = wrap_fragment_widths(&[px(120.), px(30.), px(30.)], &[true; 3], px(80.));
 
         assert_eq!(rows, [0..1, 1..3]);
+    }
+
+    #[test]
+    fn lyrics_row_springs_stagger_without_changing_their_damping_ratio() {
+        let (first_frequency, first_ratio) = lag_spring(0.).canonical();
+        let (last_frequency, last_ratio) = lag_spring(1.).canonical();
+
+        assert!(first_frequency > last_frequency);
+        assert!((first_ratio - last_ratio).abs() < f32::EPSILON);
+        assert!(
+            first_ratio < 1.,
+            "the lyrics settle should have a subtle overshoot"
+        );
     }
 
     #[test]
