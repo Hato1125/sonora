@@ -155,6 +155,7 @@ struct Values {
     sidebar_right_tab: SideTab,
     shuffle: bool,
     repeat: Repeat,
+    radio: bool,
     language: String,
     #[serde(default = "system_font")]
     font: String,
@@ -210,6 +211,7 @@ impl Default for Values {
             sidebar_right_tab: SideTab::Queue,
             shuffle: false,
             repeat: Repeat::Off,
+            radio: false,
             language: i18n::AUTO.to_owned(),
             font: system_font(),
             provider: "spotify".to_owned(),
@@ -346,6 +348,10 @@ impl AppSettings {
 
     pub fn repeat(&self) -> Repeat {
         self.values.repeat
+    }
+
+    pub fn radio(&self) -> bool {
+        self.values.radio
     }
 
     pub fn language(&self) -> &str {
@@ -614,6 +620,11 @@ impl AppSettings {
 
     pub fn set_repeat(&mut self, repeat: Repeat, cx: &mut Context<Self>) {
         self.values.repeat = repeat;
+        self.schedule_save(cx);
+    }
+
+    pub fn set_radio(&mut self, radio: bool, cx: &mut Context<Self>) {
+        self.values.radio = radio;
         self.schedule_save(cx);
     }
 

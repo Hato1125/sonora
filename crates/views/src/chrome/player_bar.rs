@@ -12,8 +12,8 @@ use i18n::t;
 use input::{ToggleFullscreen, ToggleLyrics, ToggleQueue};
 use state::{AppSettings, Playback, Queue, SideTab, Sonora};
 use ui::{
-    Artwork, Button, InlineLink, InlineLinks, Popup, Room, Scrollbar, Scrubber, ScrubberState,
-    clock,
+    Artwork, Button, ExplicitBadge, InlineLink, InlineLinks, Popup, Room, Scrollbar, Scrubber,
+    ScrubberState, clock,
 };
 
 use crate::chrome::SidebarRight;
@@ -243,6 +243,7 @@ impl PlayerBar {
         let artists = theme.text(ui::Text::Small);
         let track = self.playback.read(cx).track().cloned();
         let cover = track.as_ref().and_then(|track| track.cover.clone());
+        let explicit = track.as_ref().is_some_and(|track| track.explicit);
         let like = like(track.clone(), cx);
 
         div()
@@ -313,6 +314,9 @@ impl PlayerBar {
                                         .min_w_0()
                                         .text_color(muted)
                                         .truncate(),
+                                })
+                                .when(explicit, |this| {
+                                    this.child(div().flex_none().child(ExplicitBadge::new()))
                                 })
                                 .child(like),
                         )
