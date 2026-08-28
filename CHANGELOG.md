@@ -7,6 +7,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- The typeface picker opens at once on a machine with many fonts installed: it previews only the
+  names in view, a few families per frame, rather than loading every one up front.
+- Enter picks the highlighted typeface, and filtering the list moves the highlight to the first
+  match instead of leaving it on a row that is no longer there.
+
 ## [0.23.0] - 2026-08-28
 
 ### Added

@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -30,6 +32,10 @@ const TYPEFACES: &str = "typefaces";
 const TYPEFACE_LIMIT: usize = 200;
 const TYPEFACE_HEIGHT: Pixels = px(320.);
 const TYPEFACE_LEAD: usize = 2;
+// faces previewed before a measurement
+const TYPEFACE_GUESS: usize = 24;
+// faces loaded per frame
+const TYPEFACE_BATCH: usize = 3;
 const STARTUP: &str = "startup";
 const MOTION: &str = "motion";
 const PACE: &str = "pace";
@@ -125,6 +131,8 @@ pub struct SettingsView {
     typefaces: Entity<Input>,
     typeface_scroll: Entity<Scrollbar>,
     typeface_cursor: usize,
+    typeface_asked: String,
+    typeface_faced: RefCell<HashSet<SharedString>>,
     installed: Option<Vec<SharedString>>,
     picking: bool,
     picking_typeface: bool,
@@ -151,7 +159,16 @@ impl SettingsView {
                 .compact()
                 .tucked()
         });
-        cx.observe(&typefaces, |_, _, cx| cx.notify()).detach();
+        cx.observe(&typefaces, |this, input, cx| {
+            let asked = input.read(cx).text().trim().to_lowercase();
+            if this.typeface_asked != asked {
+                this.typeface_asked = asked;
+                this.typeface_cursor = 0;
+                this.typeface_scroll.read(cx).scroll().scroll_to_item(0);
+            }
+            cx.notify();
+        })
+        .detach();
         let me = cx.entity_id();
         Self {
             session,
@@ -167,6 +184,8 @@ impl SettingsView {
             typefaces,
             typeface_scroll: cx.new(|_| Scrollbar::inset().watching(me)),
             typeface_cursor: 0,
+            typeface_asked: String::new(),
+            typeface_faced: RefCell::new(HashSet::new()),
             installed: None,
             picking: false,
             picking_typeface: false,
@@ -365,7 +384,8 @@ impl SettingsView {
 
     fn take_typeface(&mut self, cx: &mut Context<Self>) {
         let entries = self.typeface_entries(cx);
-        let Some(name) = entries.get(self.typeface_cursor).cloned() else {
+        let seat = self.typeface_cursor.min(entries.len().saturating_sub(1));
+        let Some(name) = entries.get(seat).cloned() else {
             return;
         };
         self.settings
@@ -376,24 +396,19 @@ impl SettingsView {
 
     fn reveal_typeface(&mut self, cx: &App) {
         let chosen = self.settings.read(cx).font();
-        let seat = match chosen == SYSTEM_FONT {
-            true => Some(0),
-            false => self
-                .installed
-                .as_deref()
-                .unwrap_or_default()
-                .iter()
-                .position(|name| name.as_ref() == chosen)
-                .map(|place| place + 1),
+        let Some(seat) = self
+            .typeface_entries(cx)
+            .iter()
+            .position(|name| name.as_ref() == chosen)
+        else {
+            return;
         };
 
-        if let Some(seat) = seat {
-            self.typeface_cursor = seat;
-            self.typeface_scroll
-                .read(cx)
-                .scroll()
-                .scroll_to_item(seat.saturating_sub(TYPEFACE_LEAD));
-        }
+        self.typeface_cursor = seat;
+        self.typeface_scroll
+            .read(cx)
+            .scroll()
+            .scroll_to_item(seat.saturating_sub(TYPEFACE_LEAD));
     }
 
     fn typeface_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -419,6 +434,62 @@ impl SettingsView {
         .collect::<Vec<_>>();
         let barren = entries.is_empty();
         let cursor = self.typeface_cursor.min(entries.len().saturating_sub(1));
+        // a face costs a font load
+        let scroll = self.typeface_scroll.read(cx).scroll().clone();
+        let row = scroll
+            .bounds_for_item(0)
+            .map(|item| item.size.height)
+            .filter(|height| *height > px(0.));
+        let first = row.map_or(cursor, |row| {
+            ((-scroll.offset().y) / row).floor().max(0.) as usize
+        });
+        let shown = row.map_or(TYPEFACE_GUESS, |row| {
+            (TYPEFACE_HEIGHT / row).ceil() as usize
+        });
+        let previewed = first.saturating_sub(TYPEFACE_LEAD)..first + shown + TYPEFACE_LEAD;
+        let picking = self.popovers.shows(TYPEFACES);
+
+        let mut budget = TYPEFACE_BATCH;
+        let mut waiting = false;
+        let mut faced = self.typeface_faced.borrow_mut();
+        let items = entries
+            .into_iter()
+            .enumerate()
+            .map(|(place, (id, label))| {
+                let name = id.clone();
+                let preview = name.clone();
+                let wanted = picking && name.as_ref() != SYSTEM_FONT && previewed.contains(&place);
+                let shows = match (wanted, faced.contains(&name)) {
+                    (false, _) => false,
+                    (true, true) => true,
+                    (true, false) => match budget {
+                        0 => {
+                            waiting = true;
+                            false
+                        }
+                        _ => {
+                            budget -= 1;
+                            faced.insert(name.clone());
+                            true
+                        }
+                    },
+                };
+                MenuItem::new(id, label)
+                    .selected(place == cursor)
+                    .checked(chosen == name.as_ref())
+                    .when(shows, |item| item.face(preview))
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        let name = name.to_string();
+                        this.settings
+                            .update(cx, |settings, cx| settings.set_font(name, cx));
+                        cx.notify();
+                    }))
+            })
+            .collect::<Vec<_>>();
+        drop(faced);
+        if waiting {
+            cx.notify();
+        }
 
         let picker = Picker::new(TYPEFACES, &self.popovers, current)
             .width(Picker::WIDE)
@@ -429,20 +500,7 @@ impl SettingsView {
                     .scrollbar(self.typeface_scroll.clone())
                     .header(self.typefaces.clone()),
             )
-            .items(entries.into_iter().enumerate().map(|(place, (id, label))| {
-                let name = id.clone();
-                let preview = name.clone();
-                MenuItem::new(id, label)
-                    .selected(place == cursor)
-                    .checked(chosen == name.as_ref())
-                    .when(name.as_ref() != SYSTEM_FONT, |item| item.face(preview))
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        let name = name.to_string();
-                        this.settings
-                            .update(cx, |settings, cx| settings.set_font(name, cx));
-                        cx.notify();
-                    }))
-            }))
+            .items(items)
             .when(barren, |picker| {
                 picker
                     .item(MenuItem::new("typeface-empty", t!("settings-typeface-none")).disabled())
