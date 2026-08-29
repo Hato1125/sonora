@@ -71,9 +71,7 @@ pub(crate) async fn genre(api: &YtMusic, params: &str) -> Result<GenreDetail> {
 }
 
 fn section(shelf: &Value) -> Option<GenreSection> {
-    let title = shelf
-        .run_text(&["header", "musicCarouselShelfBasicHeaderRenderer", "title"])
-        .unwrap_or_default();
+    let title = shelf_title(shelf).unwrap_or_default();
     let items: Vec<GenreItem> = shelf.items(&["contents"]).iter().filter_map(item).collect();
 
     (!items.is_empty()).then_some(GenreSection { title, items })
@@ -84,9 +82,7 @@ fn sections(answer: &Value) -> Vec<GenreSection> {
         .into_iter()
         .filter(|shelf| {
             !matches!(
-                shelf
-                    .run_text(&["header", "musicCarouselShelfBasicHeaderRenderer", "title"])
-                    .as_deref(),
+                shelf_title(shelf).as_deref(),
                 Some(LISTEN_AGAIN | QUICK_PICKS)
             )
         })
@@ -97,12 +93,7 @@ fn sections(answer: &Value) -> Vec<GenreSection> {
 fn tracks(answer: &Value, wanted: &str) -> Vec<Track> {
     let shelf = parse::find_renderers(answer, "musicCarouselShelfRenderer")
         .into_iter()
-        .find(|shelf| {
-            shelf
-                .run_text(&["header", "musicCarouselShelfBasicHeaderRenderer", "title"])
-                .as_deref()
-                == Some(wanted)
-        });
+        .find(|shelf| shelf_title(shelf).as_deref() == Some(wanted));
     let Some(shelf) = shelf else {
         return Vec::new();
     };
@@ -114,6 +105,10 @@ fn tracks(answer: &Value, wanted: &str) -> Vec<Track> {
         .enumerate()
         .map(|(index, track)| wire::track(track, index as u32))
         .collect()
+}
+
+fn shelf_title(shelf: &Value) -> Option<String> {
+    shelf.run_text(&["header", "musicCarouselShelfBasicHeaderRenderer", "title"])
 }
 
 fn track(item: &Value) -> Option<ytmusic::Track> {

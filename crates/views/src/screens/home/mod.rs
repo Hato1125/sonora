@@ -1,9 +1,14 @@
 mod listen_again;
 
+use std::rc::Rc;
+
 use crate::chrome::Chrome;
 use crate::shared::menu::ItemMenu;
 use gpui::prelude::*;
-use gpui::{Context, Entity, Pixels, Point, Render, ScrollHandle, Window, div, px};
+use gpui::{
+    Context, Entity, MouseDownEvent, Pixels, Point, Render, ScrollHandle, WeakEntity, Window, div,
+    px,
+};
 use music::Track;
 use state::{Home, Playback, Sonora};
 use ui::{ActiveTheme as _, Mode, Popup, Scrollbar, Scroller};
@@ -103,7 +108,7 @@ impl Render for HomeView {
         let listen_page = self.listen_again_page;
 
         let quick_picks = self.home.read(cx).quick_picks();
-        let quick_picks_paged = self.home.read(cx).quick_picks_paged();
+        let quick_picks_navigation = self.home.read(cx).quick_picks_navigation();
         let quick_shape = Shape::new(available, quick_picks.len());
         if self.quick_picks_columns != quick_shape.columns {
             self.quick_picks_columns = quick_shape.columns;
@@ -143,17 +148,7 @@ impl Render for HomeView {
                 cx.notify();
             }))
             .on_context_menu(move |place, event, _, cx| {
-                let Some(track) = tracks.get(place).cloned() else {
-                    return;
-                };
-                let Some(home) = home.upgrade() else {
-                    return;
-                };
-                home.update(cx, |this, cx| {
-                    this.track_menu.reset(cx);
-                    this.context_menu = Some((track, event.position));
-                    cx.notify();
-                });
+                open_menu(&home, &tracks, place, event, cx);
             })
         });
 
@@ -171,7 +166,7 @@ impl Render for HomeView {
         .eyebrow("home-quick-picks-eyebrow")
         .vacancy("home-quick-picks-empty")
         .loading(self.home.read(cx).is_loading(cx))
-        .paged(quick_picks_paged)
+        .navigation(quick_picks_navigation)
         .on_previous(cx.listener(|this, _, _, cx| {
             this.quick_picks_page = this.quick_picks_page.saturating_sub(1);
             this.context_menu = None;
@@ -183,17 +178,7 @@ impl Render for HomeView {
             cx.notify();
         }))
         .on_context_menu(move |place, event, _, cx| {
-            let Some(track) = tracks.get(place).cloned() else {
-                return;
-            };
-            let Some(home) = home.upgrade() else {
-                return;
-            };
-            home.update(cx, |this, cx| {
-                this.track_menu.reset(cx);
-                this.context_menu = Some((track, event.position));
-                cx.notify();
-            });
+            open_menu(&home, &tracks, place, event, cx);
         });
 
         let sections = self.home.read(cx).sections();
@@ -221,4 +206,24 @@ impl Render for HomeView {
             )
             .when_some(context_menu, |this, menu| this.child(menu))
     }
+}
+
+fn open_menu(
+    home: &WeakEntity<HomeView>,
+    tracks: &Rc<Vec<Track>>,
+    place: usize,
+    event: &MouseDownEvent,
+    cx: &mut gpui::App,
+) {
+    let Some(track) = tracks.get(place).cloned() else {
+        return;
+    };
+    let Some(home) = home.upgrade() else {
+        return;
+    };
+    home.update(cx, |this, cx| {
+        this.track_menu.reset(cx);
+        this.context_menu = Some((track, event.position));
+        cx.notify();
+    });
 }

@@ -1,17 +1,15 @@
 use std::rc::Rc;
 
 use gpui::prelude::*;
-use gpui::{App, ClickEvent, Entity, MouseDownEvent, Pixels, SharedString, Window, div};
+use gpui::{App, ClickEvent, Entity, FontWeight, MouseDownEvent, Pixels, Window, div};
 use music::Track;
-use state::{Playback, PlaybackState};
-use ui::{ActiveTheme as _, Button, Card, Pinnable, Text, heading};
+use state::Playback;
+use ui::{Button, heading};
 
-use crate::shared::album_grid::{CardGrid, CardLayout};
-use crate::shared::cells;
-use crate::shared::pins::Pinned as _;
+use crate::shared::album_grid::CardGrid;
+use crate::shared::picks::{ContextHandler, track_card};
 
 type ClickHandler = Rc<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
-type ContextHandler = Rc<dyn Fn(usize, &MouseDownEvent, &mut Window, &mut App)>;
 
 #[derive(Clone, Copy)]
 pub(super) struct Shape {
@@ -100,16 +98,22 @@ impl RenderOnce for ListenAgain {
             .skip(start)
             .take(shape.columns)
             .map(|(place, track)| {
-                card(
+                track_card(
                     track,
                     place,
-                    layout,
+                    "listen-again-card",
+                    false,
                     tracks.clone(),
                     self.playback.clone(),
                     self.active.as_deref(),
                     self.on_context_menu.clone(),
+                    None,
                     cx,
                 )
+                .tile(layout.card)
+                .flat()
+                .weight(FontWeight::SEMIBOLD)
+                .hint()
                 .into_any_element()
             });
 
@@ -160,60 +164,4 @@ impl RenderOnce for ListenAgain {
             )
             .child(CardGrid::new(self.width).children(cards))
     }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn card(
-    track: &Track,
-    place: usize,
-    layout: CardLayout,
-    tracks: Rc<Vec<Track>>,
-    playback: Entity<Playback>,
-    active: Option<&str>,
-    on_context_menu: Option<ContextHandler>,
-    cx: &App,
-) -> Card {
-    let theme = *cx.theme();
-    let current = track.id.as_deref() == active;
-    let playing = current && playback.read(cx).state() == &PlaybackState::Playing;
-    let pin = track.pin();
-    let artists = cells::artist_links(
-        SharedString::new_static("listen-again-artist"),
-        track.artist_refs.clone(),
-        track.artists.clone(),
-        theme.muted_foreground,
-    )
-    .text_size(theme.text(Text::Small))
-    .truncate();
-    let pressed_tracks = tracks.clone();
-    let pressed_playback = playback.clone();
-    let transport_tracks = tracks.clone();
-    let transport_playback = playback.clone();
-
-    Card::new(
-        ("listen-again-card", place),
-        SharedString::from(track.name.clone()),
-    )
-    .cover(track.cover.clone())
-    .tile(layout.card)
-    .flat()
-    .weight(gpui::FontWeight::SEMIBOLD)
-    .hint()
-    .bare_meta(artists)
-    .when(track.explicit, Card::explicit)
-    .when_some(on_context_menu, |card, handler| {
-        card.menu(move |event, window, cx| handler(place, event, window, cx))
-    })
-    .play(playing, move |_, _, cx| match current {
-        true => transport_playback.update(cx, |playback, cx| playback.toggle_play(cx)),
-        false => transport_playback.update(cx, |playback, cx| {
-            playback.play_radio(&transport_tracks[place], cx);
-        }),
-    })
-    .press(move |_, _, cx| {
-        pressed_playback.update(cx, |playback, cx| {
-            playback.play_radio(&pressed_tracks[place], cx);
-        });
-    })
-    .when_some(pin, Pinnable::pin)
 }

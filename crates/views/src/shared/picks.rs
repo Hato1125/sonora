@@ -16,8 +16,8 @@ const MAX_COLUMNS: usize = 3;
 const MIN_COLUMN_WIDTH: Pixels = gpui::px(280.);
 
 type ClickHandler = Rc<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
-type ContextHandler = Rc<dyn Fn(usize, &MouseDownEvent, &mut Window, &mut App)>;
-type StartHandler = Rc<dyn Fn(usize, &mut App)>;
+pub(crate) type ContextHandler = Rc<dyn Fn(usize, &MouseDownEvent, &mut Window, &mut App)>;
+pub(crate) type StartHandler = Rc<dyn Fn(usize, &mut App)>;
 
 pub(crate) fn column_count(width: Pixels) -> usize {
     ((width / MIN_COLUMN_WIDTH).floor().max(1.) as usize).min(MAX_COLUMNS)
@@ -57,7 +57,7 @@ pub(crate) struct Picks {
     page: usize,
     detailed: bool,
     loading: bool,
-    paged: bool,
+    navigation: bool,
     on_previous: Option<ClickHandler>,
     on_next: Option<ClickHandler>,
     on_context_menu: Option<ContextHandler>,
@@ -85,7 +85,7 @@ impl Picks {
             page,
             detailed: false,
             loading: false,
-            paged: true,
+            navigation: true,
             on_previous: None,
             on_next: None,
             on_context_menu: None,
@@ -118,8 +118,8 @@ impl Picks {
         self
     }
 
-    pub(crate) fn paged(mut self, paged: bool) -> Self {
-        self.paged = paged;
+    pub(crate) fn navigation(mut self, navigation: bool) -> Self {
+        self.navigation = navigation;
         self
     }
 
@@ -195,7 +195,7 @@ impl RenderOnce for Picks {
                             .children(self.eyebrow.map(|key| eyebrow(i18n::lookup(key, None), cx)))
                             .child(heading(i18n::lookup(self.title, None), cx)),
                     )
-                    .when(self.paged, |this| {
+                    .when(self.navigation, |this| {
                         this.child(
                             div()
                                 .flex()
@@ -248,7 +248,7 @@ impl RenderOnce for Picks {
                                 let place = start + column * ROWS + slot;
                                 match tracks.get(place) {
                                     None => div().flex_none().h(row).into_any_element(),
-                                    Some(track) => pick(
+                                    Some(track) => track_card(
                                         track,
                                         place,
                                         id,
@@ -287,7 +287,7 @@ fn skeleton(id: &'static str, place: usize) -> impl IntoElement {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn pick(
+pub(crate) fn track_card(
     track: &Track,
     place: usize,
     id: &'static str,
@@ -298,7 +298,7 @@ fn pick(
     on_context_menu: Option<ContextHandler>,
     on_start: Option<StartHandler>,
     cx: &App,
-) -> impl IntoElement {
+) -> Card {
     let theme = *cx.theme();
     let current = track.id.as_deref() == active;
     let tint = match current {
