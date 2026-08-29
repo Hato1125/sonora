@@ -82,6 +82,14 @@ fn section(shelf: &Value) -> Option<GenreSection> {
 fn sections(answer: &Value) -> Vec<GenreSection> {
     parse::find_renderers(answer, "musicCarouselShelfRenderer")
         .into_iter()
+        .filter(|shelf| {
+            !matches!(
+                shelf
+                    .run_text(&["header", "musicCarouselShelfBasicHeaderRenderer", "title"])
+                    .as_deref(),
+                Some(LISTEN_AGAIN | QUICK_PICKS)
+            )
+        })
         .filter_map(section)
         .collect()
 }
