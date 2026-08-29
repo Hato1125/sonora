@@ -39,6 +39,7 @@ impl Home {
                 this.task = None;
                 this.naming = None;
                 this.listen_again = Rc::new(Vec::new());
+                this.quick_picks = Rc::new(Vec::new());
                 this.quick_picks_paged = true;
                 this.sections = Rc::new(Vec::new());
                 this.feeding = false;
