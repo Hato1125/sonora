@@ -15,6 +15,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - YouTube Music Quick Picks paginate when the window cannot fit all three columns and never reuse
   recommendations from a previously connected Spotify account.
+- Saving or removing a song, album or artist that the service refuses now says so instead of
+  quietly flipping the control back.
 
 ## [0.24.1] - 2026-08-29
 

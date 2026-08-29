@@ -259,7 +259,10 @@ impl MusicApi for YouTubeClient {
             .album
             .playlist_id
             .context("album has no audio playlist")?;
-        self.api.rate_playlist(&playlist_id, saved).await
+        self.api
+            .rate_playlist(&playlist_id, saved)
+            .await
+            .with_context(|| format!("cannot rate the album {album_id} as {playlist_id}"))
     }
 
     async fn saved_artists(&self, _limit: u32) -> Result<Vec<SavedArtist>> {

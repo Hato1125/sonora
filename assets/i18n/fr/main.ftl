@@ -489,6 +489,8 @@ toast-queue-failed = Impossible d'ajouter cela à la file d'attente
 toast-keys-refused = Spotify n'accorde pas de clés de lecture à ce compte
 toast-sign-in-to-play = { $name } ne diffuse qu'aux auditeurs connectés
 toast-track-unplayable = { $name } n'a pas pu être lu
+toast-library-add-failed = { $name } n'a pas pu être ajouté à votre bibliothèque
+toast-library-remove-failed = { $name } n'a pas pu être retiré de votre bibliothèque
 
 # lyrics
 lyrics-title = Paroles
