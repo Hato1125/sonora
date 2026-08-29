@@ -57,7 +57,6 @@ pub(crate) struct Picks {
     page: usize,
     detailed: bool,
     loading: bool,
-    navigation: bool,
     on_previous: Option<ClickHandler>,
     on_next: Option<ClickHandler>,
     on_context_menu: Option<ContextHandler>,
@@ -85,7 +84,6 @@ impl Picks {
             page,
             detailed: false,
             loading: false,
-            navigation: true,
             on_previous: None,
             on_next: None,
             on_context_menu: None,
@@ -115,11 +113,6 @@ impl Picks {
 
     pub(crate) fn loading(mut self, loading: bool) -> Self {
         self.loading = loading;
-        self
-    }
-
-    pub(crate) fn navigation(mut self, navigation: bool) -> Self {
-        self.navigation = navigation;
         self
     }
 
@@ -195,40 +188,38 @@ impl RenderOnce for Picks {
                             .children(self.eyebrow.map(|key| eyebrow(i18n::lookup(key, None), cx)))
                             .child(heading(i18n::lookup(self.title, None), cx)),
                     )
-                    .when(self.navigation, |this| {
-                        this.child(
-                            div()
-                                .flex()
-                                .items_center()
-                                .gap_1()
-                                .child(
-                                    Button::new(SharedString::from(format!("{id}-previous")))
-                                        .small()
-                                        .outline()
-                                        .icon("icons/chevron-left.svg")
-                                        .tooltip("common-previous")
-                                        .disabled(empty || page == 0)
-                                        .when_some(on_previous, |button, handler| {
-                                            button.on_click(move |event, window, cx| {
-                                                handler(event, window, cx)
-                                            })
-                                        }),
-                                )
-                                .child(
-                                    Button::new(SharedString::from(format!("{id}-next")))
-                                        .small()
-                                        .outline()
-                                        .icon("icons/chevron-right.svg")
-                                        .tooltip("common-next")
-                                        .disabled(empty || page + 1 >= shape.pages)
-                                        .when_some(on_next, |button, handler| {
-                                            button.on_click(move |event, window, cx| {
-                                                handler(event, window, cx)
-                                            })
-                                        }),
-                                ),
-                        )
-                    }),
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap_1()
+                            .child(
+                                Button::new(SharedString::from(format!("{id}-previous")))
+                                    .small()
+                                    .outline()
+                                    .icon("icons/chevron-left.svg")
+                                    .tooltip("common-previous")
+                                    .disabled(empty || page == 0)
+                                    .when_some(on_previous, |button, handler| {
+                                        button.on_click(move |event, window, cx| {
+                                            handler(event, window, cx)
+                                        })
+                                    }),
+                            )
+                            .child(
+                                Button::new(SharedString::from(format!("{id}-next")))
+                                    .small()
+                                    .outline()
+                                    .icon("icons/chevron-right.svg")
+                                    .tooltip("common-next")
+                                    .disabled(empty || page + 1 >= shape.pages)
+                                    .when_some(on_next, |button, handler| {
+                                        button.on_click(move |event, window, cx| {
+                                            handler(event, window, cx)
+                                        })
+                                    }),
+                            ),
+                    ),
             )
             .when(barren, |this| {
                 this.child(vacant(i18n::lookup(self.vacancy, None), cx))

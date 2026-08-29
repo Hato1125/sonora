@@ -108,7 +108,6 @@ impl Render for HomeView {
         let listen_page = self.listen_again_page;
 
         let quick_picks = self.home.read(cx).quick_picks();
-        let quick_picks_navigation = self.home.read(cx).quick_picks_navigation();
         let quick_shape = Shape::new(available, quick_picks.len());
         if self.quick_picks_columns != quick_shape.columns {
             self.quick_picks_columns = quick_shape.columns;
@@ -166,7 +165,6 @@ impl Render for HomeView {
         .eyebrow("home-quick-picks-eyebrow")
         .vacancy("home-quick-picks-empty")
         .loading(self.home.read(cx).is_loading(cx))
-        .navigation(quick_picks_navigation)
         .on_previous(cx.listener(|this, _, _, cx| {
             this.quick_picks_page = this.quick_picks_page.saturating_sub(1);
             this.context_menu = None;

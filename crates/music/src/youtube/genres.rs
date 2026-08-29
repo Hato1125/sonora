@@ -9,6 +9,7 @@ use crate::{Genre, GenreDetail, GenreItem, GenreSection, HomeFeed, Track};
 const HOME: &str = "FEmusic_home";
 const LISTEN_AGAIN: &str = "Listen again";
 const QUICK_PICKS: &str = "Quick picks";
+const QUICK_PICKS_LIMIT: usize = 15;
 const CATEGORIES: &str = "FEmusic_moods_and_genres";
 const CATEGORY: &str = "FEmusic_moods_and_genres_category";
 const THUMB: u32 = 120;
@@ -23,7 +24,10 @@ pub(crate) async fn home(api: &YtMusic) -> Result<HomeFeed> {
             .execute("browse", Client::Music, json!({ "continuation": token }))
             .await
         {
-            Ok(continued) => tracks(&continued, QUICK_PICKS),
+            Ok(continued) => tracks(&continued, QUICK_PICKS)
+                .into_iter()
+                .take(QUICK_PICKS_LIMIT)
+                .collect(),
             Err(error) => {
                 log::warn!("youtube: cannot load Quick picks: {error:#}");
                 Vec::new()

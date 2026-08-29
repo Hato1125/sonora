@@ -15,7 +15,6 @@ pub struct Home {
     io: Io,
     listen_again: Rc<Vec<Track>>,
     quick_picks: Rc<Vec<Track>>,
-    quick_picks_navigation: bool,
     quick_picks_seed: u64,
     sections: Rc<Vec<GenreSection>>,
     feeding: bool,
@@ -40,7 +39,6 @@ impl Home {
                 this.naming = None;
                 this.listen_again = Rc::new(Vec::new());
                 this.quick_picks = Rc::new(Vec::new());
-                this.quick_picks_navigation = true;
                 this.sections = Rc::new(Vec::new());
                 this.feeding = false;
                 cx.notify();
@@ -69,7 +67,6 @@ impl Home {
             io,
             listen_again: Rc::new(Vec::new()),
             quick_picks,
-            quick_picks_navigation: true,
             quick_picks_seed,
             sections: Rc::new(Vec::new()),
             feeding: false,
@@ -106,7 +103,6 @@ impl Home {
                 match loaded {
                     Ok(feed) => {
                         this.listen_again = Rc::new(feed.listen_again);
-                        this.quick_picks_navigation = feed.quick_picks.is_none();
                         if let Some(quick_picks) = feed.quick_picks {
                             this.quick_picks = Rc::new(quick_picks);
                         }
@@ -155,10 +151,6 @@ impl Home {
 
     pub fn quick_picks(&self) -> Rc<Vec<Track>> {
         self.quick_picks.clone()
-    }
-
-    pub fn quick_picks_navigation(&self) -> bool {
-        self.quick_picks_navigation
     }
 
     pub fn is_loading(&self, cx: &App) -> bool {
