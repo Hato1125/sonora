@@ -57,6 +57,7 @@ pub(crate) struct Picks {
     page: usize,
     detailed: bool,
     loading: bool,
+    paged: bool,
     on_previous: Option<ClickHandler>,
     on_next: Option<ClickHandler>,
     on_context_menu: Option<ContextHandler>,
@@ -84,6 +85,7 @@ impl Picks {
             page,
             detailed: false,
             loading: false,
+            paged: true,
             on_previous: None,
             on_next: None,
             on_context_menu: None,
@@ -113,6 +115,11 @@ impl Picks {
 
     pub(crate) fn loading(mut self, loading: bool) -> Self {
         self.loading = loading;
+        self
+    }
+
+    pub(crate) fn paged(mut self, paged: bool) -> Self {
+        self.paged = paged;
         self
     }
 
@@ -152,6 +159,10 @@ impl RenderOnce for Picks {
         let shape = Shape::new(self.width, self.tracks.len());
         let page = self.page.min(shape.pages.saturating_sub(1));
         let start = page * shape.slots();
+        let rows = match self.paged {
+            true => ROWS,
+            false => self.tracks.len().div_ceil(shape.columns).max(1),
+        };
         let row = snapped(theme.metrics.list_row, window);
         let tracks = self.tracks;
         let empty = tracks.is_empty();
@@ -180,46 +191,50 @@ impl RenderOnce for Picks {
                     .py_2()
                     .border_b_1()
                     .border_color(theme.border)
-                    .child(
-                        div()
-                            .flex()
-                            .flex_col()
-                            .gap_0p5()
-                            .children(self.eyebrow.map(|key| eyebrow(i18n::lookup(key, None), cx)))
-                            .child(heading(i18n::lookup(self.title, None), cx)),
-                    )
-                    .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap_1()
-                            .child(
-                                Button::new(SharedString::from(format!("{id}-previous")))
-                                    .small()
-                                    .outline()
-                                    .icon("icons/chevron-left.svg")
-                                    .tooltip("common-previous")
-                                    .disabled(empty || page == 0)
-                                    .when_some(on_previous, |button, handler| {
-                                        button.on_click(move |event, window, cx| {
-                                            handler(event, window, cx)
-                                        })
-                                    }),
-                            )
-                            .child(
-                                Button::new(SharedString::from(format!("{id}-next")))
-                                    .small()
-                                    .outline()
-                                    .icon("icons/chevron-right.svg")
-                                    .tooltip("common-next")
-                                    .disabled(empty || page + 1 >= shape.pages)
-                                    .when_some(on_next, |button, handler| {
-                                        button.on_click(move |event, window, cx| {
-                                            handler(event, window, cx)
-                                        })
-                                    }),
-                            ),
-                    ),
+                    .when(self.paged, |this| {
+                        this.child(
+                            div()
+                                .flex()
+                                .flex_col()
+                                .gap_0p5()
+                                .children(
+                                    self.eyebrow.map(|key| eyebrow(i18n::lookup(key, None), cx)),
+                                )
+                                .child(heading(i18n::lookup(self.title, None), cx)),
+                        )
+                        .child(
+                            div()
+                                .flex()
+                                .items_center()
+                                .gap_1()
+                                .child(
+                                    Button::new(SharedString::from(format!("{id}-previous")))
+                                        .small()
+                                        .outline()
+                                        .icon("icons/chevron-left.svg")
+                                        .tooltip("common-previous")
+                                        .disabled(empty || page == 0)
+                                        .when_some(on_previous, |button, handler| {
+                                            button.on_click(move |event, window, cx| {
+                                                handler(event, window, cx)
+                                            })
+                                        }),
+                                )
+                                .child(
+                                    Button::new(SharedString::from(format!("{id}-next")))
+                                        .small()
+                                        .outline()
+                                        .icon("icons/chevron-right.svg")
+                                        .tooltip("common-next")
+                                        .disabled(empty || page + 1 >= shape.pages)
+                                        .when_some(on_next, |button, handler| {
+                                            button.on_click(move |event, window, cx| {
+                                                handler(event, window, cx)
+                                            })
+                                        }),
+                                ),
+                        )
+                    }),
             )
             .when(barren, |this| {
                 this.child(vacant(i18n::lookup(self.vacancy, None), cx))
@@ -230,13 +245,13 @@ impl RenderOnce for Picks {
                     |this| {
                         this.children((0..shape.columns).map(|column| {
                             column_shell(column, theme.border)
-                                .children((0..ROWS).map(|slot| skeleton(id, column * ROWS + slot)))
+                                .children((0..rows).map(|slot| skeleton(id, column * rows + slot)))
                         }))
                     },
                     |this| {
                         this.children((0..shape.columns).map(|column| {
-                            column_shell(column, theme.border).children((0..ROWS).map(|slot| {
-                                let place = start + column * ROWS + slot;
+                            column_shell(column, theme.border).children((0..rows).map(|slot| {
+                                let place = start + column * rows + slot;
                                 match tracks.get(place) {
                                     None => div().flex_none().h(row).into_any_element(),
                                     Some(track) => pick(

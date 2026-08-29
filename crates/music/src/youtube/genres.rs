@@ -33,7 +33,7 @@ pub(crate) async fn home(api: &YtMusic) -> Result<HomeFeed> {
     };
     Ok(HomeFeed {
         listen_again,
-        quick_picks,
+        quick_picks: Some(quick_picks),
         sections: sections(&answer),
     })
 }

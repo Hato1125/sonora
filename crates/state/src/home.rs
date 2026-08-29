@@ -15,6 +15,7 @@ pub struct Home {
     io: Io,
     listen_again: Rc<Vec<Track>>,
     quick_picks: Rc<Vec<Track>>,
+    quick_picks_paged: bool,
     quick_picks_seed: u64,
     sections: Rc<Vec<GenreSection>>,
     feeding: bool,
@@ -38,6 +39,7 @@ impl Home {
                 this.task = None;
                 this.naming = None;
                 this.listen_again = Rc::new(Vec::new());
+                this.quick_picks_paged = true;
                 this.sections = Rc::new(Vec::new());
                 this.feeding = false;
                 cx.notify();
@@ -66,6 +68,7 @@ impl Home {
             io,
             listen_again: Rc::new(Vec::new()),
             quick_picks,
+            quick_picks_paged: true,
             quick_picks_seed,
             sections: Rc::new(Vec::new()),
             feeding: false,
@@ -102,8 +105,9 @@ impl Home {
                 match loaded {
                     Ok(feed) => {
                         this.listen_again = Rc::new(feed.listen_again);
-                        if !feed.quick_picks.is_empty() {
-                            this.quick_picks = Rc::new(feed.quick_picks);
+                        this.quick_picks_paged = feed.quick_picks.is_none();
+                        if let Some(quick_picks) = feed.quick_picks {
+                            this.quick_picks = Rc::new(quick_picks);
                         }
                         this.sections = Rc::new(pruned(&feed.sections));
                         this.name_playlists(feed.sections, cx);
@@ -150,6 +154,10 @@ impl Home {
 
     pub fn quick_picks(&self) -> Rc<Vec<Track>> {
         self.quick_picks.clone()
+    }
+
+    pub fn quick_picks_paged(&self) -> bool {
+        self.quick_picks_paged
     }
 
     pub fn is_loading(&self, cx: &App) -> bool {
