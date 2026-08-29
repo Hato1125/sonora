@@ -57,6 +57,7 @@ pub struct Card {
     loading: bool,
     tile: Option<Pixels>,
     play: Option<Press>,
+    hint: bool,
     underline: bool,
     playing: bool,
     action: Option<AnyElement>,
@@ -90,6 +91,7 @@ impl Card {
             loading: false,
             tile: None,
             play: None,
+            hint: false,
             underline: false,
             playing: false,
             action: None,
@@ -133,6 +135,11 @@ impl Card {
     ) -> Self {
         self.play = Some(Box::new(handler));
         self.playing = playing;
+        self
+    }
+
+    pub fn hint(mut self) -> Self {
+        self.hint = true;
         self
     }
 
@@ -286,6 +293,7 @@ impl RenderOnce for Card {
             loading,
             tile,
             play,
+            hint,
             underline,
             playing,
             action,
@@ -430,6 +438,9 @@ impl RenderOnce for Card {
             .when_some(weight, |this, weight| this.font_weight(weight))
             .when(underline, |this| {
                 this.group_hover(CARD_GROUP, |style| style.underline())
+            })
+            .when(hint && !title.is_empty(), |this| {
+                this.tooltip(Tooltip::label(title.clone(), Perch::Pointer))
             })
             .text_color(tint.unwrap_or(theme.foreground))
             .when_some(size, |this, size| this.text_size(theme.text(size)))

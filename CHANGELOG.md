@@ -7,6 +7,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Hovering an album card's title shows the full name, so two releases that share a truncated title
+  can be told apart.
+
 ## [0.24.0] - 2026-08-29
 
 ### Added
