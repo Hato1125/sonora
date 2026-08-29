@@ -7,6 +7,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- YouTube Music listeners see their Listen Again history and personalized Quick Picks on Home.
+
+### Fixed
+
+- YouTube Music Quick Picks paginate when the window cannot fit all three columns and never reuse
+  recommendations from a previously connected Spotify account.
+
 ## [0.24.1] - 2026-08-29
 
 ### Added

@@ -3,21 +3,16 @@ use std::rc::Rc;
 use gpui::prelude::*;
 use gpui::{App, ClickEvent, Entity, MouseDownEvent, Pixels, SharedString, Window, div};
 use music::Track;
-use state::{Playback, PlaybackState};
-use ui::{
-    ActiveTheme as _, Button, Card, Pinnable, Text, clock, eyebrow, heading, snapped, vacant,
-};
+use state::Playback;
+use ui::{ActiveTheme as _, Button, Card, eyebrow, heading, snapped, vacant};
 
-use crate::shared::cells;
-use crate::shared::pins::Pinned as _;
+use crate::shared::track_card::{ContextHandler, StartHandler, TrackCard};
 
 const ROWS: usize = 5;
 const MAX_COLUMNS: usize = 3;
 const MIN_COLUMN_WIDTH: Pixels = gpui::px(280.);
 
 type ClickHandler = Rc<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
-pub(crate) type ContextHandler = Rc<dyn Fn(usize, &MouseDownEvent, &mut Window, &mut App)>;
-pub(crate) type StartHandler = Rc<dyn Fn(usize, &mut App)>;
 
 pub(crate) fn column_count(width: Pixels) -> usize {
     ((width / MIN_COLUMN_WIDTH).floor().max(1.) as usize).min(MAX_COLUMNS)
@@ -239,18 +234,17 @@ impl RenderOnce for Picks {
                                 let place = start + column * ROWS + slot;
                                 match tracks.get(place) {
                                     None => div().flex_none().h(row).into_any_element(),
-                                    Some(track) => track_card(
-                                        track,
-                                        place,
+                                    Some(_) => TrackCard::new(
                                         id,
-                                        self.detailed,
+                                        place,
                                         tracks.clone(),
                                         self.playback.clone(),
                                         self.active.as_deref(),
-                                        on_context_menu.clone(),
-                                        on_start.clone(),
-                                        cx,
                                     )
+                                    .detailed(self.detailed)
+                                    .context(on_context_menu.clone())
+                                    .start(on_start.clone())
+                                    .render(cx)
                                     .into_any_element(),
                                 }
                             }))
@@ -275,92 +269,6 @@ fn column_shell(column: usize, border: gpui::Hsla) -> gpui::Div {
 
 fn skeleton(id: &'static str, place: usize) -> impl IntoElement {
     Card::skeleton((id, place))
-}
-
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn track_card(
-    track: &Track,
-    place: usize,
-    id: &'static str,
-    detailed: bool,
-    tracks: Rc<Vec<Track>>,
-    playback: Entity<Playback>,
-    active: Option<&str>,
-    on_context_menu: Option<ContextHandler>,
-    on_start: Option<StartHandler>,
-    cx: &App,
-) -> Card {
-    let theme = *cx.theme();
-    let current = track.id.as_deref() == active;
-    let tint = match current {
-        true => theme.primary,
-        false => theme.foreground,
-    };
-    let playing = current && playback.read(cx).state() == &PlaybackState::Playing;
-    let pin = track.pin();
-    let pressed = {
-        let tracks = tracks.clone();
-        let playback = playback.clone();
-        let on_start = on_start.clone();
-        move |cx: &mut App| begin(place, &tracks, &playback, &on_start, cx)
-    };
-    let transport = move |cx: &mut App| match current {
-        true => playback.update(cx, |playback, cx| playback.toggle_play(cx)),
-        false => begin(place, &tracks, &playback, &on_start, cx),
-    };
-
-    let artists = (!detailed || featured(track)).then(|| {
-        cells::artist_links(
-            SharedString::new_static("pick-artist"),
-            track.artist_refs.clone(),
-            track.artists.clone(),
-            theme.muted_foreground,
-        )
-        .text_size(theme.text(Text::Small))
-        .truncate()
-    });
-    let length = detailed.then(|| {
-        div()
-            .text_size(theme.text(Text::Small))
-            .text_color(theme.muted_foreground)
-            .child(clock(track.duration))
-    });
-
-    Card::new((id, place), SharedString::from(track.name.clone()))
-        .cover(track.cover.clone())
-        .tint(tint)
-        .when(track.explicit, |card| card.explicit())
-        .when_some(artists, Card::bare_meta)
-        .when_some(length, Card::trailing)
-        .when_some(on_context_menu, |card, handler| {
-            card.menu(move |event, window, cx| handler(place, event, window, cx))
-        })
-        .play(playing, move |_, _, cx| transport(cx))
-        .press(move |_, _, cx| pressed(cx))
-        .when_some(pin, Pinnable::pin)
-        .min_w_0()
-}
-
-fn featured(track: &Track) -> bool {
-    match track.artist_refs.is_empty() {
-        false => track.artist_refs.len() > 1,
-        true => track.artists.contains(','),
-    }
-}
-
-fn begin(
-    place: usize,
-    tracks: &Rc<Vec<Track>>,
-    playback: &Entity<Playback>,
-    on_start: &Option<StartHandler>,
-    cx: &mut App,
-) {
-    match on_start {
-        Some(handler) => handler(place, cx),
-        None => playback.update(cx, |playback, cx| {
-            playback.play_radio(&tracks[place], cx);
-        }),
-    }
 }
 
 #[cfg(test)]

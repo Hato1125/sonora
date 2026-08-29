@@ -27,13 +27,28 @@ pub(crate) struct HomeView {
     playback_status: PlaybackStatus,
     shelves: Entity<Shelves>,
     width: Pixels,
-    listen_again_columns: usize,
-    listen_again_page: usize,
-    quick_picks_columns: usize,
-    quick_picks_page: usize,
+    listen_again: Pager,
+    quick_picks: Pager,
     scrollbar: Entity<Scrollbar>,
     track_menu: ItemMenu,
     context_menu: Option<(Track, Point<Pixels>)>,
+}
+
+#[derive(Default)]
+struct Pager {
+    columns: usize,
+    page: usize,
+}
+
+impl Pager {
+    fn fit(&mut self, columns: usize, pages: usize) -> usize {
+        if self.columns != columns {
+            self.columns = columns;
+            self.page = 0;
+        }
+        self.page = self.page.min(pages.saturating_sub(1));
+        self.page
+    }
 }
 
 impl HomeView {
@@ -47,8 +62,8 @@ impl HomeView {
         let track_menu = ItemMenu::new(playlist_scrollbar);
 
         cx.observe(&home, |this, _, cx| {
-            this.listen_again_page = 0;
-            this.quick_picks_page = 0;
+            this.listen_again.page = 0;
+            this.quick_picks.page = 0;
             this.track_menu.reset(cx);
             this.context_menu = None;
             cx.notify();
@@ -79,10 +94,8 @@ impl HomeView {
             playback_status: current_playback,
             shelves,
             width: Pixels::ZERO,
-            listen_again_columns: 0,
-            listen_again_page: 0,
-            quick_picks_columns: 0,
-            quick_picks_page: 0,
+            listen_again: Pager::default(),
+            quick_picks: Pager::default(),
             scrollbar: cx.new(|_| Scrollbar::new(ScrollHandle::new()).watching(me)),
             track_menu,
             context_menu: None,
@@ -99,23 +112,15 @@ impl Render for HomeView {
         }
         let listen_again = self.home.read(cx).listen_again();
         let listen_shape = ListenAgainShape::new(available, listen_again.len());
-        if self.listen_again_columns != listen_shape.columns {
-            self.listen_again_columns = listen_shape.columns;
-            self.listen_again_page = 0;
-        }
         let listen_pages = listen_shape.pages;
-        self.listen_again_page = self.listen_again_page.min(listen_pages.saturating_sub(1));
-        let listen_page = self.listen_again_page;
+        let listen_page = self
+            .listen_again
+            .fit(listen_shape.columns, listen_shape.pages);
 
         let quick_picks = self.home.read(cx).quick_picks();
         let quick_shape = Shape::new(available, quick_picks.len());
-        if self.quick_picks_columns != quick_shape.columns {
-            self.quick_picks_columns = quick_shape.columns;
-            self.quick_picks_page = 0;
-        }
         let quick_pages = quick_shape.pages;
-        self.quick_picks_page = self.quick_picks_page.min(quick_pages.saturating_sub(1));
-        let quick_page = self.quick_picks_page;
+        let quick_page = self.quick_picks.fit(quick_shape.columns, quick_shape.pages);
         let context_menu = self.context_menu.clone().map(|(track, position)| {
             Popup::new(position, self.track_menu.for_track(&track, cx)).on_close(cx.listener(
                 |this, _, _, cx| {
@@ -136,13 +141,13 @@ impl Render for HomeView {
                 listen_page,
             )
             .on_previous(cx.listener(|this, _, _, cx| {
-                this.listen_again_page = this.listen_again_page.saturating_sub(1);
+                this.listen_again.page = this.listen_again.page.saturating_sub(1);
                 this.context_menu = None;
                 cx.notify();
             }))
             .on_next(cx.listener(move |this, _, _, cx| {
-                this.listen_again_page =
-                    (this.listen_again_page + 1).min(listen_pages.saturating_sub(1));
+                this.listen_again.page =
+                    (this.listen_again.page + 1).min(listen_pages.saturating_sub(1));
                 this.context_menu = None;
                 cx.notify();
             }))
@@ -166,12 +171,12 @@ impl Render for HomeView {
         .vacancy("home-quick-picks-empty")
         .loading(self.home.read(cx).is_loading(cx))
         .on_previous(cx.listener(|this, _, _, cx| {
-            this.quick_picks_page = this.quick_picks_page.saturating_sub(1);
+            this.quick_picks.page = this.quick_picks.page.saturating_sub(1);
             this.context_menu = None;
             cx.notify();
         }))
         .on_next(cx.listener(move |this, _, _, cx| {
-            this.quick_picks_page = (this.quick_picks_page + 1).min(quick_pages.saturating_sub(1));
+            this.quick_picks.page = (this.quick_picks.page + 1).min(quick_pages.saturating_sub(1));
             this.context_menu = None;
             cx.notify();
         }))

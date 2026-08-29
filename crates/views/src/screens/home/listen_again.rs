@@ -7,7 +7,7 @@ use state::Playback;
 use ui::{Button, heading};
 
 use crate::shared::album_grid::CardGrid;
-use crate::shared::picks::{ContextHandler, track_card};
+use crate::shared::track_card::{ContextHandler, TrackCard};
 
 type ClickHandler = Rc<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 
@@ -97,19 +97,16 @@ impl RenderOnce for ListenAgain {
             .enumerate()
             .skip(start)
             .take(shape.columns)
-            .map(|(place, track)| {
-                track_card(
-                    track,
-                    place,
+            .map(|(place, _)| {
+                TrackCard::new(
                     "listen-again-card",
-                    false,
+                    place,
                     tracks.clone(),
                     self.playback.clone(),
                     self.active.as_deref(),
-                    self.on_context_menu.clone(),
-                    None,
-                    cx,
                 )
+                .context(self.on_context_menu.clone())
+                .render(cx)
                 .tile(layout.card)
                 .flat()
                 .weight(FontWeight::SEMIBOLD)
