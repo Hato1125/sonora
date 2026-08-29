@@ -191,18 +191,16 @@ impl RenderOnce for Picks {
                     .py_2()
                     .border_b_1()
                     .border_color(theme.border)
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .gap_0p5()
+                            .children(self.eyebrow.map(|key| eyebrow(i18n::lookup(key, None), cx)))
+                            .child(heading(i18n::lookup(self.title, None), cx)),
+                    )
                     .when(self.paged, |this| {
                         this.child(
-                            div()
-                                .flex()
-                                .flex_col()
-                                .gap_0p5()
-                                .children(
-                                    self.eyebrow.map(|key| eyebrow(i18n::lookup(key, None), cx)),
-                                )
-                                .child(heading(i18n::lookup(self.title, None), cx)),
-                        )
-                        .child(
                             div()
                                 .flex()
                                 .items_center()
