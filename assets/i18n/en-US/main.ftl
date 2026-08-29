@@ -244,6 +244,7 @@ release-meta = { $year } • { $kind }
 
 # home page
 home-quick-picks = Quick picks
+home-listen-again = Listen again
 home-quick-picks-eyebrow = Start from a song
 home-quick-picks-empty = Like a few songs and they will show up here
 
@@ -487,6 +488,8 @@ toast-queue-failed = That could not be added to the queue
 toast-keys-refused = Spotify is not granting this account playback keys
 toast-sign-in-to-play = { $name } only streams to a signed-in listener
 toast-track-unplayable = { $name } could not be played
+toast-library-add-failed = { $name } could not be added to your library
+toast-library-remove-failed = { $name } could not be removed from your library
 
 # lyrics
 lyrics-title = Lyrics

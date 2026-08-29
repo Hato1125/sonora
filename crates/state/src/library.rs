@@ -103,11 +103,20 @@ impl Library {
             this.update(cx, |this, cx| {
                 S::requests(this).remove(&answered);
                 if let Err(error) = result {
+                    let name = match &previous {
+                        Some(previous) => previous.title().to_owned(),
+                        None => item.title().to_owned(),
+                    };
                     match previous {
                         Some(previous) => S::hold(this, previous, true),
                         None => S::hold(this, item, false),
                     }
                     log::warn!("library: cannot update the {}: {error:#}", S::TROUBLE);
+                    let key = match saved {
+                        true => "toast-library-add-failed",
+                        false => "toast-library-remove-failed",
+                    };
+                    Toasts::about(Outcome::Failed, key, name, cx);
                 }
                 cx.notify();
             })
@@ -122,6 +131,7 @@ trait Savable: Clone + Send + Sized + 'static {
     const TROUBLE: &'static str;
 
     fn id(&self) -> Option<&str>;
+    fn title(&self) -> &str;
     fn stamp_added(&mut self) {}
     fn saved_now(library: &Library, id: &str) -> Option<Self>;
     fn requests(library: &mut Library) -> &mut HashMap<String, Task<()>>;
@@ -138,6 +148,10 @@ impl Savable for Track {
 
     fn id(&self) -> Option<&str> {
         self.id.as_deref()
+    }
+
+    fn title(&self) -> &str {
+        &self.name
     }
 
     fn stamp_added(&mut self) {
@@ -174,6 +188,10 @@ impl Savable for Album {
         Some(&self.id)
     }
 
+    fn title(&self) -> &str {
+        &self.name
+    }
+
     fn saved_now(library: &Library, id: &str) -> Option<Self> {
         library.album(id).cloned()
     }
@@ -196,6 +214,10 @@ impl Savable for SavedArtist {
 
     fn id(&self) -> Option<&str> {
         Some(&self.id)
+    }
+
+    fn title(&self) -> &str {
+        &self.name
     }
 
     fn stamp_added(&mut self) {

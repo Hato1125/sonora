@@ -8,8 +8,8 @@ use ytmusic::YtMusic;
 
 use crate::youtube::{genres, wire};
 use crate::{
-    Album, AlbumDetail, Artist, ArtistProfile, Genre, GenreDetail, GenreSection, MediaKind,
-    MusicApi, Playlist, PlaylistDetail, SavedArtist, Track, UserProfile,
+    Album, AlbumDetail, Artist, ArtistProfile, Genre, GenreDetail, HomeFeed, MediaKind, MusicApi,
+    Playlist, PlaylistDetail, SavedArtist, Track, UserProfile,
 };
 
 const PORTRAIT_LIMIT: usize = 24;
@@ -259,7 +259,10 @@ impl MusicApi for YouTubeClient {
             .album
             .playlist_id
             .context("album has no audio playlist")?;
-        self.api.rate_playlist(&playlist_id, saved).await
+        self.api
+            .rate_playlist(&playlist_id, saved)
+            .await
+            .with_context(|| format!("cannot rate the album {album_id} as {playlist_id}"))
     }
 
     async fn saved_artists(&self, _limit: u32) -> Result<Vec<SavedArtist>> {
@@ -337,7 +340,7 @@ impl MusicApi for YouTubeClient {
             .collect())
     }
 
-    async fn home(&self) -> Result<Vec<GenreSection>> {
+    async fn home(&self) -> Result<HomeFeed> {
         genres::home(&self.api).await
     }
 
