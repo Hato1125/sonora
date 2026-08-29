@@ -17,7 +17,8 @@ pub enum Perch {
 }
 
 pub struct Tooltip {
-    key: SharedString,
+    text: SharedString,
+    raw: bool,
     perch: Perch,
     at: Point<Pixels>,
 }
@@ -25,7 +26,8 @@ pub struct Tooltip {
 impl Tooltip {
     pub fn new(key: impl Into<SharedString>, at: Point<Pixels>) -> Self {
         Self {
-            key: key.into(),
+            text: key.into(),
+            raw: false,
             perch: Perch::default(),
             at,
         }
@@ -33,6 +35,11 @@ impl Tooltip {
 
     pub fn perch(mut self, perch: Perch) -> Self {
         self.perch = perch;
+        self
+    }
+
+    pub fn raw(mut self) -> Self {
+        self.raw = true;
         self
     }
 
@@ -44,6 +51,18 @@ impl Tooltip {
         move |window, cx| {
             let at = window.mouse_position();
             cx.new(|_| Self::new(key.clone(), at).perch(perch)).into()
+        }
+    }
+
+    pub fn label(
+        text: impl Into<SharedString>,
+        perch: Perch,
+    ) -> impl Fn(&mut Window, &mut App) -> AnyView + 'static {
+        let text = text.into();
+        move |window, cx| {
+            let at = window.mouse_position();
+            cx.new(|_| Self::new(text.clone(), at).perch(perch).raw())
+                .into()
         }
     }
 }
@@ -74,7 +93,10 @@ impl Render for Tooltip {
                     .bg(theme.popover)
                     .text_size(theme.text(Text::Small))
                     .text_color(theme.popover_foreground)
-                    .child(i18n::lookup(&self.key, None)),
+                    .child(match self.raw {
+                        true => self.text.clone(),
+                        false => i18n::lookup(&self.text, None),
+                    }),
             )
     }
 }

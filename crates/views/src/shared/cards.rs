@@ -37,6 +37,7 @@ pub(crate) fn album_card(
         .cover(cover)
         .weight(FontWeight::SEMIBOLD)
         .underline()
+        .hint()
         .bare_meta(artists)
         .play(playing, move |_, _, cx| {
             toggled.update(cx, |playback, cx| playback.toggle_origin(&origin, cx));
