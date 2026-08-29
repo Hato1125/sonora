@@ -7,10 +7,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.24.1] - 2026-08-29
+
 ### Added
 
 - Hovering an album card's title shows the full name, so two releases that share a truncated title
   can be told apart.
+
+### Fixed
+
+- A track added to the playlist you have open appears in it right away, instead of only after you
+  leave the page and come back.
 
 ## [0.24.0] - 2026-08-29
 
@@ -1091,7 +1098,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Initial release: a native Spotify client with playback, an interactive queue, the saved library,
 search, album, playlist, artist and song pages, context menus and adaptive theming.
 
-[unreleased]: https://github.com/nolight132/sonora/compare/v0.24.0...HEAD
+[unreleased]: https://github.com/nolight132/sonora/compare/v0.24.1...HEAD
+[0.24.1]: https://github.com/nolight132/sonora/compare/v0.24.0...v0.24.1
 [0.24.0]: https://github.com/nolight132/sonora/compare/v0.23.0...v0.24.0
 [0.23.0]: https://github.com/nolight132/sonora/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/nolight132/sonora/compare/v0.21.0...v0.22.0
