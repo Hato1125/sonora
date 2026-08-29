@@ -3,6 +3,7 @@ mod auth;
 mod client;
 mod genres;
 mod playback;
+mod subscriptions;
 mod trim;
 mod wire;
 

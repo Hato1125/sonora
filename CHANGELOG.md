@@ -13,6 +13,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Following and unfollowing an artist now updates the subscription in YouTube Music.
 - YouTube Music Quick Picks paginate when the window cannot fit all three columns and never reuse
   recommendations from a previously connected Spotify account.
 - Saving or removing a song, album or artist that the service refuses now says so instead of
