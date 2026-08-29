@@ -221,6 +221,7 @@ impl Savable for SavedArtist {
 
 pub enum LibraryEvent {
     PlaylistGone(String),
+    TrackAdded { playlist: String },
     TrackDropped { playlist: String, track: String },
 }
 
@@ -551,6 +552,7 @@ impl Library {
                 if let Some(ids) = this.contents.get_mut(&added) {
                     ids.insert(held);
                 }
+                cx.emit(LibraryEvent::TrackAdded { playlist: added });
             },
             cx,
         );

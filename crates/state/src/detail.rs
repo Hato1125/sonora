@@ -87,16 +87,20 @@ impl Detail {
         })
         .detach();
 
-        cx.subscribe(&library, |this, _, event, cx| {
-            let LibraryEvent::TrackDropped { playlist, track } = event else {
-                return;
-            };
-            if this.id.as_deref() != Some(playlist.as_str()) {
-                return;
+        cx.subscribe(&library, |this, _, event, cx| match event {
+            LibraryEvent::TrackAdded { playlist }
+                if this.id.as_deref() == Some(playlist.as_str()) =>
+            {
+                this.load(Collection::Playlist, playlist.clone(), cx);
             }
-            this.tracks
-                .retain(|shown| shown.id.as_deref() != Some(track.as_str()));
-            cx.notify();
+            LibraryEvent::TrackDropped { playlist, track }
+                if this.id.as_deref() == Some(playlist.as_str()) =>
+            {
+                this.tracks
+                    .retain(|shown| shown.id.as_deref() != Some(track.as_str()));
+                cx.notify();
+            }
+            _ => {}
         })
         .detach();
 
