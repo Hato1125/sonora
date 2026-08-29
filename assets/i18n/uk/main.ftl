@@ -499,6 +499,8 @@ toast-queue-failed = Не вдалося додати до черги
 toast-keys-refused = Spotify не надає цьому обліковому запису ключі відтворення
 toast-sign-in-to-play = { $name } віддає музику лише тим, хто увійшов в акаунт
 toast-track-unplayable = Не вдалося відтворити { $name }
+toast-library-add-failed = Не вдалося додати { $name } до медіатеки
+toast-library-remove-failed = Не вдалося вилучити { $name } з медіатеки
 
 # lyrics
 lyrics-title = Текст
