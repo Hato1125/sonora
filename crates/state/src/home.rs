@@ -13,6 +13,7 @@ pub struct Home {
     library: Entity<Library>,
     session: Entity<Session>,
     io: Io,
+    listen_again: Rc<Vec<Track>>,
     quick_picks: Rc<Vec<Track>>,
     quick_picks_seed: u64,
     sections: Rc<Vec<GenreSection>>,
@@ -36,6 +37,7 @@ impl Home {
             SessionEvent::SignedOut => {
                 this.task = None;
                 this.naming = None;
+                this.listen_again = Rc::new(Vec::new());
                 this.sections = Rc::new(Vec::new());
                 this.feeding = false;
                 cx.notify();
@@ -62,6 +64,7 @@ impl Home {
             library,
             session,
             io,
+            listen_again: Rc::new(Vec::new()),
             quick_picks,
             quick_picks_seed,
             sections: Rc::new(Vec::new()),
@@ -97,9 +100,13 @@ impl Home {
             this.update(cx, |this, cx| {
                 this.feeding = false;
                 match loaded {
-                    Ok(sections) => {
-                        this.sections = Rc::new(pruned(&sections));
-                        this.name_playlists(sections, cx);
+                    Ok(feed) => {
+                        this.listen_again = Rc::new(feed.listen_again);
+                        if !feed.quick_picks.is_empty() {
+                            this.quick_picks = Rc::new(feed.quick_picks);
+                        }
+                        this.sections = Rc::new(pruned(&feed.sections));
+                        this.name_playlists(feed.sections, cx);
                     }
                     Err(error) => log::warn!("home: cannot load the feed: {error:#}"),
                 }
@@ -135,6 +142,10 @@ impl Home {
             })
             .ok();
         }));
+    }
+
+    pub fn listen_again(&self) -> Rc<Vec<Track>> {
+        self.listen_again.clone()
     }
 
     pub fn quick_picks(&self) -> Rc<Vec<Track>> {

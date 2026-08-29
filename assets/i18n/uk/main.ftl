@@ -248,6 +248,7 @@ release-meta = { $year } • { $kind }
 
 # home page
 home-quick-picks = Швидкий вибір
+home-listen-again = Послухати знову
 home-quick-picks-eyebrow = Почніть із треку
 home-quick-picks-empty = Додайте кілька треків, і вони з'являться тут
 

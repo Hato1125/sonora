@@ -155,6 +155,13 @@ pub struct GenreSection {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct HomeFeed {
+    pub listen_again: Vec<Track>,
+    pub quick_picks: Vec<Track>,
+    pub sections: Vec<GenreSection>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct GenreDetail {
     pub name: String,
     pub sections: Vec<GenreSection>,
