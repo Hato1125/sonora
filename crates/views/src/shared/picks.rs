@@ -159,10 +159,6 @@ impl RenderOnce for Picks {
         let shape = Shape::new(self.width, self.tracks.len());
         let page = self.page.min(shape.pages.saturating_sub(1));
         let start = page * shape.slots();
-        let rows = match self.paged {
-            true => ROWS,
-            false => self.tracks.len().div_ceil(shape.columns).max(1),
-        };
         let row = snapped(theme.metrics.list_row, window);
         let tracks = self.tracks;
         let empty = tracks.is_empty();
@@ -243,13 +239,13 @@ impl RenderOnce for Picks {
                     |this| {
                         this.children((0..shape.columns).map(|column| {
                             column_shell(column, theme.border)
-                                .children((0..rows).map(|slot| skeleton(id, column * rows + slot)))
+                                .children((0..ROWS).map(|slot| skeleton(id, column * ROWS + slot)))
                         }))
                     },
                     |this| {
                         this.children((0..shape.columns).map(|column| {
-                            column_shell(column, theme.border).children((0..rows).map(|slot| {
-                                let place = start + column * rows + slot;
+                            column_shell(column, theme.border).children((0..ROWS).map(|slot| {
+                                let place = start + column * ROWS + slot;
                                 match tracks.get(place) {
                                     None => div().flex_none().h(row).into_any_element(),
                                     Some(track) => pick(
