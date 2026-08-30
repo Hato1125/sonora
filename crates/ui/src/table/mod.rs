@@ -551,7 +551,7 @@ pub struct TableState<S: TableSource> {
     corners: Corners<Pixels>,
     focus: FocusHandle,
     scroll: Option<ScrollHandle>,
-    context_menu: Option<(usize, Point<Pixels>)>,
+    context_menu: Option<(Vec<usize>, Point<Pixels>)>,
     moving: Option<(usize, usize)>,
     sizing: Option<Sizing>,
 }
@@ -1016,7 +1016,7 @@ impl<S: TableSource> TableState<S> {
                                 window.focus(&this.focus.clone(), cx);
                                 window.prevent_default();
                                 cx.stop_propagation();
-                                this.context_menu = Some((row, event.position));
+                                this.context_menu = Some((rows, event.position));
                                 cx.notify();
                             }
                         }),
@@ -1106,8 +1106,7 @@ impl<S: TableSource> Render for TableState<S> {
         let height = self.height(head, row);
         let pinned = snapped(self.viewport.top.clamp(Pixels::ZERO, height - head), window);
         let top = unpinned(self.corners, pinned);
-        let context_menu = self.context_menu.and_then(|(_, position)| {
-            let rows = self.delegate.picked();
+        let context_menu = self.context_menu.clone().and_then(|(rows, position)| {
             let visible = self.delegate.visible();
             self.delegate
                 .source
@@ -1129,6 +1128,9 @@ impl<S: TableSource> Render for TableState<S> {
             .on_action(cx.listener(Self::activate))
             .on_action(cx.listener(Self::remove))
             .on_mouse_down_out(cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                if this.context_menu.is_some() {
+                    return;
+                }
                 if this.delegate.selected.is_none() && this.delegate.marked.is_empty() {
                     return;
                 }
