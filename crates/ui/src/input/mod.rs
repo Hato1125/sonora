@@ -165,6 +165,7 @@ pub struct Input {
     last_layout: Option<ShapedLine>,
     last_bounds: Option<Bounds<Pixels>>,
     selecting: bool,
+    selected_word: Option<Range<usize>>,
     context_menu: Option<Point<Pixels>>,
 }
 
@@ -184,6 +185,7 @@ impl Input {
             last_layout: None,
             last_bounds: None,
             selecting: false,
+            selected_word: None,
             context_menu: None,
         }
     }
@@ -411,8 +413,16 @@ impl Input {
 
     fn select_word(&mut self, offset: usize, cx: &mut Context<Self>) {
         let word = word_at(&self.content, offset);
+        self.selected_word = Some(word.clone());
         self.move_to(word.start, cx);
         self.select_to(word.end, cx);
+    }
+
+    fn select_words(&mut self, anchor: Range<usize>, offset: usize, cx: &mut Context<Self>) {
+        let hovered = word_at(&self.content, offset);
+        self.selected_range = hovered.start.min(anchor.start)..hovered.end.max(anchor.end);
+        self.selection_reversed = offset < anchor.start;
+        cx.notify();
     }
 
     fn on_mouse_down(
@@ -430,24 +440,39 @@ impl Input {
             return;
         }
         self.context_menu = None;
-        self.selecting = event.click_count < 2;
+        self.selecting = true;
         let offset = self.offset_for(event.position);
         match (event.click_count, event.modifiers.shift) {
-            (0 | 1, true) => self.select_to(offset, cx),
-            (0 | 1, false) => self.move_to(offset, cx),
+            (0 | 1, true) => {
+                self.selected_word = None;
+                self.select_to(offset, cx);
+            }
+            (0 | 1, false) => {
+                self.selected_word = None;
+                self.move_to(offset, cx);
+            }
             (2, _) => self.select_word(offset, cx),
-            _ => self.select_all(&SelectAll, window, cx),
+            _ => {
+                self.selected_word = None;
+                self.select_all(&SelectAll, window, cx);
+            }
         }
     }
 
     fn on_mouse_move(&mut self, event: &MouseMoveEvent, _: &mut Window, cx: &mut Context<Self>) {
-        if self.selecting {
-            self.select_to(self.offset_for(event.position), cx);
+        if !self.selecting {
+            return;
+        }
+        let offset = self.offset_for(event.position);
+        match self.selected_word.clone() {
+            Some(anchor) => self.select_words(anchor, offset, cx),
+            None => self.select_to(offset, cx),
         }
     }
 
     fn on_mouse_up(&mut self, _: &MouseUpEvent, _: &mut Window, _: &mut Context<Self>) {
         self.selecting = false;
+        self.selected_word = None;
     }
 
     fn offset_for(&self, position: Point<Pixels>) -> usize {

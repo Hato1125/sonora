@@ -637,7 +637,8 @@ impl<S: TableSource> TableState<S> {
             None => 0,
         };
 
-        self.delegate.pick(self.delegate.row(display), false, false);
+        self.delegate
+            .pick(self.delegate.row(display), window.modifiers().shift, false);
         self.reveal(display, window, cx);
         cx.notify();
     }

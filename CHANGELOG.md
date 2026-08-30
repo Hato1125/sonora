@@ -10,7 +10,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - YouTube Music listeners see their Listen Again history and personalized Quick Picks on Home.
-- Shift-click selects a range of songs in a table, and the context menu acts on all of them.
+- Shift-click or Shift-Up/Down selects a range of songs in a table, and the context menu acts on
+  all of them.
 - Ctrl-click (Cmd-click on macOS) adds or removes individual songs from a table selection.
 - Enter play/pauses the selected song when a table has exactly one row selected.
 - Search results can be moved through with the arrow keys, including left and right between
@@ -27,6 +28,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   recommendations from a previously connected Spotify account.
 - Saving or removing a song, album or artist that the service refuses now says so instead of
   quietly flipping the control back.
+- Double-clicking a word and dragging selects further words, instead of stopping at the first.
+- Opening a settings file this build cannot read no longer replaces it with empty defaults, so pins
+  stay on disk.
+- Long titles on pinned sidebar items ellipsize instead of drawing past the panel.
+- The left sidebar scrolls again when pinned items run past the player bar.
 
 ## [0.24.1] - 2026-08-29
 

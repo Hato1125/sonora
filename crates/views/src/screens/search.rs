@@ -67,6 +67,7 @@ pub(crate) struct SearchView {
     context_menu: Option<(HitMenu, Point<Pixels>)>,
     focus: FocusHandle,
     cursor: Option<(usize, usize)>,
+    rows: [usize; 3],
 }
 
 impl SearchView {
@@ -94,6 +95,7 @@ impl SearchView {
             this.track_menu.reset(cx);
             this.context_menu = None;
             this.cursor = None;
+            this.rows = [0; 3];
             cx.notify();
         })
         .detach();
@@ -132,6 +134,7 @@ impl SearchView {
             context_menu: None,
             focus: cx.focus_handle(),
             cursor: None,
+            rows: [0; 3],
         }
     }
 
@@ -149,7 +152,7 @@ impl SearchView {
                 let Some(column) = self.first_filled(0, stacked, cx) else {
                     return;
                 };
-                self.cursor = Some((column, 0));
+                self.place(column, 0);
             }
             Some((column, row)) => {
                 let last = self
@@ -157,7 +160,7 @@ impl SearchView {
                     .len()
                     .saturating_sub(1);
                 if row < last {
-                    self.cursor = Some((column, row + 1));
+                    self.place(column, row + 1);
                 }
             }
         }
@@ -176,7 +179,7 @@ impl SearchView {
             cx.notify();
             return;
         }
-        self.cursor = Some((column, row - 1));
+        self.place(column, row - 1);
         window.focus(&self.focus, cx);
         self.reveal(window, cx);
         cx.notify();
@@ -184,14 +187,13 @@ impl SearchView {
 
     fn select_left(&mut self, _: &SelectLeft, window: &mut Window, cx: &mut Context<Self>) {
         let stacked = stacked(window, cx);
-        let Some((column, row)) = self.cursor else {
+        let Some((column, _)) = self.cursor else {
             return;
         };
         let Some(next) = self.prev_filled(column, stacked, cx) else {
             return;
         };
-        let last = self.seats(kinds(next, stacked), cx).len().saturating_sub(1);
-        self.cursor = Some((next, row.min(last)));
+        self.hop(next, stacked, cx);
         window.focus(&self.focus, cx);
         self.reveal(window, cx);
         cx.notify();
@@ -199,14 +201,13 @@ impl SearchView {
 
     fn select_right(&mut self, _: &SelectRight, window: &mut Window, cx: &mut Context<Self>) {
         let stacked = stacked(window, cx);
-        let Some((column, row)) = self.cursor else {
+        let Some((column, _)) = self.cursor else {
             return;
         };
         let Some(next) = self.next_filled(column, stacked, cx) else {
             return;
         };
-        let last = self.seats(kinds(next, stacked), cx).len().saturating_sub(1);
-        self.cursor = Some((next, row.min(last)));
+        self.hop(next, stacked, cx);
         window.focus(&self.focus, cx);
         self.reveal(window, cx);
         cx.notify();
@@ -248,6 +249,22 @@ impl SearchView {
         }
         self.input.update(cx, |input, cx| input.focus(window, cx));
         cx.notify();
+    }
+
+    fn place(&mut self, column: usize, row: usize) {
+        if let Some(slot) = self.rows.get_mut(column) {
+            *slot = row;
+        }
+        self.cursor = Some((column, row));
+    }
+
+    fn hop(&mut self, column: usize, stacked: bool, cx: &App) {
+        let last = self
+            .seats(kinds(column, stacked), cx)
+            .len()
+            .saturating_sub(1);
+        let row = self.rows.get(column).copied().unwrap_or(0).min(last);
+        self.place(column, row);
     }
 
     fn first_filled(&self, start: usize, stacked: bool, cx: &App) -> Option<usize> {

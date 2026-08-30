@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 pub enum Mode {
     #[default]
     List,
-    #[serde(alias = "cards")]
+    #[serde(rename = "cards", alias = "grid")]
     Grid,
 }
 

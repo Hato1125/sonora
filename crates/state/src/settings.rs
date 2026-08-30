@@ -264,20 +264,24 @@ pub struct AppSettings {
     path: PathBuf,
     save: Option<Task<()>>,
     watch: Option<Subscription>,
+    writable: bool,
 }
 
 impl AppSettings {
     pub fn load() -> Self {
         let path = settings_path();
-        let mut values = match fs::read(&path) {
-            Ok(bytes) => serde_json::from_slice::<Values>(&bytes).unwrap_or_else(|error| {
-                log::warn!("settings: cannot parse {}: {error}", path.display());
-                Values::default()
-            }),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Values::default(),
+        let (mut values, writable) = match fs::read(&path) {
+            Ok(bytes) => match serde_json::from_slice::<Values>(&bytes) {
+                Ok(values) => (values, true),
+                Err(error) => {
+                    log::warn!("settings: cannot parse {}: {error}", path.display());
+                    (Values::default(), false)
+                }
+            },
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => (Values::default(), true),
             Err(error) => {
                 log::warn!("settings: cannot read {}: {error}", path.display());
-                Values::default()
+                (Values::default(), false)
             }
         };
         values.migrate();
@@ -287,6 +291,7 @@ impl AppSettings {
             path,
             save: None,
             watch: None,
+            writable,
         }
     }
 
@@ -767,6 +772,9 @@ impl AppSettings {
     }
 
     fn save_now(&self) {
+        if !self.writable {
+            return;
+        }
         let Some(parent) = self.path.parent() else {
             return;
         };
