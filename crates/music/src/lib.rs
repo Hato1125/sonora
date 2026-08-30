@@ -1,3 +1,5 @@
+#[cfg(test)]
+mod album_tests;
 mod audio;
 pub mod binimum;
 pub mod kugou;
