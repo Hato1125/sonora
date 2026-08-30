@@ -27,7 +27,7 @@ use crate::shared::hero::{HeroMetaStrip, HeroPlayButton, PageHero};
 use crate::shared::menus::{ItemMenu, album_menu, artist_menu};
 use crate::shared::page;
 use crate::shared::picks::{Picks, Shape};
-use crate::shared::tracks::{PlaybackStatus, TrackSource, Tracks, playback_status};
+use crate::shared::tracks::{PlaybackStatus, TrackSource, Tracks, drop_picked, playback_status};
 
 const SECTION: &str = "artist";
 const RELEASE_ROWS: usize = 2;
@@ -210,6 +210,7 @@ impl ArtistView {
             TableEvent::Activated(display) => {
                 page::play_or_toggle(&this.table, &this.playback, *display, cx)
             }
+            TableEvent::Removed => drop_picked(&this.table, cx),
             _ => this.persist(cx),
         })
         .detach();

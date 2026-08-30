@@ -80,6 +80,41 @@ pub(crate) fn ordered(table: &Entity<TableState<TrackSource>>, cx: &App) -> Vec<
         .collect()
 }
 
+pub(crate) fn drop_picked(table: &Entity<TableState<TrackSource>>, cx: &mut App) {
+    let rows = table.read(cx).delegate().picked();
+    if rows.is_empty() {
+        return;
+    }
+    let (tracks, playlist, history) = {
+        let state = table.read(cx);
+        let source = state.delegate().source();
+        let tracks: Vec<Track> = rows.iter().filter_map(|&row| source.at(row, cx)).collect();
+        (tracks, source.playlist.clone(), source.history.clone())
+    };
+    if tracks.is_empty() {
+        return;
+    }
+    if let Some(detail) = playlist {
+        let ids: Vec<String> = tracks.iter().filter_map(|track| track.id.clone()).collect();
+        if !ids.is_empty() {
+            detail.update(cx, |detail, cx| detail.remove_tracks_from_playlist(ids, cx));
+        }
+    } else if let Some(history) = history {
+        history.update(cx, |history, cx| {
+            for track in &tracks {
+                history.remove(track, cx);
+            }
+        });
+    } else {
+        let library = Sonora::global(cx).library.clone();
+        library.update(cx, |library, cx| library.save_tracks(tracks, false, cx));
+    }
+    table.update(cx, |table, cx| {
+        table.delegate_mut().clear_selection();
+        cx.notify();
+    });
+}
+
 type Whence = Rc<dyn Fn(&App) -> Option<Origin>>;
 
 pub(crate) struct TrackSource {
@@ -266,36 +301,13 @@ impl TrackSource {
         color: Option<Hsla>,
         cx: &App,
     ) -> AnyElement {
-        let press: Option<cells::Tap> = match track.playable {
-            true => {
-                let playback = self.playback.clone();
-                let provider = self.provider.clone();
-                let table = self.table.clone();
-                let whence = self.whence.clone();
-                let row = cell.row;
-                let display = cell.display;
-                Some(Box::new(move |cx| {
-                    let from = whence.as_ref().and_then(|whence| whence(cx));
-                    playback.update(cx, |playback, cx| {
-                        match table.as_ref().and_then(|table| table.upgrade()) {
-                            Some(table) => playback.start(ordered(&table, cx), display, from, cx),
-                            None => playback.start(provider.tracks(cx).to_vec(), row, from, cx),
-                        }
-                    });
-                }))
-            }
-            false => None,
-        };
-
-        let is_liked = self.liked_button(cell, track, cx);
-
         cells::title(
             cell,
             track.name.clone(),
             color,
             track.explicit,
-            press,
-            is_liked,
+            None,
+            self.liked_button(cell, track, cx),
         )
     }
 

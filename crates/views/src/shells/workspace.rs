@@ -5,7 +5,9 @@ use gpui::{AnyView, App, Context, Entity, FocusHandle, Render, StyleRefinement, 
 use gpui::{Window, div};
 use input::WORKSPACE_CONTEXT;
 use state::{Playback, Queue, SideTab};
-use ui::{Activate, Deselect, Motion, SelectNext, SelectPrevious, ease_out_expo, shown_listing};
+use ui::{
+    Activate, Deselect, Motion, Remove, SelectNext, SelectPrevious, ease_out_expo, shown_listing,
+};
 
 use crate::chrome::{
     Chrome, PlayerBar, SidebarLeft, SidebarRight, TitleBarOptions, ToastStack, UpdateNotice,
@@ -231,6 +233,12 @@ impl Render for Workspace {
             .on_action(|_: &Activate, _, cx| {
                 if let Some(table) = shown_listing(cx) {
                     table.activate(cx);
+                    cx.stop_propagation();
+                }
+            })
+            .on_action(|_: &Remove, _, cx| {
+                if let Some(table) = shown_listing(cx) {
+                    table.remove(cx);
                     cx.stop_propagation();
                 }
             })

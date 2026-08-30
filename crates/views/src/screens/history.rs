@@ -14,7 +14,7 @@ use crate::chrome::{Searchable, Toolbar, Tooled};
 use crate::shared::cells;
 use crate::shared::hero::{HeroMetaStrip, PageHero};
 use crate::shared::page;
-use crate::shared::tracks::{HISTORY_COLUMNS, TrackSource, Tracks};
+use crate::shared::tracks::{HISTORY_COLUMNS, TrackSource, Tracks, drop_picked};
 
 struct HistoryTracks(Entity<History>);
 
@@ -79,6 +79,7 @@ impl HistoryView {
             TableEvent::Activated(display) => {
                 page::play_or_toggle(&this.table, &this.playback, *display, cx);
             }
+            TableEvent::Removed => drop_picked(&this.table, cx),
             _ => {}
         })
         .detach();

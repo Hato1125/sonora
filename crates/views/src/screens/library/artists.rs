@@ -3,7 +3,6 @@ use ui::ActiveTheme as _;
 
 use gpui::{AnyElement, App, Entity, SharedString};
 use music::SavedArtist;
-use router::Destination;
 use state::{Library, LibraryState, Origin, Playback};
 use ui::rank::{ESSENTIAL, HANDY};
 use ui::{Cell, ColumnSpec, Menu, Pin, TableSource, Width};
@@ -111,6 +110,10 @@ impl TableSource for ArtistSource {
         self.artists(cx).get(row)?.pin()
     }
 
+    fn picking(&self) -> bool {
+        true
+    }
+
     fn context_menu(&self, rows: &[usize], _visible: &[ArtistField], cx: &App) -> Option<Menu> {
         Some(artist_menu(
             self.at(*rows.first()?, cx)?,
@@ -134,13 +137,7 @@ impl TableSource for ArtistSource {
 
         match cell.field {
             ArtistField::Cover => cells::avatar(&cell, artist.cover.clone()),
-            ArtistField::Name => cells::link(
-                &cell,
-                "artist-name",
-                artist.name.clone(),
-                theme.foreground,
-                Destination::Artist(artist.id.clone().into()),
-            ),
+            ArtistField::Name => cells::dim(&cell, artist.name.clone(), theme.foreground),
             ArtistField::AddedAt => cells::dim(&cell, cells::stamp(artist.added_at), muted),
             ArtistField::Index => cells::blank(&cell),
         }

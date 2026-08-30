@@ -22,7 +22,8 @@ use crate::chrome::tools::{self, Sift, Sliders};
 use crate::chrome::{Chrome, Searchable, Toolbar, Tooled};
 use crate::shared::hero::{HeroMetaStrip, HeroPlayButton, PageHero, release_date_label};
 use crate::shared::tracks::{
-    PlaybackStatus, TrackField, TrackSieve, TrackSource, Tracks, playback_status, playlist_columns,
+    PlaybackStatus, TrackField, TrackSieve, TrackSource, Tracks, drop_picked, playback_status,
+    playlist_columns,
 };
 use crate::shared::{cells, page};
 
@@ -184,6 +185,7 @@ impl DetailView {
             TableEvent::Activated(display) => {
                 page::play_or_toggle(&this.table, &this.playback, *display, cx)
             }
+            TableEvent::Removed => drop_picked(&this.table, cx),
             _ => this.persist(cx),
         })
         .detach();

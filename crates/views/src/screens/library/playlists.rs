@@ -134,6 +134,10 @@ impl TableSource for PlaylistSource {
         self.playlists(cx).get(row)?.pin()
     }
 
+    fn picking(&self) -> bool {
+        true
+    }
+
     fn context_menu(&self, rows: &[usize], _visible: &[PlaylistField], cx: &App) -> Option<Menu> {
         Some(playlist_menu(
             self.at(*rows.first()?, cx)?,
@@ -157,13 +161,7 @@ impl TableSource for PlaylistSource {
 
         match cell.field {
             PlaylistField::Cover => cells::artwork(&cell, playlist.cover.clone()),
-            PlaylistField::Name => cells::link(
-                &cell,
-                "playlist-name",
-                playlist.name.clone(),
-                theme.foreground,
-                Destination::Playlist(playlist.id.clone().into()),
-            ),
+            PlaylistField::Name => cells::dim(&cell, playlist.name.clone(), theme.foreground),
             PlaylistField::Owner => match playlist.owner_id.is_empty() {
                 true => cells::dim(&cell, playlist.owner.clone(), muted),
                 false => cells::link(

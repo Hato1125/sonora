@@ -22,7 +22,10 @@ use crate::theme::ActiveTheme as _;
 pub use layout::{ColumnSpec, Layout, Sort, Sorting, Width, rank};
 use layout::{PADDING, Resolved, SORT_ROOM, TRAIL, reordered, resolve, shifted, stretch};
 
-actions!(table, [SelectNext, SelectPrevious, Deselect, Activate]);
+actions!(
+    table,
+    [SelectNext, SelectPrevious, Deselect, Activate, Remove]
+);
 
 pub const TABLE_CONTEXT: &str = "Table";
 
@@ -488,6 +491,7 @@ impl<S: TableSource> TableDelegate<S> {
 pub enum TableEvent {
     DoubleClicked(usize),
     Activated(usize),
+    Removed,
     LayoutChanged,
     SortChanged,
 }
@@ -608,6 +612,10 @@ impl<S: TableSource> TableState<S> {
         self.fire_activate(cx);
     }
 
+    fn remove(&mut self, _: &Remove, _: &mut Window, cx: &mut Context<Self>) {
+        self.fire_remove(cx);
+    }
+
     fn fire_activate(&mut self, cx: &mut Context<Self>) {
         if self.delegate.picked().len() != 1 {
             return;
@@ -619,6 +627,13 @@ impl<S: TableSource> TableState<S> {
             return;
         };
         cx.emit(TableEvent::Activated(display));
+    }
+
+    fn fire_remove(&mut self, cx: &mut Context<Self>) {
+        if self.delegate.picked().is_empty() {
+            return;
+        }
+        cx.emit(TableEvent::Removed);
     }
 
     fn step(&mut self, delta: isize, window: &mut Window, cx: &mut Context<Self>) {
@@ -1112,6 +1127,7 @@ impl<S: TableSource> Render for TableState<S> {
             .on_action(cx.listener(Self::select_previous))
             .on_action(cx.listener(Self::deselect))
             .on_action(cx.listener(Self::activate))
+            .on_action(cx.listener(Self::remove))
             .on_mouse_down_out(cx.listener(|this, _: &MouseDownEvent, _, cx| {
                 if this.delegate.selected.is_none() && this.delegate.marked.is_empty() {
                     return;
@@ -1216,6 +1232,7 @@ pub trait Listing {
     fn select_previous(&self, window: &mut Window, cx: &mut App);
     fn deselect(&self, cx: &mut App);
     fn activate(&self, cx: &mut App);
+    fn remove(&self, cx: &mut App);
 }
 
 impl<S: TableSource> Listing for Entity<TableState<S>> {
@@ -1325,5 +1342,9 @@ impl<S: TableSource> Listing for Entity<TableState<S>> {
 
     fn activate(&self, cx: &mut App) {
         self.update(cx, |table, cx| table.fire_activate(cx));
+    }
+
+    fn remove(&self, cx: &mut App) {
+        self.update(cx, |table, cx| table.fire_remove(cx));
     }
 }
