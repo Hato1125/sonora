@@ -7,8 +7,8 @@ use i18n::t;
 use music::{Album, Track};
 use state::{AppSettings, Library, LibraryPart, LibraryState, Origin, Playback, Sonora};
 use ui::{
-    ActiveTheme as _, Button, FlagAxis, GridDelegate, GridEvent, GridState, Popovers, Popup,
-    RangeAxis, Scrollbar, Scroller, SortAxis, Table as _, Unit, grid, vacant,
+    ActiveTheme as _, Button, FlagAxis, Listing as _, Popovers, Popup, RangeAxis, Scrollbar,
+    Scroller, SortAxis, TableDelegate, TableEvent, TableState, Unit, table, vacant,
 };
 
 use crate::chrome::Chrome;
@@ -16,7 +16,7 @@ use crate::chrome::tools::{self, Sift, Sliders};
 use crate::chrome::{Searchable, Toolbar, Tooled};
 use crate::shared::album_grid::AlbumGrid;
 use crate::shared::cells;
-use crate::shared::menu::album_menu;
+use crate::shared::menus::album_menu;
 use crate::shared::page;
 use crate::shared::tracks::{
     LIBRARY_COLUMNS, PlaybackStatus, TrackSieve, TrackSource, Tracks, playback_status,
@@ -87,8 +87,8 @@ pub(crate) struct LocalView {
     section: Section,
     width: Pixels,
     scrollbar: Entity<Scrollbar>,
-    tracks: Entity<GridState<TrackSource>>,
-    albums: Entity<GridState<AlbumSource>>,
+    tracks: Entity<TableState<TrackSource>>,
+    albums: Entity<TableState<AlbumSource>>,
     context_menu: Option<(Album, Point<Pixels>)>,
     toolbar: Entity<Toolbar>,
     popovers: Popovers,
@@ -127,22 +127,22 @@ impl LocalView {
             )
             .from(|_| Some(Origin::local()));
             let source = source.table(cx.weak_entity());
-            let mut delegate = GridDelegate::new(source, width, cx);
+            let mut delegate = TableDelegate::new(source, width, cx);
             let (layout, sorting) = stored(Section::Tracks, cx);
             delegate.set_layout(layout, cx);
             if let Some(sorting) = sorting {
                 delegate.set_sorting(sorting, cx);
             }
-            GridState::new(delegate, cx).follow(scroll.clone())
+            TableState::new(delegate, cx).follow(scroll.clone())
         });
 
         let albums = cx.new(|cx| {
             let source = AlbumSource::local(library.clone(), playback.clone());
-            let mut delegate = GridDelegate::new(source, width, cx);
+            let mut delegate = TableDelegate::new(source, width, cx);
             let (layout, sorting) = stored(Section::Albums, cx);
             delegate.set_layout(layout, cx);
             delegate.set_sorting(sorting.flatten(), cx);
-            GridState::new(delegate, cx).follow(scroll)
+            TableState::new(delegate, cx).follow(scroll)
         });
 
         cx.observe(&library, |this, _, cx| {
@@ -169,15 +169,20 @@ impl LocalView {
         .detach();
 
         cx.subscribe(&tracks, |this, _, event, cx| match event {
-            GridEvent::DoubleClicked(display) => {
+            TableEvent::DoubleClicked(display) => {
                 page::play(&this.tracks, &this.playback, *display, cx)
             }
+            TableEvent::Activated(display) => {
+                page::play_or_toggle(&this.tracks, &this.playback, *display, cx)
+            }
+            TableEvent::Removed => {}
             _ => this.persist(Section::Tracks, cx),
         })
         .detach();
 
         cx.subscribe(&albums, |this, _, event, cx| match event {
-            GridEvent::DoubleClicked(_) => {}
+            TableEvent::DoubleClicked(_) | TableEvent::Activated(_) => {}
+            TableEvent::Removed => {}
             _ => this.persist(Section::Albums, cx),
         })
         .detach();
@@ -203,14 +208,14 @@ impl LocalView {
         }
     }
 
-    fn table(&self, section: Section) -> &dyn ui::Table {
+    fn table(&self, section: Section) -> &dyn ui::Listing {
         match section {
             Section::Tracks => &self.tracks,
             Section::Albums => &self.albums,
         }
     }
 
-    fn tables(&self) -> [&dyn ui::Table; 2] {
+    fn tables(&self) -> [&dyn ui::Listing; 2] {
         [&self.tracks, &self.albums]
     }
 
@@ -353,6 +358,7 @@ impl Render for LocalView {
 
         let scroll = self.scrollbar.read(cx).scroll().clone();
         if self.section == Section::Tracks {
+            self.tracks.claim(cx);
             let viewport = page::viewport(&scroll, inset, window);
             self.tracks
                 .update(cx, |table, _| table.set_viewport(viewport));
@@ -360,7 +366,7 @@ impl Render for LocalView {
 
         let note = self.note(cx);
         let content = match self.section {
-            Section::Tracks => grid(&self.tracks).into_any_element(),
+            Section::Tracks => table(&self.tracks).into_any_element(),
             Section::Albums => div()
                 .px(inset)
                 .child(self.albums(window, cx))

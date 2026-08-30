@@ -244,6 +244,7 @@ release-meta = { $year } • { $kind }
 
 # home page
 home-quick-picks = Schnellauswahl
+home-listen-again = Noch einmal anhören
 home-quick-picks-eyebrow = Mit einem Song starten
 home-quick-picks-empty = Markiere ein paar Songs als Favoriten, dann erscheinen sie hier
 
@@ -487,6 +488,8 @@ toast-queue-failed = Das konnte nicht zur Warteschlange hinzugefügt werden
 toast-keys-refused = Spotify gibt diesem Konto keine Wiedergabeschlüssel
 toast-sign-in-to-play = { $name } streamt nur für angemeldete Hörer
 toast-track-unplayable = { $name } konnte nicht abgespielt werden
+toast-library-add-failed = { $name } konnte nicht zur Mediathek hinzugefügt werden
+toast-library-remove-failed = { $name } konnte nicht aus der Mediathek entfernt werden
 
 # lyrics
 lyrics-title = Songtext

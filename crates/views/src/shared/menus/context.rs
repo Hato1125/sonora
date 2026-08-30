@@ -1,10 +1,11 @@
-use gpui::{App, ClipboardItem, Entity, Styled as _};
+use gpui::{App, ClickEvent, ClipboardItem, Entity, SharedString, Styled as _, Window};
 use i18n::t;
 use music::{Album, MediaKind, Playlist, SavedArtist, Track};
 use router::{Destination, navigate};
-use state::{Detail, History, LibraryState, Origin, Playback, Sonora};
+use state::{Detail, History, Library, LibraryState, Origin, Playback, Sonora};
 use ui::{Menu, MenuItem, Pin, PinKind, Scrollbar, SubmenuState};
 
+use crate::shared::confirm::Confirm;
 use crate::shared::playlist_editor::{Edit, PlaylistEditor};
 
 #[derive(Clone)]
@@ -56,70 +57,108 @@ impl ItemMenu {
     }
 
     pub fn for_track(&self, track: &Track, cx: &App) -> Menu {
-        self.build(track, None, None, None, TrackColumns::default(), cx)
+        self.build(
+            std::slice::from_ref(track),
+            None,
+            None,
+            None,
+            TrackColumns::default(),
+            cx,
+        )
     }
 
-    pub fn for_table_track(&self, track: &Track, columns: TrackColumns, cx: &App) -> Menu {
-        self.build(track, None, None, None, columns, cx)
+    pub fn for_table_tracks(&self, tracks: &[Track], columns: TrackColumns, cx: &App) -> Menu {
+        self.build(tracks, None, None, None, columns, cx)
     }
 
-    pub fn for_album_track(
+    pub fn for_album_tracks(
         &self,
-        track: &Track,
+        tracks: &[Track],
         album_id: &str,
         columns: TrackColumns,
         cx: &App,
     ) -> Menu {
-        self.build(track, None, None, Some(album_id), columns, cx)
+        self.build(tracks, None, None, Some(album_id), columns, cx)
     }
 
-    pub fn for_playlist_track(
+    pub fn for_playlist_tracks(
         &self,
-        track: &Track,
+        tracks: &[Track],
         detail: Entity<Detail>,
         columns: TrackColumns,
         cx: &App,
     ) -> Menu {
-        let remove = match track.id.clone() {
-            Some(id) => MenuItem::new("remove-from-playlist", t!("menu-remove-from-playlist"))
-                .icon("icons/x.svg")
-                .on_click(move |_, _, cx| {
-                    detail.update(cx, |detail, cx| detail.remove_from_playlist(id.clone(), cx));
-                }),
-            None => MenuItem::new("remove-from-playlist", t!("menu-remove-from-playlist"))
-                .icon("icons/x.svg")
-                .disabled(),
+        let ids: Vec<String> = tracks.iter().filter_map(|track| track.id.clone()).collect();
+        let count = tracks.len();
+        let remove = match ids.is_empty() {
+            true => MenuItem::new(
+                "remove-from-playlist",
+                counted(
+                    "menu-remove-from-playlist",
+                    "menu-remove-tracks-from-playlist",
+                    count,
+                ),
+            )
+            .icon("icons/x.svg")
+            .disabled(),
+            false => MenuItem::new(
+                "remove-from-playlist",
+                counted(
+                    "menu-remove-from-playlist",
+                    "menu-remove-tracks-from-playlist",
+                    count,
+                ),
+            )
+            .icon("icons/x.svg")
+            .on_click(move |_, _, cx| {
+                Confirm::playlist_songs(ids.clone(), detail.clone(), count, cx)
+            }),
         };
-        self.build(track, Some(remove), None, None, columns, cx)
+        self.build(tracks, Some(remove), None, None, columns, cx)
     }
 
-    pub fn for_history_track(
+    pub fn for_history_tracks(
         &self,
-        track: &Track,
+        tracks: &[Track],
         history: Entity<History>,
         columns: TrackColumns,
         cx: &App,
     ) -> Menu {
-        let held = track.clone();
-        let forget = MenuItem::new("remove-from-history", t!("menu-remove-from-history"))
-            .icon("icons/trash-2.svg")
-            .on_click(move |_, _, cx| {
-                history.update(cx, |history, cx| history.remove(&held, cx));
-            });
-        self.build(track, None, Some(forget), None, columns, cx)
+        let held = tracks.to_vec();
+        let forget = MenuItem::new(
+            "remove-from-history",
+            counted(
+                "menu-remove-from-history",
+                "menu-remove-tracks-from-history",
+                tracks.len(),
+            ),
+        )
+        .icon("icons/trash-2.svg")
+        .on_click(move |_, _, cx| Confirm::history_songs(held.clone(), history.clone(), cx));
+        self.build(tracks, None, Some(forget), None, columns, cx)
     }
 
     fn build(
         &self,
-        track: &Track,
+        tracks: &[Track],
         library_action: Option<MenuItem>,
         trailing: Option<MenuItem>,
         current_album: Option<&str>,
         columns: TrackColumns,
         cx: &App,
     ) -> Menu {
+        let Some(track) = tracks.first() else {
+            return Menu::new("track-context-menu");
+        };
+        let count = tracks.len();
+        let many = count > 1;
         let library = Sonora::global(cx).library.clone();
-        let local = track.id.as_deref().is_some_and(music::is_local_id);
+        let ids: Vec<String> = tracks
+            .iter()
+            .filter_map(|track| track.id.clone())
+            .filter(|id| !music::is_local_id(id))
+            .collect();
+        let local = ids.is_empty();
         let playlists = match library.read(cx).state() {
             LibraryState::Ready { playlists, .. } => playlists
                 .iter()
@@ -128,7 +167,7 @@ impl ItemMenu {
                 .collect(),
             _ => Vec::new(),
         };
-        let created = track.id.clone();
+        let created = ids.clone();
         let new_playlist = MenuItem::new("new-playlist", t!("menu-new-playlist"))
             .icon("icons/plus.svg")
             .on_click(move |_, window, cx| {
@@ -148,126 +187,147 @@ impl ItemMenu {
                 .item(new_playlist)
                 .item(MenuItem::separator("playlist-separator"))
                 .items(playlists.into_iter().map(|playlist| {
-                    let held = track
-                        .id
-                        .as_deref()
-                        .and_then(|id| library.read(cx).holds(&playlist.id, id))
-                        .unwrap_or(false);
+                    let held = !ids.is_empty()
+                        && ids
+                            .iter()
+                            .all(|id| library.read(cx).holds(&playlist.id, id).unwrap_or(false));
                     let item =
                         MenuItem::new(format!("playlist-{}", playlist.id), playlist.name.clone())
                             .artwork(playlist.cover.clone())
                             .checked(held);
-                    match track.id.clone() {
-                        Some(track_id) => {
+                    match ids.is_empty() {
+                        true => item.disabled(),
+                        false => {
                             let library = library.clone();
                             let playlist_id = playlist.id.clone();
-                            item.on_click(move |_, window, cx| match held {
-                                true => PlaylistEditor::open(
-                                    Edit::Again {
-                                        playlist: playlist.clone(),
-                                        track: track_id.clone(),
-                                    },
-                                    window,
-                                    cx,
-                                ),
-                                false => {
-                                    library.update(cx, |library, cx| {
-                                        library.add_to_playlist(
-                                            playlist_id.clone(),
-                                            track_id.clone(),
-                                            cx,
-                                        )
-                                    });
+                            let track_ids = ids.clone();
+                            item.on_click(move |_, window, cx| {
+                                if held && !many {
+                                    PlaylistEditor::open(
+                                        Edit::Again {
+                                            playlist: playlist.clone(),
+                                            track: track_ids[0].clone(),
+                                        },
+                                        window,
+                                        cx,
+                                    );
+                                    return;
                                 }
+                                if held {
+                                    return;
+                                }
+                                let missing: Vec<String> = track_ids
+                                    .iter()
+                                    .filter(|id| {
+                                        !library.read(cx).holds(&playlist_id, id).unwrap_or(false)
+                                    })
+                                    .cloned()
+                                    .collect();
+                                if missing.is_empty() {
+                                    return;
+                                }
+                                library.update(cx, |library, cx| {
+                                    library.add_tracks_to_playlist(playlist_id.clone(), missing, cx)
+                                });
                             })
                         }
-                        None => item.disabled(),
                     }
                 }))
         };
-        let copy = match track.id.clone() {
-            Some(id) => MenuItem::new("copy-track-link", t!("menu-copy-link"))
-                .icon("icons/link.svg")
-                .on_click(move |_, _, cx| copy_link(MediaKind::Track, &id, cx)),
-            None => MenuItem::new("copy-track-link", t!("menu-copy-link"))
-                .icon("icons/link.svg")
-                .disabled(),
+        let copy = match (many, track.id.clone()) {
+            (true, _) => None,
+            (false, Some(id)) => Some(
+                MenuItem::new("copy-track-link", t!("menu-copy-link"))
+                    .icon("icons/link.svg")
+                    .on_click(move |_, _, cx| copy_link(MediaKind::Track, &id, cx)),
+            ),
+            (false, None) => Some(
+                MenuItem::new("copy-track-link", t!("menu-copy-link"))
+                    .icon("icons/link.svg")
+                    .disabled(),
+            ),
         };
-        let next = match track.playable {
-            true => {
-                let track = track.clone();
-                MenuItem::new("play-next", t!("menu-play-next"))
-                    .icon("icons/list-plus.svg")
-                    .on_click(move |_, _, cx| {
-                        let playback = Sonora::global(cx).playback.clone();
-                        playback.update(cx, |playback, cx| playback.play_next(track.clone(), cx));
-                    })
-            }
-            false => MenuItem::new("play-next", t!("menu-play-next"))
+        let queued: Vec<Track> = tracks
+            .iter()
+            .filter(|track| track.playable)
+            .cloned()
+            .collect();
+        let next = match queued.is_empty() {
+            true => MenuItem::new(
+                "play-next",
+                counted("menu-play-next", "menu-play-tracks-next", count),
+            )
+            .icon("icons/list-plus.svg")
+            .disabled(),
+            false => {
+                let queued = queued.clone();
+                MenuItem::new(
+                    "play-next",
+                    counted("menu-play-next", "menu-play-tracks-next", count),
+                )
                 .icon("icons/list-plus.svg")
-                .disabled(),
-        };
-        let queue = match track.playable {
-            true => {
-                let track = track.clone();
-                MenuItem::new("add-to-queue", t!("menu-add-to-queue"))
-                    .icon("icons/list-end.svg")
-                    .on_click(move |_, _, cx| {
-                        let playback = Sonora::global(cx).playback.clone();
-                        playback.update(cx, |playback, cx| playback.enqueue(track.clone(), cx));
-                    })
+                .on_click(move |_, _, cx| {
+                    let playback = Sonora::global(cx).playback.clone();
+                    playback.update(cx, |playback, cx| match queued.len() {
+                        1 => playback.play_next(queued[0].clone(), cx),
+                        _ => playback.play_next_all(queued.clone(), cx),
+                    });
+                })
             }
-            false => MenuItem::new("add-to-queue", t!("menu-add-to-queue"))
-                .icon("icons/list-end.svg")
-                .disabled(),
         };
-        let radio = match track.id.is_some() && track.playable {
-            true => {
+        let queue = match queued.is_empty() {
+            true => MenuItem::new(
+                "add-to-queue",
+                counted("menu-add-to-queue", "menu-add-tracks-to-queue", count),
+            )
+            .icon("icons/list-end.svg")
+            .disabled(),
+            false => {
+                let queued = queued.clone();
+                MenuItem::new(
+                    "add-to-queue",
+                    counted("menu-add-to-queue", "menu-add-tracks-to-queue", count),
+                )
+                .icon("icons/list-end.svg")
+                .on_click(move |_, _, cx| {
+                    let playback = Sonora::global(cx).playback.clone();
+                    playback.update(cx, |playback, cx| match queued.len() {
+                        1 => playback.enqueue(queued[0].clone(), cx),
+                        _ => playback.enqueue_all(queued.clone(), cx),
+                    });
+                })
+            }
+        };
+        let radio = match (many, track.id.is_some() && track.playable) {
+            (true, _) => None,
+            (false, true) => {
                 let track = track.clone();
+                Some(
+                    MenuItem::new("song-radio", t!("menu-song-radio"))
+                        .icon("icons/radio.svg")
+                        .on_click(move |_, _, cx| {
+                            let playback = Sonora::global(cx).playback.clone();
+                            playback.update(cx, |playback, cx| playback.play_radio(&track, cx));
+                        }),
+                )
+            }
+            (false, false) => Some(
                 MenuItem::new("song-radio", t!("menu-song-radio"))
                     .icon("icons/radio.svg")
-                    .on_click(move |_, _, cx| {
-                        let playback = Sonora::global(cx).playback.clone();
-                        playback.update(cx, |playback, cx| playback.play_radio(&track, cx));
-                    })
-            }
-            false => MenuItem::new("song-radio", t!("menu-song-radio"))
-                .icon("icons/radio.svg")
-                .disabled(),
+                    .disabled(),
+            ),
         };
-        let toggle_library = match track.id.as_deref() {
-            Some(id) if !library.read(cx).pending(id) => {
-                let saved = library.read(cx).saved(id);
-                let track = track.clone();
-                MenuItem::new(
-                    "toggle-library",
-                    match saved {
-                        true => t!("menu-remove-from-library"),
-                        false => t!("menu-add-to-library"),
-                    },
-                )
-                .icon(match saved {
-                    true => "icons/heart-off.svg",
-                    false => "icons/heart.svg",
-                })
-                .on_click(move |_, _, cx| {
-                    library.update(cx, |library, cx| library.toggle(track.clone(), cx));
-                })
-            }
-            _ => MenuItem::new("toggle-library", t!("menu-add-to-library"))
-                .icon("icons/heart.svg")
-                .disabled(),
-        };
+        let toggle_library = library_toggle(tracks, &library, cx);
 
-        let album = match (columns.album, track.album_id.clone()) {
-            (true, _) => None,
-            (false, Some(id)) if Some(id.as_str()) == current_album => None,
-            (false, Some(id)) => Some(
+        let album = match (many, columns.album, track.album_id.clone()) {
+            (true, _, _) | (false, true, _) => None,
+            (false, false, Some(id)) if Some(id.as_str()) == current_album => None,
+            (false, false, Some(id)) => Some(
                 MenuItem::new("go-to-album", t!("menu-go-to-album"))
                     .icon("icons/disc-3.svg")
                     .on_click(move |_, _, cx| navigate(Destination::Album(id.clone().into()), cx)),
             ),
-            (false, None) => Some(
+            (false, false, None) => Some(
                 MenuItem::new("go-to-album", t!("menu-go-to-album"))
                     .icon("icons/disc-3.svg")
                     .disabled(),
@@ -282,14 +342,14 @@ impl ItemMenu {
                 Some((artist.name.clone(), id))
             })
             .collect::<Vec<_>>();
-        let artist = match (columns.artists, artists.len()) {
-            (true, _) => None,
-            (false, 0) => Some(
+        let artist = match (many, columns.artists, artists.len()) {
+            (true, _, _) | (false, true, _) => None,
+            (false, false, 0) => Some(
                 MenuItem::new("go-to-artist", t!("menu-go-to-artist"))
                     .icon("icons/user.svg")
                     .disabled(),
             ),
-            (false, 1) => {
+            (false, false, 1) => {
                 let id = artists[0].1.clone();
                 Some(
                     MenuItem::new("go-to-artist", t!("menu-go-to-artist"))
@@ -299,7 +359,7 @@ impl ItemMenu {
                         }),
                 )
             }
-            (false, _) => {
+            (false, false, _) => {
                 let artist_menu = Menu::new("artist-submenu")
                     .w(gpui::px(220.))
                     .max_h(gpui::px(360.))
@@ -316,34 +376,113 @@ impl ItemMenu {
             }
         };
 
-        let details = match track.id.clone() {
-            Some(id) => MenuItem::new("view-details", t!("menu-view-details"))
-                .icon("icons/info.svg")
-                .on_click(move |_, _, cx| navigate(Destination::Song(id.clone().into()), cx)),
-            None => MenuItem::new("view-details", t!("menu-view-details"))
-                .icon("icons/info.svg")
-                .disabled(),
+        let details = match (many, track.id.clone()) {
+            (true, _) => None,
+            (false, Some(id)) => Some(
+                MenuItem::new("view-details", t!("menu-view-details"))
+                    .icon("icons/info.svg")
+                    .on_click(move |_, _, cx| navigate(Destination::Song(id.clone().into()), cx)),
+            ),
+            (false, None) => Some(
+                MenuItem::new("view-details", t!("menu-view-details"))
+                    .icon("icons/info.svg")
+                    .disabled(),
+            ),
         };
 
         let add_to_playlist = (!local).then(|| {
-            MenuItem::new("add-to-playlist", t!("menu-add-to-playlist"))
-                .icon("icons/list-plus.svg")
-                .submenu(playlist_menu, self.playlist_submenu.clone())
+            MenuItem::new(
+                "add-to-playlist",
+                counted("menu-add-to-playlist", "menu-add-tracks-to-playlist", count),
+            )
+            .icon("icons/list-plus.svg")
+            .submenu(playlist_menu, self.playlist_submenu.clone())
         });
 
         sections(
-            Menu::new("track-context-menu").relative().w(gpui::px(210.)),
+            Menu::new("track-context-menu")
+                .relative()
+                .w(gpui::px(match many {
+                    true => 248.,
+                    false => 210.,
+                })),
             vec![
                 add_to_playlist
                     .into_iter()
                     .chain([library_action.unwrap_or(toggle_library)])
                     .collect(),
-                vec![next, queue, radio],
+                [next, queue].into_iter().chain(radio).collect(),
                 album.into_iter().chain(artist).collect(),
-                vec![details, copy],
+                details.into_iter().chain(copy).collect(),
                 trailing.into_iter().collect(),
             ],
         )
+    }
+}
+
+fn counted(one: &'static str, many: &'static str, count: usize) -> SharedString {
+    if count <= 1 {
+        return i18n::lookup(one, None);
+    }
+    let mut args = i18n::FluentArgs::new();
+    args.set("count", count as i64);
+    i18n::lookup(many, Some(&args))
+}
+
+fn library_toggle(tracks: &[Track], library: &Entity<Library>, cx: &App) -> MenuItem {
+    let count = tracks.len();
+    let actionable: Vec<Track> = tracks
+        .iter()
+        .filter(|track| {
+            track
+                .id
+                .as_deref()
+                .is_some_and(|id| !library.read(cx).pending(id))
+        })
+        .cloned()
+        .collect();
+    let saved = !actionable.is_empty()
+        && actionable.iter().all(|track| {
+            track
+                .id
+                .as_deref()
+                .is_some_and(|id| library.read(cx).saved(id))
+        });
+    let item = MenuItem::new(
+        "toggle-library",
+        match saved {
+            true => counted(
+                "menu-remove-from-library",
+                "menu-remove-tracks-from-library",
+                count,
+            ),
+            false => counted("menu-add-to-library", "menu-add-tracks-to-library", count),
+        },
+    )
+    .icon(match saved {
+        true => "icons/heart-off.svg",
+        false => "icons/heart.svg",
+    });
+
+    match actionable.is_empty() {
+        true => item.disabled(),
+        false => {
+            let library = library.clone();
+            item.on_click(move |_, _, cx| {
+                if saved {
+                    Confirm::library_songs(actionable.clone(), cx);
+                    return;
+                }
+                library.update(cx, |library, cx| {
+                    let tracks = actionable
+                        .iter()
+                        .filter(|track| !track.id.as_deref().is_some_and(|id| library.saved(id)))
+                        .cloned()
+                        .collect();
+                    library.save_tracks(tracks, true, cx);
+                });
+            })
+        }
     }
 }
 
@@ -434,8 +573,12 @@ fn album_library_item(album: Album, cx: &App) -> MenuItem {
 
     match library.read(cx).pending_album(&album.id) {
         true => item.disabled(),
-        false => item.on_click(move |_, _, cx| {
-            library.update(cx, |library, cx| library.toggle_album(album.clone(), cx));
+        false => item.on_click(move |_, _, cx| match saved {
+            true => Confirm::albums(vec![album.clone()], cx),
+            false => {
+                let library = Sonora::global(cx).library.clone();
+                library.update(cx, |library, cx| library.toggle_album(album.clone(), cx));
+            }
         }),
     }
 }
@@ -516,8 +659,12 @@ fn artist_library_item(artist: SavedArtist, cx: &App) -> Option<MenuItem> {
 
     Some(match library.read(cx).pending_artist(&artist.id) {
         true => item.disabled(),
-        false => item.on_click(move |_, _, cx| {
-            library.update(cx, |library, cx| library.toggle_artist(artist.clone(), cx));
+        false => item.on_click(move |_, _, cx| match followed {
+            true => Confirm::artists(vec![artist.clone()], cx),
+            false => {
+                let library = Sonora::global(cx).library.clone();
+                library.update(cx, |library, cx| library.toggle_artist(artist.clone(), cx));
+            }
         }),
     })
 }
@@ -825,12 +972,7 @@ fn playlist_library_item(playlist: Playlist, cx: &App) -> MenuItem {
             let id = playlist.id;
             MenuItem::new("leave-playlist", t!("menu-remove-playlist-from-library"))
                 .icon("icons/heart-off.svg")
-                .on_click(move |_, _, cx| {
-                    let library = Sonora::global(cx).library.clone();
-                    library.update(cx, |library, cx| {
-                        library.remove_playlist_from_library(id.clone(), cx)
-                    });
-                })
+                .on_click(move |_, _, cx| Confirm::playlists(vec![id.clone()], cx))
         }
         false => MenuItem::new("join-playlist", t!("menu-add-playlist-to-library"))
             .icon("icons/heart.svg")
@@ -841,4 +983,14 @@ fn playlist_library_item(playlist: Playlist, cx: &App) -> MenuItem {
                 });
             }),
     }
+}
+
+pub(crate) fn new_playlist_menu(
+    on_create: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+) -> Menu {
+    Menu::new("playlist-background-menu").item(
+        MenuItem::new("create-playlist", t!("menu-new-playlist"))
+            .icon("icons/plus.svg")
+            .on_click(on_create),
+    )
 }

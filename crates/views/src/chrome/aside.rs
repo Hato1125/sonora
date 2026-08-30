@@ -23,7 +23,7 @@ use ui::{
 
 use crate::chrome::{Chrome, section_label};
 use crate::shared::effects;
-use crate::shared::menu::ItemMenu;
+use crate::shared::menus::ItemMenu;
 use crate::shared::pins::Pinned as _;
 
 const QUEUE: &str = "queue";

@@ -5,23 +5,24 @@ use serde::{Deserialize, Serialize};
 pub enum Mode {
     #[default]
     List,
-    Cards,
+    #[serde(rename = "cards", alias = "grid")]
+    Grid,
 }
 
 impl Mode {
-    pub const ALL: [Self; 2] = [Self::List, Self::Cards];
+    pub const ALL: [Self; 2] = [Self::List, Self::Grid];
 
     pub fn key(self) -> &'static str {
         match self {
             Self::List => "view-list",
-            Self::Cards => "view-cards",
+            Self::Grid => "view-cards",
         }
     }
 
     pub fn icon(self) -> &'static str {
         match self {
             Self::List => "icons/list.svg",
-            Self::Cards => "icons/layout-grid.svg",
+            Self::Grid => "icons/layout-grid.svg",
         }
     }
 }

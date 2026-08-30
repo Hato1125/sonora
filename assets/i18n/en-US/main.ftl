@@ -71,19 +71,51 @@ column-tracks = Tracks
 
 # track menu
 menu-add-to-playlist = Add to playlist
+menu-add-tracks-to-playlist = { $count ->
+    [one] Add { $count } track to playlist
+   *[other] Add { $count } tracks to playlist
+}
 menu-new-playlist = New playlist
 menu-no-playlists = No playlists
 menu-add-to-library = Add to Library
+menu-add-tracks-to-library = { $count ->
+    [one] Add { $count } track to Library
+   *[other] Add { $count } tracks to Library
+}
 menu-remove-from-library = Remove from Library
+menu-remove-tracks-from-library = { $count ->
+    [one] Remove { $count } track from Library
+   *[other] Remove { $count } tracks from Library
+}
 menu-remove-from-playlist = Remove from playlist
+menu-remove-tracks-from-playlist = { $count ->
+    [one] Remove { $count } track from playlist
+   *[other] Remove { $count } tracks from playlist
+}
 menu-remove-from-history = Remove from history
+menu-remove-tracks-from-history = { $count ->
+    [one] Remove { $count } track from history
+   *[other] Remove { $count } tracks from history
+}
 menu-play-next = Play next
+menu-play-tracks-next = { $count ->
+    [one] Play { $count } track next
+   *[other] Play { $count } tracks next
+}
 menu-add-to-queue = Add to queue
+menu-add-tracks-to-queue = { $count ->
+    [one] Add { $count } track to queue
+   *[other] Add { $count } tracks to queue
+}
 menu-song-radio = Go to song radio
 menu-go-to-album = Go to album
 menu-go-to-artist = Go to artist
 menu-view-details = View details
 menu-copy-link = Copy link
+menu-cut = Cut
+menu-copy = Copy
+menu-paste = Paste
+menu-select-all = Select all
 menu-remove-from-queue = Remove from queue
 menu-open-playlist = Open playlist
 menu-play-playlist = Play playlist
@@ -106,6 +138,36 @@ playlist-delete-confirm = Delete “{ $name }”? This cannot be undone.
 playlist-again-title = Add it again?
 playlist-again-confirm = This track is already in “{ $name }”. Add another copy?
 playlist-again-add = Add again
+
+# confirm
+confirm-remove-library-title = Remove from library
+confirm-remove-playlist-title = Remove from playlist
+confirm-remove-history-title = Remove from history
+confirm-unfollow-title = Unfollow
+confirm-remove-songs = { $count ->
+    [one] Remove this song from your library?
+   *[other] Remove { $count } songs from your library?
+}
+confirm-remove-playlist-songs = { $count ->
+    [one] Remove this song from the playlist?
+   *[other] Remove { $count } songs from the playlist?
+}
+confirm-remove-history-songs = { $count ->
+    [one] Remove this song from listening history?
+   *[other] Remove { $count } songs from listening history?
+}
+confirm-remove-albums = { $count ->
+    [one] Remove this album from your library?
+   *[other] Remove { $count } albums from your library?
+}
+confirm-unfollow-artists = { $count ->
+    [one] Unfollow this artist?
+   *[other] Unfollow { $count } artists?
+}
+confirm-remove-playlists = { $count ->
+    [one] Remove this playlist from your library?
+   *[other] Remove { $count } playlists from your library?
+}
 
 # queue panel
 queue-title = Queue
@@ -151,7 +213,7 @@ filter-playable = Playable only
 
 # view
 view-list = List
-view-cards = Cards
+view-cards = Grid
 
 # toolbar
 tool-columns = Columns
@@ -244,6 +306,7 @@ release-meta = { $year } • { $kind }
 
 # home page
 home-quick-picks = Quick picks
+home-listen-again = Listen again
 home-quick-picks-eyebrow = Start from a song
 home-quick-picks-empty = Like a few songs and they will show up here
 
@@ -487,6 +550,8 @@ toast-queue-failed = That could not be added to the queue
 toast-keys-refused = Spotify is not granting this account playback keys
 toast-sign-in-to-play = { $name } only streams to a signed-in listener
 toast-track-unplayable = { $name } could not be played
+toast-library-add-failed = { $name } could not be added to your library
+toast-library-remove-failed = { $name } could not be removed from your library
 
 # lyrics
 lyrics-title = Lyrics

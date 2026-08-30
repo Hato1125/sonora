@@ -8,7 +8,12 @@ use gpui::{
 use i18n::t;
 
 use crate::button::Button;
-use crate::input::{CARET, CARET_LINES, INPUT_CONTEXT, Input, clamp_offset, clamp_range};
+use crate::input::{
+    CARET, CARET_LINES, Copy, Cut, INPUT_CONTEXT, Input, Paste, SelectAll, clamp_offset,
+    clamp_range,
+};
+use crate::menu::{Menu, MenuItem};
+use crate::popup::Popup;
 use crate::theme::ActiveTheme as _;
 
 struct Text {
@@ -226,6 +231,61 @@ impl Render for Input {
             false => theme.radius,
         };
 
+        let empty = self.selected_range.is_empty();
+        let paste = cx
+            .read_from_clipboard()
+            .and_then(|item| item.text())
+            .is_some();
+        let context_menu = self.context_menu.map(|position| {
+            Popup::new(
+                position,
+                Menu::new("input-context-menu")
+                    .item(
+                        MenuItem::new("cut", t!("menu-cut"))
+                            .icon("icons/scissors.svg")
+                            .when(empty, MenuItem::disabled)
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.cut(&Cut, window, cx);
+                                this.context_menu = None;
+                                cx.notify();
+                            })),
+                    )
+                    .item(
+                        MenuItem::new("copy", t!("menu-copy"))
+                            .icon("icons/copy.svg")
+                            .when(empty, MenuItem::disabled)
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.copy(&Copy, window, cx);
+                                this.context_menu = None;
+                                cx.notify();
+                            })),
+                    )
+                    .item(
+                        MenuItem::new("paste", t!("menu-paste"))
+                            .icon("icons/clipboard-paste.svg")
+                            .when(!paste, MenuItem::disabled)
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.paste(&Paste, window, cx);
+                                this.context_menu = None;
+                                cx.notify();
+                            })),
+                    )
+                    .item(
+                        MenuItem::new("select-all", t!("menu-select-all"))
+                            .icon("icons/text-select.svg")
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.select_all(&SelectAll, window, cx);
+                                this.context_menu = None;
+                                cx.notify();
+                            })),
+                    ),
+            )
+            .on_close(cx.listener(|this, _, _, cx| {
+                this.context_menu = None;
+                cx.notify();
+            }))
+        });
+
         div()
             .flex()
             .flex_1()
@@ -266,9 +326,12 @@ impl Render for Input {
             .on_action(cx.listener(Self::copy))
             .on_action(cx.listener(Self::cut))
             .on_action(cx.listener(Self::paste))
+            .on_action(cx.listener(Self::show_character_palette))
             .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
+            .on_mouse_down(MouseButton::Right, cx.listener(Self::on_mouse_down))
             .on_mouse_move(cx.listener(Self::on_mouse_move))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
+            .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .when_some(self.icon.clone(), |this, path| {
                 this.child(
                     svg()
@@ -293,5 +356,6 @@ impl Render for Input {
                         .on_click(cx.listener(|this, _, window, cx| this.clear(window, cx))),
                 )
             })
+            .when_some(context_menu, |this, menu| this.child(menu))
     }
 }

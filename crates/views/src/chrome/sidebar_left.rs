@@ -12,7 +12,7 @@ use gpui::{Window, div, px};
 use router::{Destination, LibraryTab, Navigation, NavigationEvent, SettingsTab, navigate};
 use state::{AppSettings, Origin, Playback, PlaybackState, Session, Sonora};
 
-use crate::shared::menu::{ItemMenu, pin_menu};
+use crate::shared::menus::{ItemMenu, pin_menu};
 
 const NAV: [(&str, &str, Option<Destination>); 5] = [
     ("nav-home", "icons/house.svg", Some(Destination::Home)),
@@ -290,6 +290,8 @@ impl SidebarLeft {
         div()
             .id(("pinned-slot", index))
             .relative()
+            .flex_none()
+            .w_full()
             .min_w_0()
             .child(card)
             .when_some(edge, |this, edge| this.child(drop_marker(edge, cx)))
@@ -455,13 +457,17 @@ impl Render for SidebarLeft {
             })
             .child(
                 Scroller::new("sidebar-left-rows", &self.scrollbar)
-                    .flex()
-                    .flex_col()
-                    .gap_1()
                     .flex_1()
                     .min_h_0()
-                    .p_3()
-                    .children(rows),
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .gap_1()
+                            .w_full()
+                            .p_3()
+                            .children(rows),
+                    ),
             )
             .children(self.menu(cx));
 

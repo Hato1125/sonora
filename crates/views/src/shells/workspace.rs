@@ -5,11 +5,14 @@ use gpui::{AnyView, App, Context, Entity, FocusHandle, Render, StyleRefinement, 
 use gpui::{Window, div};
 use input::WORKSPACE_CONTEXT;
 use state::{Playback, Queue, SideTab};
-use ui::{Motion, ease_out_expo};
+use ui::{
+    Activate, Deselect, Motion, Remove, SelectNext, SelectPrevious, ease_out_expo, shown_listing,
+};
 
 use crate::chrome::{
     Chrome, PlayerBar, SidebarLeft, SidebarRight, TitleBarOptions, ToastStack, UpdateNotice,
 };
+use crate::shared::confirm::Confirm;
 use crate::shared::playlist_editor::PlaylistEditor;
 use crate::shells::Shell;
 
@@ -45,6 +48,7 @@ pub(crate) struct Workspace {
     player_bar: Entity<PlayerBar>,
     sidebar_right: Entity<SidebarRight>,
     playlist_editor: Entity<PlaylistEditor>,
+    confirm: Entity<Confirm>,
     toasts: Entity<ToastStack>,
     notice: Entity<UpdateNotice>,
     content: AnyView,
@@ -68,6 +72,7 @@ impl Workspace {
             player_bar,
             sidebar_right,
             playlist_editor: PlaylistEditor::entity(cx),
+            confirm: Confirm::entity(cx),
             toasts: cx.new(ToastStack::new),
             notice: cx.new(UpdateNotice::new),
             content,
@@ -210,6 +215,36 @@ impl Render for Workspace {
             .min_h_0()
             .key_context(WORKSPACE_CONTEXT)
             .track_focus(&self.focus)
+            .on_action(|_: &SelectNext, window, cx| {
+                if let Some(table) = shown_listing(cx) {
+                    table.select_next(window, cx);
+                    cx.stop_propagation();
+                }
+            })
+            .on_action(|_: &SelectPrevious, window, cx| {
+                if let Some(table) = shown_listing(cx) {
+                    table.select_previous(window, cx);
+                    cx.stop_propagation();
+                }
+            })
+            .on_action(|_: &Deselect, _, cx| {
+                if let Some(table) = shown_listing(cx) {
+                    table.deselect(cx);
+                    cx.stop_propagation();
+                }
+            })
+            .on_action(|_: &Activate, _, cx| {
+                if let Some(table) = shown_listing(cx) {
+                    table.activate(cx);
+                    cx.stop_propagation();
+                }
+            })
+            .on_action(|_: &Remove, _, cx| {
+                if let Some(table) = shown_listing(cx) {
+                    table.remove(cx);
+                    cx.stop_propagation();
+                }
+            })
             .child(
                 div()
                     .relative()
@@ -263,6 +298,7 @@ impl Render for Workspace {
                     .child(self.toasts.clone()),
             )
             .child(self.playlist_editor.clone())
+            .child(self.confirm.clone())
             .child(self.notice.clone())
     }
 }

@@ -166,12 +166,16 @@ impl Detail {
     }
 
     pub fn remove_from_playlist(&mut self, track_id: String, cx: &mut Context<Self>) {
+        self.remove_tracks_from_playlist(vec![track_id], cx);
+    }
+
+    pub fn remove_tracks_from_playlist(&mut self, track_ids: Vec<String>, cx: &mut Context<Self>) {
         let Some(playlist_id) = self.id.clone() else {
             log::warn!("detail: cannot remove a track without a playlist");
             return;
         };
         self.library.update(cx, |library, cx| {
-            library.remove_from_playlist(playlist_id, track_id, cx);
+            library.remove_tracks_from_playlist(playlist_id, track_ids, cx);
         });
     }
 

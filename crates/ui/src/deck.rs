@@ -3,7 +3,7 @@ use std::ops::Range;
 use gpui::prelude::*;
 use gpui::{AnyElement, App, Div, ElementId, Pixels, StyleRefinement, Window, div};
 
-use crate::grid::Viewport;
+use crate::table::Viewport;
 
 type Draw = Box<dyn Fn(usize, &mut Window, &mut App) -> AnyElement>;
 type Measure = Box<dyn Fn(Pixels, &mut Window, &mut App)>;
@@ -197,7 +197,7 @@ mod tests {
     use gpui::px;
 
     use super::{Deck, extent, span, tops};
-    use crate::grid::Viewport;
+    use crate::table::Viewport;
 
     fn heights(count: usize, height: f32) -> Vec<gpui::Pixels> {
         (0..count).map(|_| px(height)).collect()

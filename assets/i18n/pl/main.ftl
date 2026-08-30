@@ -248,6 +248,7 @@ release-meta = { $year } • { $kind }
 
 # home page
 home-quick-picks = Szybki wybór
+home-listen-again = Posłuchaj ponownie
 home-quick-picks-eyebrow = Zacznij od utworu
 home-quick-picks-empty = Polub kilka utworów, a pojawią się tutaj
 
@@ -498,6 +499,8 @@ toast-queue-failed = Nie udało się dodać do kolejki
 toast-keys-refused = Spotify nie udziela temu kontu kluczy odtwarzania
 toast-sign-in-to-play = { $name } udostępnia muzykę tylko po zalogowaniu
 toast-track-unplayable = Nie udało się odtworzyć { $name }
+toast-library-add-failed = Nie udało się dodać { $name } do biblioteki
+toast-library-remove-failed = Nie udało się usunąć { $name } z biblioteki
 
 # lyrics
 lyrics-title = Tekst

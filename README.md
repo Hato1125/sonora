@@ -102,14 +102,14 @@ partial translation is welcome — pick a language below and fill in what it lac
 
 <!-- i18n:start -->
 
-| Language          | Translated | Coverage |
-| ----------------- | ---------- | -------- |
-| English (`en-US`) | 433/433    | 100%     |
-| Deutsch (`de`)    | 433/433    | 100%     |
-| Français (`fr`)   | 433/433    | 100%     |
-| Русский (`ru`)    | 433/433    | 100%     |
-| Українська (`uk`) | 433/433    | 100%     |
-| Polski (`pl`)     | 433/433    | 100%     |
+| Language | Translated | Coverage |
+| --- | --- | --- |
+| English (`en-US`) | 462/462 | 100% |
+| Deutsch (`de`) | 441/462 | 95% |
+| Français (`fr`) | 441/462 | 95% |
+| Русский (`ru`) | 441/462 | 95% |
+| Українська (`uk`) | 441/462 | 95% |
+| Polski (`pl`) | 441/462 | 95% |
 
 <!-- i18n:end -->
 

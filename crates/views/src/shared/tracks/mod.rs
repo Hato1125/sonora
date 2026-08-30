@@ -7,7 +7,7 @@ use std::cmp::Ordering;
 use std::rc::Rc;
 use ui::ActiveTheme as _;
 
-use crate::shared::menu::{ItemMenu, TrackColumns};
+use crate::shared::menus::{ItemMenu, TrackColumns};
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
     AnyElement, App, Entity, Hsla, InteractiveElement as _, IntoElement as _, SharedString,
@@ -16,9 +16,12 @@ use gpui::{
 use music::Track;
 use router::Destination;
 use state::{Detail, History, Library, Origin, Playback, PlaybackState, Sonora};
-use ui::{Button, Cell, ColumnSpec, GridSource, GridState, Menu, Pin, ROW_GROUP, Scrollbar, clock};
+use ui::{
+    Button, Cell, ColumnSpec, Menu, Pin, ROW_GROUP, Scrollbar, TableSource, TableState, clock,
+};
 
 use crate::shared::cells;
+use crate::shared::confirm::{Confirm, Kind};
 use crate::shared::pins::Pinned as _;
 
 pub(crate) use columns::{
@@ -41,7 +44,7 @@ pub(crate) trait Tracks: 'static {
     fn is_loading(&self, cx: &App) -> bool;
 }
 
-pub(crate) fn first_playable(table: &Entity<GridState<TrackSource>>, cx: &App) -> Option<usize> {
+pub(crate) fn first_playable(table: &Entity<TableState<TrackSource>>, cx: &App) -> Option<usize> {
     let state = table.read(cx);
     let delegate = state.delegate();
 
@@ -53,7 +56,7 @@ pub(crate) fn first_playable(table: &Entity<GridState<TrackSource>>, cx: &App) -
     })
 }
 
-pub(crate) fn holds(table: &Entity<GridState<TrackSource>>, id: &str, cx: &App) -> bool {
+pub(crate) fn holds(table: &Entity<TableState<TrackSource>>, id: &str, cx: &App) -> bool {
     let state = table.read(cx);
     let delegate = state.delegate();
 
@@ -65,17 +68,79 @@ pub(crate) fn holds(table: &Entity<GridState<TrackSource>>, id: &str, cx: &App) 
     })
 }
 
-pub(crate) fn whence(table: &Entity<GridState<TrackSource>>, cx: &App) -> Option<Origin> {
+pub(crate) fn whence(table: &Entity<TableState<TrackSource>>, cx: &App) -> Option<Origin> {
     table.read(cx).delegate().source().whence(cx)
 }
 
-pub(crate) fn ordered(table: &Entity<GridState<TrackSource>>, cx: &App) -> Vec<Track> {
+pub(crate) fn ordered(table: &Entity<TableState<TrackSource>>, cx: &App) -> Vec<Track> {
     let state = table.read(cx);
     let delegate = state.delegate();
 
     (0..delegate.row_count())
         .filter_map(|display| delegate.source().at(delegate.row(display), cx))
         .collect()
+}
+
+pub(crate) fn drop_picked(table: &Entity<TableState<TrackSource>>, cx: &mut App) {
+    let rows = table.read(cx).delegate().picked();
+    if rows.is_empty() {
+        return;
+    }
+    let (tracks, playlist, history) = {
+        let state = table.read(cx);
+        let source = state.delegate().source();
+        let tracks: Vec<Track> = rows.iter().filter_map(|&row| source.at(row, cx)).collect();
+        (tracks, source.playlist.clone(), source.history.clone())
+    };
+    if tracks.is_empty() {
+        return;
+    }
+    let kind = if playlist.is_some() {
+        Kind::PlaylistSongs(tracks.len())
+    } else if history.is_some() {
+        Kind::History(tracks.len())
+    } else {
+        Kind::LibrarySongs(tracks.len())
+    };
+    let table = table.clone();
+    Confirm::ask(
+        kind,
+        move |cx| {
+            forget(&tracks, playlist.as_ref(), history.as_ref(), cx);
+            table.update(cx, |table, cx| {
+                table.delegate_mut().clear_selection();
+                cx.notify();
+            });
+        },
+        cx,
+    );
+}
+
+fn forget(
+    tracks: &[Track],
+    playlist: Option<&Entity<Detail>>,
+    history: Option<&Entity<History>>,
+    cx: &mut App,
+) {
+    if let Some(detail) = playlist {
+        let ids: Vec<String> = tracks.iter().filter_map(|track| track.id.clone()).collect();
+        if !ids.is_empty() {
+            detail.update(cx, |detail, cx| detail.remove_tracks_from_playlist(ids, cx));
+        }
+        return;
+    }
+    if let Some(history) = history {
+        history.update(cx, |history, cx| {
+            for track in tracks {
+                history.remove(track, cx);
+            }
+        });
+        return;
+    }
+    let library = Sonora::global(cx).library.clone();
+    library.update(cx, |library, cx| {
+        library.save_tracks(tracks.to_vec(), false, cx)
+    });
 }
 
 type Whence = Rc<dyn Fn(&App) -> Option<Origin>>;
@@ -90,7 +155,7 @@ pub(crate) struct TrackSource {
     playlist: Option<Entity<Detail>>,
     history: Option<Entity<History>>,
     menu: ItemMenu,
-    table: Option<WeakEntity<GridState<TrackSource>>>,
+    table: Option<WeakEntity<TableState<TrackSource>>>,
     sieve: TrackSieve,
     spread: RefCell<Option<Spread>>,
 }
@@ -176,7 +241,7 @@ impl TrackSource {
         self.whence.as_ref().and_then(|whence| whence(cx))
     }
 
-    pub(crate) fn table(mut self, table: WeakEntity<GridState<TrackSource>>) -> Self {
+    pub(crate) fn table(mut self, table: WeakEntity<TableState<TrackSource>>) -> Self {
         self.table = Some(table);
         self
     }
@@ -264,36 +329,13 @@ impl TrackSource {
         color: Option<Hsla>,
         cx: &App,
     ) -> AnyElement {
-        let press: Option<cells::Tap> = match track.playable {
-            true => {
-                let playback = self.playback.clone();
-                let provider = self.provider.clone();
-                let table = self.table.clone();
-                let whence = self.whence.clone();
-                let row = cell.row;
-                let display = cell.display;
-                Some(Box::new(move |cx| {
-                    let from = whence.as_ref().and_then(|whence| whence(cx));
-                    playback.update(cx, |playback, cx| {
-                        match table.as_ref().and_then(|table| table.upgrade()) {
-                            Some(table) => playback.start(ordered(&table, cx), display, from, cx),
-                            None => playback.start(provider.tracks(cx).to_vec(), row, from, cx),
-                        }
-                    });
-                }))
-            }
-            false => None,
-        };
-
-        let is_liked = self.liked_button(cell, track, cx);
-
         cells::title(
             cell,
             track.name.clone(),
             color,
             track.explicit,
-            press,
-            is_liked,
+            None,
+            self.liked_button(cell, track, cx),
         )
     }
 
@@ -367,7 +409,7 @@ impl TrackSource {
     }
 }
 
-impl GridSource for TrackSource {
+impl TableSource for TrackSource {
     type Field = TrackField;
 
     fn columns(&self) -> &'static [ColumnSpec<TrackField>] {
@@ -465,8 +507,15 @@ impl GridSource for TrackSource {
         }
     }
 
-    fn context_menu(&self, row: usize, visible: &[TrackField], cx: &App) -> Option<Menu> {
-        let track = self.provider.tracks(cx).get(row)?;
+    fn picking(&self) -> bool {
+        true
+    }
+
+    fn context_menu(&self, rows: &[usize], visible: &[TrackField], cx: &App) -> Option<Menu> {
+        let tracks: Vec<Track> = rows.iter().filter_map(|&row| self.at(row, cx)).collect();
+        if tracks.is_empty() {
+            return None;
+        }
         let columns = match Sonora::global(cx).settings.read(cx).adaptive_menu() {
             true => TrackColumns {
                 album: visible.contains(&TrackField::Album),
@@ -477,22 +526,23 @@ impl GridSource for TrackSource {
         if let Some(history) = &self.history {
             return Some(
                 self.menu
-                    .for_history_track(track, history.clone(), columns, cx),
+                    .for_history_tracks(&tracks, history.clone(), columns, cx),
             );
         }
         Some(match (&self.album, &self.playlist) {
             (Some(detail), _) => {
                 let id = detail.read(cx).id()?;
-                self.menu.for_album_track(track, id, columns, cx)
+                self.menu.for_album_tracks(&tracks, id, columns, cx)
             }
-            (_, Some(detail)) => self
-                .menu
-                .for_playlist_track(track, detail.clone(), columns, cx),
-            (None, None) => self.menu.for_table_track(track, columns, cx),
+            (_, Some(detail)) => {
+                self.menu
+                    .for_playlist_tracks(&tracks, detail.clone(), columns, cx)
+            }
+            (None, None) => self.menu.for_table_tracks(&tracks, columns, cx),
         })
     }
 
-    fn context_menu_will_open(&self, _row: usize, cx: &App) {
+    fn context_menu_will_open(&self, _rows: &[usize], cx: &App) {
         self.menu.reset(cx);
     }
 

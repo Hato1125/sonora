@@ -12,17 +12,19 @@ use ui::{
     ActiveTheme as _, Button, InlineLink, InlineLinks, Menu, Picker, Popovers, Popup, SortAxis,
 };
 use ui::{
-    ColumnSpec, FlagAxis, GridDelegate, GridEvent, GridState, MIN_CONTENT, Pin, PinKind, RangeAxis,
-    Scrollbar, Scroller, Table as _, Toggle, Unit, clock, grid,
+    ColumnSpec, FlagAxis, Listing as _, MIN_CONTENT, Pin, PinKind, RangeAxis, Scrollbar, Scroller,
+    TableDelegate, TableEvent, TableState, Toggle, Unit, clock, table,
 };
 
-use crate::shared::menu::{album_menu, playlist_menu};
+use crate::shared::menus::{album_menu, playlist_menu};
 
 use crate::chrome::tools::{self, Sift, Sliders};
 use crate::chrome::{Chrome, Searchable, Toolbar, Tooled};
+use crate::shared::confirm::Confirm;
 use crate::shared::hero::{HeroMetaStrip, HeroPlayButton, PageHero, release_date_label};
 use crate::shared::tracks::{
-    PlaybackStatus, TrackField, TrackSieve, TrackSource, Tracks, playback_status, playlist_columns,
+    PlaybackStatus, TrackField, TrackSieve, TrackSource, Tracks, drop_picked, playback_status,
+    playlist_columns,
 };
 use crate::shared::{cells, page};
 
@@ -51,7 +53,7 @@ pub(crate) struct DetailView {
     playback_status: PlaybackStatus,
     width: Pixels,
     scrollbar: Entity<Scrollbar>,
-    table: Entity<GridState<TrackSource>>,
+    table: Entity<TableState<TrackSource>>,
     settings: Entity<AppSettings>,
     section: &'static str,
     sorted: Option<String>,
@@ -115,9 +117,9 @@ impl DetailView {
                 }
             });
             let source = source.table(cx.weak_entity());
-            let mut delegate = GridDelegate::new(source, width, cx);
+            let mut delegate = TableDelegate::new(source, width, cx);
             delegate.set_layout(saved, cx);
-            GridState::new(delegate, cx).follow(scroll)
+            TableState::new(delegate, cx).follow(scroll)
         });
 
         cx.observe(&detail, |this, _, cx| {
@@ -178,9 +180,13 @@ impl DetailView {
         .detach();
 
         cx.subscribe(&table, |this, _, event, cx| match event {
-            GridEvent::DoubleClicked(display) => {
+            TableEvent::DoubleClicked(display) => {
                 page::play(&this.table, &this.playback, *display, cx)
             }
+            TableEvent::Activated(display) => {
+                page::play_or_toggle(&this.table, &this.playback, *display, cx)
+            }
+            TableEvent::Removed => drop_picked(&this.table, cx),
             _ => this.persist(cx),
         })
         .detach();
@@ -400,16 +406,19 @@ impl DetailView {
                 true => heart.tint(theme.primary),
                 false => heart,
             }
-            .on_click(move |_, _, cx| {
-                library.update(cx, |library, cx| match &target {
-                    Saveable::Album(album) => library.toggle_album(album.clone(), cx),
-                    Saveable::Playlist(playlist) if saved => {
-                        library.remove_playlist_from_library(playlist.id.clone(), cx)
-                    }
-                    Saveable::Playlist(playlist) => {
+            .on_click(move |_, _, cx| match &target {
+                Saveable::Album(album) if saved => Confirm::albums(vec![album.clone()], cx),
+                Saveable::Album(album) => {
+                    library.update(cx, |library, cx| library.toggle_album(album.clone(), cx));
+                }
+                Saveable::Playlist(playlist) if saved => {
+                    Confirm::playlists(vec![playlist.id.clone()], cx)
+                }
+                Saveable::Playlist(playlist) => {
+                    library.update(cx, |library, cx| {
                         library.add_playlist_to_library(playlist.clone(), cx)
-                    }
-                });
+                    });
+                }
             }),
         )
     }
@@ -434,6 +443,7 @@ impl DetailView {
 
 impl Render for DetailView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.table.claim(cx);
         let inset = cx.theme().metrics.inset;
         let width = cells::content_width(window, Pixels::ZERO, cx);
         if (width - self.width).abs() >= px(0.5) {
@@ -464,7 +474,7 @@ impl Render for DetailView {
                     .pt(inset)
                     .pb(inset)
                     .child(div().px(inset).child(self.header(cx)))
-                    .child(grid(&self.table)),
+                    .child(table(&self.table)),
             )
             .when_some(context_menu, |this, menu| this.child(menu))
     }

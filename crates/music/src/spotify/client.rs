@@ -12,7 +12,7 @@ use crate::spotify::{
     search, wire,
 };
 use crate::{
-    Album, AlbumDetail, Artist, ArtistProfile, Genre, GenreDetail, GenreSection, Lyrics, Playlist,
+    Album, AlbumDetail, Artist, ArtistProfile, Genre, GenreDetail, HomeFeed, Lyrics, Playlist,
     PlaylistDetail, SavedArtist, Track, UserDetail, UserProfile,
 };
 
@@ -160,13 +160,16 @@ impl MusicApi for LibrespotClient {
         pathfinder::search_playlists(&self.session, query).await
     }
 
-    async fn home(&self) -> Result<Vec<GenreSection>> {
+    async fn home(&self) -> Result<HomeFeed> {
         let mut sections = pathfinder::genre(&self.session, MADE_FOR_YOU)
             .await?
             .sections;
         playlists::name_blanks(&self.session, &mut sections).await;
 
-        Ok(sections)
+        Ok(HomeFeed {
+            sections,
+            ..HomeFeed::default()
+        })
     }
 
     async fn genres(&self) -> Result<Vec<Genre>> {

@@ -10,3 +10,4 @@ i18n.workspace = true
 image.workspace = true
 log.workspace = true
 serde.workspace = true
+unicode-segmentation.workspace = true

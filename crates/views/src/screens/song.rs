@@ -15,7 +15,7 @@ use ui::{
 use crate::shared::about::{AboutArtist, about_modal};
 use crate::shared::cells;
 use crate::shared::hero::{HeroMetaStrip, HeroPlayButton, PageHero, release_date_label};
-use crate::shared::menu::ItemMenu;
+use crate::shared::menus::ItemMenu;
 use crate::shared::pins::Pinned as _;
 
 const PANEL: Pixels = px(300.);

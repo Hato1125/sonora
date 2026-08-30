@@ -10,7 +10,7 @@ use state::{
     ArtistDetail, Detail, GenreDetails, Genres, Home, Io, Library, Playback, Profile, Queue,
     SYSTEM_FONT, Search, Session, SessionState, SideTab, SongDetail, Sonora,
 };
-use ui::{ActiveTheme as _, Dismiss, Look, Theme, ThemeKind};
+use ui::{ActiveTheme as _, Dismiss, Look, Theme, ThemeKind, clear_listing};
 
 use crate::chrome::{TitleBar, TitleBarEvent, TitleBarOptions, Toolbar, Tooled};
 use crate::screens::search::SearchView;
@@ -386,6 +386,7 @@ impl Root {
     }
 
     fn show(&mut self, destination: Destination, cx: &mut Context<Self>) {
+        clear_listing(cx);
         if let Destination::Fullscreen = destination {
             self.view = RootView::Fullscreen;
             self.pending = Some(Focus::Fullscreen);

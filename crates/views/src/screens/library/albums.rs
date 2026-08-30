@@ -5,13 +5,12 @@ use ui::ActiveTheme as _;
 use gpui::{AnyElement, App, Entity, SharedString, TextAlign};
 use i18n::t;
 use music::Album;
-use router::Destination;
 use state::{Library, LibraryState, Origin, Playback};
 use ui::rank::{HANDY, NICE, SPARE, USEFUL};
-use ui::{Cell, ColumnSpec, GridSource, Menu, Pin, Width};
+use ui::{Cell, ColumnSpec, Menu, Pin, TableSource, Width};
 
 use crate::shared::cells::{self, DATE, NUMBER, TRAILING, YEAR};
-use crate::shared::menu::album_menu;
+use crate::shared::menus::album_menu;
 use crate::shared::pins::Pinned as _;
 use crate::shared::text::{folded, holds};
 use crate::shared::tracks::initial;
@@ -183,7 +182,7 @@ impl AlbumSource {
     }
 }
 
-impl GridSource for AlbumSource {
+impl TableSource for AlbumSource {
     type Field = AlbumField;
 
     fn columns(&self) -> &'static [ColumnSpec<AlbumField>] {
@@ -228,9 +227,13 @@ impl GridSource for AlbumSource {
         self.albums(cx).get(row)?.pin()
     }
 
-    fn context_menu(&self, row: usize, _visible: &[AlbumField], cx: &App) -> Option<Menu> {
+    fn picking(&self) -> bool {
+        true
+    }
+
+    fn context_menu(&self, rows: &[usize], _visible: &[AlbumField], cx: &App) -> Option<Menu> {
         Some(album_menu(
-            self.at(row, cx)?,
+            self.at(*rows.first()?, cx)?,
             self.playback.clone(),
             false,
             cx,
@@ -251,13 +254,7 @@ impl GridSource for AlbumSource {
 
         match cell.field {
             AlbumField::Cover => cells::artwork(&cell, album.cover.clone()),
-            AlbumField::Name => cells::link(
-                &cell,
-                "album-name",
-                album.name.clone(),
-                theme.foreground,
-                Destination::Album(album.id.clone().into()),
-            ),
+            AlbumField::Name => cells::dim(&cell, album.name.clone(), theme.foreground),
             AlbumField::Artists => cells::artists(
                 &cell,
                 album.artist_refs.clone(),

@@ -13,21 +13,22 @@ use i18n::t;
 use music::{Album, ReleaseType, SavedArtist, Track};
 use state::{AppSettings, ArtistDetail, Origin, Playback, Sonora};
 use ui::ActiveTheme as _;
-use ui::Table as _;
+use ui::Listing as _;
 use ui::{
-    Button, Card, GridDelegate, GridEvent, GridState, MIN_CONTENT, Mode, Picker, Pin, PinKind,
-    Popovers, Popup, Scrollbar, Scroller, Skeleton, Text, grid, snapped,
+    Button, Card, MIN_CONTENT, Mode, Picker, Pin, PinKind, Popovers, Popup, Scrollbar, Scroller,
+    Skeleton, TableDelegate, TableEvent, TableState, Text, snapped, table,
 };
 
 use crate::chrome::tools;
 use crate::chrome::{Toolbar, Tooled};
 use crate::shared::about::{AboutArtist, about_modal};
 use crate::shared::album_grid::{AlbumGrid, CardGrid};
+use crate::shared::confirm::Confirm;
 use crate::shared::hero::{HeroMetaStrip, HeroPlayButton, PageHero};
-use crate::shared::menu::{ItemMenu, album_menu, artist_menu};
+use crate::shared::menus::{ItemMenu, album_menu, artist_menu};
 use crate::shared::page;
 use crate::shared::picks::{Picks, Shape};
-use crate::shared::tracks::{PlaybackStatus, TrackSource, Tracks, playback_status};
+use crate::shared::tracks::{PlaybackStatus, TrackSource, Tracks, drop_picked, playback_status};
 
 const SECTION: &str = "artist";
 const RELEASE_ROWS: usize = 2;
@@ -101,7 +102,7 @@ pub(crate) struct ArtistView {
     scrollbar: Entity<Scrollbar>,
     about_bar: Entity<Scrollbar>,
     about_open: bool,
-    table: Entity<GridState<TrackSource>>,
+    table: Entity<TableState<TrackSource>>,
     shown: Rc<Cell<usize>>,
     mode: Mode,
     popular: Rc<Vec<Track>>,
@@ -155,10 +156,10 @@ impl ArtistView {
             })
             .with_liked(Sonora::global(cx).library.clone());
             let source = source.table(cx.weak_entity());
-            let mut delegate = GridDelegate::new(source, width, cx);
+            let mut delegate = TableDelegate::new(source, width, cx);
             delegate.set_layout(saved, cx);
             delegate.set_sorting(sorting.flatten(), cx);
-            GridState::new(delegate, cx).follow(scroll)
+            TableState::new(delegate, cx).follow(scroll)
         });
 
         cx.observe(&detail, |this, detail, cx| {
@@ -204,9 +205,13 @@ impl ArtistView {
         })
         .detach();
         cx.subscribe(&table, |this, _, event, cx| match event {
-            GridEvent::DoubleClicked(display) => {
+            TableEvent::DoubleClicked(display) => {
                 page::play(&this.table, &this.playback, *display, cx)
             }
+            TableEvent::Activated(display) => {
+                page::play_or_toggle(&this.table, &this.playback, *display, cx)
+            }
+            TableEvent::Removed => drop_picked(&this.table, cx),
             _ => this.persist(cx),
         })
         .detach();
@@ -359,8 +364,11 @@ impl ArtistView {
                 true => heart.tint(theme.primary),
                 false => heart,
             }
-            .on_click(move |_, _, cx| {
-                library.update(cx, |library, cx| library.toggle_artist(target.clone(), cx));
+            .on_click(move |_, _, cx| match followed {
+                true => Confirm::artists(vec![target.clone()], cx),
+                false => {
+                    library.update(cx, |library, cx| library.toggle_artist(target.clone(), cx));
+                }
             }),
         )
     }
@@ -562,7 +570,7 @@ impl ArtistView {
             .gap_2()
             .child(match self.detail.read(cx).is_loading() {
                 true => self.tracks_loading(cx),
-                false => grid(&self.table)
+                false => table(&self.table)
                     .rounded(theme.radius)
                     .border_1()
                     .border_color(theme.border)
@@ -716,6 +724,7 @@ impl Render for ArtistView {
             self.popular_page = 0;
         }
         if self.mode == Mode::List {
+            self.table.claim(cx);
             let viewport = page::viewport(&scroll, inset, window);
             self.table
                 .update(cx, |table, _| table.set_viewport(viewport));
@@ -763,7 +772,7 @@ impl Render for ArtistView {
                     }),
             )
             .child(match self.mode {
-                Mode::Cards => self.popular(cx),
+                Mode::Grid => self.popular(cx),
                 Mode::List => self.listed(cx),
             })
             .children(self.releases(window, cx))

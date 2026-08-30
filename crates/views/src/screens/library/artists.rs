@@ -3,13 +3,12 @@ use ui::ActiveTheme as _;
 
 use gpui::{AnyElement, App, Entity, SharedString};
 use music::SavedArtist;
-use router::Destination;
 use state::{Library, LibraryState, Origin, Playback};
 use ui::rank::{ESSENTIAL, HANDY};
-use ui::{Cell, ColumnSpec, GridSource, Menu, Pin, Width};
+use ui::{Cell, ColumnSpec, Menu, Pin, TableSource, Width};
 
 use crate::shared::cells::{self, DATE, NUMBER};
-use crate::shared::menu::artist_menu;
+use crate::shared::menus::artist_menu;
 use crate::shared::pins::Pinned as _;
 use crate::shared::text::{folded, holds};
 use crate::shared::tracks::initial;
@@ -80,7 +79,7 @@ impl ArtistSource {
     }
 }
 
-impl GridSource for ArtistSource {
+impl TableSource for ArtistSource {
     type Field = ArtistField;
 
     fn columns(&self) -> &'static [ColumnSpec<ArtistField>] {
@@ -111,9 +110,13 @@ impl GridSource for ArtistSource {
         self.artists(cx).get(row)?.pin()
     }
 
-    fn context_menu(&self, row: usize, _visible: &[ArtistField], cx: &App) -> Option<Menu> {
+    fn picking(&self) -> bool {
+        true
+    }
+
+    fn context_menu(&self, rows: &[usize], _visible: &[ArtistField], cx: &App) -> Option<Menu> {
         Some(artist_menu(
-            self.at(row, cx)?,
+            self.at(*rows.first()?, cx)?,
             self.playback.clone(),
             false,
             cx,
@@ -134,13 +137,7 @@ impl GridSource for ArtistSource {
 
         match cell.field {
             ArtistField::Cover => cells::avatar(&cell, artist.cover.clone()),
-            ArtistField::Name => cells::link(
-                &cell,
-                "artist-name",
-                artist.name.clone(),
-                theme.foreground,
-                Destination::Artist(artist.id.clone().into()),
-            ),
+            ArtistField::Name => cells::dim(&cell, artist.name.clone(), theme.foreground),
             ArtistField::AddedAt => cells::dim(&cell, cells::stamp(artist.added_at), muted),
             ArtistField::Index => cells::blank(&cell),
         }

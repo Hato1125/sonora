@@ -7,6 +7,41 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-08-30
+
+### Added
+
+- YouTube Music listeners see their Listen Again history and personalized Quick Picks on Home.
+- Shift-click or Shift-Up/Down selects a range of rows in a table. On songs, the context menu
+  acts on all of them.
+- Ctrl-click (Cmd-click on macOS) adds or removes individual rows from a table selection.
+- Enter play/pauses the selected song when a table has exactly one row selected, or opens the
+  selected album, artist or playlist.
+- Delete or a Remove from library (or playlist, or history) action asks before it runs.
+- Search results can be moved through with the arrow keys, including left and right between
+  columns, and Enter play/pauses the selected song.
+- Text fields have a Cut, Copy, Paste and Select all context menu.
+- Search results for albums and playlists can be saved to the library from the context menu.
+
+### Changed
+
+- The list/grid toggle is labelled Grid instead of Cards.
+- Clicking a song, album, artist or playlist in a table selects the row. Double-click or Enter
+  still plays a song or opens an album, artist or playlist.
+- Dialogs pack the title, copy and buttons more tightly, with a divider above the actions.
+
+### Fixed
+
+- YouTube Music Quick Picks paginate when the window cannot fit all three columns and never reuse
+  recommendations from a previously connected Spotify account.
+- Saving or removing a song, album or artist that the service refuses now says so instead of
+  quietly flipping the control back.
+- Double-clicking a word and dragging selects further words, instead of stopping at the first.
+- Opening a settings file this build cannot read no longer replaces it with empty defaults, so pins
+  stay on disk.
+- Long titles on pinned sidebar items ellipsize instead of drawing past the panel.
+- The left sidebar scrolls again when pinned items run past the player bar.
+
 ## [0.24.1] - 2026-08-29
 
 ### Added
@@ -1098,7 +1133,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Initial release: a native Spotify client with playback, an interactive queue, the saved library,
 search, album, playlist, artist and song pages, context menus and adaptive theming.
 
-[unreleased]: https://github.com/nolight132/sonora/compare/v0.24.1...HEAD
+[unreleased]: https://github.com/nolight132/sonora/compare/v0.25.0...HEAD
+[0.25.0]: https://github.com/nolight132/sonora/compare/v0.24.1...v0.25.0
 [0.24.1]: https://github.com/nolight132/sonora/compare/v0.24.0...v0.24.1
 [0.24.0]: https://github.com/nolight132/sonora/compare/v0.23.0...v0.24.0
 [0.23.0]: https://github.com/nolight132/sonora/compare/v0.22.0...v0.23.0

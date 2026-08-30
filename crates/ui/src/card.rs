@@ -16,7 +16,6 @@ use crate::skeleton::Skeleton;
 use crate::theme::ActiveTheme as _;
 use crate::tooltip::{Perch, Tooltip};
 
-const TITLE: Pixels = px(120.);
 const BAR_TITLE: (Pixels, Pixels) = (px(140.), px(11.));
 const BAR_META: (Pixels, Pixels) = (px(90.), px(9.));
 const PLAY_RATIO: f32 = 0.24;
@@ -60,6 +59,7 @@ pub struct Card {
     hint: bool,
     underline: bool,
     playing: bool,
+    chosen: bool,
     action: Option<AnyElement>,
     drag_start: Option<DragStart>,
     menu: Option<Summon>,
@@ -94,6 +94,7 @@ impl Card {
             hint: false,
             underline: false,
             playing: false,
+            chosen: false,
             action: None,
             drag_start: None,
             menu: None,
@@ -247,6 +248,11 @@ impl Card {
         self.menu = Some(Box::new(handler));
         self
     }
+
+    pub fn chosen(mut self, chosen: bool) -> Self {
+        self.chosen = chosen;
+        self
+    }
 }
 
 impl Styled for Card {
@@ -296,6 +302,7 @@ impl RenderOnce for Card {
             hint,
             underline,
             playing,
+            chosen,
             action,
             drag_start,
             menu,
@@ -459,6 +466,7 @@ impl RenderOnce for Card {
         let caption = meta.map(|meta| match bare {
             true => div().child(meta),
             false => div()
+                .min_w_0()
                 .truncate()
                 .text_size(theme.text(Text::Small))
                 .text_color(theme.muted_foreground)
@@ -474,8 +482,13 @@ impl RenderOnce for Card {
                 |this| this.items_center().gap_3().px(inset),
             )
             .rounded(theme.radius)
-            .when(listed, |this| this.flex_none().h(height).py(inset))
-            .when_some(hovered, |this, style| this.hover(move |_| style))
+            .when(listed, |this| {
+                this.flex_none().h(height).py(inset).w_full().min_w_0()
+            })
+            .when(chosen, |this| this.bg(theme.table_active))
+            .when_some(hovered.filter(|_| !chosen), |this, style| {
+                this.hover(move |_| style)
+            })
             .when_some(press, |this, press| {
                 this.cursor_pointer()
                     .on_click(move |event, window, cx| press(event, window, cx))
@@ -503,8 +516,8 @@ impl RenderOnce for Card {
                     .flex_col()
                     .flex_1()
                     .min_w_0()
+                    .overflow_hidden()
                     .line_height(relative(LEADING))
-                    .when(listed, |this| this.min_w(TITLE))
                     .when(tile.is_some(), |this| this.w_full().flex_none())
                     .when_else(
                         loading,

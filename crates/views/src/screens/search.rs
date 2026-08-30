@@ -1,20 +1,22 @@
 use gpui::prelude::*;
 use gpui::{
-    AnyElement, App, Context, Entity, FontWeight, MouseButton, MouseDownEvent, Pixels, Point,
-    Render, ScrollHandle, SharedString, WeakEntity, Window, div,
+    AnyElement, App, Context, Entity, FocusHandle, Focusable, FontWeight, MouseButton,
+    MouseDownEvent, Pixels, Point, Render, ScrollHandle, SharedString, WeakEntity, Window, div,
 };
 use i18n::t;
-use music::Track;
+use input::SEARCH_CONTEXT;
+use music::{Album, Playlist, ReleaseType, SavedArtist, Track};
 use router::{Destination, navigate};
 use ui::Input;
 
 use crate::chrome::Chrome;
-use crate::shared::menu::{ItemMenu, item_menu};
-use state::{Genres, Hit, Kind, Playback, Search, Sonora};
+use crate::shared::menus::{ItemMenu, album_menu, artist_menu, playlist_menu};
+use state::{AlbumHit, ArtistHit, Genres, Hit, Kind, Playback, PlaylistHit, Search, Sonora};
 use ui::ActiveTheme as _;
 use ui::{
-    Card, Deck, Pin, Pinnable, Popup, Room, Scrollbar, Scroller, Separator, Text, Theme, VAST,
-    Viewport, clock, eyebrow, scrolled, snapped, vacant,
+    Activate, Card, Deck, Deselect, Pinnable, Popup, Room, Scrollbar, Scroller, SelectLeft,
+    SelectNext, SelectPrevious, SelectRight, Separator, Text, Theme, VAST, Viewport, clock,
+    eyebrow, scrolled, snapped, vacant,
 };
 
 use crate::shared::cells;
@@ -38,14 +40,19 @@ enum Press {
 #[derive(Clone)]
 enum HitMenu {
     Song(Box<Track>),
-    Item(Pin),
+    Album(AlbumHit),
+    Playlist(PlaylistHit),
+    Artist(ArtistHit),
 }
 
 impl HitMenu {
     fn of(hit: &Hit) -> Option<Self> {
         match hit {
             Hit::Song(track) => Some(Self::Song(Box::new(track.clone()))),
-            Hit::Artist(_) | Hit::Album(_) | Hit::Playlist(_) => hit.pin().map(Self::Item),
+            Hit::Album(album) => Some(Self::Album(album.clone())),
+            Hit::Playlist(list) => Some(Self::Playlist(list.clone())),
+            Hit::Artist(artist) if artist.id.is_some() => Some(Self::Artist(artist.clone())),
+            Hit::Artist(_) => None,
         }
     }
 }
@@ -63,6 +70,9 @@ pub(crate) struct SearchView {
     browsing: Entity<Scrollbar>,
     track_menu: ItemMenu,
     context_menu: Option<(HitMenu, Point<Pixels>)>,
+    focus: FocusHandle,
+    cursor: Option<(usize, usize)>,
+    rows: [usize; 3],
 }
 
 impl SearchView {
@@ -89,6 +99,8 @@ impl SearchView {
         cx.observe(&search, |this, _, cx| {
             this.track_menu.reset(cx);
             this.context_menu = None;
+            this.cursor = None;
+            this.rows = [0; 3];
             cx.notify();
         })
         .detach();
@@ -125,11 +137,188 @@ impl SearchView {
             browsing: cx.new(|_| Scrollbar::new(ScrollHandle::new()).watching(me)),
             track_menu: ItemMenu::new(playlist_scrollbar),
             context_menu: None,
+            focus: cx.focus_handle(),
+            cursor: None,
+            rows: [0; 3],
         }
     }
 
     pub(crate) fn focus(&self, window: &mut Window, cx: &mut App) {
         self.input.update(cx, |input, cx| input.focus(window, cx));
+    }
+
+    fn select_next(&mut self, _: &SelectNext, window: &mut Window, cx: &mut Context<Self>) {
+        if self.search.read(cx).query().trim().is_empty() {
+            return;
+        }
+        let stacked = stacked(window, cx);
+        match self.cursor {
+            None => {
+                let Some(column) = self.first_filled(0, stacked, cx) else {
+                    return;
+                };
+                self.place(column, 0);
+            }
+            Some((column, row)) => {
+                let last = self
+                    .seats(kinds(column, stacked), cx)
+                    .len()
+                    .saturating_sub(1);
+                if row < last {
+                    self.place(column, row + 1);
+                }
+            }
+        }
+        window.focus(&self.focus, cx);
+        self.reveal(window, cx);
+        cx.notify();
+    }
+
+    fn select_previous(&mut self, _: &SelectPrevious, window: &mut Window, cx: &mut Context<Self>) {
+        let Some((column, row)) = self.cursor else {
+            return;
+        };
+        if row == 0 {
+            self.cursor = None;
+            self.input.update(cx, |input, cx| input.focus(window, cx));
+            cx.notify();
+            return;
+        }
+        self.place(column, row - 1);
+        window.focus(&self.focus, cx);
+        self.reveal(window, cx);
+        cx.notify();
+    }
+
+    fn select_left(&mut self, _: &SelectLeft, window: &mut Window, cx: &mut Context<Self>) {
+        let stacked = stacked(window, cx);
+        let Some((column, _)) = self.cursor else {
+            return;
+        };
+        let Some(next) = self.prev_filled(column, stacked, cx) else {
+            return;
+        };
+        self.hop(next, stacked, cx);
+        window.focus(&self.focus, cx);
+        self.reveal(window, cx);
+        cx.notify();
+    }
+
+    fn select_right(&mut self, _: &SelectRight, window: &mut Window, cx: &mut Context<Self>) {
+        let stacked = stacked(window, cx);
+        let Some((column, _)) = self.cursor else {
+            return;
+        };
+        let Some(next) = self.next_filled(column, stacked, cx) else {
+            return;
+        };
+        self.hop(next, stacked, cx);
+        window.focus(&self.focus, cx);
+        self.reveal(window, cx);
+        cx.notify();
+    }
+
+    fn activate_hit(&mut self, _: &Activate, window: &mut Window, cx: &mut Context<Self>) {
+        let Some((column, row)) = self.cursor else {
+            return;
+        };
+        let stacked = stacked(window, cx);
+        let seats = self.seats(kinds(column, stacked), cx);
+        let Some(&(at, _)) = seats.get(row) else {
+            return;
+        };
+        let Some(hit) = self.search.read(cx).hits().get(at).cloned() else {
+            return;
+        };
+        match hit {
+            Hit::Song(track) => {
+                let current = track.id.is_some() && track.id == self.playback_status.0;
+                self.playback.update(cx, |playback, cx| match current {
+                    true => playback.toggle_play(cx),
+                    false => playback.play_radio(&track, cx),
+                });
+            }
+            Hit::Artist(artist) => {
+                if let Some(id) = artist.id {
+                    navigate(Destination::Artist(id.into()), cx);
+                }
+            }
+            Hit::Album(album) => navigate(Destination::Album(album.id.into()), cx),
+            Hit::Playlist(list) => navigate(Destination::Playlist(list.id.into()), cx),
+        }
+    }
+
+    fn deselect_hit(&mut self, _: &Deselect, window: &mut Window, cx: &mut Context<Self>) {
+        if self.cursor.take().is_none() {
+            return;
+        }
+        self.input.update(cx, |input, cx| input.focus(window, cx));
+        cx.notify();
+    }
+
+    fn place(&mut self, column: usize, row: usize) {
+        if let Some(slot) = self.rows.get_mut(column) {
+            *slot = row;
+        }
+        self.cursor = Some((column, row));
+    }
+
+    fn hop(&mut self, column: usize, stacked: bool, cx: &App) {
+        let last = self
+            .seats(kinds(column, stacked), cx)
+            .len()
+            .saturating_sub(1);
+        let row = self.rows.get(column).copied().unwrap_or(0).min(last);
+        self.place(column, row);
+    }
+
+    fn first_filled(&self, start: usize, stacked: bool, cx: &App) -> Option<usize> {
+        (start..columns(stacked)).find(|&column| !self.seats(kinds(column, stacked), cx).is_empty())
+    }
+
+    fn next_filled(&self, column: usize, stacked: bool, cx: &App) -> Option<usize> {
+        self.first_filled(column + 1, stacked, cx)
+    }
+
+    fn prev_filled(&self, column: usize, stacked: bool, cx: &App) -> Option<usize> {
+        (0..column)
+            .rev()
+            .find(|&at| !self.seats(kinds(at, stacked), cx).is_empty())
+    }
+
+    fn reveal(&self, window: &Window, cx: &App) {
+        let Some((column, row)) = self.cursor else {
+            return;
+        };
+        let stacked = stacked(window, cx);
+        let scroll = self.bar(column, stacked).read(cx).scroll().clone();
+        let theme = *cx.theme();
+        let height = snapped(theme.metrics.list_row, window);
+        let gap = theme.font_size * ROW_GAP;
+        let top = (height + gap) * row as f32;
+        let visible = scroll.bounds().size.height;
+        if visible <= Pixels::ZERO {
+            return;
+        }
+        let offset = scroll.offset();
+        let shown = -offset.y;
+        let delta = if top < shown {
+            top - shown
+        } else if top + height > shown + visible {
+            top + height - (shown + visible)
+        } else {
+            return;
+        };
+        scroll.set_offset(gpui::point(offset.x, offset.y - delta));
+    }
+
+    fn bar(&self, column: usize, stacked: bool) -> &Entity<Scrollbar> {
+        match (stacked, column) {
+            (true, _) => &self.mixed,
+            (false, 0) => &self.songs,
+            (false, 1) => &self.artists,
+            _ => &self.albums,
+        }
     }
 
     fn subtitle(&self, hit: &Hit, place: usize, compact: bool, theme: &Theme) -> AnyElement {
@@ -176,6 +365,7 @@ impl SearchView {
         hit: &Hit,
         place: usize,
         compact: bool,
+        chosen: bool,
         me: &WeakEntity<Self>,
         cx: &App,
     ) -> AnyElement {
@@ -292,6 +482,7 @@ impl SearchView {
 
         card.when_some(hit.pin(), Pinnable::pin)
             .when_some(HitMenu::of(hit), |card, target| card.menu(menu(target, me)))
+            .chosen(chosen)
             .into_any_element()
     }
 
@@ -458,7 +649,7 @@ impl SearchView {
         self.shell(t!("search-results"), body, gutter, cx)
     }
 
-    fn seats(&self, only: &[Kind], cx: &Context<Self>) -> Vec<(usize, usize)> {
+    fn seats(&self, only: &[Kind], cx: &App) -> Vec<(usize, usize)> {
         let mut taken = [0; Kind::ALL.len()];
 
         self.search
@@ -492,6 +683,7 @@ impl SearchView {
         }
 
         let compact = only.len() > 1;
+        let column = column_of(only);
         let theme = *cx.theme();
         let row = snapped(theme.metrics.list_row, window);
         let scroll = bar.read(cx).scroll().clone();
@@ -514,7 +706,14 @@ impl SearchView {
                     return div().into_any_element();
                 };
 
-                this.row(hit, place, compact, &view.downgrade(), cx)
+                this.row(
+                    hit,
+                    place,
+                    compact,
+                    this.cursor == Some((column, index)),
+                    &view.downgrade(),
+                    cx,
+                )
             });
 
         div()
@@ -527,6 +726,35 @@ impl SearchView {
                     .child(deck),
             )
             .into_any_element()
+    }
+}
+
+fn stacked(window: &Window, cx: &App) -> bool {
+    !Chrome::room(window, cx).fits(Room::Wide)
+}
+
+fn columns(stacked: bool) -> usize {
+    match stacked {
+        true => 1,
+        false => 3,
+    }
+}
+
+fn kinds(column: usize, stacked: bool) -> &'static [Kind] {
+    match (stacked, column) {
+        (true, _) => &Kind::ALL,
+        (false, 0) => SONGS,
+        (false, 1) => ARTISTS,
+        _ => RELEASES,
+    }
+}
+
+fn column_of(only: &[Kind]) -> usize {
+    match only {
+        [Kind::Song] => 0,
+        [Kind::Artist] => 1,
+        [Kind::Album, Kind::Playlist] => 2,
+        _ => 0,
     }
 }
 
@@ -575,6 +803,65 @@ fn menu(
     }
 }
 
+fn album_of(hit: &AlbumHit, cx: &App) -> Album {
+    Sonora::global(cx)
+        .library
+        .read(cx)
+        .album(&hit.id)
+        .cloned()
+        .unwrap_or_else(|| Album {
+            id: hit.id.clone(),
+            name: hit.name.clone(),
+            artists: hit.artists.clone(),
+            artist_refs: hit.artist_refs.clone(),
+            cover: hit.cover.clone(),
+            cover_large: hit.cover.clone(),
+            release_type: ReleaseType::Album,
+            year: 0,
+            track_count: 0,
+            release_date: String::new(),
+            label: String::new(),
+            copyrights: Vec::new(),
+            added_at: None,
+        })
+}
+
+fn playlist_of(hit: &PlaylistHit, cx: &App) -> Playlist {
+    Sonora::global(cx)
+        .library
+        .read(cx)
+        .playlist(&hit.id)
+        .cloned()
+        .unwrap_or_else(|| Playlist {
+            id: hit.id.clone(),
+            name: hit.name.clone(),
+            owner: hit.owner.clone(),
+            owner_id: String::new(),
+            owned: false,
+            collaborative: false,
+            blend: false,
+            public: false,
+            cover: hit.cover.clone(),
+            track_count: 0,
+            modified_at: None,
+        })
+}
+
+fn artist_of(hit: &ArtistHit, cx: &App) -> SavedArtist {
+    let id = hit.id.clone().unwrap_or_default();
+    Sonora::global(cx)
+        .library
+        .read(cx)
+        .artist(&id)
+        .cloned()
+        .unwrap_or_else(|| SavedArtist {
+            id,
+            name: hit.name.clone(),
+            cover: hit.cover.clone(),
+            added_at: None,
+        })
+}
+
 fn cover(hit: &Hit) -> Option<String> {
     match hit {
         Hit::Song(track) => track.cover.clone(),
@@ -620,6 +907,12 @@ fn noun(kind: Kind) -> SharedString {
     }
 }
 
+impl Focusable for SearchView {
+    fn focus_handle(&self, _: &App) -> FocusHandle {
+        self.focus.clone()
+    }
+}
+
 impl Render for SearchView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
@@ -634,7 +927,15 @@ impl Render for SearchView {
         let context_menu = self.context_menu.clone().map(|(target, position)| {
             let menu = match target {
                 HitMenu::Song(track) => self.track_menu.for_track(&track, cx),
-                HitMenu::Item(pin) => item_menu(&pin, &self.track_menu, self.playback.clone(), cx),
+                HitMenu::Album(hit) => {
+                    album_menu(album_of(&hit, cx), self.playback.clone(), false, cx)
+                }
+                HitMenu::Playlist(hit) => {
+                    playlist_menu(playlist_of(&hit, cx), self.playback.clone(), false, cx)
+                }
+                HitMenu::Artist(hit) => {
+                    artist_menu(artist_of(&hit, cx), self.playback.clone(), false, cx)
+                }
             };
 
             Popup::new(position, menu).on_close(cx.listener(|this, _, _, cx| {
@@ -666,6 +967,14 @@ impl Render for SearchView {
             .size_full()
             .gap_6()
             .pt(pad)
+            .key_context(SEARCH_CONTEXT)
+            .track_focus(&self.focus)
+            .on_action(cx.listener(Self::select_next))
+            .on_action(cx.listener(Self::select_previous))
+            .on_action(cx.listener(Self::select_left))
+            .on_action(cx.listener(Self::select_right))
+            .on_action(cx.listener(Self::activate_hit))
+            .on_action(cx.listener(Self::deselect_hit))
             .child(
                 div()
                     .flex()

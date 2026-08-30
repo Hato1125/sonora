@@ -17,7 +17,7 @@ use ui::{
 };
 
 use crate::chrome::{Aside, TitleBarOptions};
-use crate::shared::menu::ItemMenu;
+use crate::shared::menus::ItemMenu;
 use crate::shared::transport::{NOTCH, like, moved, percent, transport, volume_icon};
 use crate::shells::Shell;
 

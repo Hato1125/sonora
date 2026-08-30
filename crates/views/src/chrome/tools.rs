@@ -184,8 +184,8 @@ pub(crate) fn views(
     shift: impl Fn(Mode, &mut App) + 'static,
 ) -> AnyElement {
     let next = match mode {
-        Mode::List => Mode::Cards,
-        Mode::Cards => Mode::List,
+        Mode::List => Mode::Grid,
+        Mode::Grid => Mode::List,
     };
     let group = group.clone();
 
