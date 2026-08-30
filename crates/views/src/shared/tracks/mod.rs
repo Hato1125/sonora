@@ -21,6 +21,7 @@ use ui::{
 };
 
 use crate::shared::cells;
+use crate::shared::confirm::{Confirm, Kind};
 use crate::shared::pins::Pinned as _;
 
 pub(crate) use columns::{
@@ -94,24 +95,51 @@ pub(crate) fn drop_picked(table: &Entity<TableState<TrackSource>>, cx: &mut App)
     if tracks.is_empty() {
         return;
     }
+    let kind = if playlist.is_some() {
+        Kind::PlaylistSongs(tracks.len())
+    } else if history.is_some() {
+        Kind::History(tracks.len())
+    } else {
+        Kind::LibrarySongs(tracks.len())
+    };
+    let table = table.clone();
+    Confirm::ask(
+        kind,
+        move |cx| {
+            forget(&tracks, playlist.as_ref(), history.as_ref(), cx);
+            table.update(cx, |table, cx| {
+                table.delegate_mut().clear_selection();
+                cx.notify();
+            });
+        },
+        cx,
+    );
+}
+
+fn forget(
+    tracks: &[Track],
+    playlist: Option<&Entity<Detail>>,
+    history: Option<&Entity<History>>,
+    cx: &mut App,
+) {
     if let Some(detail) = playlist {
         let ids: Vec<String> = tracks.iter().filter_map(|track| track.id.clone()).collect();
         if !ids.is_empty() {
             detail.update(cx, |detail, cx| detail.remove_tracks_from_playlist(ids, cx));
         }
-    } else if let Some(history) = history {
+        return;
+    }
+    if let Some(history) = history {
         history.update(cx, |history, cx| {
-            for track in &tracks {
+            for track in tracks {
                 history.remove(track, cx);
             }
         });
-    } else {
-        let library = Sonora::global(cx).library.clone();
-        library.update(cx, |library, cx| library.save_tracks(tracks, false, cx));
+        return;
     }
-    table.update(cx, |table, cx| {
-        table.delegate_mut().clear_selection();
-        cx.notify();
+    let library = Sonora::global(cx).library.clone();
+    library.update(cx, |library, cx| {
+        library.save_tracks(tracks.to_vec(), false, cx)
     });
 }
 

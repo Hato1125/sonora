@@ -12,6 +12,7 @@ use ui::{
 use crate::chrome::{
     Chrome, PlayerBar, SidebarLeft, SidebarRight, TitleBarOptions, ToastStack, UpdateNotice,
 };
+use crate::shared::confirm::Confirm;
 use crate::shared::playlist_editor::PlaylistEditor;
 use crate::shells::Shell;
 
@@ -47,6 +48,7 @@ pub(crate) struct Workspace {
     player_bar: Entity<PlayerBar>,
     sidebar_right: Entity<SidebarRight>,
     playlist_editor: Entity<PlaylistEditor>,
+    confirm: Entity<Confirm>,
     toasts: Entity<ToastStack>,
     notice: Entity<UpdateNotice>,
     content: AnyView,
@@ -70,6 +72,7 @@ impl Workspace {
             player_bar,
             sidebar_right,
             playlist_editor: PlaylistEditor::entity(cx),
+            confirm: Confirm::entity(cx),
             toasts: cx.new(ToastStack::new),
             notice: cx.new(UpdateNotice::new),
             content,
@@ -295,6 +298,7 @@ impl Render for Workspace {
                     .child(self.toasts.clone()),
             )
             .child(self.playlist_editor.clone())
+            .child(self.confirm.clone())
             .child(self.notice.clone())
     }
 }

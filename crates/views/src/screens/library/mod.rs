@@ -9,6 +9,7 @@ use std::rc::Rc;
 
 use crate::chrome::tools::{self, Sift, Sliders};
 use crate::chrome::{Chrome, Searchable, Toolbar, Tooled};
+use crate::shared::confirm::{Confirm, Kind};
 use crate::shared::menus::{Item, new_playlist_menu};
 use crate::shared::playlist_editor::{Edit, PlaylistEditor};
 
@@ -554,15 +555,23 @@ impl LibraryView {
         if albums.is_empty() {
             return;
         }
-        self.library.update(cx, |library, cx| {
-            for album in albums {
-                library.toggle_album(album, cx);
-            }
-        });
-        self.albums.update(cx, |table, cx| {
-            table.delegate_mut().clear_selection();
-            cx.notify();
-        });
+        let library = self.library.clone();
+        let table = self.albums.clone();
+        Confirm::ask(
+            Kind::Albums(albums.len()),
+            move |cx| {
+                library.update(cx, |library, cx| {
+                    for album in albums {
+                        library.toggle_album(album, cx);
+                    }
+                });
+                table.update(cx, |table, cx| {
+                    table.delegate_mut().clear_selection();
+                    cx.notify();
+                });
+            },
+            cx,
+        );
     }
 
     fn drop_artists(&mut self, cx: &mut Context<Self>) {
@@ -575,15 +584,23 @@ impl LibraryView {
         if artists.is_empty() {
             return;
         }
-        self.library.update(cx, |library, cx| {
-            for artist in artists {
-                library.toggle_artist(artist, cx);
-            }
-        });
-        self.artists.update(cx, |table, cx| {
-            table.delegate_mut().clear_selection();
-            cx.notify();
-        });
+        let library = self.library.clone();
+        let table = self.artists.clone();
+        Confirm::ask(
+            Kind::Artists(artists.len()),
+            move |cx| {
+                library.update(cx, |library, cx| {
+                    for artist in artists {
+                        library.toggle_artist(artist, cx);
+                    }
+                });
+                table.update(cx, |table, cx| {
+                    table.delegate_mut().clear_selection();
+                    cx.notify();
+                });
+            },
+            cx,
+        );
     }
 
     fn drop_playlists(&mut self, cx: &mut Context<Self>) {
@@ -600,15 +617,23 @@ impl LibraryView {
         if ids.is_empty() {
             return;
         }
-        self.library.update(cx, |library, cx| {
-            for id in ids {
-                library.remove_playlist_from_library(id, cx);
-            }
-        });
-        self.playlists.update(cx, |table, cx| {
-            table.delegate_mut().clear_selection();
-            cx.notify();
-        });
+        let library = self.library.clone();
+        let table = self.playlists.clone();
+        Confirm::ask(
+            Kind::Playlists(ids.len()),
+            move |cx| {
+                library.update(cx, |library, cx| {
+                    for id in ids {
+                        library.remove_playlist_from_library(id, cx);
+                    }
+                });
+                table.update(cx, |table, cx| {
+                    table.delegate_mut().clear_selection();
+                    cx.notify();
+                });
+            },
+            cx,
+        );
     }
 
     fn resize(&mut self, window: &Window, cx: &mut Context<Self>) {

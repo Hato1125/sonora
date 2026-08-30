@@ -15,8 +15,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Ctrl-click (Cmd-click on macOS) adds or removes individual rows from a table selection.
 - Enter play/pauses the selected song when a table has exactly one row selected, or opens the
   selected album, artist or playlist.
-- Delete removes the selected songs from a playlist or from listening history. In the library it
-  also removes selected songs, albums, artists, and playlists you follow.
+- Delete asks before removing selected songs, albums, artists or playlists from the library, a
+  playlist, or listening history.
 - Search results can be moved through with the arrow keys, including left and right between
   columns, and Enter play/pauses the selected song.
 - Text fields have a Cut, Copy, Paste and Select all context menu.
@@ -26,6 +26,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The list/grid toggle is labelled Grid instead of Cards.
 - Clicking a song, album, artist or playlist in a table selects the row. Double-click or Enter
   still plays a song or opens an album, artist or playlist.
+- Dialogs pack the title, copy and buttons more tightly, with a divider above the actions.
 
 ### Fixed
 

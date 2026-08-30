@@ -2,10 +2,10 @@ use std::rc::Rc;
 
 use gpui::prelude::*;
 use gpui::{
-    AnyElement, App, Div, ElementId, MouseButton, SharedString, StyleRefinement, Window, div,
+    AnyElement, App, Div, ElementId, FontWeight, MouseButton, SharedString, StyleRefinement,
+    Window, div,
 };
 
-use crate::label::heading;
 use crate::metrics::Text;
 use crate::shield::Shield;
 use crate::theme::ActiveTheme as _;
@@ -70,6 +70,8 @@ impl Styled for Modal {
 impl RenderOnce for Modal {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = *cx.theme();
+        let pad = theme.metrics.pad;
+        let inset = theme.metrics.inset;
         let Self {
             mut base,
             id,
@@ -81,11 +83,12 @@ impl RenderOnce for Modal {
         } = self;
         let outside = dismiss.clone();
         let overrides = std::mem::take(base.style());
+        let band = pad * 2.;
 
         div()
             .absolute()
             .inset_0()
-            .p(theme.metrics.inset)
+            .p(inset)
             .flex()
             .items_center()
             .justify_center()
@@ -111,24 +114,61 @@ impl RenderOnce for Modal {
                     .max_h_full()
                     .flex()
                     .flex_col()
-                    .gap_4()
-                    .p(theme.metrics.inset)
                     .rounded(theme.radius)
                     .border_1()
                     .border_color(theme.border)
                     .bg(theme.popover)
-                    .child(heading(title, cx))
-                    .when_some(detail, |this, detail| {
+                    .shadow_md()
+                    .overflow_hidden()
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .gap(pad)
+                            .px(inset)
+                            .pt(inset)
+                            .pb(band)
+                            .child(
+                                div()
+                                    .text_size(theme.text(Text::Large))
+                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .child(title),
+                            )
+                            .when_some(detail, |this, detail| {
+                                this.child(
+                                    div()
+                                        .text_size(theme.text(Text::Small))
+                                        .text_color(theme.muted_foreground)
+                                        .child(detail),
+                                )
+                            }),
+                    )
+                    .when(!body.is_empty(), |this| {
                         this.child(
                             div()
-                                .text_size(theme.text(Text::Small))
-                                .text_color(theme.muted_foreground)
-                                .child(detail),
+                                .flex()
+                                .flex_col()
+                                .gap(pad)
+                                .min_h_0()
+                                .px(inset)
+                                .py(band)
+                                .border_t_1()
+                                .border_color(theme.border)
+                                .children(body),
                         )
                     })
-                    .children(body)
                     .when(!actions.is_empty(), |this| {
-                        this.child(div().flex().justify_end().gap_2().children(actions))
+                        this.child(
+                            div()
+                                .flex()
+                                .justify_end()
+                                .gap_2()
+                                .px(inset)
+                                .py(band)
+                                .border_t_1()
+                                .border_color(theme.border)
+                                .children(actions),
+                        )
                     });
                 panel.style().refine(&overrides);
                 panel
