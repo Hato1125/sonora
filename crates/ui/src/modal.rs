@@ -71,7 +71,7 @@ impl RenderOnce for Modal {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = *cx.theme();
         let pad = theme.metrics.pad;
-        let inset = theme.metrics.inset;
+        let room = pad * 2.;
         let Self {
             mut base,
             id,
@@ -83,12 +83,11 @@ impl RenderOnce for Modal {
         } = self;
         let outside = dismiss.clone();
         let overrides = std::mem::take(base.style());
-        let band = pad * 2.;
 
         div()
             .absolute()
             .inset_0()
-            .p(inset)
+            .p(theme.metrics.inset)
             .flex()
             .items_center()
             .justify_center()
@@ -124,10 +123,10 @@ impl RenderOnce for Modal {
                         div()
                             .flex()
                             .flex_col()
-                            .gap(pad)
-                            .px(inset)
-                            .pt(inset)
-                            .pb(band)
+                            .gap_1()
+                            .px(room)
+                            .pt(room)
+                            .pb(pad)
                             .child(
                                 div()
                                     .text_size(theme.text(Text::Large))
@@ -150,8 +149,8 @@ impl RenderOnce for Modal {
                                 .flex_col()
                                 .gap(pad)
                                 .min_h_0()
-                                .px(inset)
-                                .py(band)
+                                .px(room)
+                                .py(pad)
                                 .border_t_1()
                                 .border_color(theme.border)
                                 .children(body),
@@ -163,8 +162,8 @@ impl RenderOnce for Modal {
                                 .flex()
                                 .justify_end()
                                 .gap_2()
-                                .px(inset)
-                                .py(band)
+                                .px(room)
+                                .py(pad)
                                 .border_t_1()
                                 .border_color(theme.border)
                                 .children(actions),

@@ -5,16 +5,16 @@ use gpui::{
 };
 use i18n::t;
 use input::SEARCH_CONTEXT;
-use music::Track;
+use music::{Album, Playlist, ReleaseType, SavedArtist, Track};
 use router::{Destination, navigate};
 use ui::Input;
 
 use crate::chrome::Chrome;
-use crate::shared::menus::{ItemMenu, item_menu};
-use state::{Genres, Hit, Kind, Playback, Search, Sonora};
+use crate::shared::menus::{ItemMenu, album_menu, artist_menu, playlist_menu};
+use state::{AlbumHit, ArtistHit, Genres, Hit, Kind, Playback, PlaylistHit, Search, Sonora};
 use ui::ActiveTheme as _;
 use ui::{
-    Activate, Card, Deck, Deselect, Pin, Pinnable, Popup, Room, Scrollbar, Scroller, SelectLeft,
+    Activate, Card, Deck, Deselect, Pinnable, Popup, Room, Scrollbar, Scroller, SelectLeft,
     SelectNext, SelectPrevious, SelectRight, Separator, Text, Theme, VAST, Viewport, clock,
     eyebrow, scrolled, snapped, vacant,
 };
@@ -40,14 +40,19 @@ enum Press {
 #[derive(Clone)]
 enum HitMenu {
     Song(Box<Track>),
-    Item(Pin),
+    Album(AlbumHit),
+    Playlist(PlaylistHit),
+    Artist(ArtistHit),
 }
 
 impl HitMenu {
     fn of(hit: &Hit) -> Option<Self> {
         match hit {
             Hit::Song(track) => Some(Self::Song(Box::new(track.clone()))),
-            Hit::Artist(_) | Hit::Album(_) | Hit::Playlist(_) => hit.pin().map(Self::Item),
+            Hit::Album(album) => Some(Self::Album(album.clone())),
+            Hit::Playlist(list) => Some(Self::Playlist(list.clone())),
+            Hit::Artist(artist) if artist.id.is_some() => Some(Self::Artist(artist.clone())),
+            Hit::Artist(_) => None,
         }
     }
 }
@@ -798,6 +803,65 @@ fn menu(
     }
 }
 
+fn album_of(hit: &AlbumHit, cx: &App) -> Album {
+    Sonora::global(cx)
+        .library
+        .read(cx)
+        .album(&hit.id)
+        .cloned()
+        .unwrap_or_else(|| Album {
+            id: hit.id.clone(),
+            name: hit.name.clone(),
+            artists: hit.artists.clone(),
+            artist_refs: hit.artist_refs.clone(),
+            cover: hit.cover.clone(),
+            cover_large: hit.cover.clone(),
+            release_type: ReleaseType::Album,
+            year: 0,
+            track_count: 0,
+            release_date: String::new(),
+            label: String::new(),
+            copyrights: Vec::new(),
+            added_at: None,
+        })
+}
+
+fn playlist_of(hit: &PlaylistHit, cx: &App) -> Playlist {
+    Sonora::global(cx)
+        .library
+        .read(cx)
+        .playlist(&hit.id)
+        .cloned()
+        .unwrap_or_else(|| Playlist {
+            id: hit.id.clone(),
+            name: hit.name.clone(),
+            owner: hit.owner.clone(),
+            owner_id: String::new(),
+            owned: false,
+            collaborative: false,
+            blend: false,
+            public: false,
+            cover: hit.cover.clone(),
+            track_count: 0,
+            modified_at: None,
+        })
+}
+
+fn artist_of(hit: &ArtistHit, cx: &App) -> SavedArtist {
+    let id = hit.id.clone().unwrap_or_default();
+    Sonora::global(cx)
+        .library
+        .read(cx)
+        .artist(&id)
+        .cloned()
+        .unwrap_or_else(|| SavedArtist {
+            id,
+            name: hit.name.clone(),
+            cover: hit.cover.clone(),
+            added_at: None,
+        })
+}
+
 fn cover(hit: &Hit) -> Option<String> {
     match hit {
         Hit::Song(track) => track.cover.clone(),
@@ -863,7 +927,15 @@ impl Render for SearchView {
         let context_menu = self.context_menu.clone().map(|(target, position)| {
             let menu = match target {
                 HitMenu::Song(track) => self.track_menu.for_track(&track, cx),
-                HitMenu::Item(pin) => item_menu(&pin, &self.track_menu, self.playback.clone(), cx),
+                HitMenu::Album(hit) => {
+                    album_menu(album_of(&hit, cx), self.playback.clone(), false, cx)
+                }
+                HitMenu::Playlist(hit) => {
+                    playlist_menu(playlist_of(&hit, cx), self.playback.clone(), false, cx)
+                }
+                HitMenu::Artist(hit) => {
+                    artist_menu(artist_of(&hit, cx), self.playback.clone(), false, cx)
+                }
             };
 
             Popup::new(position, menu).on_close(cx.listener(|this, _, _, cx| {

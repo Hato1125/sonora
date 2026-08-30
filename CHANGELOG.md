@@ -15,11 +15,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Ctrl-click (Cmd-click on macOS) adds or removes individual rows from a table selection.
 - Enter play/pauses the selected song when a table has exactly one row selected, or opens the
   selected album, artist or playlist.
-- Delete asks before removing selected songs, albums, artists or playlists from the library, a
-  playlist, or listening history.
+- Delete or a Remove from library (or playlist, or history) action asks before it runs.
 - Search results can be moved through with the arrow keys, including left and right between
   columns, and Enter play/pauses the selected song.
 - Text fields have a Cut, Copy, Paste and Select all context menu.
+- Search results for albums and playlists can be saved to the library from the context menu.
 
 ### Changed
 

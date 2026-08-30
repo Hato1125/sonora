@@ -1,7 +1,9 @@
 use gpui::prelude::*;
 use gpui::{App, Context, Entity, FocusHandle, Global, Render, Window, div};
 use i18n::t;
-use ui::{ActiveTheme as _, Button, Dismiss, FORM_CONTEXT, Modal, Submit};
+use music::{Album, SavedArtist, Track};
+use state::{Detail, History, Sonora};
+use ui::{Button, Dismiss, FORM_CONTEXT, Modal, Submit};
 
 #[derive(Clone, Copy)]
 pub(crate) enum Kind {
@@ -86,6 +88,104 @@ impl Confirm {
         });
     }
 
+    pub fn library_songs(tracks: Vec<Track>, cx: &mut App) {
+        if tracks.is_empty() {
+            return;
+        }
+        Self::ask(
+            Kind::LibrarySongs(tracks.len()),
+            move |cx| {
+                let library = Sonora::global(cx).library.clone();
+                library.update(cx, |library, cx| library.save_tracks(tracks, false, cx));
+            },
+            cx,
+        );
+    }
+
+    pub fn playlist_songs(ids: Vec<String>, detail: Entity<Detail>, count: usize, cx: &mut App) {
+        if ids.is_empty() {
+            return;
+        }
+        Self::ask(
+            Kind::PlaylistSongs(count),
+            move |cx| {
+                detail.update(cx, |detail, cx| detail.remove_tracks_from_playlist(ids, cx));
+            },
+            cx,
+        );
+    }
+
+    pub fn history_songs(tracks: Vec<Track>, history: Entity<History>, cx: &mut App) {
+        if tracks.is_empty() {
+            return;
+        }
+        Self::ask(
+            Kind::History(tracks.len()),
+            move |cx| {
+                history.update(cx, |history, cx| {
+                    for track in &tracks {
+                        history.remove(track, cx);
+                    }
+                });
+            },
+            cx,
+        );
+    }
+
+    pub fn albums(albums: Vec<Album>, cx: &mut App) {
+        if albums.is_empty() {
+            return;
+        }
+        Self::ask(
+            Kind::Albums(albums.len()),
+            move |cx| {
+                let library = Sonora::global(cx).library.clone();
+                library.update(cx, |library, cx| {
+                    for album in albums {
+                        library.toggle_album(album, cx);
+                    }
+                });
+            },
+            cx,
+        );
+    }
+
+    pub fn artists(artists: Vec<SavedArtist>, cx: &mut App) {
+        if artists.is_empty() {
+            return;
+        }
+        Self::ask(
+            Kind::Artists(artists.len()),
+            move |cx| {
+                let library = Sonora::global(cx).library.clone();
+                library.update(cx, |library, cx| {
+                    for artist in artists {
+                        library.toggle_artist(artist, cx);
+                    }
+                });
+            },
+            cx,
+        );
+    }
+
+    pub fn playlists(ids: Vec<String>, cx: &mut App) {
+        if ids.is_empty() {
+            return;
+        }
+        Self::ask(
+            Kind::Playlists(ids.len()),
+            move |cx| {
+                let library = Sonora::global(cx).library.clone();
+                library.update(cx, |library, cx| {
+                    for id in ids {
+                        library.remove_playlist_from_library(id, cx);
+                    }
+                });
+            },
+            cx,
+        );
+    }
+
     fn close(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.pending = None;
         self.grab = false;
@@ -122,7 +222,6 @@ impl Render for Confirm {
         let title = pending.kind.title();
         let detail = pending.kind.detail();
         let action = pending.kind.action();
-        let theme = *cx.theme();
 
         div()
             .absolute()
@@ -139,7 +238,6 @@ impl Render for Confirm {
             }))
             .child(
                 Modal::new("confirm-remove", title)
-                    .w(theme.metrics.cover * 2.8)
                     .detail(detail)
                     .action(
                         Button::new("cancel-confirm")

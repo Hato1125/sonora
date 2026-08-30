@@ -23,6 +23,7 @@ use crate::chrome::tools;
 use crate::chrome::{Toolbar, Tooled};
 use crate::shared::about::{AboutArtist, about_modal};
 use crate::shared::album_grid::{AlbumGrid, CardGrid};
+use crate::shared::confirm::Confirm;
 use crate::shared::hero::{HeroMetaStrip, HeroPlayButton, PageHero};
 use crate::shared::menus::{ItemMenu, album_menu, artist_menu};
 use crate::shared::page;
@@ -363,8 +364,11 @@ impl ArtistView {
                 true => heart.tint(theme.primary),
                 false => heart,
             }
-            .on_click(move |_, _, cx| {
-                library.update(cx, |library, cx| library.toggle_artist(target.clone(), cx));
+            .on_click(move |_, _, cx| match followed {
+                true => Confirm::artists(vec![target.clone()], cx),
+                false => {
+                    library.update(cx, |library, cx| library.toggle_artist(target.clone(), cx));
+                }
             }),
         )
     }
