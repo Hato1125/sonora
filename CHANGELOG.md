@@ -31,6 +31,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Opening a settings file this build cannot read no longer replaces it with empty defaults, so pins
   stay on disk.
 - Long titles on pinned sidebar items ellipsize instead of drawing past the panel.
+- The left sidebar scrolls again when pinned items run past the player bar.
 
 ## [0.24.1] - 2026-08-29
 
