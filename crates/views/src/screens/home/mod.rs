@@ -132,6 +132,8 @@ impl Render for HomeView {
 
         let listen = (!listen_again.is_empty()).then(|| {
             let tracks = listen_again.clone();
+            let started = listen_again.clone();
+            let playback = self.playback.clone();
             let home = cx.entity().downgrade();
             ListenAgain::new(
                 listen_again,
@@ -154,9 +156,16 @@ impl Render for HomeView {
             .on_context_menu(move |place, event, _, cx| {
                 open_menu(&home, &tracks, place, event, cx);
             })
+            .on_start(move |place, cx| {
+                playback.update(cx, |playback, cx| {
+                    playback.start(started.as_ref().clone(), place, None, cx)
+                });
+            })
         });
 
         let tracks = quick_picks.clone();
+        let started = quick_picks.clone();
+        let playback = self.playback.clone();
         let home = cx.entity().downgrade();
         let quick = Picks::new(
             "quick-pick",
@@ -182,6 +191,11 @@ impl Render for HomeView {
         }))
         .on_context_menu(move |place, event, _, cx| {
             open_menu(&home, &tracks, place, event, cx);
+        })
+        .on_start(move |place, cx| {
+            playback.update(cx, |playback, cx| {
+                playback.start(started.as_ref().clone(), place, None, cx)
+            });
         });
 
         let sections = self.home.read(cx).sections();
