@@ -28,6 +28,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Saving or removing a song, album or artist that the service refuses now says so instead of
   quietly flipping the control back.
 - Double-clicking a word and dragging selects further words, instead of stopping at the first.
+- Opening a settings file this build cannot read no longer replaces it with empty defaults, so pins
+  stay on disk.
+- Long titles on pinned sidebar items ellipsize instead of drawing past the panel.
 
 ## [0.24.1] - 2026-08-29
 

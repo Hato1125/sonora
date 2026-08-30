@@ -16,7 +16,6 @@ use crate::skeleton::Skeleton;
 use crate::theme::ActiveTheme as _;
 use crate::tooltip::{Perch, Tooltip};
 
-const TITLE: Pixels = px(120.);
 const BAR_TITLE: (Pixels, Pixels) = (px(140.), px(11.));
 const BAR_META: (Pixels, Pixels) = (px(90.), px(9.));
 const PLAY_RATIO: f32 = 0.24;
@@ -467,6 +466,7 @@ impl RenderOnce for Card {
         let caption = meta.map(|meta| match bare {
             true => div().child(meta),
             false => div()
+                .min_w_0()
                 .truncate()
                 .text_size(theme.text(Text::Small))
                 .text_color(theme.muted_foreground)
@@ -482,7 +482,14 @@ impl RenderOnce for Card {
                 |this| this.items_center().gap_3().px(inset),
             )
             .rounded(theme.radius)
-            .when(listed, |this| this.flex_none().h(height).py(inset))
+            .when(listed, |this| {
+                this.flex_none()
+                    .h(height)
+                    .py(inset)
+                    .w_full()
+                    .min_w_0()
+                    .overflow_hidden()
+            })
             .when(chosen, |this| this.bg(theme.table_active))
             .when_some(hovered.filter(|_| !chosen), |this, style| {
                 this.hover(move |_| style)
@@ -514,8 +521,8 @@ impl RenderOnce for Card {
                     .flex_col()
                     .flex_1()
                     .min_w_0()
+                    .overflow_hidden()
                     .line_height(relative(LEADING))
-                    .when(listed, |this| this.min_w(TITLE))
                     .when(tile.is_some(), |this| this.w_full().flex_none())
                     .when_else(
                         loading,
