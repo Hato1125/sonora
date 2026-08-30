@@ -27,6 +27,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   recommendations from a previously connected Spotify account.
 - Saving or removing a song, album or artist that the service refuses now says so instead of
   quietly flipping the control back.
+- Double-clicking a word and dragging selects further words, instead of stopping at the first.
 
 ## [0.24.1] - 2026-08-29
 
