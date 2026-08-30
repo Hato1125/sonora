@@ -3,7 +3,7 @@ mod listen_again;
 use std::rc::Rc;
 
 use crate::chrome::Chrome;
-use crate::shared::menu::ItemMenu;
+use crate::shared::menus::ItemMenu;
 use gpui::prelude::*;
 use gpui::{
     Context, Entity, MouseDownEvent, Pixels, Point, Render, ScrollHandle, WeakEntity, Window, div,
@@ -193,7 +193,7 @@ impl Render for HomeView {
             .shelves
             .update(cx, |shelves, cx| match sections.is_empty() && feeding {
                 true => shelves.pending(width, cx),
-                false => vec![shelves.render(sections, Mode::Cards, width, viewport, window, cx)],
+                false => vec![shelves.render(sections, Mode::Grid, width, viewport, window, cx)],
             });
 
         Scroller::new("home-page", &self.scrollbar)

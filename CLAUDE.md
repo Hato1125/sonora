@@ -194,7 +194,7 @@ renderers), `crates/views/src/chrome/` (chrome). Extend what's there — add a b
 | `Card`                                                                  | artwork + title + eyebrow + meta row/tile. `.art()` for tile mode, `.circle()`, `.loading()`, `.trailing()`, `.explicit()`, `.press()` |
 | `Artwork`                                                               | cover images with skeleton loading and a music-note fallback                                                                           |
 | `Skeleton`, `Initials`                                                  | pulsing loading placeholder; avatar initials                                                                                           |
-| `Grid`, `GridSource`, `GridDelegate`, `GridState`, `ColumnSpec`, `Cell` | every table. Virtualized, sortable, filterable, hideable columns, columns dropped by `rank` when the room runs out                    |
+| `Table`, `TableSource`, `TableDelegate`, `TableState`, `ColumnSpec`, `Cell` | every table. Virtualized, sortable, filterable, hideable columns, columns dropped by `rank` when the room runs out                    |
 | `Scroller` + `Scrollbar`                                                | any scrolling region. Do not use bare `overflow_y_scroll`                                                                              |
 | `Scrubber` + `ScrubberState`                                            | any draggable 0..1 track (seek bar, volume)                                                                                            |
 | `Panel` + `Side`                                                        | a resizable side panel shell: clamped width, drag grip, pixel snapping. `.limits()`, `.fill()`, `.on_resize()`                         |
@@ -213,7 +213,7 @@ Also available: `Input` (`input` crate — full text editing, IME, selection, cl
 
 `index` (play/pause/now-playing transport with hover preload), `artists`, `link`, `text`, `dim`,
 `title`, `artwork`, `avatar`, `blank`, `transport`, `toggle`, `artist_links`. Reuse these in any new
-`GridSource::cell`.
+`TableSource::cell`.
 
 ### Element conventions
 
@@ -245,7 +245,7 @@ impl RenderOnce for Thing {
 The `mem::take` / `refine` dance is deliberate: it lets a call site override any default without
 the element re-applying it afterwards. Keep it.
 
-Stateful components (`Scrollbar`, `Input`, `GridState`) are `Render` entities instead, created with
+Stateful components (`Scrollbar`, `Input`, `TableState`) are `Render` entities instead, created with
 `cx.new(…)` and held by the parent.
 
 ## Theme and metrics
@@ -537,15 +537,15 @@ asks the active shell; it never reaches into a panel.
 the view under `crates/views/src/` → construct it in `Root::new` and wire it in `Root::show` →
 add a sidebar entry in `views/src/chrome/sidebar_left.rs` if it's top-level.
 
-**New library section checklist:** `LibraryView` keeps one `GridState` per `Section`, and the
+**New library section checklist:** `LibraryView` keeps one `TableState` per `Section`, and the
 fixed-size arrays (`views`, `sliders`, `Section::ALL`, `tables()`) are all indexed by
 `Section::slot()` — a new section means bumping every one of them, plus a `LibraryTab` variant, a
 `key()` for settings persistence, a `vacancy()` i18n key, a card renderer, a `deck` arm and a
 `LIBRARY_TABS` entry. `library/artists.rs` is the smallest complete example.
 
-**Tables.** Implement `GridSource` (`columns`, `rows`, `cell`, and optionally `compare`, `matches`,
+**Tables.** Implement `TableSource` (`columns`, `rows`, `cell`, and optionally `compare`, `matches`,
 `playing`, `is_loading`), define a `&'static [ColumnSpec<Field>]`, hold a
-`GridState<Source>` entity, render `grid(&state)`. Column widths use `Width::{Fixed, Fill, Thumb}`.
+`TableState<Source>` entity, render `table(&state)`. Column widths use `Width::{Fixed, Fill, Thumb}`.
 A table never carries pixel breakpoints: every column declares a `rank` from `ui::rank`
 (`SPARE` < `NICE` < `HANDY` < `USEFUL` < `ESSENTIAL`, the default), and the layout drops the
 lowest-ranked column whenever the survivors no longer fit their comfortable widths, keeping at least
@@ -566,7 +566,7 @@ field in the title bar. Don't build a second search box.
 
 **Actions and keys.** Declare actions in `crates/input/src/lib.rs` (`actions!` macro), bind them in
 `bindings()`, handle them with `cx.on_action` (global, in `sonora/src/actions.rs`) or
-`.on_action(cx.listener(…))` (scoped). Key contexts: `Workspace`, `Input`, `Grid`. Both `cmd-` and
+`.on_action(cx.listener(…))` (scoped). Key contexts: `Workspace`, `Input`, `Table`. Both `cmd-` and
 `ctrl-` bindings are registered for every shortcut.
 
 **Assets.** SVGs live in `assets/icons/`, are embedded with `include_bytes!`, and are referenced as

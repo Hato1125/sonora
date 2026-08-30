@@ -2,13 +2,14 @@ mod layout;
 
 use std::cell::Cell as StdCell;
 use std::cmp::Ordering;
+use std::collections::HashSet;
 
 use gpui::prelude::*;
 use gpui::{
     AbsoluteLength, AnyElement, App, Context, Corners, Div, DragMoveEvent, Empty, Entity,
-    EventEmitter, FocusHandle, Focusable, Interactivity, MouseButton, MouseDownEvent, MouseUpEvent,
-    Pixels, Point, ScrollHandle, SharedString, Stateful, StyleRefinement, TextAlign, Window,
-    actions, div, point, px, svg,
+    EventEmitter, FocusHandle, Focusable, Global, Interactivity, MouseButton, MouseDownEvent,
+    MouseUpEvent, Pixels, Point, ScrollHandle, SharedString, Stateful, StyleRefinement, TextAlign,
+    Window, actions, div, point, px, svg,
 };
 
 use crate::SortAxis;
@@ -21,15 +22,15 @@ use crate::theme::ActiveTheme as _;
 pub use layout::{ColumnSpec, Layout, Sort, Sorting, Width, rank};
 use layout::{PADDING, Resolved, SORT_ROOM, TRAIL, reordered, resolve, shifted, stretch};
 
-actions!(grid, [SelectNext, SelectPrevious, Deselect]);
+actions!(table, [SelectNext, SelectPrevious, Deselect, Activate]);
 
-pub const GRID_CONTEXT: &str = "Grid";
+pub const TABLE_CONTEXT: &str = "Table";
 
 const MIN_CELL: Pixels = px(24.);
 const GRIP: Pixels = px(9.);
 const OVERSCAN: usize = 2;
 
-pub const ROW_GROUP: &str = "grid-row";
+pub const ROW_GROUP: &str = "table-row";
 
 pub struct Cell<F> {
     pub field: F,
@@ -61,7 +62,7 @@ impl<F> Cell<F> {
     }
 }
 
-pub trait GridSource: 'static {
+pub trait TableSource: 'static {
     type Field: Copy + PartialEq + 'static;
 
     fn columns(&self) -> &'static [ColumnSpec<Self::Field>];
@@ -120,7 +121,7 @@ fn frame(width: Pixels, align: TextAlign) -> Div {
         .text_align(align)
 }
 
-pub struct GridDelegate<S: GridSource> {
+pub struct TableDelegate<S: TableSource> {
     source: S,
     columns: Vec<Resolved<S::Field>>,
     width: Pixels,
@@ -129,12 +130,13 @@ pub struct GridDelegate<S: GridSource> {
     measured: Option<(i18n::Language, Pixels, SharedString)>,
     selected: Option<usize>,
     anchor: Option<usize>,
+    marked: HashSet<usize>,
     sort: Option<(S::Field, Sort)>,
     filter: String,
     order: Vec<usize>,
 }
 
-impl<S: GridSource> GridDelegate<S> {
+impl<S: TableSource> TableDelegate<S> {
     pub fn new(source: S, width: Pixels, cx: &App) -> Self {
         let heads = vec![Pixels::ZERO; source.columns().len()];
         let blank = vec![false; heads.len()];
@@ -155,6 +157,7 @@ impl<S: GridSource> GridDelegate<S> {
             measured: None,
             selected: None,
             anchor: None,
+            marked: HashSet::new(),
             sort: None,
             filter: String::new(),
             order: Vec::new(),
@@ -221,29 +224,64 @@ impl<S: GridSource> GridDelegate<S> {
     }
 
     pub fn picked(&self) -> Vec<usize> {
-        let Some((lo, hi)) = self.picked_span() else {
+        let mut rows: Vec<usize> = self.marked.iter().copied().collect();
+        if rows.is_empty() {
             return self.selected.into_iter().collect();
-        };
-        self.order[lo..=hi].to_vec()
+        }
+        rows.sort_by_key(|row| self.display_of(*row).unwrap_or(usize::MAX));
+        rows
     }
 
     pub fn clear_selection(&mut self) {
         self.selected = None;
         self.anchor = None;
+        self.marked.clear();
     }
 
-    fn pick(&mut self, row: usize, extend: bool) {
-        if extend && self.source.picking() && self.anchor.is_some() {
+    fn pick(&mut self, row: usize, extend: bool, toggle: bool) {
+        if !self.source.picking() {
+            self.marked.clear();
+            self.marked.insert(row);
             self.selected = Some(row);
+            self.anchor = Some(row);
             return;
         }
+        if toggle {
+            if self.marked.contains(&row) {
+                self.marked.remove(&row);
+                if self.selected == Some(row) {
+                    self.selected = self.marked.iter().copied().next();
+                }
+                if self.anchor == Some(row) {
+                    self.anchor = self.selected;
+                }
+            } else {
+                self.marked.insert(row);
+                self.selected = Some(row);
+                self.anchor = Some(row);
+            }
+            return;
+        }
+        if extend && self.anchor.is_some() {
+            self.selected = Some(row);
+            self.marked = self.span_rows();
+            return;
+        }
+        self.marked.clear();
+        self.marked.insert(row);
         self.selected = Some(row);
         self.anchor = Some(row);
     }
 
     fn holds(&self, row: usize) -> bool {
-        self.picked_span()
-            .is_some_and(|(lo, hi)| self.display_of(row).is_some_and(|at| at >= lo && at <= hi))
+        self.marked.contains(&row) || self.selected == Some(row)
+    }
+
+    fn span_rows(&self) -> HashSet<usize> {
+        match self.picked_span() {
+            Some((lo, hi)) => self.order[lo..=hi].iter().copied().collect(),
+            None => self.selected.into_iter().collect(),
+        }
     }
 
     fn picked_span(&self) -> Option<(usize, usize)> {
@@ -411,16 +449,17 @@ impl<S: GridSource> GridDelegate<S> {
     }
 
     fn prune_selection(&mut self) {
-        if self
-            .selected
-            .is_some_and(|row| self.display_of(row).is_none())
-        {
-            self.selected = None;
+        let visible: HashSet<usize> = self
+            .marked
+            .iter()
+            .copied()
+            .filter(|row| self.display_of(*row).is_some())
+            .collect();
+        self.marked = visible;
+        if self.selected.is_some_and(|row| !self.marked.contains(&row)) {
+            self.selected = self.marked.iter().copied().next();
         }
-        if self
-            .anchor
-            .is_some_and(|row| self.display_of(row).is_none())
-        {
+        if self.anchor.is_some_and(|row| !self.marked.contains(&row)) {
             self.anchor = self.selected;
         }
     }
@@ -446,8 +485,9 @@ impl<S: GridSource> GridDelegate<S> {
     }
 }
 
-pub enum GridEvent {
+pub enum TableEvent {
     DoubleClicked(usize),
+    Activated(usize),
     LayoutChanged,
     SortChanged,
 }
@@ -501,8 +541,8 @@ struct Sizing {
     widths: Vec<Pixels>,
 }
 
-pub struct GridState<S: GridSource> {
-    delegate: GridDelegate<S>,
+pub struct TableState<S: TableSource> {
+    delegate: TableDelegate<S>,
     viewport: Viewport,
     corners: Corners<Pixels>,
     focus: FocusHandle,
@@ -512,16 +552,16 @@ pub struct GridState<S: GridSource> {
     sizing: Option<Sizing>,
 }
 
-impl<S: GridSource> EventEmitter<GridEvent> for GridState<S> {}
+impl<S: TableSource> EventEmitter<TableEvent> for TableState<S> {}
 
-impl<S: GridSource> Focusable for GridState<S> {
+impl<S: TableSource> Focusable for TableState<S> {
     fn focus_handle(&self, _: &App) -> FocusHandle {
         self.focus.clone()
     }
 }
 
-impl<S: GridSource> GridState<S> {
-    pub fn new(delegate: GridDelegate<S>, cx: &mut Context<Self>) -> Self {
+impl<S: TableSource> TableState<S> {
+    pub fn new(delegate: TableDelegate<S>, cx: &mut Context<Self>) -> Self {
         Self {
             delegate,
             viewport: Viewport::default(),
@@ -557,11 +597,28 @@ impl<S: GridSource> GridState<S> {
             cx.notify();
             return;
         }
-        if self.delegate.selected.is_none() {
+        if self.delegate.selected.is_none() && self.delegate.marked.is_empty() {
             return;
         }
         self.delegate.clear_selection();
         cx.notify();
+    }
+
+    fn activate(&mut self, _: &Activate, _: &mut Window, cx: &mut Context<Self>) {
+        self.fire_activate(cx);
+    }
+
+    fn fire_activate(&mut self, cx: &mut Context<Self>) {
+        if self.delegate.picked().len() != 1 {
+            return;
+        }
+        let Some(row) = self.delegate.selected else {
+            return;
+        };
+        let Some(display) = self.delegate.display_of(row) else {
+            return;
+        };
+        cx.emit(TableEvent::Activated(display));
     }
 
     fn step(&mut self, delta: isize, window: &mut Window, cx: &mut Context<Self>) {
@@ -580,7 +637,7 @@ impl<S: GridSource> GridState<S> {
             None => 0,
         };
 
-        self.delegate.pick(self.delegate.row(display), false);
+        self.delegate.pick(self.delegate.row(display), false, false);
         self.reveal(display, window, cx);
         cx.notify();
     }
@@ -613,11 +670,11 @@ impl<S: GridSource> GridState<S> {
         head + row * self.delegate.row_count() as f32
     }
 
-    pub fn delegate(&self) -> &GridDelegate<S> {
+    pub fn delegate(&self) -> &TableDelegate<S> {
         &self.delegate
     }
 
-    pub fn delegate_mut(&mut self) -> &mut GridDelegate<S> {
+    pub fn delegate_mut(&mut self) -> &mut TableDelegate<S> {
         &mut self.delegate
     }
 
@@ -642,7 +699,7 @@ impl<S: GridSource> GridState<S> {
         let key = column.spec.key;
         self.delegate.cycle(key, cx);
         self.delegate.rebuild(cx);
-        cx.emit(GridEvent::SortChanged);
+        cx.emit(TableEvent::SortChanged);
         cx.notify();
     }
 
@@ -680,7 +737,7 @@ impl<S: GridSource> GridState<S> {
         let mut layout = self.delegate.layout.clone();
         layout.widths.extend(widths);
         self.delegate.set_layout(layout, cx);
-        cx.emit(GridEvent::LayoutChanged);
+        cx.emit(TableEvent::LayoutChanged);
         cx.notify();
     }
 
@@ -710,7 +767,7 @@ impl<S: GridSource> GridState<S> {
         let mut layout = self.delegate.layout.clone();
         layout.order = reordered(&self.delegate.columns, from, to);
         self.delegate.set_layout(layout, cx);
-        cx.emit(GridEvent::LayoutChanged);
+        cx.emit(TableEvent::LayoutChanged);
         cx.notify();
     }
 
@@ -864,13 +921,13 @@ impl<S: GridSource> GridState<S> {
         let first = self.viewport.first(head, row_height);
         let last = (first + self.viewport.rows(row_height)).min(count);
         let bottom = self.corners.bottom_left.max(self.corners.bottom_right);
-        let span = self.delegate.picked_span();
+        let marked = &self.delegate.marked;
 
         (first..last)
             .map(|display| {
                 let row = self.delegate.row(display);
                 let tail = display + 1 == count;
-                let selected = span.is_some_and(|(lo, hi)| display >= lo && display <= hi);
+                let selected = marked.contains(&row);
                 let playing = self.delegate.source.playing(row, cx);
                 let cells: Vec<AnyElement> = (0..self.delegate.columns.len())
                     .map(|ix| {
@@ -914,9 +971,13 @@ impl<S: GridSource> GridState<S> {
                         MouseButton::Left,
                         cx.listener(move |this, event: &MouseDownEvent, window, cx| {
                             window.focus(&this.focus.clone(), cx);
-                            this.delegate.pick(row, event.modifiers.shift);
+                            this.delegate.pick(
+                                row,
+                                event.modifiers.shift,
+                                event.modifiers.secondary() && !event.modifiers.shift,
+                            );
                             if event.click_count >= 2 {
-                                cx.emit(GridEvent::DoubleClicked(display));
+                                cx.emit(TableEvent::DoubleClicked(display));
                             }
                             cx.notify();
                         }),
@@ -925,7 +986,7 @@ impl<S: GridSource> GridState<S> {
                         MouseButton::Right,
                         cx.listener(move |this, event: &MouseDownEvent, window, cx| {
                             if !this.delegate.holds(row) {
-                                this.delegate.pick(row, false);
+                                this.delegate.pick(row, false, false);
                             }
                             let rows = this.delegate.picked();
                             let visible = this.delegate.visible();
@@ -951,10 +1012,10 @@ impl<S: GridSource> GridState<S> {
     }
 }
 
-fn resize_handle<S: GridSource>(
+fn resize_handle<S: TableSource>(
     ix: usize,
     edge: Pixels,
-    cx: &mut Context<GridState<S>>,
+    cx: &mut Context<TableState<S>>,
 ) -> Stateful<Div> {
     div()
         .id(("grip", ix))
@@ -966,7 +1027,7 @@ fn resize_handle<S: GridSource>(
         .w(GRIP)
         .cursor_col_resize()
         .on_drag_move(cx.listener(
-            move |this, event: &DragMoveEvent<ColumnResize>, _, cx: &mut Context<GridState<S>>| {
+            move |this, event: &DragMoveEvent<ColumnResize>, _, cx: &mut Context<TableState<S>>| {
                 let resize = event.drag(cx).clone();
                 if resize.column != ix {
                     return;
@@ -1018,7 +1079,7 @@ fn sort_icon(direction: Option<Sort>) -> &'static str {
     }
 }
 
-impl<S: GridSource> Render for GridState<S> {
+impl<S: TableSource> Render for TableState<S> {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.delegate.measure(window, cx);
 
@@ -1044,13 +1105,14 @@ impl<S: GridSource> Render for GridState<S> {
         });
 
         div()
-            .key_context(GRID_CONTEXT)
+            .key_context(TABLE_CONTEXT)
             .track_focus(&self.focus)
             .on_action(cx.listener(Self::select_next))
             .on_action(cx.listener(Self::select_previous))
             .on_action(cx.listener(Self::deselect))
+            .on_action(cx.listener(Self::activate))
             .on_mouse_down_out(cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                if this.delegate.selected.is_none() {
+                if this.delegate.selected.is_none() && this.delegate.marked.is_empty() {
                     return;
                 }
                 this.delegate.clear_selection();
@@ -1077,24 +1139,24 @@ impl<S: GridSource> Render for GridState<S> {
 }
 
 #[derive(IntoElement)]
-pub struct Grid<S: GridSource> {
+pub struct Table<S: TableSource> {
     base: Div,
-    state: Entity<GridState<S>>,
+    state: Entity<TableState<S>>,
 }
 
-impl<S: GridSource> Styled for Grid<S> {
+impl<S: TableSource> Styled for Table<S> {
     fn style(&mut self) -> &mut StyleRefinement {
         self.base.style()
     }
 }
 
-impl<S: GridSource> InteractiveElement for Grid<S> {
+impl<S: TableSource> InteractiveElement for Table<S> {
     fn interactivity(&mut self) -> &mut Interactivity {
         self.base.interactivity()
     }
 }
 
-impl<S: GridSource> RenderOnce for Grid<S> {
+impl<S: TableSource> RenderOnce for Table<S> {
     fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let corners = radii(self.base.style(), window.rem_size());
         self.state.update(cx, |state, _| state.corners = corners);
@@ -1103,14 +1165,33 @@ impl<S: GridSource> RenderOnce for Grid<S> {
     }
 }
 
-pub fn grid<S: GridSource>(state: &Entity<GridState<S>>) -> Grid<S> {
-    Grid {
+pub fn table<S: TableSource>(state: &Entity<TableState<S>>) -> Table<S> {
+    Table {
         base: div(),
         state: state.clone(),
     }
 }
 
-pub trait Table {
+#[derive(Default)]
+struct Shown(Option<Box<dyn Listing>>);
+
+impl Global for Shown {}
+
+pub fn show_listing(table: Box<dyn Listing>, cx: &mut App) {
+    cx.default_global::<Shown>().0 = Some(table);
+}
+
+pub fn clear_listing(cx: &mut App) {
+    if cx.has_global::<Shown>() {
+        cx.global_mut::<Shown>().0 = None;
+    }
+}
+
+pub fn shown_listing(cx: &App) -> Option<Box<dyn Listing>> {
+    Some(cx.try_global::<Shown>()?.0.as_ref()?.boxed())
+}
+
+pub trait Listing {
     fn layout(&self, cx: &App) -> Layout;
     fn set_layout(&self, layout: Layout, cx: &mut App);
     fn sorting(&self, cx: &App) -> Option<Sorting>;
@@ -1126,9 +1207,17 @@ pub trait Table {
     fn rebuild(&self, cx: &mut App);
     fn refresh(&self, cx: &mut App);
     fn element(&self) -> AnyElement;
+    fn boxed(&self) -> Box<dyn Listing>;
+    fn claim(&self, cx: &mut App) {
+        show_listing(self.boxed(), cx);
+    }
+    fn select_next(&self, window: &mut Window, cx: &mut App);
+    fn select_previous(&self, window: &mut Window, cx: &mut App);
+    fn deselect(&self, cx: &mut App);
+    fn activate(&self, cx: &mut App);
 }
 
-impl<S: GridSource> Table for Entity<GridState<S>> {
+impl<S: TableSource> Listing for Entity<TableState<S>> {
     fn layout(&self, cx: &App) -> Layout {
         self.read(cx).delegate().layout().clone()
     }
@@ -1160,7 +1249,7 @@ impl<S: GridSource> Table for Entity<GridState<S>> {
         self.update(cx, |table, cx| {
             table.delegate_mut().cycle(&column, cx);
             table.refresh(cx);
-            cx.emit(GridEvent::SortChanged);
+            cx.emit(TableEvent::SortChanged);
         });
     }
 
@@ -1204,6 +1293,36 @@ impl<S: GridSource> Table for Entity<GridState<S>> {
     }
 
     fn element(&self) -> AnyElement {
-        grid(self).into_any_element()
+        table(self).into_any_element()
+    }
+
+    fn boxed(&self) -> Box<dyn Listing> {
+        Box::new(self.clone())
+    }
+
+    fn select_next(&self, window: &mut Window, cx: &mut App) {
+        self.update(cx, |table, cx| {
+            window.focus(&table.focus.clone(), cx);
+            table.step(1, window, cx);
+        });
+    }
+
+    fn select_previous(&self, window: &mut Window, cx: &mut App) {
+        self.update(cx, |table, cx| {
+            window.focus(&table.focus.clone(), cx);
+            table.step(-1, window, cx);
+        });
+    }
+
+    fn deselect(&self, cx: &mut App) {
+        self.update(cx, |table, cx| {
+            table.delegate.clear_selection();
+            table.context_menu = None;
+            cx.notify();
+        });
+    }
+
+    fn activate(&self, cx: &mut App) {
+        self.update(cx, |table, cx| table.fire_activate(cx));
     }
 }

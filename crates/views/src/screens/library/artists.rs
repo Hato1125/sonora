@@ -6,10 +6,10 @@ use music::SavedArtist;
 use router::Destination;
 use state::{Library, LibraryState, Origin, Playback};
 use ui::rank::{ESSENTIAL, HANDY};
-use ui::{Cell, ColumnSpec, GridSource, Menu, Pin, Width};
+use ui::{Cell, ColumnSpec, Menu, Pin, TableSource, Width};
 
 use crate::shared::cells::{self, DATE, NUMBER};
-use crate::shared::menu::artist_menu;
+use crate::shared::menus::artist_menu;
 use crate::shared::pins::Pinned as _;
 use crate::shared::text::{folded, holds};
 use crate::shared::tracks::initial;
@@ -80,7 +80,7 @@ impl ArtistSource {
     }
 }
 
-impl GridSource for ArtistSource {
+impl TableSource for ArtistSource {
     type Field = ArtistField;
 
     fn columns(&self) -> &'static [ColumnSpec<ArtistField>] {

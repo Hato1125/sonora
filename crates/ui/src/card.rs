@@ -60,6 +60,7 @@ pub struct Card {
     hint: bool,
     underline: bool,
     playing: bool,
+    chosen: bool,
     action: Option<AnyElement>,
     drag_start: Option<DragStart>,
     menu: Option<Summon>,
@@ -94,6 +95,7 @@ impl Card {
             hint: false,
             underline: false,
             playing: false,
+            chosen: false,
             action: None,
             drag_start: None,
             menu: None,
@@ -247,6 +249,11 @@ impl Card {
         self.menu = Some(Box::new(handler));
         self
     }
+
+    pub fn chosen(mut self, chosen: bool) -> Self {
+        self.chosen = chosen;
+        self
+    }
 }
 
 impl Styled for Card {
@@ -296,6 +303,7 @@ impl RenderOnce for Card {
             hint,
             underline,
             playing,
+            chosen,
             action,
             drag_start,
             menu,
@@ -475,7 +483,10 @@ impl RenderOnce for Card {
             )
             .rounded(theme.radius)
             .when(listed, |this| this.flex_none().h(height).py(inset))
-            .when_some(hovered, |this, style| this.hover(move |_| style))
+            .when(chosen, |this| this.bg(theme.table_active))
+            .when_some(hovered.filter(|_| !chosen), |this, style| {
+                this.hover(move |_| style)
+            })
             .when_some(press, |this, press| {
                 this.cursor_pointer()
                     .on_click(move |event, window, cx| press(event, window, cx))

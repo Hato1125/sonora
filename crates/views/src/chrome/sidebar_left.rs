@@ -12,7 +12,7 @@ use gpui::{Window, div, px};
 use router::{Destination, LibraryTab, Navigation, NavigationEvent, SettingsTab, navigate};
 use state::{AppSettings, Origin, Playback, PlaybackState, Session, Sonora};
 
-use crate::shared::menu::{ItemMenu, pin_menu};
+use crate::shared::menus::{ItemMenu, pin_menu};
 
 const NAV: [(&str, &str, Option<Destination>); 5] = [
     ("nav-home", "icons/house.svg", Some(Destination::Home)),

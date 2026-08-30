@@ -8,10 +8,10 @@ use music::Album;
 use router::Destination;
 use state::{Library, LibraryState, Origin, Playback};
 use ui::rank::{HANDY, NICE, SPARE, USEFUL};
-use ui::{Cell, ColumnSpec, GridSource, Menu, Pin, Width};
+use ui::{Cell, ColumnSpec, Menu, Pin, TableSource, Width};
 
 use crate::shared::cells::{self, DATE, NUMBER, TRAILING, YEAR};
-use crate::shared::menu::album_menu;
+use crate::shared::menus::album_menu;
 use crate::shared::pins::Pinned as _;
 use crate::shared::text::{folded, holds};
 use crate::shared::tracks::initial;
@@ -183,7 +183,7 @@ impl AlbumSource {
     }
 }
 
-impl GridSource for AlbumSource {
+impl TableSource for AlbumSource {
     type Field = AlbumField;
 
     fn columns(&self) -> &'static [ColumnSpec<AlbumField>] {

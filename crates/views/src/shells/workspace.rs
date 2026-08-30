@@ -5,7 +5,7 @@ use gpui::{AnyView, App, Context, Entity, FocusHandle, Render, StyleRefinement, 
 use gpui::{Window, div};
 use input::WORKSPACE_CONTEXT;
 use state::{Playback, Queue, SideTab};
-use ui::{Motion, ease_out_expo};
+use ui::{Activate, Deselect, Motion, SelectNext, SelectPrevious, ease_out_expo, shown_listing};
 
 use crate::chrome::{
     Chrome, PlayerBar, SidebarLeft, SidebarRight, TitleBarOptions, ToastStack, UpdateNotice,
@@ -210,6 +210,30 @@ impl Render for Workspace {
             .min_h_0()
             .key_context(WORKSPACE_CONTEXT)
             .track_focus(&self.focus)
+            .on_action(|_: &SelectNext, window, cx| {
+                if let Some(table) = shown_listing(cx) {
+                    table.select_next(window, cx);
+                    cx.stop_propagation();
+                }
+            })
+            .on_action(|_: &SelectPrevious, window, cx| {
+                if let Some(table) = shown_listing(cx) {
+                    table.select_previous(window, cx);
+                    cx.stop_propagation();
+                }
+            })
+            .on_action(|_: &Deselect, _, cx| {
+                if let Some(table) = shown_listing(cx) {
+                    table.deselect(cx);
+                    cx.stop_propagation();
+                }
+            })
+            .on_action(|_: &Activate, _, cx| {
+                if let Some(table) = shown_listing(cx) {
+                    table.activate(cx);
+                    cx.stop_propagation();
+                }
+            })
             .child(
                 div()
                     .relative()

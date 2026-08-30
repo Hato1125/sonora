@@ -112,6 +112,10 @@ menu-go-to-album = Go to album
 menu-go-to-artist = Go to artist
 menu-view-details = View details
 menu-copy-link = Copy link
+menu-cut = Cut
+menu-copy = Copy
+menu-paste = Paste
+menu-select-all = Select all
 menu-remove-from-queue = Remove from queue
 menu-open-playlist = Open playlist
 menu-play-playlist = Play playlist
@@ -179,7 +183,7 @@ filter-playable = Playable only
 
 # view
 view-list = List
-view-cards = Cards
+view-cards = Grid
 
 # toolbar
 tool-columns = Columns

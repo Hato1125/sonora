@@ -17,7 +17,7 @@ use ui::{
 };
 
 use crate::chrome::SidebarRight;
-use crate::shared::menu::ItemMenu;
+use crate::shared::menus::ItemMenu;
 use crate::shared::transport::{NOTCH, like, moved, percent, transport, volume_icon};
 
 const SEEK_MAX: f32 = 560.;

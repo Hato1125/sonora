@@ -11,6 +11,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - YouTube Music listeners see their Listen Again history and personalized Quick Picks on Home.
 - Shift-click selects a range of songs in a table, and the context menu acts on all of them.
+- Ctrl-click (Cmd-click on macOS) adds or removes individual songs from a table selection.
+- Enter play/pauses the selected song when a table has exactly one row selected.
+- Search results can be moved through with the arrow keys, including left and right between
+  columns, and Enter play/pauses the selected song.
+- Text fields have a Cut, Copy, Paste and Select all context menu.
+
+### Changed
+
+- The list/grid toggle is labelled Grid instead of Cards.
 
 ### Fixed
 

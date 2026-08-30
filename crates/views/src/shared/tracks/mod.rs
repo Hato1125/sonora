@@ -7,7 +7,7 @@ use std::cmp::Ordering;
 use std::rc::Rc;
 use ui::ActiveTheme as _;
 
-use crate::shared::menu::{ItemMenu, TrackColumns};
+use crate::shared::menus::{ItemMenu, TrackColumns};
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
     AnyElement, App, Entity, Hsla, InteractiveElement as _, IntoElement as _, SharedString,
@@ -16,7 +16,9 @@ use gpui::{
 use music::Track;
 use router::Destination;
 use state::{Detail, History, Library, Origin, Playback, PlaybackState, Sonora};
-use ui::{Button, Cell, ColumnSpec, GridSource, GridState, Menu, Pin, ROW_GROUP, Scrollbar, clock};
+use ui::{
+    Button, Cell, ColumnSpec, Menu, Pin, ROW_GROUP, Scrollbar, TableSource, TableState, clock,
+};
 
 use crate::shared::cells;
 use crate::shared::pins::Pinned as _;
@@ -41,7 +43,7 @@ pub(crate) trait Tracks: 'static {
     fn is_loading(&self, cx: &App) -> bool;
 }
 
-pub(crate) fn first_playable(table: &Entity<GridState<TrackSource>>, cx: &App) -> Option<usize> {
+pub(crate) fn first_playable(table: &Entity<TableState<TrackSource>>, cx: &App) -> Option<usize> {
     let state = table.read(cx);
     let delegate = state.delegate();
 
@@ -53,7 +55,7 @@ pub(crate) fn first_playable(table: &Entity<GridState<TrackSource>>, cx: &App) -
     })
 }
 
-pub(crate) fn holds(table: &Entity<GridState<TrackSource>>, id: &str, cx: &App) -> bool {
+pub(crate) fn holds(table: &Entity<TableState<TrackSource>>, id: &str, cx: &App) -> bool {
     let state = table.read(cx);
     let delegate = state.delegate();
 
@@ -65,11 +67,11 @@ pub(crate) fn holds(table: &Entity<GridState<TrackSource>>, id: &str, cx: &App) 
     })
 }
 
-pub(crate) fn whence(table: &Entity<GridState<TrackSource>>, cx: &App) -> Option<Origin> {
+pub(crate) fn whence(table: &Entity<TableState<TrackSource>>, cx: &App) -> Option<Origin> {
     table.read(cx).delegate().source().whence(cx)
 }
 
-pub(crate) fn ordered(table: &Entity<GridState<TrackSource>>, cx: &App) -> Vec<Track> {
+pub(crate) fn ordered(table: &Entity<TableState<TrackSource>>, cx: &App) -> Vec<Track> {
     let state = table.read(cx);
     let delegate = state.delegate();
 
@@ -90,7 +92,7 @@ pub(crate) struct TrackSource {
     playlist: Option<Entity<Detail>>,
     history: Option<Entity<History>>,
     menu: ItemMenu,
-    table: Option<WeakEntity<GridState<TrackSource>>>,
+    table: Option<WeakEntity<TableState<TrackSource>>>,
     sieve: TrackSieve,
     spread: RefCell<Option<Spread>>,
 }
@@ -176,7 +178,7 @@ impl TrackSource {
         self.whence.as_ref().and_then(|whence| whence(cx))
     }
 
-    pub(crate) fn table(mut self, table: WeakEntity<GridState<TrackSource>>) -> Self {
+    pub(crate) fn table(mut self, table: WeakEntity<TableState<TrackSource>>) -> Self {
         self.table = Some(table);
         self
     }
@@ -367,7 +369,7 @@ impl TrackSource {
     }
 }
 
-impl GridSource for TrackSource {
+impl TableSource for TrackSource {
     type Field = TrackField;
 
     fn columns(&self) -> &'static [ColumnSpec<TrackField>] {

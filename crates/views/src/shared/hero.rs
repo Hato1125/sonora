@@ -9,8 +9,8 @@ use i18n::t;
 use music::Track;
 use state::{Origin, Playback, PlaybackState};
 use ui::{
-    ActiveTheme as _, Artwork, Button, ExplicitBadge, GridState, LEADING, Pin, Pinnable as _, Text,
-    upper,
+    ActiveTheme as _, Artwork, Button, ExplicitBadge, LEADING, Pin, Pinnable as _, TableState,
+    Text, upper,
 };
 
 use crate::shared::tracks::{self, TrackSource};
@@ -92,7 +92,7 @@ impl RenderOnce for HeroMetaStrip {
 
 enum Listing {
     Owned(Vec<Track>),
-    Listed(Entity<GridState<TrackSource>>),
+    Listed(Entity<TableState<TrackSource>>),
 }
 
 impl Listing {
@@ -158,7 +158,7 @@ impl HeroPlayButton {
     pub(crate) fn listed(
         id: impl Into<ElementId>,
         label: impl Into<SharedString>,
-        table: &Entity<GridState<TrackSource>>,
+        table: &Entity<TableState<TrackSource>>,
         playback: Entity<Playback>,
     ) -> Self {
         Self {

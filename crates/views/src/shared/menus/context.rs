@@ -1,4 +1,4 @@
-use gpui::{App, ClipboardItem, Entity, SharedString, Styled as _};
+use gpui::{App, ClickEvent, ClipboardItem, Entity, SharedString, Styled as _, Window};
 use i18n::t;
 use music::{Album, MediaKind, Playlist, SavedArtist, Track};
 use router::{Destination, navigate};
@@ -988,4 +988,14 @@ fn playlist_library_item(playlist: Playlist, cx: &App) -> MenuItem {
                 });
             }),
     }
+}
+
+pub(crate) fn new_playlist_menu(
+    on_create: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+) -> Menu {
+    Menu::new("playlist-background-menu").item(
+        MenuItem::new("create-playlist", t!("menu-new-playlist"))
+            .icon("icons/plus.svg")
+            .on_click(on_create),
+    )
 }
