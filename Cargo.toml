@@ -65,7 +65,7 @@ souvlaki = "0.8"
 sys-locale = "0.3"
 unic-langid = { version = "0.9", features = ["macros"] }
 unicode-segmentation = "1.12"
-ytmusic = { git = "https://github.com/nolight132/ytmusic-rs", rev = "2f237e0251981ea577fb4103319bf6cd12a8dca4" }
+ytmusic = { git = "https://github.com/nolight132/ytmusic-rs", rev = "aae034085dddce4b5e085e966491a222c1180948" }
 
 librespot-core = { version = "0.8.0", default-features = false, features = [
   "rustls-tls-native-roots",
