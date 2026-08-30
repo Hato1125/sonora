@@ -16,15 +16,15 @@
       forEachSystem = fn: nixpkgs.lib.genAttrs systems (system: fn nixpkgs.legacyPackages.${system});
 
       release = {
-        version = "0.24.1";
+        version = "0.25.0";
         assets = {
           x86_64-linux = {
             target = "x86_64-unknown-linux-gnu";
-            hash = "sha256-KEx4R1ggE2/Ct4IsIi9nGTaTRUzegGC7mKXjdULhZRE=";
+            hash = "sha256-CTehykYjyiUAjaj/0pdeqhKEKGqZxZUpDfwD4J8zbic=";
           };
           aarch64-linux = {
             target = "aarch64-unknown-linux-gnu";
-            hash = "sha256-SuVcP9GPkunBkrHvCNC1JIKhPwqp1/PNG8Hibi24gAQ=";
+            hash = "sha256-Ynb+f3Yn8lgzee+NFVFRU2iOkrTYgW22cb311R25RvM=";
           };
         };
       };
