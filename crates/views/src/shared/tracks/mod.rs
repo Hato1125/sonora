@@ -465,8 +465,15 @@ impl GridSource for TrackSource {
         }
     }
 
-    fn context_menu(&self, row: usize, visible: &[TrackField], cx: &App) -> Option<Menu> {
-        let track = self.provider.tracks(cx).get(row)?;
+    fn picking(&self) -> bool {
+        true
+    }
+
+    fn context_menu(&self, rows: &[usize], visible: &[TrackField], cx: &App) -> Option<Menu> {
+        let tracks: Vec<Track> = rows.iter().filter_map(|&row| self.at(row, cx)).collect();
+        if tracks.is_empty() {
+            return None;
+        }
         let columns = match Sonora::global(cx).settings.read(cx).adaptive_menu() {
             true => TrackColumns {
                 album: visible.contains(&TrackField::Album),
@@ -477,22 +484,23 @@ impl GridSource for TrackSource {
         if let Some(history) = &self.history {
             return Some(
                 self.menu
-                    .for_history_track(track, history.clone(), columns, cx),
+                    .for_history_tracks(&tracks, history.clone(), columns, cx),
             );
         }
         Some(match (&self.album, &self.playlist) {
             (Some(detail), _) => {
                 let id = detail.read(cx).id()?;
-                self.menu.for_album_track(track, id, columns, cx)
+                self.menu.for_album_tracks(&tracks, id, columns, cx)
             }
-            (_, Some(detail)) => self
-                .menu
-                .for_playlist_track(track, detail.clone(), columns, cx),
-            (None, None) => self.menu.for_table_track(track, columns, cx),
+            (_, Some(detail)) => {
+                self.menu
+                    .for_playlist_tracks(&tracks, detail.clone(), columns, cx)
+            }
+            (None, None) => self.menu.for_table_tracks(&tracks, columns, cx),
         })
     }
 
-    fn context_menu_will_open(&self, _row: usize, cx: &App) {
+    fn context_menu_will_open(&self, _rows: &[usize], cx: &App) {
         self.menu.reset(cx);
     }
 

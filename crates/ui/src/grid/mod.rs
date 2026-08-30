@@ -72,11 +72,15 @@ pub trait GridSource: 'static {
     }
     fn cell(&self, cell: Cell<Self::Field>, cx: &mut App) -> AnyElement;
 
-    fn context_menu(&self, _row: usize, _visible: &[Self::Field], _cx: &App) -> Option<Menu> {
+    fn picking(&self) -> bool {
+        false
+    }
+
+    fn context_menu(&self, _rows: &[usize], _visible: &[Self::Field], _cx: &App) -> Option<Menu> {
         None
     }
 
-    fn context_menu_will_open(&self, _row: usize, _cx: &App) {}
+    fn context_menu_will_open(&self, _rows: &[usize], _cx: &App) {}
 
     fn pin(&self, _row: usize, _cx: &App) -> Option<Pin> {
         None
@@ -124,6 +128,7 @@ pub struct GridDelegate<S: GridSource> {
     heads: Vec<Pixels>,
     measured: Option<(i18n::Language, Pixels, SharedString)>,
     selected: Option<usize>,
+    anchor: Option<usize>,
     sort: Option<(S::Field, Sort)>,
     filter: String,
     order: Vec<usize>,
@@ -149,6 +154,7 @@ impl<S: GridSource> GridDelegate<S> {
             heads,
             measured: None,
             selected: None,
+            anchor: None,
             sort: None,
             filter: String::new(),
             order: Vec::new(),
@@ -214,8 +220,42 @@ impl<S: GridSource> GridDelegate<S> {
         self.selected
     }
 
+    pub fn picked(&self) -> Vec<usize> {
+        let Some((lo, hi)) = self.picked_span() else {
+            return self.selected.into_iter().collect();
+        };
+        self.order[lo..=hi].to_vec()
+    }
+
     pub fn clear_selection(&mut self) {
         self.selected = None;
+        self.anchor = None;
+    }
+
+    fn pick(&mut self, row: usize, extend: bool) {
+        if extend && self.source.picking() && self.anchor.is_some() {
+            self.selected = Some(row);
+            return;
+        }
+        self.selected = Some(row);
+        self.anchor = Some(row);
+    }
+
+    fn holds(&self, row: usize) -> bool {
+        self.picked_span()
+            .is_some_and(|(lo, hi)| self.display_of(row).is_some_and(|at| at >= lo && at <= hi))
+    }
+
+    fn picked_span(&self) -> Option<(usize, usize)> {
+        let caret = self.display_of(self.selected?)?;
+        let origin = self
+            .anchor
+            .and_then(|row| self.display_of(row))
+            .unwrap_or(caret);
+        Some(match origin <= caret {
+            true => (origin, caret),
+            false => (caret, origin),
+        })
     }
 
     fn display_of(&self, row: usize) -> Option<usize> {
@@ -367,6 +407,22 @@ impl<S: GridSource> GridDelegate<S> {
         }
 
         self.order = order;
+        self.prune_selection();
+    }
+
+    fn prune_selection(&mut self) {
+        if self
+            .selected
+            .is_some_and(|row| self.display_of(row).is_none())
+        {
+            self.selected = None;
+        }
+        if self
+            .anchor
+            .is_some_and(|row| self.display_of(row).is_none())
+        {
+            self.anchor = self.selected;
+        }
     }
 
     fn inner_width(&self, col_ix: usize) -> Pixels {
@@ -504,7 +560,7 @@ impl<S: GridSource> GridState<S> {
         if self.delegate.selected.is_none() {
             return;
         }
-        self.delegate.selected = None;
+        self.delegate.clear_selection();
         cx.notify();
     }
 
@@ -524,7 +580,7 @@ impl<S: GridSource> GridState<S> {
             None => 0,
         };
 
-        self.delegate.selected = Some(self.delegate.row(display));
+        self.delegate.pick(self.delegate.row(display), false);
         self.reveal(display, window, cx);
         cx.notify();
     }
@@ -808,12 +864,13 @@ impl<S: GridSource> GridState<S> {
         let first = self.viewport.first(head, row_height);
         let last = (first + self.viewport.rows(row_height)).min(count);
         let bottom = self.corners.bottom_left.max(self.corners.bottom_right);
+        let span = self.delegate.picked_span();
 
         (first..last)
             .map(|display| {
                 let row = self.delegate.row(display);
                 let tail = display + 1 == count;
-                let selected = self.delegate.selected == Some(row);
+                let selected = span.is_some_and(|(lo, hi)| display >= lo && display <= hi);
                 let playing = self.delegate.source.playing(row, cx);
                 let cells: Vec<AnyElement> = (0..self.delegate.columns.len())
                     .map(|ix| {
@@ -857,7 +914,7 @@ impl<S: GridSource> GridState<S> {
                         MouseButton::Left,
                         cx.listener(move |this, event: &MouseDownEvent, window, cx| {
                             window.focus(&this.focus.clone(), cx);
-                            this.delegate.selected = Some(row);
+                            this.delegate.pick(row, event.modifiers.shift);
                             if event.click_count >= 2 {
                                 cx.emit(GridEvent::DoubleClicked(display));
                             }
@@ -867,14 +924,18 @@ impl<S: GridSource> GridState<S> {
                     .on_mouse_down(
                         MouseButton::Right,
                         cx.listener(move |this, event: &MouseDownEvent, window, cx| {
+                            if !this.delegate.holds(row) {
+                                this.delegate.pick(row, false);
+                            }
+                            let rows = this.delegate.picked();
                             let visible = this.delegate.visible();
                             if this
                                 .delegate
                                 .source
-                                .context_menu(row, &visible, cx)
+                                .context_menu(&rows, &visible, cx)
                                 .is_some()
                             {
-                                this.delegate.source.context_menu_will_open(row, cx);
+                                this.delegate.source.context_menu_will_open(&rows, cx);
                                 window.focus(&this.focus.clone(), cx);
                                 window.prevent_default();
                                 cx.stop_propagation();
@@ -968,11 +1029,12 @@ impl<S: GridSource> Render for GridState<S> {
         let height = self.height(head, row);
         let pinned = snapped(self.viewport.top.clamp(Pixels::ZERO, height - head), window);
         let top = unpinned(self.corners, pinned);
-        let context_menu = self.context_menu.and_then(|(row, position)| {
+        let context_menu = self.context_menu.and_then(|(_, position)| {
+            let rows = self.delegate.picked();
             let visible = self.delegate.visible();
             self.delegate
                 .source
-                .context_menu(row, &visible, cx)
+                .context_menu(&rows, &visible, cx)
                 .map(|menu| {
                     Popup::new(position, menu).on_close(cx.listener(|this, _, _, cx| {
                         this.context_menu = None;
@@ -991,7 +1053,7 @@ impl<S: GridSource> Render for GridState<S> {
                 if this.delegate.selected.is_none() {
                     return;
                 }
-                this.delegate.selected = None;
+                this.delegate.clear_selection();
                 cx.notify();
             }))
             .relative()

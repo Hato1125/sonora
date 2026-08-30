@@ -134,9 +134,9 @@ impl GridSource for PlaylistSource {
         self.playlists(cx).get(row)?.pin()
     }
 
-    fn context_menu(&self, row: usize, _visible: &[PlaylistField], cx: &App) -> Option<Menu> {
+    fn context_menu(&self, rows: &[usize], _visible: &[PlaylistField], cx: &App) -> Option<Menu> {
         Some(playlist_menu(
-            self.at(row, cx)?,
+            self.at(*rows.first()?, cx)?,
             self.playback.clone(),
             false,
             cx,

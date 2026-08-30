@@ -10,6 +10,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - YouTube Music listeners see their Listen Again history and personalized Quick Picks on Home.
+- Shift-click selects a range of songs in a table, and the context menu acts on all of them.
 
 ### Fixed
 

@@ -431,6 +431,18 @@ impl Library {
         self.toggle_saved(track, cx);
     }
 
+    pub fn save_tracks(&mut self, tracks: Vec<Track>, saved: bool, cx: &mut Context<Self>) {
+        for track in tracks {
+            let Some(id) = track.id.as_deref() else {
+                continue;
+            };
+            if self.saved(id) == saved || self.pending(id) {
+                continue;
+            }
+            self.toggle_saved(track, cx);
+        }
+    }
+
     pub fn saved_album(&self, album_id: &str) -> bool {
         self.album(album_id).is_some()
     }
@@ -484,13 +496,13 @@ impl Library {
         }
     }
 
-    pub fn create_playlist(&mut self, name: String, track: Option<String>, cx: &mut Context<Self>) {
+    pub fn create_playlist(&mut self, name: String, tracks: Vec<String>, cx: &mut Context<Self>) {
         self.mutate_playlist(
             ("create playlist", "toast-playlist-created", None, None),
             move |client| async move {
                 let id = client.create_playlist(&name).await?;
-                if let Some(track) = track {
-                    client.add_track_to_playlist(&id, &track).await?;
+                for track in &tracks {
+                    client.add_track_to_playlist(&id, track).await?;
                 }
                 let fetched = client.playlist(&id).await.map(|detail| detail.playlist);
                 Ok(fetched.unwrap_or_else(|error| {
@@ -556,8 +568,21 @@ impl Library {
         track_id: String,
         cx: &mut Context<Self>,
     ) {
+        self.add_tracks_to_playlist(playlist_id, vec![track_id], cx);
+    }
+
+    pub fn add_tracks_to_playlist(
+        &mut self,
+        playlist_id: String,
+        track_ids: Vec<String>,
+        cx: &mut Context<Self>,
+    ) {
+        if track_ids.is_empty() {
+            return;
+        }
         let added = playlist_id.clone();
-        let held = track_id.clone();
+        let held = track_ids.clone();
+        let added_count = track_ids.len() as u32;
         let name = self
             .playlist(&playlist_id)
             .map(|playlist| playlist.name.clone());
@@ -568,11 +593,16 @@ impl Library {
                 name,
                 Some(playlist_id.clone()),
             ),
-            move |client| async move { client.add_track_to_playlist(&playlist_id, &track_id).await },
+            move |client| async move {
+                for track_id in &track_ids {
+                    client.add_track_to_playlist(&playlist_id, track_id).await?;
+                }
+                Ok(())
+            },
             move |this, _, cx| {
-                this.amend_playlist(&added, |playlist| playlist.track_count += 1, cx);
+                this.amend_playlist(&added, |playlist| playlist.track_count += added_count, cx);
                 if let Some(ids) = this.contents.get_mut(&added) {
-                    ids.insert(held);
+                    ids.extend(held);
                 }
                 cx.emit(LibraryEvent::TrackAdded { playlist: added });
             },
@@ -586,8 +616,21 @@ impl Library {
         track_id: String,
         cx: &mut Context<Self>,
     ) {
+        self.remove_tracks_from_playlist(playlist_id, vec![track_id], cx);
+    }
+
+    pub fn remove_tracks_from_playlist(
+        &mut self,
+        playlist_id: String,
+        track_ids: Vec<String>,
+        cx: &mut Context<Self>,
+    ) {
+        if track_ids.is_empty() {
+            return;
+        }
         let emptied = playlist_id.clone();
-        let dropped = track_id.clone();
+        let dropped = track_ids.clone();
+        let dropped_count = track_ids.len() as u32;
         let name = self
             .playlist(&playlist_id)
             .map(|playlist| playlist.name.clone());
@@ -599,23 +642,32 @@ impl Library {
                 Some(playlist_id.clone()),
             ),
             move |client| async move {
-                client
-                    .remove_track_from_playlist(&playlist_id, &track_id)
-                    .await
+                for track_id in &track_ids {
+                    client
+                        .remove_track_from_playlist(&playlist_id, track_id)
+                        .await?;
+                }
+                Ok(())
             },
             move |this, _, cx| {
                 this.amend_playlist(
                     &emptied,
-                    |playlist| playlist.track_count = playlist.track_count.saturating_sub(1),
+                    |playlist| {
+                        playlist.track_count = playlist.track_count.saturating_sub(dropped_count)
+                    },
                     cx,
                 );
                 if let Some(ids) = this.contents.get_mut(&emptied) {
-                    ids.remove(&dropped);
+                    for track in &dropped {
+                        ids.remove(track);
+                    }
                 }
-                cx.emit(LibraryEvent::TrackDropped {
-                    playlist: emptied,
-                    track: dropped,
-                });
+                for track in dropped {
+                    cx.emit(LibraryEvent::TrackDropped {
+                        playlist: emptied.clone(),
+                        track,
+                    });
+                }
             },
             cx,
         );

@@ -111,9 +111,9 @@ impl GridSource for ArtistSource {
         self.artists(cx).get(row)?.pin()
     }
 
-    fn context_menu(&self, row: usize, _visible: &[ArtistField], cx: &App) -> Option<Menu> {
+    fn context_menu(&self, rows: &[usize], _visible: &[ArtistField], cx: &App) -> Option<Menu> {
         Some(artist_menu(
-            self.at(row, cx)?,
+            self.at(*rows.first()?, cx)?,
             self.playback.clone(),
             false,
             cx,

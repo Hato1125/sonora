@@ -353,7 +353,7 @@ impl LibraryView {
 
     fn create_playlist(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.context_menu = None;
-        PlaylistEditor::open(Edit::Create(None), window, cx);
+        PlaylistEditor::open(Edit::Create(Vec::new()), window, cx);
         cx.notify();
     }
 
