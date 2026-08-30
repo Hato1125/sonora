@@ -9,7 +9,7 @@ use std::rc::Rc;
 
 use crate::chrome::tools::{self, Sift, Sliders};
 use crate::chrome::{Chrome, Searchable, Toolbar, Tooled};
-use crate::shared::menu::Item;
+use crate::shared::menus::{Item, new_playlist_menu};
 use crate::shared::playlist_editor::{Edit, PlaylistEditor};
 
 use gpui::prelude::*;
@@ -24,9 +24,9 @@ use state::{
     AppSettings, Library, LibraryPart, LibraryState, Origin, Playback, PlaybackState, Sonora,
 };
 use ui::{
-    ActiveTheme as _, Button, Card, Deck, FlagAxis, GridDelegate, GridEvent, GridSource, GridState,
-    LEADING, Menu, MenuItem, Mode, Pinnable, Popovers, Popup, RangeAxis, Scrollbar, Scroller, Sort,
-    SortAxis, Text, Toggle, Unit, Viewport, clock, grid, heading, quantize, scrolled, snapped,
+    ActiveTheme as _, Button, Card, Deck, FlagAxis, LEADING, Mode, Pinnable, Popovers, Popup,
+    RangeAxis, Scrollbar, Scroller, Sort, SortAxis, TableDelegate, TableEvent, TableSource,
+    TableState, Text, Toggle, Unit, Viewport, clock, heading, quantize, scrolled, snapped, table,
     vacant,
 };
 
@@ -110,7 +110,7 @@ impl Section {
     fn mode(self) -> Mode {
         match self {
             Section::Tracks => Mode::List,
-            Section::Albums | Section::Playlists | Section::Artists => Mode::Cards,
+            Section::Albums | Section::Playlists | Section::Artists => Mode::Grid,
         }
     }
 
@@ -172,10 +172,10 @@ pub struct LibraryView {
     cards_dirty: bool,
     card_scrollbar: Entity<Scrollbar>,
     scrollbar: Entity<Scrollbar>,
-    tracks: Entity<GridState<TrackSource>>,
-    albums: Entity<GridState<AlbumSource>>,
-    playlists: Entity<GridState<PlaylistSource>>,
-    artists: Entity<GridState<ArtistSource>>,
+    tracks: Entity<TableState<TrackSource>>,
+    albums: Entity<TableState<AlbumSource>>,
+    playlists: Entity<TableState<PlaylistSource>>,
+    artists: Entity<TableState<ArtistSource>>,
     context_menu: Option<(LibraryMenu, Point<Pixels>)>,
     toolbar: Entity<Toolbar>,
     popovers: Popovers,
@@ -217,7 +217,7 @@ impl LibraryView {
             )
             .from(|_| Some(Origin::saved()));
             let source = source.table(cx.weak_entity());
-            let mut delegate = GridDelegate::new(source, width, cx).with_sort(
+            let mut delegate = TableDelegate::new(source, width, cx).with_sort(
                 TrackField::AddedAt,
                 Sort::Descending,
                 cx,
@@ -227,40 +227,43 @@ impl LibraryView {
             if let Some(sorting) = sorting {
                 delegate.set_sorting(sorting, cx);
             }
-            GridState::new(delegate, cx).follow(scroll.clone())
+            TableState::new(delegate, cx).follow(scroll.clone())
         });
         let albums = cx.new(|cx| {
             let source = AlbumSource::new(library.clone(), playback.clone());
             let mut delegate =
-                GridDelegate::new(source, width, cx).with_sort(AlbumField::AddedAt, RECENT, cx);
+                TableDelegate::new(source, width, cx).with_sort(AlbumField::AddedAt, RECENT, cx);
             let (layout, sorting) = stored(Section::Albums, cx);
             delegate.set_layout(layout, cx);
             if let Some(sorting) = sorting {
                 delegate.set_sorting(sorting, cx);
             }
-            GridState::new(delegate, cx).follow(scroll.clone())
+            TableState::new(delegate, cx).follow(scroll.clone())
         });
         let playlists = cx.new(|cx| {
             let source = PlaylistSource::new(library.clone(), playback.clone());
-            let mut delegate =
-                GridDelegate::new(source, width, cx).with_sort(PlaylistField::Modified, RECENT, cx);
+            let mut delegate = TableDelegate::new(source, width, cx).with_sort(
+                PlaylistField::Modified,
+                RECENT,
+                cx,
+            );
             let (layout, sorting) = stored(Section::Playlists, cx);
             delegate.set_layout(layout, cx);
             if let Some(sorting) = sorting {
                 delegate.set_sorting(sorting, cx);
             }
-            GridState::new(delegate, cx).follow(scroll.clone())
+            TableState::new(delegate, cx).follow(scroll.clone())
         });
         let artists = cx.new(|cx| {
             let source = ArtistSource::new(library.clone(), playback.clone());
             let mut delegate =
-                GridDelegate::new(source, width, cx).with_sort(ArtistField::AddedAt, RECENT, cx);
+                TableDelegate::new(source, width, cx).with_sort(ArtistField::AddedAt, RECENT, cx);
             let (layout, sorting) = stored(Section::Artists, cx);
             delegate.set_layout(layout, cx);
             if let Some(sorting) = sorting {
                 delegate.set_sorting(sorting, cx);
             }
-            GridState::new(delegate, cx).follow(scroll)
+            TableState::new(delegate, cx).follow(scroll)
         });
 
         cx.observe(&library, |this, _, cx| {
@@ -287,13 +290,18 @@ impl LibraryView {
         .detach();
 
         cx.subscribe(&tracks, |this, _, event, cx| match event {
-            GridEvent::DoubleClicked(display) => this.play(*display, cx),
+            TableEvent::DoubleClicked(display) => this.play(*display, cx),
+            TableEvent::Activated(display) => {
+                page::play_or_toggle(&this.tracks, &this.playback, *display, cx)
+            }
             _ => this.persist(Section::Tracks, cx),
         })
         .detach();
 
         cx.subscribe(&albums, |this, _, event, cx| match event {
-            GridEvent::DoubleClicked(display) => this.open_album(*display, cx),
+            TableEvent::DoubleClicked(display) | TableEvent::Activated(display) => {
+                this.open_album(*display, cx)
+            }
             _ => {
                 this.cards_dirty = true;
                 this.persist(Section::Albums, cx);
@@ -302,7 +310,9 @@ impl LibraryView {
         .detach();
 
         cx.subscribe(&playlists, |this, _, event, cx| match event {
-            GridEvent::DoubleClicked(display) => this.open_playlist(*display, cx),
+            TableEvent::DoubleClicked(display) | TableEvent::Activated(display) => {
+                this.open_playlist(*display, cx)
+            }
             _ => {
                 this.cards_dirty = true;
                 this.persist(Section::Playlists, cx);
@@ -311,7 +321,9 @@ impl LibraryView {
         .detach();
 
         cx.subscribe(&artists, |this, _, event, cx| match event {
-            GridEvent::DoubleClicked(display) => this.open_artist(*display, cx),
+            TableEvent::DoubleClicked(display) | TableEvent::Activated(display) => {
+                this.open_artist(*display, cx)
+            }
             _ => {
                 this.cards_dirty = true;
                 this.persist(Section::Artists, cx);
@@ -353,7 +365,7 @@ impl LibraryView {
 
     fn create_playlist(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.context_menu = None;
-        PlaylistEditor::open(Edit::Create(None), window, cx);
+        PlaylistEditor::open(Edit::Create(Vec::new()), window, cx);
         cx.notify();
     }
 
@@ -361,7 +373,7 @@ impl LibraryView {
         self.section
     }
 
-    fn table(&self, section: Section) -> &dyn ui::Table {
+    fn table(&self, section: Section) -> &dyn ui::Listing {
         match section {
             Section::Tracks => &self.tracks,
             Section::Albums => &self.albums,
@@ -370,7 +382,7 @@ impl LibraryView {
         }
     }
 
-    fn tables(&self) -> [&dyn ui::Table; 4] {
+    fn tables(&self) -> [&dyn ui::Listing; 4] {
         [&self.tracks, &self.albums, &self.playlists, &self.artists]
     }
 
@@ -836,6 +848,7 @@ impl Render for LibraryView {
         let inset = theme.metrics.inset;
         let mode = self.mode();
         if mode == Mode::List {
+            self.table(self.section).claim(cx);
             let scroll = self.scrollbar.read(cx).scroll().clone();
             let viewport = match self.section {
                 Section::Tracks => page::viewport(&scroll, inset, window),
@@ -854,13 +867,9 @@ impl Render for LibraryView {
                     .source()
                     .menu()
                     .for_track(&track, cx),
-                LibraryMenu::Background => Menu::new("playlist-background-menu").item(
-                    MenuItem::new("create-playlist", t!("menu-new-playlist"))
-                        .icon("icons/plus.svg")
-                        .on_click(cx.listener(|this, _, window, cx| {
-                            this.create_playlist(window, cx);
-                        })),
-                ),
+                LibraryMenu::Background => new_playlist_menu(cx.listener(|this, _, window, cx| {
+                    this.create_playlist(window, cx);
+                })),
             };
             Popup::new(position, menu).on_close(cx.listener(|this, _, _, cx| {
                 this.context_menu = None;
@@ -875,7 +884,7 @@ impl Render for LibraryView {
                 .pt(inset)
                 .pb(inset)
                 .child(div().px(inset).child(self.liked_header(cx)))
-                .child(grid(&self.tracks))
+                .child(table(&self.tracks))
                 .when_some(note, |this, note| this.child(vacant(note, cx)))
                 .into_any_element(),
             (_, Mode::List) => Scroller::new("library-page", &self.scrollbar)
@@ -883,7 +892,7 @@ impl Render for LibraryView {
                 .child(self.table(self.section).element())
                 .when_some(note, |this, note| this.child(vacant(note, cx)))
                 .into_any_element(),
-            (_, Mode::Cards) => match note {
+            (_, Mode::Grid) => match note {
                 Some(note) => vacant(note, cx).size_full().into_any_element(),
                 None => self.cards(window, cx),
             },
@@ -1147,7 +1156,7 @@ impl LibraryView {
     }
 }
 
-fn deck<S: GridSource>(state: &Entity<GridState<S>>, columns: usize, cx: &App) -> Vec<DeckRow> {
+fn deck<S: TableSource>(state: &Entity<TableState<S>>, columns: usize, cx: &App) -> Vec<DeckRow> {
     let state = state.read(cx);
     let delegate = state.delegate();
     let mut rows = Vec::new();

@@ -6,10 +6,10 @@ use music::Playlist;
 use router::Destination;
 use state::{Library, LibraryState, Origin, Playback};
 use ui::rank::{ESSENTIAL, HANDY, NICE, SPARE};
-use ui::{Cell, ColumnSpec, GridSource, Menu, Pin, Width};
+use ui::{Cell, ColumnSpec, Menu, Pin, TableSource, Width};
 
 use crate::shared::cells::{self, DATE, NUMBER, TRAILING};
-use crate::shared::menu::playlist_menu;
+use crate::shared::menus::playlist_menu;
 use crate::shared::pins::Pinned as _;
 use crate::shared::text::{folded, holds};
 
@@ -102,7 +102,7 @@ impl PlaylistSource {
     }
 }
 
-impl GridSource for PlaylistSource {
+impl TableSource for PlaylistSource {
     type Field = PlaylistField;
 
     fn columns(&self) -> &'static [ColumnSpec<PlaylistField>] {
@@ -134,9 +134,9 @@ impl GridSource for PlaylistSource {
         self.playlists(cx).get(row)?.pin()
     }
 
-    fn context_menu(&self, row: usize, _visible: &[PlaylistField], cx: &App) -> Option<Menu> {
+    fn context_menu(&self, rows: &[usize], _visible: &[PlaylistField], cx: &App) -> Option<Menu> {
         Some(playlist_menu(
-            self.at(row, cx)?,
+            self.at(*rows.first()?, cx)?,
             self.playback.clone(),
             false,
             cx,

@@ -6,7 +6,7 @@ pub(crate) mod browsers;
 pub(crate) mod cards;
 pub(crate) mod cells;
 pub(crate) mod hero;
-pub(crate) mod menu;
+pub(crate) mod menus;
 pub(crate) mod page;
 pub(crate) mod picks;
 pub(crate) mod pins;

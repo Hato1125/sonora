@@ -71,19 +71,51 @@ column-tracks = Tracks
 
 # track menu
 menu-add-to-playlist = Add to playlist
+menu-add-tracks-to-playlist = { $count ->
+    [one] Add { $count } track to playlist
+   *[other] Add { $count } tracks to playlist
+}
 menu-new-playlist = New playlist
 menu-no-playlists = No playlists
 menu-add-to-library = Add to Library
+menu-add-tracks-to-library = { $count ->
+    [one] Add { $count } track to Library
+   *[other] Add { $count } tracks to Library
+}
 menu-remove-from-library = Remove from Library
+menu-remove-tracks-from-library = { $count ->
+    [one] Remove { $count } track from Library
+   *[other] Remove { $count } tracks from Library
+}
 menu-remove-from-playlist = Remove from playlist
+menu-remove-tracks-from-playlist = { $count ->
+    [one] Remove { $count } track from playlist
+   *[other] Remove { $count } tracks from playlist
+}
 menu-remove-from-history = Remove from history
+menu-remove-tracks-from-history = { $count ->
+    [one] Remove { $count } track from history
+   *[other] Remove { $count } tracks from history
+}
 menu-play-next = Play next
+menu-play-tracks-next = { $count ->
+    [one] Play { $count } track next
+   *[other] Play { $count } tracks next
+}
 menu-add-to-queue = Add to queue
+menu-add-tracks-to-queue = { $count ->
+    [one] Add { $count } track to queue
+   *[other] Add { $count } tracks to queue
+}
 menu-song-radio = Go to song radio
 menu-go-to-album = Go to album
 menu-go-to-artist = Go to artist
 menu-view-details = View details
 menu-copy-link = Copy link
+menu-cut = Cut
+menu-copy = Copy
+menu-paste = Paste
+menu-select-all = Select all
 menu-remove-from-queue = Remove from queue
 menu-open-playlist = Open playlist
 menu-play-playlist = Play playlist
@@ -151,7 +183,7 @@ filter-playable = Playable only
 
 # view
 view-list = List
-view-cards = Cards
+view-cards = Grid
 
 # toolbar
 tool-columns = Columns

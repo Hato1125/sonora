@@ -1,7 +1,7 @@
 use gpui::{App, Entity, Pixels, ScrollHandle, Window, px};
 
 use state::{AppSettings, Playback};
-use ui::{GridState, Table, Viewport, quantize, scrolled};
+use ui::{Listing, TableState, Viewport, quantize, scrolled};
 
 use crate::shared::cells;
 use crate::shared::tracks::{self, TrackSource};
@@ -10,7 +10,7 @@ const FRAME: Pixels = px(1.);
 
 pub(crate) fn store(
     settings: &Entity<AppSettings>,
-    table: &dyn Table,
+    table: &dyn Listing,
     layout_key: &str,
     sort_key: &str,
     cx: &mut App,
@@ -29,7 +29,7 @@ pub(crate) fn reserved(inset: Pixels) -> Pixels {
 }
 
 pub(crate) fn play(
-    table: &Entity<GridState<TrackSource>>,
+    table: &Entity<TableState<TrackSource>>,
     playback: &Entity<Playback>,
     display: usize,
     cx: &mut App,
@@ -39,8 +39,26 @@ pub(crate) fn play(
     playback.update(cx, |playback, cx| playback.start(queued, display, from, cx));
 }
 
+pub(crate) fn play_or_toggle(
+    table: &Entity<TableState<TrackSource>>,
+    playback: &Entity<Playback>,
+    display: usize,
+    cx: &mut App,
+) {
+    let queued = tracks::ordered(table, cx);
+    let Some(track) = queued.get(display) else {
+        return;
+    };
+    let current = playback.read(cx).track();
+    let same = current.and_then(|track| track.id.as_deref()) == track.id.as_deref();
+    match same {
+        true => playback.update(cx, |playback, cx| playback.toggle_play(cx)),
+        false => play(table, playback, display, cx),
+    }
+}
+
 pub(crate) fn resize(
-    table: &dyn Table,
+    table: &dyn Listing,
     width: &mut Pixels,
     inset: Pixels,
     window: &Window,

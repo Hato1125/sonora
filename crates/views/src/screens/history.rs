@@ -6,8 +6,8 @@ use i18n::t;
 use music::Track;
 use state::{History, HistoryState, Playback};
 use ui::{
-    ActiveTheme as _, Button, GridDelegate, GridEvent, GridState, Modal, Scrollbar, Scroller,
-    Table as _, clock, grid, vacant,
+    ActiveTheme as _, Button, Listing as _, Modal, Scrollbar, Scroller, TableDelegate, TableEvent,
+    TableState, clock, table, vacant,
 };
 
 use crate::chrome::{Searchable, Toolbar, Tooled};
@@ -33,7 +33,7 @@ pub(crate) struct HistoryView {
     playback: Entity<Playback>,
     width: Pixels,
     scrollbar: Entity<Scrollbar>,
-    table: Entity<GridState<TrackSource>>,
+    table: Entity<TableState<TrackSource>>,
     toolbar: Entity<Toolbar>,
     clearing: bool,
 }
@@ -59,7 +59,7 @@ impl HistoryView {
             )
             .with_history(history.clone())
             .table(cx.weak_entity());
-            GridState::new(GridDelegate::new(source, width, cx), cx).follow(scroll)
+            TableState::new(TableDelegate::new(source, width, cx), cx).follow(scroll)
         });
 
         cx.observe(&history, |this, _, cx| {
@@ -72,10 +72,14 @@ impl HistoryView {
             cx.notify();
         })
         .detach();
-        cx.subscribe(&table, |this, _, event, cx| {
-            if let GridEvent::DoubleClicked(display) = event {
+        cx.subscribe(&table, |this, _, event, cx| match event {
+            TableEvent::DoubleClicked(display) => {
                 page::play(&this.table, &this.playback, *display, cx);
             }
+            TableEvent::Activated(display) => {
+                page::play_or_toggle(&this.table, &this.playback, *display, cx);
+            }
+            _ => {}
         })
         .detach();
 
@@ -168,6 +172,7 @@ impl HistoryView {
 
 impl Render for HistoryView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.table.claim(cx);
         let inset = cx.theme().metrics.inset;
         let width = cells::content_width(window, Pixels::ZERO, cx);
         if (width - self.width).abs() >= gpui::px(0.5) {
@@ -185,7 +190,7 @@ impl Render for HistoryView {
             .pt(inset)
             .pb(inset)
             .child(div().px(inset).child(self.header(cx)))
-            .child(grid(&self.table))
+            .child(table(&self.table))
             .when_some(note, |this, note| this.child(vacant(note, cx)));
 
         div()

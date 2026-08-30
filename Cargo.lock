@@ -7958,6 +7958,7 @@ dependencies = [
  "image",
  "log",
  "serde",
+ "unicode-segmentation",
 ]
 
 [[package]]

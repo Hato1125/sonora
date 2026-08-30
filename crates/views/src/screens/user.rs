@@ -10,7 +10,7 @@ use crate::shared::album_grid::CardGrid;
 use crate::shared::cards;
 use crate::shared::cells;
 use crate::shared::hero::{HeroMetaStrip, PageHero};
-use crate::shared::menu::playlist_menu;
+use crate::shared::menus::playlist_menu;
 
 const FALLBACK: &str = "icons/user.svg";
 const PENDING: usize = 6;

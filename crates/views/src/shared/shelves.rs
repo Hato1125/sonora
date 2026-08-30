@@ -16,7 +16,7 @@ use ui::{
 
 use crate::shared::album_grid::CardGrid;
 use crate::shared::cards;
-use crate::shared::menu::Item;
+use crate::shared::menus::Item;
 
 const PLATE: Pixels = px(260.);
 const LANES: usize = 5;
@@ -143,7 +143,7 @@ impl Shelves {
                 let shelves = view.read(cx);
 
                 match mode {
-                    Mode::Cards => shelves.rail(place, &sections, width, &holder, window, cx),
+                    Mode::Grid => shelves.rail(place, &sections, width, &holder, window, cx),
                     Mode::List => shelves.lane(place, section, width, &holder, window, cx),
                 }
             });
@@ -178,7 +178,7 @@ impl Shelves {
         let theme = *cx.theme();
         let head = head(window, cx) + HEADING_GAP;
         let body = match mode {
-            Mode::Cards => Card::tile_height(CardGrid::layout(width).card, window, cx),
+            Mode::Grid => Card::tile_height(CardGrid::layout(width).card, window, cx),
             Mode::List => {
                 let lanes = lanes(width);
                 let rows = section.items.len().min(lanes * ROWS).div_ceil(lanes);
