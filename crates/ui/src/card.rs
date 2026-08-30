@@ -482,7 +482,9 @@ impl RenderOnce for Card {
                 |this| this.items_center().gap_3().px(inset),
             )
             .rounded(theme.radius)
-            .when(listed, |this| this.flex_none().h(height).py(inset).w_full().min_w_0())
+            .when(listed, |this| {
+                this.flex_none().h(height).py(inset).w_full().min_w_0()
+            })
             .when(chosen, |this| this.bg(theme.table_active))
             .when_some(hovered.filter(|_| !chosen), |this, style| {
                 this.hover(move |_| style)

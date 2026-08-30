@@ -139,6 +139,36 @@ playlist-again-title = Add it again?
 playlist-again-confirm = This track is already in “{ $name }”. Add another copy?
 playlist-again-add = Add again
 
+# confirm
+confirm-remove-library-title = Remove from library
+confirm-remove-playlist-title = Remove from playlist
+confirm-remove-history-title = Remove from history
+confirm-unfollow-title = Unfollow
+confirm-remove-songs = { $count ->
+    [one] Remove this song from your library?
+   *[other] Remove { $count } songs from your library?
+}
+confirm-remove-playlist-songs = { $count ->
+    [one] Remove this song from the playlist?
+   *[other] Remove { $count } songs from the playlist?
+}
+confirm-remove-history-songs = { $count ->
+    [one] Remove this song from listening history?
+   *[other] Remove { $count } songs from listening history?
+}
+confirm-remove-albums = { $count ->
+    [one] Remove this album from your library?
+   *[other] Remove { $count } albums from your library?
+}
+confirm-unfollow-artists = { $count ->
+    [one] Unfollow this artist?
+   *[other] Unfollow { $count } artists?
+}
+confirm-remove-playlists = { $count ->
+    [one] Remove this playlist from your library?
+   *[other] Remove { $count } playlists from your library?
+}
+
 # queue panel
 queue-title = Queue
 queue-history = History

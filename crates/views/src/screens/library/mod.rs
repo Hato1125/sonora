@@ -9,6 +9,7 @@ use std::rc::Rc;
 
 use crate::chrome::tools::{self, Sift, Sliders};
 use crate::chrome::{Chrome, Searchable, Toolbar, Tooled};
+use crate::shared::confirm::{Confirm, Kind};
 use crate::shared::menus::{Item, new_playlist_menu};
 use crate::shared::playlist_editor::{Edit, PlaylistEditor};
 
@@ -294,6 +295,7 @@ impl LibraryView {
             TableEvent::Activated(display) => {
                 page::play_or_toggle(&this.tracks, &this.playback, *display, cx)
             }
+            TableEvent::Removed => tracks::drop_picked(&this.tracks, cx),
             _ => this.persist(Section::Tracks, cx),
         })
         .detach();
@@ -302,6 +304,7 @@ impl LibraryView {
             TableEvent::DoubleClicked(display) | TableEvent::Activated(display) => {
                 this.open_album(*display, cx)
             }
+            TableEvent::Removed => this.drop_albums(cx),
             _ => {
                 this.cards_dirty = true;
                 this.persist(Section::Albums, cx);
@@ -313,6 +316,7 @@ impl LibraryView {
             TableEvent::DoubleClicked(display) | TableEvent::Activated(display) => {
                 this.open_playlist(*display, cx)
             }
+            TableEvent::Removed => this.drop_playlists(cx),
             _ => {
                 this.cards_dirty = true;
                 this.persist(Section::Playlists, cx);
@@ -324,6 +328,7 @@ impl LibraryView {
             TableEvent::DoubleClicked(display) | TableEvent::Activated(display) => {
                 this.open_artist(*display, cx)
             }
+            TableEvent::Removed => this.drop_artists(cx),
             _ => {
                 this.cards_dirty = true;
                 this.persist(Section::Artists, cx);
@@ -538,6 +543,97 @@ impl LibraryView {
             return;
         };
         navigate(Destination::Artist(artist.id.into()), cx);
+    }
+
+    fn drop_albums(&mut self, cx: &mut Context<Self>) {
+        let rows = self.albums.read(cx).delegate().picked();
+        let albums: Vec<_> = {
+            let state = self.albums.read(cx);
+            let source = state.delegate().source();
+            rows.iter().filter_map(|&row| source.at(row, cx)).collect()
+        };
+        if albums.is_empty() {
+            return;
+        }
+        let library = self.library.clone();
+        let table = self.albums.clone();
+        Confirm::ask(
+            Kind::Albums(albums.len()),
+            move |cx| {
+                library.update(cx, |library, cx| {
+                    for album in albums {
+                        library.toggle_album(album, cx);
+                    }
+                });
+                table.update(cx, |table, cx| {
+                    table.delegate_mut().clear_selection();
+                    cx.notify();
+                });
+            },
+            cx,
+        );
+    }
+
+    fn drop_artists(&mut self, cx: &mut Context<Self>) {
+        let rows = self.artists.read(cx).delegate().picked();
+        let artists: Vec<_> = {
+            let state = self.artists.read(cx);
+            let source = state.delegate().source();
+            rows.iter().filter_map(|&row| source.at(row, cx)).collect()
+        };
+        if artists.is_empty() {
+            return;
+        }
+        let library = self.library.clone();
+        let table = self.artists.clone();
+        Confirm::ask(
+            Kind::Artists(artists.len()),
+            move |cx| {
+                library.update(cx, |library, cx| {
+                    for artist in artists {
+                        library.toggle_artist(artist, cx);
+                    }
+                });
+                table.update(cx, |table, cx| {
+                    table.delegate_mut().clear_selection();
+                    cx.notify();
+                });
+            },
+            cx,
+        );
+    }
+
+    fn drop_playlists(&mut self, cx: &mut Context<Self>) {
+        let rows = self.playlists.read(cx).delegate().picked();
+        let ids: Vec<String> = {
+            let state = self.playlists.read(cx);
+            let source = state.delegate().source();
+            rows.iter()
+                .filter_map(|&row| source.at(row, cx))
+                .filter(|playlist| !playlist.owned)
+                .map(|playlist| playlist.id)
+                .collect()
+        };
+        if ids.is_empty() {
+            return;
+        }
+        let library = self.library.clone();
+        let table = self.playlists.clone();
+        Confirm::ask(
+            Kind::Playlists(ids.len()),
+            move |cx| {
+                library.update(cx, |library, cx| {
+                    for id in ids {
+                        library.remove_playlist_from_library(id, cx);
+                    }
+                });
+                table.update(cx, |table, cx| {
+                    table.delegate_mut().clear_selection();
+                    cx.notify();
+                });
+            },
+            cx,
+        );
     }
 
     fn resize(&mut self, window: &Window, cx: &mut Context<Self>) {

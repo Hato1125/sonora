@@ -22,7 +22,10 @@ use crate::theme::ActiveTheme as _;
 pub use layout::{ColumnSpec, Layout, Sort, Sorting, Width, rank};
 use layout::{PADDING, Resolved, SORT_ROOM, TRAIL, reordered, resolve, shifted, stretch};
 
-actions!(table, [SelectNext, SelectPrevious, Deselect, Activate]);
+actions!(
+    table,
+    [SelectNext, SelectPrevious, Deselect, Activate, Remove]
+);
 
 pub const TABLE_CONTEXT: &str = "Table";
 
@@ -488,6 +491,7 @@ impl<S: TableSource> TableDelegate<S> {
 pub enum TableEvent {
     DoubleClicked(usize),
     Activated(usize),
+    Removed,
     LayoutChanged,
     SortChanged,
 }
@@ -547,7 +551,7 @@ pub struct TableState<S: TableSource> {
     corners: Corners<Pixels>,
     focus: FocusHandle,
     scroll: Option<ScrollHandle>,
-    context_menu: Option<(usize, Point<Pixels>)>,
+    context_menu: Option<(Vec<usize>, Point<Pixels>)>,
     moving: Option<(usize, usize)>,
     sizing: Option<Sizing>,
 }
@@ -608,6 +612,10 @@ impl<S: TableSource> TableState<S> {
         self.fire_activate(cx);
     }
 
+    fn remove(&mut self, _: &Remove, _: &mut Window, cx: &mut Context<Self>) {
+        self.fire_remove(cx);
+    }
+
     fn fire_activate(&mut self, cx: &mut Context<Self>) {
         if self.delegate.picked().len() != 1 {
             return;
@@ -619,6 +627,13 @@ impl<S: TableSource> TableState<S> {
             return;
         };
         cx.emit(TableEvent::Activated(display));
+    }
+
+    fn fire_remove(&mut self, cx: &mut Context<Self>) {
+        if self.delegate.picked().is_empty() {
+            return;
+        }
+        cx.emit(TableEvent::Removed);
     }
 
     fn step(&mut self, delta: isize, window: &mut Window, cx: &mut Context<Self>) {
@@ -1001,7 +1016,7 @@ impl<S: TableSource> TableState<S> {
                                 window.focus(&this.focus.clone(), cx);
                                 window.prevent_default();
                                 cx.stop_propagation();
-                                this.context_menu = Some((row, event.position));
+                                this.context_menu = Some((rows, event.position));
                                 cx.notify();
                             }
                         }),
@@ -1091,8 +1106,7 @@ impl<S: TableSource> Render for TableState<S> {
         let height = self.height(head, row);
         let pinned = snapped(self.viewport.top.clamp(Pixels::ZERO, height - head), window);
         let top = unpinned(self.corners, pinned);
-        let context_menu = self.context_menu.and_then(|(_, position)| {
-            let rows = self.delegate.picked();
+        let context_menu = self.context_menu.clone().and_then(|(rows, position)| {
             let visible = self.delegate.visible();
             self.delegate
                 .source
@@ -1112,7 +1126,11 @@ impl<S: TableSource> Render for TableState<S> {
             .on_action(cx.listener(Self::select_previous))
             .on_action(cx.listener(Self::deselect))
             .on_action(cx.listener(Self::activate))
+            .on_action(cx.listener(Self::remove))
             .on_mouse_down_out(cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                if this.context_menu.is_some() {
+                    return;
+                }
                 if this.delegate.selected.is_none() && this.delegate.marked.is_empty() {
                     return;
                 }
@@ -1216,6 +1234,7 @@ pub trait Listing {
     fn select_previous(&self, window: &mut Window, cx: &mut App);
     fn deselect(&self, cx: &mut App);
     fn activate(&self, cx: &mut App);
+    fn remove(&self, cx: &mut App);
 }
 
 impl<S: TableSource> Listing for Entity<TableState<S>> {
@@ -1325,5 +1344,9 @@ impl<S: TableSource> Listing for Entity<TableState<S>> {
 
     fn activate(&self, cx: &mut App) {
         self.update(cx, |table, cx| table.fire_activate(cx));
+    }
+
+    fn remove(&self, cx: &mut App) {
+        self.update(cx, |table, cx| table.fire_remove(cx));
     }
 }

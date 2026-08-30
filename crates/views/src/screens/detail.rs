@@ -20,9 +20,11 @@ use crate::shared::menus::{album_menu, playlist_menu};
 
 use crate::chrome::tools::{self, Sift, Sliders};
 use crate::chrome::{Chrome, Searchable, Toolbar, Tooled};
+use crate::shared::confirm::Confirm;
 use crate::shared::hero::{HeroMetaStrip, HeroPlayButton, PageHero, release_date_label};
 use crate::shared::tracks::{
-    PlaybackStatus, TrackField, TrackSieve, TrackSource, Tracks, playback_status, playlist_columns,
+    PlaybackStatus, TrackField, TrackSieve, TrackSource, Tracks, drop_picked, playback_status,
+    playlist_columns,
 };
 use crate::shared::{cells, page};
 
@@ -184,6 +186,7 @@ impl DetailView {
             TableEvent::Activated(display) => {
                 page::play_or_toggle(&this.table, &this.playback, *display, cx)
             }
+            TableEvent::Removed => drop_picked(&this.table, cx),
             _ => this.persist(cx),
         })
         .detach();
@@ -403,16 +406,19 @@ impl DetailView {
                 true => heart.tint(theme.primary),
                 false => heart,
             }
-            .on_click(move |_, _, cx| {
-                library.update(cx, |library, cx| match &target {
-                    Saveable::Album(album) => library.toggle_album(album.clone(), cx),
-                    Saveable::Playlist(playlist) if saved => {
-                        library.remove_playlist_from_library(playlist.id.clone(), cx)
-                    }
-                    Saveable::Playlist(playlist) => {
+            .on_click(move |_, _, cx| match &target {
+                Saveable::Album(album) if saved => Confirm::albums(vec![album.clone()], cx),
+                Saveable::Album(album) => {
+                    library.update(cx, |library, cx| library.toggle_album(album.clone(), cx));
+                }
+                Saveable::Playlist(playlist) if saved => {
+                    Confirm::playlists(vec![playlist.id.clone()], cx)
+                }
+                Saveable::Playlist(playlist) => {
+                    library.update(cx, |library, cx| {
                         library.add_playlist_to_library(playlist.clone(), cx)
-                    }
-                });
+                    });
+                }
             }),
         )
     }

@@ -175,12 +175,14 @@ impl LocalView {
             TableEvent::Activated(display) => {
                 page::play_or_toggle(&this.tracks, &this.playback, *display, cx)
             }
+            TableEvent::Removed => {}
             _ => this.persist(Section::Tracks, cx),
         })
         .detach();
 
         cx.subscribe(&albums, |this, _, event, cx| match event {
             TableEvent::DoubleClicked(_) | TableEvent::Activated(_) => {}
+            TableEvent::Removed => {}
             _ => this.persist(Section::Albums, cx),
         })
         .detach();

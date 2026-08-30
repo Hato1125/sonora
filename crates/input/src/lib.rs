@@ -1,8 +1,8 @@
 use gpui::{KeyBinding, actions};
 use ui::{
     Activate, Backspace, BackspaceWord, Copy, Cut, Delete, DeleteWord, Deselect, Dismiss, End,
-    FORM_CONTEXT, Home, INPUT_CONTEXT, Left, MENU_CONTEXT, Paste, Right, SelectAll, SelectEnd,
-    SelectHome, SelectLeft, SelectNext, SelectPrevious, SelectRight, SelectWordLeft,
+    FORM_CONTEXT, Home, INPUT_CONTEXT, Left, MENU_CONTEXT, Paste, Remove, Right, SelectAll,
+    SelectEnd, SelectHome, SelectLeft, SelectNext, SelectPrevious, SelectRight, SelectWordLeft,
     SelectWordRight, ShowCharacterPalette, Space, Submit, TABLE_CONTEXT, WordLeft, WordRight,
 };
 
@@ -47,12 +47,14 @@ pub fn bindings() -> Vec<KeyBinding> {
         KeyBinding::new("shift-down", SelectNext, table),
         KeyBinding::new("shift-up", SelectPrevious, table),
         KeyBinding::new("enter", Activate, table),
+        KeyBinding::new("delete", Remove, table),
         KeyBinding::new("escape", Deselect, table),
         KeyBinding::new("down", SelectNext, Some(&browsing)),
         KeyBinding::new("up", SelectPrevious, Some(&browsing)),
         KeyBinding::new("shift-down", SelectNext, Some(&browsing)),
         KeyBinding::new("shift-up", SelectPrevious, Some(&browsing)),
         KeyBinding::new("enter", Activate, Some(&browsing)),
+        KeyBinding::new("delete", Remove, Some(&browsing)),
         KeyBinding::new("escape", Deselect, Some(&browsing)),
         KeyBinding::new("down", SelectNext, search),
         KeyBinding::new("up", SelectPrevious, search),

@@ -5,6 +5,7 @@ use router::{Destination, navigate};
 use state::{Detail, History, Library, LibraryState, Origin, Playback, Sonora};
 use ui::{Menu, MenuItem, Pin, PinKind, Scrollbar, SubmenuState};
 
+use crate::shared::confirm::Confirm;
 use crate::shared::playlist_editor::{Edit, PlaylistEditor};
 
 #[derive(Clone)]
@@ -110,9 +111,7 @@ impl ItemMenu {
             )
             .icon("icons/x.svg")
             .on_click(move |_, _, cx| {
-                detail.update(cx, |detail, cx| {
-                    detail.remove_tracks_from_playlist(ids.clone(), cx)
-                });
+                Confirm::playlist_songs(ids.clone(), detail.clone(), count, cx)
             }),
         };
         self.build(tracks, Some(remove), None, None, columns, cx)
@@ -135,13 +134,7 @@ impl ItemMenu {
             ),
         )
         .icon("icons/trash-2.svg")
-        .on_click(move |_, _, cx| {
-            history.update(cx, |history, cx| {
-                for track in &held {
-                    history.remove(track, cx);
-                }
-            });
-        });
+        .on_click(move |_, _, cx| Confirm::history_songs(held.clone(), history.clone(), cx));
         self.build(tracks, None, Some(forget), None, columns, cx)
     }
 
@@ -476,18 +469,17 @@ fn library_toggle(tracks: &[Track], library: &Entity<Library>, cx: &App) -> Menu
         false => {
             let library = library.clone();
             item.on_click(move |_, _, cx| {
+                if saved {
+                    Confirm::library_songs(actionable.clone(), cx);
+                    return;
+                }
                 library.update(cx, |library, cx| {
-                    let tracks = match saved {
-                        true => actionable.clone(),
-                        false => actionable
-                            .iter()
-                            .filter(|track| {
-                                !track.id.as_deref().is_some_and(|id| library.saved(id))
-                            })
-                            .cloned()
-                            .collect(),
-                    };
-                    library.save_tracks(tracks, !saved, cx);
+                    let tracks = actionable
+                        .iter()
+                        .filter(|track| !track.id.as_deref().is_some_and(|id| library.saved(id)))
+                        .cloned()
+                        .collect();
+                    library.save_tracks(tracks, true, cx);
                 });
             })
         }
@@ -581,8 +573,12 @@ fn album_library_item(album: Album, cx: &App) -> MenuItem {
 
     match library.read(cx).pending_album(&album.id) {
         true => item.disabled(),
-        false => item.on_click(move |_, _, cx| {
-            library.update(cx, |library, cx| library.toggle_album(album.clone(), cx));
+        false => item.on_click(move |_, _, cx| match saved {
+            true => Confirm::albums(vec![album.clone()], cx),
+            false => {
+                let library = Sonora::global(cx).library.clone();
+                library.update(cx, |library, cx| library.toggle_album(album.clone(), cx));
+            }
         }),
     }
 }
@@ -663,8 +659,12 @@ fn artist_library_item(artist: SavedArtist, cx: &App) -> Option<MenuItem> {
 
     Some(match library.read(cx).pending_artist(&artist.id) {
         true => item.disabled(),
-        false => item.on_click(move |_, _, cx| {
-            library.update(cx, |library, cx| library.toggle_artist(artist.clone(), cx));
+        false => item.on_click(move |_, _, cx| match followed {
+            true => Confirm::artists(vec![artist.clone()], cx),
+            false => {
+                let library = Sonora::global(cx).library.clone();
+                library.update(cx, |library, cx| library.toggle_artist(artist.clone(), cx));
+            }
         }),
     })
 }
@@ -972,12 +972,7 @@ fn playlist_library_item(playlist: Playlist, cx: &App) -> MenuItem {
             let id = playlist.id;
             MenuItem::new("leave-playlist", t!("menu-remove-playlist-from-library"))
                 .icon("icons/heart-off.svg")
-                .on_click(move |_, _, cx| {
-                    let library = Sonora::global(cx).library.clone();
-                    library.update(cx, |library, cx| {
-                        library.remove_playlist_from_library(id.clone(), cx)
-                    });
-                })
+                .on_click(move |_, _, cx| Confirm::playlists(vec![id.clone()], cx))
         }
         false => MenuItem::new("join-playlist", t!("menu-add-playlist-to-library"))
             .icon("icons/heart.svg")
