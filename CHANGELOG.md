@@ -28,6 +28,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Making a Spotify playlist public or private works again. The request was rejected, so the menu
+  toggled the label without changing anything on the account.
 - A text field no longer keeps its selection highlight after it loses focus.
 - Page content no longer shifts by a pixel when a navigation transition finishes.
 

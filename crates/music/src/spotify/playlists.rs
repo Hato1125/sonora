@@ -93,10 +93,7 @@ pub async fn set_public(session: &Session, playlist_id: &str, public: bool) -> R
     let uri = format!("{PLAYLIST_PREFIX}{playlist_id}");
     let (rootlist, index) = rootlist(session, &uri).await?;
 
-    let body = changes(
-        rootlist.revision.as_deref(),
-        visibility_op(&uri, index, public),
-    );
+    let body = changes(rootlist.revision.as_deref(), visibility_op(index, public));
     rootlist_edit(session, &body)
         .await
         .context("cannot change playlist visibility")?;
@@ -445,7 +442,7 @@ fn list_attributes_op(values: ListAttributes) -> Op {
     op
 }
 
-fn visibility_op(uri: &str, index: i32, public: bool) -> Op {
+fn visibility_op(index: i32, public: bool) -> Op {
     let mut values = ItemAttributes::new();
     values.set_public(public);
 
@@ -454,7 +451,6 @@ fn visibility_op(uri: &str, index: i32, public: bool) -> Op {
 
     let mut update = UpdateItemAttributes::new();
     update.set_index(index);
-    update.item = MessageField::some(item(uri));
     update.new_attributes = MessageField::some(state);
 
     let mut op = Op::new();
@@ -573,13 +569,13 @@ mod tests {
     }
 
     #[test]
-    fn visibility_targets_the_rootlist_item() {
-        let op = visibility_op("spotify:playlist:x", 3, true);
+    fn visibility_targets_the_rootlist_index() {
+        let op = visibility_op(3, true);
         let update = &op.update_item_attributes;
 
         assert_eq!(op.kind(), Kind::UPDATE_ITEM_ATTRIBUTES);
         assert_eq!(update.index(), 3);
-        assert_eq!(update.item.uri(), "spotify:playlist:x");
+        assert!(update.item.is_none());
         assert!(update.new_attributes.values.public());
     }
 
@@ -590,7 +586,7 @@ mod tests {
             remove_op("spotify:track:a", 0),
             rename_op("name"),
             delete_op(),
-            visibility_op("spotify:playlist:x", 0, false),
+            visibility_op(0, false),
         ] {
             let body = changes(Some(b"rev"), op);
             body.write_to_bytes().expect("encodes");

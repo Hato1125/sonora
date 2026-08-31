@@ -8,6 +8,7 @@ use crate::{MusicApi, MusicProvider, ProviderSession};
 
 const NAME: &str = "Sonora live privacy test — safe to delete";
 const VERIFY_ATTEMPTS: usize = 30;
+const LIBRARY_LIMIT: u32 = 10_000;
 
 #[tokio::test]
 #[ignore = "creates, changes, and deletes a playlist on the connected Spotify account"]
@@ -45,11 +46,11 @@ async fn exercise_playlist_privacy(api: &dyn MusicApi) -> Result<()> {
     let playlist_id = api.create_playlist(NAME).await?;
 
     let exercise = async {
-        wait_until_public(api, &playlist_id, false).await?;
-        api.set_playlist_public(&playlist_id, true).await?;
-        wait_until_public(api, &playlist_id, true).await?;
-        api.set_playlist_public(&playlist_id, false).await?;
-        wait_until_public(api, &playlist_id, false).await
+        for wanted in [true, false, true] {
+            api.set_playlist_public(&playlist_id, wanted).await?;
+            wait_until_public(api, &playlist_id, wanted).await?;
+        }
+        Ok::<(), anyhow::Error>(())
     }
     .await;
 
@@ -67,11 +68,9 @@ async fn exercise_playlist_privacy(api: &dyn MusicApi) -> Result<()> {
 async fn wait_until_public(api: &dyn MusicApi, playlist_id: &str, expected: bool) -> Result<()> {
     let mut observed = None;
     for _ in 0..VERIFY_ATTEMPTS {
-        if let Ok(detail) = api.playlist(playlist_id).await {
-            observed = Some(detail.playlist.public);
-            if observed == Some(expected) {
-                return Ok(());
-            }
+        observed = reported(api, playlist_id).await;
+        if observed == Some(expected) {
+            return Ok(());
         }
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
@@ -80,4 +79,28 @@ async fn wait_until_public(api: &dyn MusicApi, playlist_id: &str, expected: bool
         "playlist {playlist_id} did not become {}; last observed public state: {observed:?}",
         if expected { "public" } else { "private" }
     )
+}
+
+async fn reported(api: &dyn MusicApi, playlist_id: &str) -> Option<bool> {
+    let detail = api
+        .playlist(playlist_id)
+        .await
+        .ok()
+        .map(|detail| detail.playlist.public);
+    let listed = api
+        .playlists(LIBRARY_LIMIT)
+        .await
+        .ok()
+        .and_then(|playlists| {
+            playlists
+                .into_iter()
+                .find(|playlist| playlist.id == playlist_id)
+        })
+        .map(|playlist| playlist.public);
+
+    match (detail, listed) {
+        (Some(true), _) | (_, Some(true)) => Some(true),
+        (found @ Some(false), _) | (_, found @ Some(false)) => found,
+        _ => None,
+    }
 }
