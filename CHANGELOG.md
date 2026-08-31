@@ -22,6 +22,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   uses.
 - Navigating again while a page is still fading in restarts the fade instead of cutting it short.
 - Toasts block clicks on whatever sits under them, and stay up while the pointer is on them.
+- The artwork, lyrics and queue pill in fullscreen stays visible while the pointer is on it.
 
 ### Fixed
 

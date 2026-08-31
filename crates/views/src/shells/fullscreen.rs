@@ -58,6 +58,7 @@ pub struct FullscreenView {
     over_volume: bool,
     over_zone: bool,
     over_panel: bool,
+    over_pill: bool,
     volume_held: bool,
     muted: Option<f32>,
     large: Option<SharedString>,
@@ -97,6 +98,7 @@ impl FullscreenView {
             over_volume: false,
             over_zone: false,
             over_panel: false,
+            over_pill: false,
             volume_held: false,
             muted: None,
             large: None,
@@ -167,7 +169,10 @@ impl FullscreenView {
     }
 
     fn busy(&self) -> bool {
-        self.volume_open() || self.pending.is_some() || self.context_menu.is_some()
+        self.volume_open()
+            || self.over_pill
+            || self.pending.is_some()
+            || self.context_menu.is_some()
     }
 
     fn flip(&mut self, awake: bool) {
@@ -594,6 +599,13 @@ impl FullscreenView {
     fn pill(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
         let gap = px(PILL_GAP);
+        let linger = cx.listener(|this: &mut Self, hovering: &bool, _, cx| {
+            this.over_pill = *hovering;
+            if *hovering {
+                this.poke(cx);
+            }
+            cx.notify();
+        });
         let tab = move |id: &'static str, icon: &'static str, hint: &'static str, panel| {
             let showing = self.panel == panel;
 
@@ -612,6 +624,7 @@ impl FullscreenView {
         };
 
         div()
+            .id("fullscreen-pill")
             .flex()
             .flex_none()
             .items_center()
@@ -621,6 +634,7 @@ impl FullscreenView {
             .border_1()
             .border_color(theme.border)
             .bg(theme.popover)
+            .on_hover(linger)
             .child(tab(
                 "fullscreen-artwork-tab",
                 "icons/disc-3.svg",
