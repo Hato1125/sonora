@@ -8,6 +8,7 @@ use gpui::{
 };
 
 use crate::metrics::Text;
+use crate::motion::Rising as _;
 use crate::scrollbar::Scrollbar;
 use crate::shield::Shield;
 use crate::theme::ActiveTheme as _;
@@ -230,7 +231,7 @@ impl RenderOnce for Modal {
                         )
                     });
                 panel.style().refine(&overrides);
-                panel
+                panel.rising("modal-rise")
             })
     }
 }

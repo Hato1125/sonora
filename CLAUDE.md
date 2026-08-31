@@ -203,6 +203,7 @@ renderers), `crates/views/src/chrome/` (chrome). Extend what's there — add a b
 | `eyebrow()`, `heading()`                                                | the two standard text styles                                                                                                           |
 | `ExplicitBadge`                                                         | the "E" badge                                                                                                                          |
 | `WindowControls`                                                        | minimize/maximize/close, honoring platform decorations                                                                                 |
+| `Rising` / `veiled()`                                                   | the one entrance: fade, 1% zoom and a 1.5px blur. `.rising(id)` for anything that appears; `veiled` for a hand-driven progress         |
 | `clock()`                                                               | `Duration` → `m:ss`                                                                                                                    |
 | `snapped()`                                                             | round a `Pixels` to the device pixel grid                                                                                              |
 
@@ -557,6 +558,13 @@ an optional action beneath it: `Section::glyph` picks the icon per library secti
 `shared::local::unconfigured` is the Local Music setup screen — `folder-plus` over a Choose folder
 button that both it and Settings build with `shared::local::choose_button`. `ui::vacant` stays the
 bare centred text underneath a table.
+
+**Anything that appears rises.** `Menu`, `Modal` and `Toast` wrap themselves in `Rising::rising`,
+and `Workspace` drives the same curve by hand for the page transition. There is one entrance in the
+app; do not write a second one. Two rules keep it from moving pixels: `layer_scale` and `blur` are
+paint-only, so hitboxes never move, and the page transition fades with a scrim over the content
+rather than `opacity`, because element opacity is baked into primitives at paint time and would
+force the content view out of its `cached` layout path for the length of the animation.
 
 **Shells.** `crates/views/src/shells/` holds the two top-level layouts, `Workspace` and
 `FullscreenView`; `Root` swaps between them. A shell owns its own chrome — `Workspace` builds both

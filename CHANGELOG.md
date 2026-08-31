@@ -17,10 +17,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Pinned items keep a single order across providers, so a streaming pin and a local one can sit
   next to each other in the sidebar.
 - An empty list or grid now shows a large icon above the message that was already there.
+- Menus, dropdowns, dialogs and toasts now appear with the same short fade the page transition
+  uses.
+- Navigating again while a page is still fading in restarts the fade instead of cutting it short.
 
 ### Fixed
 
 - A text field no longer keeps its selection highlight after it loses focus.
+- Page content no longer shifts by a pixel when a navigation transition finishes.
 
 ## [0.26.0] - 2026-08-31
 
