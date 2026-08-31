@@ -24,8 +24,8 @@ use state::{
 use ui::{
     ActiveTheme as _, Button, Card, Deck, FlagAxis, LEADING, Mode, Pinnable, Popovers, Popup,
     RangeAxis, Scrollbar, Scroller, Sort, SortAxis, TableDelegate, TableEvent, TableSource,
-    TableState, Text, Toggle, Unit, Viewport, clock, heading, quantize, scrolled, snapped, table,
-    vacant,
+    TableState, Text, Toggle, Unit, Vacancy, Viewport, clock, heading, quantize, scrolled, snapped,
+    table,
 };
 
 use crate::shared::album_grid::{AlbumGrid, CardGrid};
@@ -35,7 +35,7 @@ use crate::shared::tracks::{
     self, LIBRARY_COLUMNS, PlaybackStatus, TrackField, TrackSieve, TrackSource, Tracks,
     playback_status,
 };
-use crate::shared::{cards, cells, page};
+use crate::shared::{cards, cells, local, page};
 use albums::{AlbumField, AlbumSource};
 use artists::{ArtistField, ArtistSource};
 use playlists::{PlaylistField, PlaylistSource};
@@ -161,6 +161,16 @@ impl Section {
             (Shelf::Local, Section::Albums) => "library-no-local-albums",
             (Shelf::Local, Section::Playlists) => "library-no-local-playlists",
             (Shelf::Local, Section::Artists) => "library-no-local-artists",
+        }
+    }
+
+    fn glyph(self) -> &'static str {
+        match self {
+            Section::Favorites => "icons/heart.svg",
+            Section::Songs => "icons/music.svg",
+            Section::Albums => "icons/disc-3.svg",
+            Section::Playlists => "icons/list-music.svg",
+            Section::Artists => "icons/user-round.svg",
         }
     }
 
@@ -533,7 +543,11 @@ impl LibraryView {
         }
     }
 
-    fn note(&self, cx: &App) -> Option<SharedString> {
+    fn unconfigured(&self, cx: &App) -> bool {
+        self.shelf.local() && Sonora::global(cx).session.read(cx).local_path().is_none()
+    }
+
+    fn note(&self, cx: &App) -> Option<Vacancy> {
         let library = self.library.read(cx);
         let table = self.table(self.section);
         let state = match self.shelf {
@@ -542,7 +556,7 @@ impl LibraryView {
         };
         match state {
             LibraryState::Loading => return None,
-            LibraryState::Failed(_) => return Some(t!("library-not-loaded")),
+            LibraryState::Failed(_) => return Some(Vacancy::new(t!("library-not-loaded"))),
             _ if table.row_count(cx) > 0 => return None,
             _ => {}
         }
@@ -553,9 +567,10 @@ impl LibraryView {
         };
 
         Some(match (table.filtering(cx), failed) {
-            (true, _) => t!("library-no-matches"),
-            (false, true) => t!("library-part-not-loaded"),
-            (false, false) => i18n::lookup(self.section.vacancy(self.shelf), None),
+            (true, _) => Vacancy::new(t!("library-no-matches")),
+            (false, true) => Vacancy::new(t!("library-part-not-loaded")),
+            (false, false) => Vacancy::new(i18n::lookup(self.section.vacancy(self.shelf), None))
+                .icon(self.section.glyph()),
         })
     }
 
@@ -1103,22 +1118,25 @@ impl Render for LibraryView {
         let section = self.section;
         let note = self.note(cx);
         let content = match (self.section, mode) {
+            _ if self.unconfigured(cx) => local::unconfigured("configure-local-folder")
+                .size_full()
+                .into_any_element(),
             (section, Mode::List) if section.listing() => {
                 Scroller::new("library-page", &self.scrollbar)
                     .pt(inset)
                     .pb(inset)
                     .child(div().px(inset).child(self.header(cx)))
                     .child(table(self.tracks()))
-                    .when_some(note, |this, note| this.child(vacant(note, cx)))
+                    .when_some(note, |this, note| this.child(note))
                     .into_any_element()
             }
             (_, Mode::List) => Scroller::new("library-page", &self.scrollbar)
                 .pb(inset)
                 .child(self.table(self.section).element())
-                .when_some(note, |this, note| this.child(vacant(note, cx)))
+                .when_some(note, |this, note| this.child(note))
                 .into_any_element(),
             (_, Mode::Grid) => match note {
-                Some(note) => vacant(note, cx).size_full().into_any_element(),
+                Some(note) => note.size_full().into_any_element(),
                 None => self.cards(window, cx),
             },
         };

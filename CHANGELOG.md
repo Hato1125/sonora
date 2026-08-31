@@ -7,10 +7,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Local Music stays in the sidebar before a folder is picked, and every one of its pages offers a
+  Choose folder button so the library can be set up without opening Settings.
+
 ### Changed
 
 - Pinned items keep a single order across providers, so a streaming pin and a local one can sit
   next to each other in the sidebar.
+- An empty list or grid now shows a large icon above the message that was already there.
 
 ### Fixed
 

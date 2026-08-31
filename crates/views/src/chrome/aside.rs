@@ -17,8 +17,8 @@ use state::{
 };
 use ui::{
     ActiveTheme as _, Button, Card, DraggedPin, Edge, Motion, Motioned as _, Pin, Pinnable as _,
-    Popup, Scrollbar, Scroller, Spot, Text, drop_gap, drop_marker, ease_out_cubic, ease_out_expo,
-    eyebrow, faint, mix, snapped, vacant,
+    Popup, Scrollbar, Scroller, Spot, Text, Vacancy, drop_gap, drop_marker, ease_out_cubic,
+    ease_out_expo, eyebrow, faint, mix, snapped, vacant,
 };
 
 use crate::chrome::{Chrome, section_label};
@@ -69,8 +69,6 @@ const RESOLVE_BLUR: f32 = 0.2;
 const RESOLVE_FADE: f32 = 0.5;
 const SETTLE: std::time::Duration = std::time::Duration::from_secs(4);
 const INSTRUMENTAL_BREAK: std::time::Duration = std::time::Duration::from_secs(5);
-const GLYPH: f32 = 0.35;
-const GLYPH_SIZE: f32 = 0.5;
 const SWEEP_LEAST: std::time::Duration = std::time::Duration::from_millis(180);
 // karaoke sweep ceiling
 const KARAOKE_HZ: u32 = 45;
@@ -1368,15 +1366,15 @@ impl Aside {
                         )
                         .into_any_element(),
                 ],
-                _ => vec![wordless("lyrics-missing", "icons/mic-off.svg", cx)],
+                _ => vec![wordless("lyrics-missing", "icons/mic-off.svg")],
             },
             (None, LyricsState::Idle) => vec![empty("lyrics-idle", cx)],
             (None, LyricsState::Loading) => vec![empty("lyrics-loading", cx)],
             (None, LyricsState::Instrumental) => {
-                vec![wordless("lyrics-instrumental", "icons/guitar.svg", cx)]
+                vec![wordless("lyrics-instrumental", "icons/guitar.svg")]
             }
             (None, LyricsState::Missing) => {
-                vec![wordless("lyrics-missing", "icons/mic-off.svg", cx)]
+                vec![wordless("lyrics-missing", "icons/mic-off.svg")]
             }
             (None, LyricsState::Failed(_)) => vec![empty("lyrics-failed", cx)],
         };
@@ -2665,22 +2663,10 @@ fn instrumental_row(progress: f32, past: bool, verse: Pixels, theme: &ui::Theme)
         }))
 }
 
-fn wordless(key: &'static str, icon: &'static str, cx: &App) -> gpui::AnyElement {
-    let theme = *cx.theme();
-
-    div()
-        .flex()
+fn wordless(key: &'static str, icon: &'static str) -> gpui::AnyElement {
+    Vacancy::new(i18n::lookup(key, None))
+        .icon(icon)
         .flex_1()
-        .flex_col()
-        .items_center()
-        .justify_center()
-        .child(
-            svg()
-                .path(icon)
-                .size(theme.metrics.cover * GLYPH_SIZE)
-                .text_color(theme.muted_foreground.opacity(GLYPH)),
-        )
-        .child(vacant(i18n::lookup(key, None), cx))
         .into_any_element()
 }
 

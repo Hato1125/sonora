@@ -340,7 +340,6 @@ impl Render for SidebarLeft {
         let current = self.trail.read(cx).current();
         self.follow(&current);
         let authenticated = self.session.read(cx).authenticated();
-        let has_local = self.session.read(cx).local_client().is_some();
         self.adapt(window, cx);
 
         if !cx.has_active_drag() {
@@ -396,9 +395,6 @@ impl Render for SidebarLeft {
             }
 
             if matches!(destination, Destination::Local(_)) {
-                if !has_local {
-                    continue;
-                }
                 let inside = matches!(current, Destination::Local(_));
                 let text = if inside { foreground } else { muted };
 

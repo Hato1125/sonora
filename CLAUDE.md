@@ -549,7 +549,14 @@ it defaults to `saved_tracks` and only the local provider gives it a different a
 
 **Which entries the sidebar shows is a setting.** `NavEntry::ALL` (router) is the list; a hidden one
 is stored by id in `hidden_nav` and read through `AppSettings::nav_shown`. Your Library still needs
-an authenticated provider and Local Music still needs a scanned folder — the setting only hides.
+an authenticated provider; Local Music does not need a folder, because an unscanned one is what the
+setup screen is for. The setting only hides.
+
+**An empty page is a `ui::Vacancy`, not a line of text.** A large muted glyph over the caption, with
+an optional action beneath it: `Section::glyph` picks the icon per library section, and
+`shared::local::unconfigured` is the Local Music setup screen — `folder-plus` over a Choose folder
+button that both it and Settings build with `shared::local::choose_button`. `ui::vacant` stays the
+bare centred text underneath a table.
 
 **Shells.** `crates/views/src/shells/` holds the two top-level layouts, `Workspace` and
 `FullscreenView`; `Root` swaps between them. A shell owns its own chrome — `Workspace` builds both
