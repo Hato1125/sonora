@@ -7,6 +7,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-09-01
+
 ### Added
 
 - Local Music stays in the sidebar before a folder is picked, and every one of its pages offers a
@@ -1200,7 +1202,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Initial release: a native Spotify client with playback, an interactive queue, the saved library,
 search, album, playlist, artist and song pages, context menus and adaptive theming.
 
-[unreleased]: https://github.com/nolight132/sonora/compare/v0.26.0...HEAD
+[unreleased]: https://github.com/nolight132/sonora/compare/v0.27.0...HEAD
+[0.27.0]: https://github.com/nolight132/sonora/compare/v0.26.0...v0.27.0
 [0.26.0]: https://github.com/nolight132/sonora/compare/v0.25.0...v0.26.0
 [0.25.0]: https://github.com/nolight132/sonora/compare/v0.24.1...v0.25.0
 [0.24.1]: https://github.com/nolight132/sonora/compare/v0.24.0...v0.24.1
