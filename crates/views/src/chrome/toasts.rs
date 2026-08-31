@@ -1,6 +1,7 @@
 use gpui::prelude::*;
 use gpui::{Context, Entity, Render, Window, div};
-use state::{Outcome, Toasts};
+use router::{Destination, navigate};
+use state::{Outcome, Target, Toasts};
 use ui::{ActiveTheme as _, Toast};
 
 pub(crate) struct ToastStack {
@@ -36,6 +37,7 @@ impl Render for ToastStack {
             .children(shown.into_iter().map(|toast| {
                 let id = toast.id;
                 let toasts = self.toasts.clone();
+                let held = self.toasts.clone();
 
                 let message = match &toast.name {
                     None => i18n::lookup(&toast.key, None),
@@ -49,9 +51,24 @@ impl Render for ToastStack {
                 Toast::new(("toast", id), message)
                     .when_some(toast.name.clone(), Toast::strong)
                     .when(toast.outcome == Outcome::Failed, Toast::failed)
+                    .when_some(toast.target.clone().map(destination), |this, dest| {
+                        this.on_open(move |_, _, cx| navigate(dest.clone(), cx))
+                    })
+                    .on_hover(move |hovering, _, cx| {
+                        held.update(cx, |this, cx| this.hold(id, *hovering, cx));
+                    })
                     .on_dismiss(move |_, _, cx| {
                         toasts.update(cx, |this, cx| this.dismiss(id, cx));
                     })
             }))
+    }
+}
+
+fn destination(target: Target) -> Destination {
+    match target {
+        Target::Song(id) => Destination::Song(id),
+        Target::Album(id) => Destination::Album(id),
+        Target::Artist(id) => Destination::Artist(id),
+        Target::Playlist(id) => Destination::Playlist(id),
     }
 }

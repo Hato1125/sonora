@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use gpui::{Context, Entity, Task};
+use gpui::{Context, Entity, SharedString, Task};
 use music::{MusicApi, Track, TrackTags};
 
-use crate::{Io, Library, Outcome, Session, Toasts, join};
+use crate::{Io, Library, Outcome, Session, Target, Toasts, join};
 
 pub enum TagState {
     Loading,
@@ -111,6 +111,7 @@ impl Tags {
 
         let io = self.io.clone();
         let name = tags.title.clone();
+        let target = Some(Target::Song(SharedString::from(id.clone())));
         let folder = self.session.read(cx).local_path().map(PathBuf::from);
         let library = self.library.clone();
         self.task = Some(cx.spawn(async move |this, cx| {
@@ -125,7 +126,7 @@ impl Tags {
                         if let Some(folder) = folder {
                             library.update(cx, |library, cx| library.rescan_local(folder, cx));
                         }
-                        Toasts::about(Outcome::Done, "toast-tags-saved", name, cx);
+                        Toasts::linked(Outcome::Done, "toast-tags-saved", name, target, cx);
                     }
                     Err(error) => {
                         log::warn!("tags: cannot save the tags: {error:#}");

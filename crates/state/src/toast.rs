@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use gpui::{App, AppContext as _, Context, Entity, Global, SharedString};
 
@@ -10,12 +10,23 @@ pub enum Outcome {
     Failed,
 }
 
+#[derive(Clone, PartialEq, Eq)]
+pub enum Target {
+    Song(SharedString),
+    Album(SharedString),
+    Artist(SharedString),
+    Playlist(SharedString),
+}
+
 #[derive(Clone)]
 pub struct Toast {
     pub id: usize,
     pub outcome: Outcome,
     pub key: SharedString,
     pub name: Option<SharedString>,
+    pub target: Option<Target>,
+    held: bool,
+    rest: Instant,
 }
 
 pub struct Toasts {
@@ -41,7 +52,9 @@ impl Toasts {
 
     pub fn show(outcome: Outcome, key: impl Into<SharedString>, cx: &mut App) {
         let toasts = Self::entity(cx);
-        toasts.update(cx, |this, cx| this.push(outcome, key.into(), None, cx));
+        toasts.update(cx, |this, cx| {
+            this.push(outcome, key.into(), None, None, cx)
+        });
     }
 
     pub fn about(
@@ -52,7 +65,23 @@ impl Toasts {
     ) {
         let toasts = Self::entity(cx);
         let name = Some(name.into());
-        toasts.update(cx, |this, cx| this.push(outcome, key.into(), name, cx));
+        toasts.update(cx, |this, cx| {
+            this.push(outcome, key.into(), name, None, cx)
+        });
+    }
+
+    pub fn linked(
+        outcome: Outcome,
+        key: impl Into<SharedString>,
+        name: impl Into<SharedString>,
+        target: Option<Target>,
+        cx: &mut App,
+    ) {
+        let toasts = Self::entity(cx);
+        let name = Some(name.into());
+        toasts.update(cx, |this, cx| {
+            this.push(outcome, key.into(), name, target, cx)
+        });
     }
 
     pub fn shown(&self) -> &[Toast] {
@@ -64,11 +93,26 @@ impl Toasts {
         cx.notify();
     }
 
+    pub fn hold(&mut self, id: usize, held: bool, cx: &mut Context<Self>) {
+        let Some(toast) = self.shown.iter_mut().find(|toast| toast.id == id) else {
+            return;
+        };
+        if toast.held == held {
+            return;
+        }
+        toast.held = held;
+        if !held {
+            toast.rest = Instant::now();
+        }
+        cx.notify();
+    }
+
     fn push(
         &mut self,
         outcome: Outcome,
         key: SharedString,
         name: Option<SharedString>,
+        target: Option<Target>,
         cx: &mut Context<Self>,
     ) {
         let showing = self
@@ -86,13 +130,32 @@ impl Toasts {
             outcome,
             key,
             name,
+            target,
+            held: false,
+            rest: Instant::now(),
         });
         cx.notify();
 
         cx.spawn(async move |this, cx| {
-            cx.background_executor().timer(LINGER).await;
-            this.update(cx, |this, cx| this.dismiss(id, cx)).ok();
+            loop {
+                let Ok(Some(wait)) = this.read_with(cx, |this, _| this.left(id)) else {
+                    return;
+                };
+                if wait.is_zero() {
+                    this.update(cx, |this, cx| this.dismiss(id, cx)).ok();
+                    return;
+                }
+                cx.background_executor().timer(wait).await;
+            }
         })
         .detach();
+    }
+
+    fn left(&self, id: usize) -> Option<Duration> {
+        let toast = self.shown.iter().find(|toast| toast.id == id)?;
+        match toast.held {
+            true => Some(LINGER),
+            false => Some(LINGER.saturating_sub(toast.rest.elapsed())),
+        }
     }
 }

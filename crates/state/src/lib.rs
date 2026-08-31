@@ -40,7 +40,7 @@ pub use settings::{
 };
 pub use song::SongDetail;
 pub use tags::{TagState, Tags};
-pub use toast::{Outcome, Toast, Toasts};
+pub use toast::{Outcome, Target, Toast, Toasts};
 pub use updates::{Release, UpdateState, Updates};
 
 use std::future::Future;

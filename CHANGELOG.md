@@ -11,6 +11,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Local Music stays in the sidebar before a folder is picked, and every one of its pages offers a
   Choose folder button so the library can be set up without opening Settings.
+- A toast that names an album, artist, playlist or song turns that name into a link to its page.
 
 ### Changed
 
@@ -20,6 +21,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Menus, dropdowns, dialogs and toasts now appear with the same short fade the page transition
   uses.
 - Navigating again while a page is still fading in restarts the fade instead of cutting it short.
+- Toasts block clicks on whatever sits under them, and stay up while the pointer is on them.
 
 ### Fixed
 
