@@ -9,37 +9,55 @@ use gpui::{
     Pixels, Point, Render, ScrollHandle,
 };
 use gpui::{Window, div, px};
-use router::{Destination, LibraryTab, Navigation, NavigationEvent, SettingsTab, navigate};
+use router::{
+    Destination, LibraryTab, LocalTab, NavEntry, Navigation, NavigationEvent, SettingsTab, navigate,
+};
 use state::{AppSettings, Origin, Playback, PlaybackState, Session, Sonora};
 
 use crate::shared::menus::{ItemMenu, pin_menu};
 
-const NAV: [(&str, &str, Option<Destination>); 5] = [
-    ("nav-home", "icons/house.svg", Some(Destination::Home)),
-    ("nav-search", "icons/search.svg", Some(Destination::Search)),
+const NAV: [(Option<NavEntry>, &str, Destination); 6] = [
+    (Some(NavEntry::Home), "icons/house.svg", Destination::Home),
     (
-        "nav-library",
+        Some(NavEntry::Search),
+        "icons/search.svg",
+        Destination::Search,
+    ),
+    (
+        Some(NavEntry::Library),
         "icons/library-big.svg",
-        Some(Destination::Library(LibraryTab::Songs)),
+        Destination::Library(LibraryTab::Songs),
     ),
     (
-        "nav-history",
+        Some(NavEntry::Local),
+        "icons/file-music.svg",
+        Destination::Local(LocalTab::Songs),
+    ),
+    (
+        Some(NavEntry::History),
         "icons/rotate-ccw-clock.svg",
-        Some(Destination::History),
+        Destination::History,
     ),
     (
-        "nav-settings",
+        None,
         "icons/settings.svg",
-        Some(Destination::Settings(SettingsTab::General)),
+        Destination::Settings(SettingsTab::General),
     ),
 ];
 
-const LIBRARY_TABS: [(&str, LibraryTab); 5] = [
-    ("nav-songs", LibraryTab::Songs),
+const LIBRARY_TABS: [(&str, LibraryTab); 4] = [
+    ("nav-favorites", LibraryTab::Songs),
     ("nav-albums", LibraryTab::Albums),
     ("nav-artists", LibraryTab::Artists),
     ("nav-playlists", LibraryTab::Playlists),
-    ("nav-local", LibraryTab::Local),
+];
+
+const LOCAL_TABS: [(&str, LocalTab); 5] = [
+    ("nav-favorites", LocalTab::Favorites),
+    ("nav-songs", LocalTab::Songs),
+    ("nav-albums", LocalTab::Albums),
+    ("nav-artists", LocalTab::Artists),
+    ("nav-playlists", LocalTab::Playlists),
 ];
 
 const SETTINGS_TABS: [(&str, SettingsTab); 4] = [
@@ -63,6 +81,7 @@ pub(crate) struct SidebarLeft {
     cramped: bool,
     forced: Option<bool>,
     library_open: bool,
+    local_open: bool,
     settings_open: bool,
     dropping: bool,
     drop_gap: Option<usize>,
@@ -95,6 +114,7 @@ impl SidebarLeft {
 
         let at = trail.read(cx).current();
         let library_open = matches!(at, Destination::Library(_));
+        let local_open = matches!(at, Destination::Local(_));
         let settings_open = matches!(at, Destination::Settings(_));
 
         Self {
@@ -107,6 +127,7 @@ impl SidebarLeft {
             forced: None,
             cramped: false,
             library_open,
+            local_open,
             settings_open,
             dropping: false,
             drop_gap: None,
@@ -122,8 +143,9 @@ impl SidebarLeft {
             return;
         }
         self.at = current.clone();
-        let (library, settings) = expanded(current);
+        let (library, local, settings) = expanded(current);
         self.library_open |= library;
+        self.local_open |= local;
         self.settings_open |= settings;
     }
 
@@ -326,10 +348,17 @@ impl Render for SidebarLeft {
             self.drop_gap = None;
         }
 
+        let shown = |entry: NavEntry, cx: &App| self.settings.read(cx).nav_shown(entry.id());
+
         let mut rows: Vec<AnyElement> = Vec::new();
-        for (index, (key, icon, destination)) in NAV.into_iter().enumerate() {
-            if matches!(destination, Some(Destination::Library(_))) {
-                if !authenticated && !has_local {
+        for (index, (entry, icon, destination)) in NAV.into_iter().enumerate() {
+            let key = entry.map_or("nav-settings", NavEntry::key);
+            if entry.is_some_and(|entry| !shown(entry, cx)) {
+                continue;
+            }
+
+            if matches!(destination, Destination::Library(_)) {
+                if !authenticated {
                     continue;
                 }
                 let inside = matches!(current, Destination::Library(_));
@@ -366,7 +395,55 @@ impl Render for SidebarLeft {
                 continue;
             }
 
-            if matches!(destination, Some(Destination::Settings(_))) {
+            if matches!(destination, Destination::Local(_)) {
+                if !has_local {
+                    continue;
+                }
+                let inside = matches!(current, Destination::Local(_));
+                let text = if inside { foreground } else { muted };
+
+                rows.push(
+                    nav_row(index, key, text, sidebar_accent)
+                        .icon(icon)
+                        .trailing(chevron(self.local_open))
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.local_open = !this.local_open;
+                            cx.notify();
+                        }))
+                        .into_any_element(),
+                );
+
+                if self.local_open {
+                    rows.push(
+                        Tabs::new()
+                            .items(
+                                LOCAL_TABS
+                                    .into_iter()
+                                    .enumerate()
+                                    .map(|(slot, (name, tab))| {
+                                        let chosen = current == Destination::Local(tab);
+                                        let tint = if chosen { foreground } else { muted };
+
+                                        nav_row(
+                                            ("local-tab", slot as u32),
+                                            name,
+                                            tint,
+                                            sidebar_accent,
+                                        )
+                                        .flex_1()
+                                        .when(chosen, |button| button.bg(sidebar_accent))
+                                        .on_click(
+                                            move |_, _, cx| navigate(Destination::Local(tab), cx),
+                                        )
+                                    }),
+                            )
+                            .into_any_element(),
+                    );
+                }
+                continue;
+            }
+
+            if matches!(destination, Destination::Settings(_)) {
                 let inside = matches!(current, Destination::Settings(_));
                 let text = if inside { foreground } else { muted };
 
@@ -401,18 +478,14 @@ impl Render for SidebarLeft {
                 continue;
             }
 
-            let active = destination
-                .as_ref()
-                .is_some_and(|it| it.same_section(&current));
+            let active = destination.same_section(&current);
             let text = if active { foreground } else { muted };
 
             rows.push(
                 nav_row(index, key, text, sidebar_accent)
                     .icon(icon)
                     .when(active, |button| button.bg(sidebar_accent))
-                    .when_some(destination, |button, destination| {
-                        button.on_click(move |_, _, cx| navigate(destination.clone(), cx))
-                    })
+                    .on_click(move |_, _, cx| navigate(destination.clone(), cx))
                     .into_any_element(),
             );
         }
@@ -519,9 +592,10 @@ fn hint(cx: &App) -> AnyElement {
         .into_any_element()
 }
 
-fn expanded(current: &Destination) -> (bool, bool) {
+fn expanded(current: &Destination) -> (bool, bool, bool) {
     (
         matches!(current, Destination::Library(_)),
+        matches!(current, Destination::Local(_)),
         matches!(current, Destination::Settings(_)),
     )
 }
@@ -546,7 +620,7 @@ fn nav_row(id: impl Into<ElementId>, key: &'static str, tint: Hsla, accent: Hsla
 
 #[cfg(test)]
 mod tests {
-    use router::{Destination, LibraryTab, SettingsTab};
+    use router::{Destination, LibraryTab, LocalTab, SettingsTab};
 
     use super::expanded;
 
@@ -554,11 +628,15 @@ mod tests {
     fn a_section_expands_only_where_it_leads() {
         assert_eq!(
             expanded(&Destination::Library(LibraryTab::Albums)),
-            (true, false)
+            (true, false, false)
+        );
+        assert_eq!(
+            expanded(&Destination::Local(LocalTab::Albums)),
+            (false, true, false)
         );
         assert_eq!(
             expanded(&Destination::Settings(SettingsTab::General)),
-            (false, true)
+            (false, false, true)
         );
     }
 
@@ -574,7 +652,11 @@ mod tests {
         ];
 
         for destination in away {
-            assert_eq!(expanded(&destination), (false, false), "{destination:?}");
+            assert_eq!(
+                expanded(&destination),
+                (false, false, false),
+                "{destination:?}"
+            );
         }
     }
 }

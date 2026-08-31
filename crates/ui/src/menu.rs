@@ -439,6 +439,7 @@ impl RenderOnce for Menu {
                     .w_full()
                     .min_w_0()
                     .flex_col()
+                    .px_3()
                     .py_1()
                     .child(content)
                     .into_any_element();

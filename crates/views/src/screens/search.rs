@@ -19,6 +19,7 @@ use ui::{
     eyebrow, scrolled, snapped, vacant,
 };
 
+use crate::shared::cards;
 use crate::shared::cells;
 use crate::shared::pins::Pinned as _;
 use crate::shared::shelves;
@@ -322,6 +323,17 @@ impl SearchView {
     }
 
     fn subtitle(&self, hit: &Hit, place: usize, compact: bool, theme: &Theme) -> AnyElement {
+        if let (Hit::Album(album), false) = (hit, compact) {
+            return cards::released(
+                format!("album-artist-{place}"),
+                album.year,
+                album.artist_refs.clone(),
+                album.artists.clone(),
+                theme,
+            )
+            .into_any_element();
+        }
+
         let (kind, id, artists, fallback) = match hit {
             Hit::Song(track) => (
                 Kind::Song,

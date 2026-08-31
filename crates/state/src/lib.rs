@@ -17,6 +17,7 @@ mod session;
 mod settings;
 mod sheets;
 mod song;
+mod tags;
 mod toast;
 mod updates;
 
@@ -38,6 +39,7 @@ pub use settings::{
     AppSettings, RomanizationScripts, SYSTEM_FONT, SideTab, remember_window, window_placement,
 };
 pub use song::SongDetail;
+pub use tags::{TagState, Tags};
 pub use toast::{Outcome, Toast, Toasts};
 pub use updates::{Release, UpdateState, Updates};
 

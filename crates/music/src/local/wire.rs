@@ -17,9 +17,26 @@ const COVER_NAMES: &[&str] = &[
     "cover.jpg",
     "cover.jpeg",
     "cover.png",
+    "cover.webp",
     "folder.jpg",
     "folder.jpeg",
     "folder.png",
+    "folder.webp",
+];
+
+const ARTIST_NAMES: &[&str] = &[
+    "artist.jpg",
+    "artist.jpeg",
+    "artist.png",
+    "artist.webp",
+    "folder.jpg",
+    "folder.jpeg",
+    "folder.png",
+    "folder.webp",
+    "cover.jpg",
+    "cover.jpeg",
+    "cover.png",
+    "cover.webp",
 ];
 
 const PLAYABLE_EXTENSIONS: &[&str] = &["mp3", "flac", "m4a", "mp4", "aac", "ogg", "oga", "wav"];
@@ -94,7 +111,7 @@ pub fn track_from_file(
         .as_ref()
         .map(|file| file.properties().duration())
         .unwrap_or_default();
-    let cover = extract_cover(tag, path, cache_dir);
+    let cover = extract_cover(tag, path, album_dir, cache_dir);
 
     Some(Track {
         id: Some(track_id(path)),
@@ -119,8 +136,22 @@ pub fn track_from_file(
     })
 }
 
-pub fn album_from_tracks(name: &str, artist: &str, dir: &Path, tracks: &[Track]) -> Album {
-    let cover = tracks.iter().find_map(|track| track.cover.clone());
+pub fn tag_year(path: &Path) -> Option<i32> {
+    let tagged = Probe::open(path).ok()?.read().ok()?;
+    let tag = tagged.primary_tag().or_else(|| tagged.first_tag())?;
+    tag.date()
+        .map(|date| date.year as i32)
+        .filter(|year| *year > 0)
+}
+
+pub fn album_from_tracks(
+    name: &str,
+    artist: &str,
+    dir: &Path,
+    tracks: &[Track],
+    year: i32,
+) -> Album {
+    let cover = folder_cover(dir).or_else(|| tracks.iter().find_map(|track| track.cover.clone()));
     Album {
         id: album_id(dir),
         name: name.to_owned(),
@@ -129,7 +160,7 @@ pub fn album_from_tracks(name: &str, artist: &str, dir: &Path, tracks: &[Track])
         cover: cover.clone(),
         cover_large: cover,
         release_type: ReleaseType::Album,
-        year: 0,
+        year,
         track_count: tracks.len() as u32,
         release_date: String::new(),
         label: String::new(),
@@ -144,19 +175,42 @@ fn file_stem(path: &Path) -> String {
         .unwrap_or_else(|| path.display().to_string())
 }
 
-fn extract_cover(tag: Option<&Tag>, path: &Path, cache_dir: &Path) -> Option<String> {
+pub fn folder_cover(dir: &Path) -> Option<String> {
+    beside(dir, COVER_NAMES)
+}
+
+pub fn artist_cover(dir: &Path) -> Option<String> {
+    beside(dir, ARTIST_NAMES)
+}
+
+fn beside(dir: &Path, names: &[&str]) -> Option<String> {
+    names
+        .iter()
+        .map(|name| dir.join(name))
+        .find(|candidate| candidate.is_file())
+        .map(|candidate| format!("file://{}", candidate.display()))
+}
+
+fn extract_cover(
+    tag: Option<&Tag>,
+    path: &Path,
+    album_dir: Option<&Path>,
+    cache_dir: &Path,
+) -> Option<String> {
+    if let Some(cover) = path
+        .parent()
+        .and_then(folder_cover)
+        .or_else(|| album_dir.and_then(folder_cover))
+    {
+        return Some(cover);
+    }
+
     if let Some(picture) = tag.and_then(|tag| tag.pictures().first())
         && let Some(cached) = cache_picture(picture, path, cache_dir)
     {
         return Some(cached);
     }
-
-    let dir = path.parent()?;
-    COVER_NAMES
-        .iter()
-        .map(|name| dir.join(name))
-        .find(|candidate| candidate.is_file())
-        .map(|candidate| format!("file://{}", candidate.display()))
+    None
 }
 
 fn cache_picture(picture: &Picture, source: &Path, cache_dir: &Path) -> Option<String> {

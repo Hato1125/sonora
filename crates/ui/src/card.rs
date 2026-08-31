@@ -443,9 +443,7 @@ impl RenderOnce for Card {
                 })
             })
             .when_some(weight, |this, weight| this.font_weight(weight))
-            .when(underline, |this| {
-                this.group_hover(CARD_GROUP, |style| style.underline())
-            })
+            .when(underline, |this| this.hover(|style| style.underline()))
             .when(hint && !title.is_empty(), |this| {
                 this.tooltip(Tooltip::label(title.clone(), Perch::Pointer))
             })

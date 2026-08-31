@@ -161,6 +161,8 @@ struct Values {
     font: String,
     provider: String,
     startup: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    hidden_nav: Vec<String>,
     #[serde(skip_serializing_if = "HashMap::is_empty")]
     hidden_columns: HashMap<String, Vec<String>>,
     tables: HashMap<String, Layout>,
@@ -216,6 +218,7 @@ impl Default for Values {
             font: system_font(),
             provider: "spotify".to_owned(),
             startup: DEFAULT_STARTUP.to_owned(),
+            hidden_nav: Vec::new(),
             hidden_columns: HashMap::new(),
             tables: HashMap::new(),
             sorting: HashMap::new(),
@@ -647,6 +650,21 @@ impl AppSettings {
         }
         self.values.font = font;
         cx.refresh_windows();
+        self.schedule_save(cx);
+    }
+
+    pub fn nav_shown(&self, entry: &str) -> bool {
+        !self.values.hidden_nav.iter().any(|hidden| hidden == entry)
+    }
+
+    pub fn set_nav_shown(&mut self, entry: &str, shown: bool, cx: &mut Context<Self>) {
+        if self.nav_shown(entry) == shown {
+            return;
+        }
+        match shown {
+            true => self.values.hidden_nav.retain(|hidden| hidden != entry),
+            false => self.values.hidden_nav.push(entry.to_owned()),
+        }
         self.schedule_save(cx);
     }
 

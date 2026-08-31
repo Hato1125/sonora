@@ -14,7 +14,74 @@ pub enum LibraryTab {
     Albums,
     Playlists,
     Artists,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LocalTab {
+    Songs,
+    Favorites,
+    Albums,
+    Artists,
+    Playlists,
+}
+
+impl LocalTab {
+    pub const ALL: [Self; 5] = [
+        Self::Favorites,
+        Self::Songs,
+        Self::Albums,
+        Self::Artists,
+        Self::Playlists,
+    ];
+
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::Songs => "nav-songs",
+            Self::Favorites => "nav-favorites",
+            Self::Albums => "nav-albums",
+            Self::Artists => "nav-artists",
+            Self::Playlists => "nav-playlists",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NavEntry {
+    Home,
+    Search,
+    Library,
+    History,
     Local,
+}
+
+impl NavEntry {
+    pub const ALL: [Self; 5] = [
+        Self::Home,
+        Self::Search,
+        Self::Library,
+        Self::History,
+        Self::Local,
+    ];
+
+    pub fn id(self) -> &'static str {
+        match self {
+            Self::Home => "home",
+            Self::Search => "search",
+            Self::Library => "library",
+            Self::History => "history",
+            Self::Local => "local",
+        }
+    }
+
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::Home => "nav-home",
+            Self::Search => "nav-search",
+            Self::Library => "nav-library",
+            Self::History => "nav-history",
+            Self::Local => "nav-local",
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -59,7 +126,7 @@ impl Screen {
             Self::Home => "nav-home",
             Self::Search => "nav-search",
             Self::History => "nav-history",
-            Self::Songs => "nav-songs",
+            Self::Songs => "nav-favorites",
             Self::Albums => "nav-albums",
             Self::Playlists => "nav-playlists",
             Self::Artists => "nav-artists",
@@ -80,7 +147,7 @@ impl Screen {
             Self::Albums => Destination::Library(LibraryTab::Albums),
             Self::Playlists => Destination::Library(LibraryTab::Playlists),
             Self::Artists => Destination::Library(LibraryTab::Artists),
-            Self::Imported => Destination::Library(LibraryTab::Local),
+            Self::Imported => Destination::Local(LocalTab::Songs),
         }
     }
 }
@@ -98,6 +165,7 @@ pub enum Destination {
     Home,
     History,
     Library(LibraryTab),
+    Local(LocalTab),
     Album(SharedString),
     Song(SharedString),
     Playlist(SharedString),
@@ -125,6 +193,7 @@ impl Destination {
     pub fn same_section(&self, other: &Destination) -> bool {
         match (self, other) {
             (Destination::Library(_), Destination::Library(_))
+            | (Destination::Local(_), Destination::Local(_))
             | (Destination::Settings(_), Destination::Settings(_)) => true,
             _ => self == other,
         }

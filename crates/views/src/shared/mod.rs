@@ -1,8 +1,6 @@
 pub(crate) mod about;
-pub(crate) mod accounts;
 pub(crate) mod adaptive;
 pub(crate) mod album_grid;
-pub(crate) mod browsers;
 pub(crate) mod cards;
 pub(crate) mod cells;
 pub(crate) mod confirm;
@@ -12,7 +10,9 @@ pub(crate) mod page;
 pub(crate) mod picks;
 pub(crate) mod pins;
 pub(crate) mod playlist_editor;
+pub(crate) mod popups;
 pub(crate) mod shelves;
+pub(crate) mod tag_editor;
 pub(crate) mod text;
 pub(crate) mod track_card;
 pub(crate) mod tracks;

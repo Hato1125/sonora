@@ -18,9 +18,15 @@ type Loaded = (
     anyhow::Result<Vec<SavedArtist>>,
 );
 
-type LoadedLocal = (anyhow::Result<Vec<Track>>, anyhow::Result<Vec<Album>>);
+type LoadedLocal = Loaded;
 
-type PlaylistMutation = (&'static str, &'static str, Option<String>, Option<String>);
+struct PlaylistMutation {
+    action: &'static str,
+    done: &'static str,
+    name: Option<String>,
+    invalidated: Option<String>,
+    local: bool,
+}
 
 fn partial(loaded: Loaded) -> LibraryState {
     let (tracks, playlists, albums, artists) = loaded;
@@ -39,7 +45,7 @@ fn partial(loaded: Loaded) -> LibraryState {
 }
 
 fn partial_local(loaded: LoadedLocal) -> LibraryState {
-    let (tracks, albums) = loaded;
+    let (tracks, playlists, albums, artists) = loaded;
     if let (Err(tracks), Err(albums)) = (&tracks, &albums) {
         return LibraryState::Failed(format!("{tracks:#}\n{albums:#}"));
     }
@@ -47,9 +53,9 @@ fn partial_local(loaded: LoadedLocal) -> LibraryState {
     let mut problems = Vec::new();
     LibraryState::Ready {
         tracks: take(LibraryPart::Tracks, tracks, &mut problems),
-        playlists: Vec::new(),
+        playlists: take(LibraryPart::Playlists, playlists, &mut problems),
         albums: take(LibraryPart::Albums, albums, &mut problems),
-        artists: Vec::new(),
+        artists: take(LibraryPart::Artists, artists, &mut problems),
         problems,
     }
 }
@@ -84,7 +90,12 @@ impl Library {
         if S::requests(self).contains_key(&id) {
             return;
         }
-        let Some(client) = self.session.read(cx).client() else {
+        let session = self.session.read(cx);
+        let picked = match music::is_local_id(&id) {
+            true => session.local_client(),
+            false => session.client(),
+        };
+        let Some(client) = picked else {
             return;
         };
 
@@ -159,10 +170,8 @@ impl Savable for Track {
     }
 
     fn saved_now(library: &Library, id: &str) -> Option<Self> {
-        let LibraryState::Ready { tracks, .. } = &library.state else {
-            return None;
-        };
-        tracks
+        library
+            .favorites(id)
             .iter()
             .find(|track| track.id.as_deref() == Some(id))
             .cloned()
@@ -289,6 +298,7 @@ impl gpui::EventEmitter<LibraryEvent> for Library {}
 pub struct Library {
     state: LibraryState,
     local: LibraryState,
+    local_favorites: Vec<Track>,
     session: Entity<Session>,
     io: Io,
     task: Option<Task<()>>,
@@ -342,6 +352,7 @@ impl Library {
                     None => {
                         this.local_task = None;
                         this.local = LibraryState::Empty;
+                        this.local_favorites.clear();
                         cx.notify();
                     }
                 }
@@ -354,6 +365,7 @@ impl Library {
         let mut library = Self {
             state: LibraryState::Loading,
             local: LibraryState::Empty,
+            local_favorites: Vec::new(),
             session,
             io,
             task: None,
@@ -415,12 +427,23 @@ impl Library {
     }
 
     pub fn saved(&self, track_id: &str) -> bool {
-        let LibraryState::Ready { tracks, .. } = &self.state else {
-            return false;
-        };
-        tracks
+        self.favorites(track_id)
             .iter()
             .any(|track| track.id.as_deref() == Some(track_id))
+    }
+
+    pub fn local_favorites(&self) -> &[Track] {
+        &self.local_favorites
+    }
+
+    fn favorites(&self, track_id: &str) -> &[Track] {
+        if music::is_local_id(track_id) {
+            return &self.local_favorites;
+        }
+        match &self.state {
+            LibraryState::Ready { tracks, .. } => tracks.as_slice(),
+            _ => &[],
+        }
     }
 
     pub fn pending(&self, track_id: &str) -> bool {
@@ -496,9 +519,21 @@ impl Library {
         }
     }
 
-    pub fn create_playlist(&mut self, name: String, tracks: Vec<String>, cx: &mut Context<Self>) {
+    pub fn create_playlist(
+        &mut self,
+        name: String,
+        tracks: Vec<String>,
+        local: bool,
+        cx: &mut Context<Self>,
+    ) {
         self.mutate_playlist(
-            ("create playlist", "toast-playlist-created", None, None),
+            PlaylistMutation {
+                action: "create playlist",
+                done: "toast-playlist-created",
+                name: None,
+                invalidated: None,
+                local,
+            },
             move |client| async move {
                 let id = client.create_playlist(&name).await?;
                 for track in &tracks {
@@ -530,12 +565,13 @@ impl Library {
     pub fn rename_playlist(&mut self, id: String, name: String, cx: &mut Context<Self>) {
         let renamed = (id.clone(), name.clone());
         self.mutate_playlist(
-            (
-                "rename playlist",
-                "toast-playlist-renamed",
-                None,
-                Some(id.clone()),
-            ),
+            PlaylistMutation {
+                action: "rename playlist",
+                done: "toast-playlist-renamed",
+                name: None,
+                local: music::is_local_id(&id),
+                invalidated: Some(id.clone()),
+            },
             move |client| async move { client.rename_playlist(&id, &name).await },
             move |this, _, cx| {
                 let (id, name) = renamed;
@@ -548,12 +584,13 @@ impl Library {
     pub fn set_playlist_public(&mut self, id: String, public: bool, cx: &mut Context<Self>) {
         let changed = id.clone();
         self.mutate_playlist(
-            (
-                "change playlist visibility",
-                "toast-playlist-visibility",
-                None,
-                Some(id.clone()),
-            ),
+            PlaylistMutation {
+                action: "change playlist visibility",
+                done: "toast-playlist-visibility",
+                name: None,
+                local: music::is_local_id(&id),
+                invalidated: Some(id.clone()),
+            },
             move |client| async move { client.set_playlist_public(&id, public).await },
             move |this, _, cx| {
                 this.amend_playlist(&changed, |playlist| playlist.public = public, cx);
@@ -587,12 +624,13 @@ impl Library {
             .playlist(&playlist_id)
             .map(|playlist| playlist.name.clone());
         self.mutate_playlist(
-            (
-                "add track to playlist",
-                "toast-track-added",
+            PlaylistMutation {
+                action: "add track to playlist",
+                done: "toast-track-added",
                 name,
-                Some(playlist_id.clone()),
-            ),
+                local: music::is_local_id(&playlist_id),
+                invalidated: Some(playlist_id.clone()),
+            },
             move |client| async move {
                 for track_id in &track_ids {
                     client.add_track_to_playlist(&playlist_id, track_id).await?;
@@ -635,12 +673,13 @@ impl Library {
             .playlist(&playlist_id)
             .map(|playlist| playlist.name.clone());
         self.mutate_playlist(
-            (
-                "remove track from playlist",
-                "toast-track-removed",
+            PlaylistMutation {
+                action: "remove track from playlist",
+                done: "toast-track-removed",
                 name,
-                Some(playlist_id.clone()),
-            ),
+                local: music::is_local_id(&playlist_id),
+                invalidated: Some(playlist_id.clone()),
+            },
             move |client| async move {
                 for track_id in &track_ids {
                     client
@@ -676,12 +715,13 @@ impl Library {
     pub fn delete_playlist(&mut self, id: String, cx: &mut Context<Self>) {
         let deleted = id.clone();
         self.mutate_playlist(
-            (
-                "delete playlist",
-                "toast-playlist-deleted",
-                None,
-                Some(id.clone()),
-            ),
+            PlaylistMutation {
+                action: "delete playlist",
+                done: "toast-playlist-deleted",
+                name: None,
+                local: music::is_local_id(&id),
+                invalidated: Some(id.clone()),
+            },
             move |client| async move { client.delete_playlist(&id).await },
             move |this, _, cx| this.forget_playlist(&deleted, cx),
             cx,
@@ -691,12 +731,13 @@ impl Library {
     pub fn add_playlist_to_library(&mut self, playlist: Playlist, cx: &mut Context<Self>) {
         let id = playlist.id.clone();
         self.mutate_playlist(
-            (
-                "add playlist to library",
-                "toast-playlist-added",
-                None,
-                Some(id.clone()),
-            ),
+            PlaylistMutation {
+                action: "add playlist to library",
+                done: "toast-playlist-added",
+                name: None,
+                local: music::is_local_id(&id),
+                invalidated: Some(id.clone()),
+            },
             move |client| async move { client.add_playlist_to_library(&id).await },
             move |this, _, cx| this.insert_playlist(playlist, cx),
             cx,
@@ -706,12 +747,13 @@ impl Library {
     pub fn remove_playlist_from_library(&mut self, id: String, cx: &mut Context<Self>) {
         let removed = id.clone();
         self.mutate_playlist(
-            (
-                "remove playlist from library",
-                "toast-playlist-removed",
-                None,
-                Some(id.clone()),
-            ),
+            PlaylistMutation {
+                action: "remove playlist from library",
+                done: "toast-playlist-removed",
+                name: None,
+                local: music::is_local_id(&id),
+                invalidated: Some(id.clone()),
+            },
             move |client| async move { client.remove_playlist_from_library(&id).await },
             move |this, _, cx| this.forget_playlist(&removed, cx),
             cx,
@@ -856,6 +898,21 @@ impl Library {
         }
     }
 
+    pub fn read_local_playlists(&mut self, cx: &mut Context<Self>) {
+        let LibraryState::Ready { playlists, .. } = &self.local else {
+            return;
+        };
+        let wanted: Vec<String> = playlists
+            .iter()
+            .map(|playlist| playlist.id.clone())
+            .filter(|id| !self.reading.contains_key(id))
+            .collect();
+        let Some(client) = self.session.read(cx).local_client() else {
+            return;
+        };
+        self.read_contents(wanted, client, cx);
+    }
+
     pub fn read_playlists(&mut self, cx: &mut Context<Self>) {
         let LibraryState::Ready { playlists, .. } = &self.state else {
             return;
@@ -869,7 +926,15 @@ impl Library {
         let Some(client) = self.session.read(cx).client() else {
             return;
         };
+        self.read_contents(wanted, client, cx);
+    }
 
+    fn read_contents(
+        &mut self,
+        wanted: Vec<String>,
+        client: Arc<dyn MusicApi>,
+        cx: &mut Context<Self>,
+    ) {
         for id in wanted {
             let io = self.io.clone();
             let client = client.clone();
@@ -903,10 +968,29 @@ impl Library {
     }
 
     pub fn playlist(&self, id: &str) -> Option<&Playlist> {
-        let LibraryState::Ready { playlists, .. } = &self.state else {
-            return None;
+        self.shelf(id).iter().find(|playlist| playlist.id == id)
+    }
+
+    fn shelf(&self, id: &str) -> &[Playlist] {
+        let state = match music::is_local_id(id) {
+            true => &self.local,
+            false => &self.state,
         };
-        playlists.iter().find(|playlist| playlist.id == id)
+        match state {
+            LibraryState::Ready { playlists, .. } => playlists.as_slice(),
+            _ => &[],
+        }
+    }
+
+    fn shelf_mut(&mut self, id: &str) -> Option<&mut Vec<Playlist>> {
+        let state = match music::is_local_id(id) {
+            true => &mut self.local,
+            false => &mut self.state,
+        };
+        match state {
+            LibraryState::Ready { playlists, .. } => Some(playlists),
+            _ => None,
+        }
     }
 
     fn mutate_playlist<F, R, T, A>(
@@ -921,13 +1005,24 @@ impl Library {
         T: Send + 'static,
         A: FnOnce(&mut Self, T, &mut Context<Self>) + 'static,
     {
-        let (action, done, name, invalidated) = mutation_info;
+        let PlaylistMutation {
+            action,
+            done,
+            name,
+            invalidated,
+            local,
+        } = mutation_info;
         if self.playlist_task.is_some() {
             log::warn!("library: cannot {action} while another change is running");
             Toasts::show(Outcome::Failed, "toast-playlist-busy", cx);
             return;
         }
-        let Some(client) = self.session.read(cx).client() else {
+        let session = self.session.read(cx);
+        let picked = match local {
+            true => session.local_client(),
+            false => session.client(),
+        };
+        let Some(client) = picked else {
             log::warn!("library: cannot {action} while signed out");
             Toasts::show(Outcome::Failed, "toast-playlist-signed-out", cx);
             return;
@@ -965,7 +1060,7 @@ impl Library {
     }
 
     fn insert_playlist(&mut self, playlist: Playlist, cx: &mut Context<Self>) {
-        let LibraryState::Ready { playlists, .. } = &mut self.state else {
+        let Some(playlists) = self.shelf_mut(&playlist.id) else {
             return;
         };
         playlists.retain(|known| known.id != playlist.id);
@@ -979,7 +1074,7 @@ impl Library {
     }
 
     fn drop_playlist(&mut self, id: &str, cx: &mut Context<Self>) {
-        let LibraryState::Ready { playlists, .. } = &mut self.state else {
+        let Some(playlists) = self.shelf_mut(id) else {
             return;
         };
         playlists.retain(|playlist| playlist.id != id);
@@ -992,7 +1087,7 @@ impl Library {
         amend: impl FnOnce(&mut Playlist),
         cx: &mut Context<Self>,
     ) {
-        let LibraryState::Ready { playlists, .. } = &mut self.state else {
+        let Some(playlists) = self.shelf_mut(id) else {
             return;
         };
         let Some(playlist) = playlists.iter_mut().find(|playlist| playlist.id == id) else {
@@ -1003,6 +1098,19 @@ impl Library {
     }
 
     fn set_saved(&mut self, track: Track, saved: bool) {
+        let local = track.id.as_deref().is_some_and(music::is_local_id);
+        if local {
+            let id = track.id.clone();
+            match saved {
+                true if !self.local_favorites.iter().any(|held| held.id == id) => {
+                    self.local_favorites.insert(0, track)
+                }
+                false => self.local_favorites.retain(|held| held.id != id),
+                _ => {}
+            }
+            return;
+        }
+
         let LibraryState::Ready { tracks, .. } = &mut self.state else {
             return;
         };
@@ -1062,17 +1170,29 @@ impl Library {
         self.local_task = Some(cx.spawn(async move |this, cx| {
             let loaded = join(io.spawn(async move {
                 anyhow::Ok(tokio::join!(
-                    client.saved_tracks(PAGE_LIMIT),
-                    client.saved_albums(PAGE_LIMIT)
+                    client.all_tracks(PAGE_LIMIT),
+                    client.playlists(PAGE_LIMIT),
+                    client.saved_albums(PAGE_LIMIT),
+                    client.saved_artists(PAGE_LIMIT),
+                    client.saved_tracks(PAGE_LIMIT)
                 ))
             }))
             .await;
 
             this.update(cx, |this, cx| {
-                this.local = match loaded {
-                    Ok(loaded) => partial_local(loaded),
-                    Err(error) => LibraryState::Failed(format!("{error:#}")),
+                let (state, favorites) = match loaded {
+                    Ok((tracks, playlists, albums, artists, favorites)) => (
+                        partial_local((tracks, playlists, albums, artists)),
+                        favorites.unwrap_or_else(|error| {
+                            log::warn!("library: cannot load the local favorites: {error:#}");
+                            Vec::new()
+                        }),
+                    ),
+                    Err(error) => (LibraryState::Failed(format!("{error:#}")), Vec::new()),
                 };
+                this.local = state;
+                this.local_favorites = favorites;
+                this.read_local_playlists(cx);
                 cx.notify();
             })
             .ok();

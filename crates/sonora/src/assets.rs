@@ -46,6 +46,7 @@ const ICONS: &[(&str, &[u8])] = icons![
     "columns-3",
     "disc-3",
     "ellipsis",
+    "file-music",
     "firefoxbrowser",
     "funnel",
     "chevron-left",
