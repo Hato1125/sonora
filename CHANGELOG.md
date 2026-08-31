@@ -7,6 +7,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- A text field no longer keeps its selection highlight after it loses focus.
+
 ## [0.26.0] - 2026-08-31
 
 ### Added
