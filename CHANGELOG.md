@@ -23,6 +23,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Navigating again while a page is still fading in restarts the fade instead of cutting it short.
 - Toasts block clicks on whatever sits under them, and stay up while the pointer is on them.
 - The artwork, lyrics and queue pill in fullscreen stays visible while the pointer is on it.
+- Episodes for Later no longer shows up among your YouTube Music playlists. Sonora does not play
+  podcasts, so the container was never usable.
 
 ### Fixed
 
