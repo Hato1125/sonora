@@ -37,6 +37,7 @@ mod theme;
 mod time;
 mod toast;
 mod tooltip;
+mod vacancy;
 mod view;
 
 pub use artwork::{Artwork, Avatar, artwork_usage};
@@ -92,4 +93,5 @@ pub use theme::{
 pub use time::clock;
 pub use toast::Toast;
 pub use tooltip::{Perch, Tooltip};
+pub use vacancy::Vacancy;
 pub use view::Mode;
