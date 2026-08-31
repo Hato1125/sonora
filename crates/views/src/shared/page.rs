@@ -6,8 +6,6 @@ use ui::{Listing, TableState, Viewport, quantize, scrolled};
 use crate::shared::cells;
 use crate::shared::tracks::{self, TrackSource};
 
-const FRAME: Pixels = px(1.);
-
 pub(crate) fn store(
     settings: &Entity<AppSettings>,
     table: &dyn Listing,
@@ -80,5 +78,5 @@ pub(crate) fn viewport(scroll: &ScrollHandle, inset: Pixels, window: &Window) ->
         .unwrap_or_default();
     let visible = scroll.bounds().size.height;
 
-    Viewport::measured(scrolled(scroll) - inset - hero - FRAME, visible, window)
+    Viewport::measured(scrolled(scroll) - inset - hero, visible, window)
 }

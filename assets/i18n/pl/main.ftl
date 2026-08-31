@@ -51,6 +51,7 @@ library-no-local-playlists = Nie ma jeszcze lokalnych playlist
 library-no-matches = Brak wyników
 library-not-loaded = Biblioteka się nie wczytała
 library-part-not-loaded = Ta część biblioteki się nie wczytała
+library-local-unconfigured = Skonfiguruj lokalną bibliotekę
 
 # app menu
 app-refresh-library = Odśwież bibliotekę
@@ -186,6 +187,7 @@ login-use = Otwórz { $provider }
 login-guest-title = Tryb gościa
 login-guest-use = Otwórz tryb gościa
 login-guest-detail = Słuchaj bez konta. Biblioteka, polubienia i playlisty pozostaną niedostępne.
+login-usage-consent = Pomóż nam oszacować, ile osób korzysta z Sonory.
 login-device-code = Wpisz ten kod na stronie { $url }
 login-cookie-submit = Kontynuuj
 login-cookie-hint = Wklej tutaj nagłówek żądania Cookie

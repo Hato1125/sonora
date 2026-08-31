@@ -7,6 +7,37 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-09-01
+
+### Added
+
+- Local Music stays in the sidebar before a folder is picked, and every one of its pages offers a
+  Choose folder button so the library can be set up without opening Settings.
+- A toast that names an album, artist, playlist or song turns that name into a link to its page.
+- The sign-in screen carries a one-off checkbox that helps count how many people use Sonora. It is
+  ticked by default and sends a single anonymous ping with your next action on that screen; untick
+  it to send nothing. The checkbox never returns once you have signed in or answered it.
+
+### Changed
+
+- Pinned items keep a single order across providers, so a streaming pin and a local one can sit
+  next to each other in the sidebar.
+- An empty list or grid now shows a large icon above the message that was already there.
+- Menus, dropdowns, dialogs and toasts now appear with the same short fade the page transition
+  uses.
+- Navigating again while a page is still fading in restarts the fade instead of cutting it short.
+- Toasts block clicks on whatever sits under them, and stay up while the pointer is on them.
+- The artwork, lyrics and queue pill in fullscreen stays visible while the pointer is on it.
+- Episodes for Later no longer shows up among your YouTube Music playlists. Sonora does not play
+  podcasts, so the container was never usable.
+
+### Fixed
+
+- Making a Spotify playlist public or private works again. The request was rejected, so the menu
+  toggled the label without changing anything on the account.
+- A text field no longer keeps its selection highlight after it loses focus.
+- Page content no longer shifts by a pixel when a navigation transition finishes.
+
 ## [0.26.0] - 2026-08-31
 
 ### Added
@@ -1171,7 +1202,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Initial release: a native Spotify client with playback, an interactive queue, the saved library,
 search, album, playlist, artist and song pages, context menus and adaptive theming.
 
-[unreleased]: https://github.com/nolight132/sonora/compare/v0.26.0...HEAD
+[unreleased]: https://github.com/nolight132/sonora/compare/v0.27.0...HEAD
+[0.27.0]: https://github.com/nolight132/sonora/compare/v0.26.0...v0.27.0
 [0.26.0]: https://github.com/nolight132/sonora/compare/v0.25.0...v0.26.0
 [0.25.0]: https://github.com/nolight132/sonora/compare/v0.24.1...v0.25.0
 [0.24.1]: https://github.com/nolight132/sonora/compare/v0.24.0...v0.24.1

@@ -1,6 +1,7 @@
 mod artwork;
 mod button;
 mod card;
+mod checkbox;
 mod controls;
 mod deck;
 mod drag;
@@ -37,12 +38,14 @@ mod theme;
 mod time;
 mod toast;
 mod tooltip;
+mod vacancy;
 mod view;
 
 pub use artwork::{Artwork, Avatar, artwork_usage};
 pub use button::Button;
 pub use card::CARD_GROUP;
 pub use card::Card;
+pub use checkbox::Checkbox;
 pub use controls::WindowControls;
 pub use deck::Deck;
 pub use drag::{Edge, drop_gap, drop_marker};
@@ -63,8 +66,8 @@ pub use menu::{MENU_CONTEXT, Menu, MenuItem, SubmenuState};
 pub use metrics::{LEADING, Metrics, Rounding, Text, snapped, tucked};
 pub use modal::Modal;
 pub use motion::{
-    Motion, Motioned, Pace, Saver, Stillness, ease_in_out_cubic, ease_in_out_expo, ease_out_cubic,
-    ease_out_expo, ease_out_quad, mix,
+    Motion, Motioned, Pace, Rising, Saver, Stillness, ease_in_out_cubic, ease_in_out_expo,
+    ease_out_cubic, ease_out_expo, ease_out_quad, entrance_span, mix, veiled,
 };
 pub use notice::Notice;
 pub use palette::tint;
@@ -92,4 +95,5 @@ pub use theme::{
 pub use time::clock;
 pub use toast::Toast;
 pub use tooltip::{Perch, Tooltip};
+pub use vacancy::Vacancy;
 pub use view::Mode;

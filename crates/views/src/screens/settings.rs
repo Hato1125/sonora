@@ -3,10 +3,11 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use crate::shared::local;
 use crate::shared::popups::{AccountPicker, BrowserPicker, SearchPopup, matches_query};
 use gpui::{
-    AnyElement, App, Context, Entity, FontWeight, PathPromptOptions, Pixels, Render, SharedString,
-    TextRun, Window, div, font, px,
+    AnyElement, App, Context, Entity, FontWeight, Pixels, Render, SharedString, TextRun, Window,
+    div, font, px,
 };
 use gpui::{ScrollHandle, prelude::*, svg};
 use i18n::{Language, t};
@@ -1074,11 +1075,9 @@ impl SettingsView {
             None => t!("settings-local-folder-empty"),
         };
 
-        let choose = Button::new("choose-local-folder")
-            .label(t!("settings-choose-folder"))
+        let choose = local::choose_button("choose-local-folder")
             .small()
-            .outline()
-            .on_click(cx.listener(|this, _, _, cx| this.choose_local_folder(cx)));
+            .outline();
 
         let rescan = path.is_some().then(|| {
             Button::new("rescan-local-folder")
@@ -1109,26 +1108,6 @@ impl SettingsView {
                 .children(clear)
                 .into_any_element(),
         )
-    }
-
-    fn choose_local_folder(&mut self, cx: &mut Context<Self>) {
-        let receiver = cx.prompt_for_paths(PathPromptOptions {
-            files: false,
-            directories: true,
-            multiple: false,
-            prompt: None,
-        });
-        let library = Sonora::global(cx).library.clone();
-        cx.spawn(async move |_, cx| {
-            let Ok(Ok(Some(mut paths))) = receiver.await else {
-                return;
-            };
-            let Some(path) = paths.pop() else {
-                return;
-            };
-            library.update(cx, |library, cx| library.rescan_local(path, cx));
-        })
-        .detach();
     }
 
     fn rescan_local_folder(&mut self, cx: &mut Context<Self>) {

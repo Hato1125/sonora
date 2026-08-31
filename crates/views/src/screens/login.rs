@@ -6,9 +6,9 @@ use gpui::{
 };
 use i18n::t;
 use music::{AccountChoice, SignIn, SignInPrompt};
-use state::{Session, SessionState};
+use state::{Session, SessionState, Sonora, Usage};
 use ui::ActiveTheme as _;
-use ui::{Button, Input, Modal, TabBar, Text};
+use ui::{Button, Checkbox, Input, Modal, TabBar, Text};
 
 const COLUMN: Pixels = px(280.);
 const LOGO: Pixels = px(48.);
@@ -23,6 +23,7 @@ struct Column {
 
 pub struct LoginView {
     session: Entity<Session>,
+    usage: Entity<Usage>,
     secret: Entity<Input>,
     browsers: Option<(&'static str, Vec<SharedString>)>,
     tab: usize,
@@ -31,15 +32,35 @@ pub struct LoginView {
 impl LoginView {
     pub fn new(session: Entity<Session>, cx: &mut Context<Self>) -> Self {
         cx.observe(&session, |_, _, cx| cx.notify()).detach();
+        let usage = Sonora::global(cx).usage.clone();
+        cx.observe(&usage, |_, _, cx| cx.notify()).detach();
         Self {
             session,
+            usage,
             secret: cx.new(|cx| Input::new("login-cookie-hint", cx)),
             browsers: None,
             tab: 0,
         }
     }
 
+    fn acted(&self, cx: &mut Context<Self>) {
+        self.usage.update(cx, |usage, cx| usage.report(cx));
+    }
+
+    fn consent(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let checked = self.usage.read(cx).consented();
+        Checkbox::new("usage-consent", checked)
+            .label(t!("login-usage-consent"))
+            .max_w(COLUMN)
+            .text_color(cx.theme().muted_foreground)
+            .on_click(cx.listener(move |this, _, _, cx| {
+                this.usage
+                    .update(cx, |usage, cx| usage.consent(!checked, cx));
+            }))
+    }
+
     fn submit(&mut self, cx: &mut Context<Self>) {
+        self.acted(cx);
         let text = self.secret.read(cx).text().to_string();
         if text.trim().is_empty() {
             return;
@@ -50,12 +71,14 @@ impl LoginView {
     }
 
     fn abandon(&mut self, cx: &mut Context<Self>) {
+        self.acted(cx);
         self.secret.update(cx, |input, cx| input.set_text("", cx));
         self.session
             .update(cx, |session, cx| session.cancel_sign_in(cx));
     }
 
     fn start(&self, slug: &'static str, method: SignIn, cx: &mut Context<Self>) {
+        self.acted(cx);
         self.session
             .update(cx, |session, cx| session.sign_in(slug, method, cx));
     }
@@ -130,6 +153,7 @@ impl LoginView {
     }
 
     fn open_browsers(&mut self, slug: &'static str, cx: &mut Context<Self>) {
+        self.acted(cx);
         let names = self
             .session
             .read(cx)
@@ -287,6 +311,7 @@ impl LoginView {
     ) -> impl IntoElement {
         AccountPicker::new(accounts)
             .on_pick(cx.listener(|this, id: &SharedString, _, cx| {
+                this.acted(cx);
                 let id = id.to_string();
                 this.session
                     .update(cx, |session, cx| session.submit_input(id, cx));
@@ -344,6 +369,7 @@ impl Render for LoginView {
                     .selected(index == self.tab)
                     .flex_1()
                     .on_click(cx.listener(move |this, _, _, cx| {
+                        this.acted(cx);
                         this.tab = index;
                         cx.notify();
                     }))
@@ -389,6 +415,8 @@ impl Render for LoginView {
 
         let theme = *cx.theme();
         let browsers = self.browsers.clone();
+        let asking = self.usage.read(cx).asking();
+        let orphan = asking && guest.is_none();
 
         div()
             .relative()
@@ -442,9 +470,11 @@ impl Render for LoginView {
                                 .text_size(theme.text(Text::Small))
                                 .text_color(theme.muted_foreground)
                                 .child(t!("login-guest-detail")),
-                        ),
+                        )
+                        .when(asking, |this| this.child(self.consent(cx))),
                 )
             })
+            .when(orphan, |this| this.child(self.consent(cx)))
             .when(secret, |this| {
                 this.child(self.secret_prompt(cx).into_any_element())
             })

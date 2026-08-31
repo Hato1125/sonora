@@ -4,10 +4,10 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use gpui::{Context, Entity, Task};
+use gpui::{Context, Entity, SharedString, Task};
 use music::{Album, MusicApi, Playlist, SavedArtist, Track};
 
-use crate::{Io, Outcome, Session, SessionEvent, Toasts, join, mosaic};
+use crate::{Io, Outcome, Session, SessionEvent, Target, Toasts, join, mosaic};
 
 const PAGE_LIMIT: u32 = 10000;
 
@@ -24,6 +24,7 @@ struct PlaylistMutation {
     action: &'static str,
     done: &'static str,
     name: Option<String>,
+    target: Option<Target>,
     invalidated: Option<String>,
     local: bool,
 }
@@ -108,6 +109,7 @@ impl Library {
 
         let asked = id.clone();
         let answered = id.clone();
+        let target = S::target(&id);
         let io = self.io.clone();
         let task = cx.spawn(async move |this, cx| {
             let result = join(io.spawn(S::ask(client, asked, saved))).await;
@@ -127,7 +129,7 @@ impl Library {
                         true => "toast-library-add-failed",
                         false => "toast-library-remove-failed",
                     };
-                    Toasts::about(Outcome::Failed, key, name, cx);
+                    Toasts::linked(Outcome::Failed, key, name, target, cx);
                 }
                 cx.notify();
             })
@@ -143,6 +145,7 @@ trait Savable: Clone + Send + Sized + 'static {
 
     fn id(&self) -> Option<&str>;
     fn title(&self) -> &str;
+    fn target(id: &str) -> Option<Target>;
     fn stamp_added(&mut self) {}
     fn saved_now(library: &Library, id: &str) -> Option<Self>;
     fn requests(library: &mut Library) -> &mut HashMap<String, Task<()>>;
@@ -163,6 +166,10 @@ impl Savable for Track {
 
     fn title(&self) -> &str {
         &self.name
+    }
+
+    fn target(id: &str) -> Option<Target> {
+        Some(Target::Song(SharedString::from(id.to_owned())))
     }
 
     fn stamp_added(&mut self) {
@@ -201,6 +208,10 @@ impl Savable for Album {
         &self.name
     }
 
+    fn target(id: &str) -> Option<Target> {
+        Some(Target::Album(SharedString::from(id.to_owned())))
+    }
+
     fn saved_now(library: &Library, id: &str) -> Option<Self> {
         library.album(id).cloned()
     }
@@ -227,6 +238,10 @@ impl Savable for SavedArtist {
 
     fn title(&self) -> &str {
         &self.name
+    }
+
+    fn target(id: &str) -> Option<Target> {
+        Some(Target::Artist(SharedString::from(id.to_owned())))
     }
 
     fn stamp_added(&mut self) {
@@ -531,6 +546,7 @@ impl Library {
                 action: "create playlist",
                 done: "toast-playlist-created",
                 name: None,
+                target: None,
                 invalidated: None,
                 local,
             },
@@ -569,6 +585,7 @@ impl Library {
                 action: "rename playlist",
                 done: "toast-playlist-renamed",
                 name: None,
+                target: None,
                 local: music::is_local_id(&id),
                 invalidated: Some(id.clone()),
             },
@@ -588,6 +605,7 @@ impl Library {
                 action: "change playlist visibility",
                 done: "toast-playlist-visibility",
                 name: None,
+                target: None,
                 local: music::is_local_id(&id),
                 invalidated: Some(id.clone()),
             },
@@ -623,11 +641,13 @@ impl Library {
         let name = self
             .playlist(&playlist_id)
             .map(|playlist| playlist.name.clone());
+        let target = Some(Target::Playlist(SharedString::from(playlist_id.clone())));
         self.mutate_playlist(
             PlaylistMutation {
                 action: "add track to playlist",
                 done: "toast-track-added",
                 name,
+                target,
                 local: music::is_local_id(&playlist_id),
                 invalidated: Some(playlist_id.clone()),
             },
@@ -672,11 +692,13 @@ impl Library {
         let name = self
             .playlist(&playlist_id)
             .map(|playlist| playlist.name.clone());
+        let target = Some(Target::Playlist(SharedString::from(playlist_id.clone())));
         self.mutate_playlist(
             PlaylistMutation {
                 action: "remove track from playlist",
                 done: "toast-track-removed",
                 name,
+                target,
                 local: music::is_local_id(&playlist_id),
                 invalidated: Some(playlist_id.clone()),
             },
@@ -719,6 +741,7 @@ impl Library {
                 action: "delete playlist",
                 done: "toast-playlist-deleted",
                 name: None,
+                target: None,
                 local: music::is_local_id(&id),
                 invalidated: Some(id.clone()),
             },
@@ -735,6 +758,7 @@ impl Library {
                 action: "add playlist to library",
                 done: "toast-playlist-added",
                 name: None,
+                target: None,
                 local: music::is_local_id(&id),
                 invalidated: Some(id.clone()),
             },
@@ -751,6 +775,7 @@ impl Library {
                 action: "remove playlist from library",
                 done: "toast-playlist-removed",
                 name: None,
+                target: None,
                 local: music::is_local_id(&id),
                 invalidated: Some(id.clone()),
             },
@@ -1009,6 +1034,7 @@ impl Library {
             action,
             done,
             name,
+            target,
             invalidated,
             local,
         } = mutation_info;
@@ -1044,7 +1070,7 @@ impl Library {
                     Ok(outcome) => {
                         on_done(this, outcome, cx);
                         match name {
-                            Some(name) => Toasts::about(Outcome::Done, done, name, cx),
+                            Some(name) => Toasts::linked(Outcome::Done, done, name, target, cx),
                             None => Toasts::show(Outcome::Done, done, cx),
                         }
                     }

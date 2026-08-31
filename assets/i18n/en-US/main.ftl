@@ -51,6 +51,7 @@ library-no-local-playlists = No local playlists yet
 library-no-matches = No matches
 library-not-loaded = Your library did not load
 library-part-not-loaded = This part of your library did not load
+library-local-unconfigured = Configure your local library
 
 # app menu
 app-refresh-library = Refresh Library
@@ -248,6 +249,7 @@ login-use = Use { $provider }
 login-guest-title = Guest mode
 login-guest-use = Use Guest mode
 login-guest-detail = Browse and play without an account. Your library, likes and playlists stay out of reach.
+login-usage-consent = Help us estimate how many people use Sonora.
 login-device-code = Enter this code at { $url }
 login-cookie-submit = Continue
 login-cookie-hint = Paste the Cookie request header here

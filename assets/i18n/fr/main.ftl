@@ -51,6 +51,7 @@ library-no-local-playlists = Aucune playlist locale
 library-no-matches = Aucun résultat
 library-not-loaded = Votre bibliothèque ne s’est pas chargée
 library-part-not-loaded = Cette partie de votre bibliothèque ne s’est pas chargée
+library-local-unconfigured = Configurez votre bibliothèque locale
 
 # app menu
 app-refresh-library = Actualiser la bibliothèque
@@ -186,6 +187,7 @@ login-use = Utiliser { $provider }
 login-guest-title = Mode invité
 login-guest-use = Utiliser le mode invité
 login-guest-detail = Parcourez et écoutez sans compte. Votre bibliothèque, vos likes et vos playlists restent hors de portée.
+login-usage-consent = Aidez-nous à estimer combien de personnes utilisent Sonora.
 login-device-code = Saisissez ce code sur { $url }
 login-cookie-submit = Continuer
 login-cookie-hint = Collez ici l'en-tête de requête Cookie

@@ -51,6 +51,7 @@ library-no-local-playlists = Локальных плейлистов пока н
 library-no-matches = Ничего не найдено
 library-not-loaded = Библиотека не загрузилась
 library-part-not-loaded = Этот раздел библиотеки не загрузился
+library-local-unconfigured = Настройте локальную библиотеку
 
 # app menu
 app-refresh-library = Обновить медиатеку
@@ -186,6 +187,7 @@ login-use = Открыть { $provider }
 login-guest-title = Гостевой режим
 login-guest-use = Открыть гостевой режим
 login-guest-detail = Слушайте без аккаунта. Медиатека, лайки и плейлисты будут недоступны.
+login-usage-consent = Помогите нам оценить, сколько людей пользуется Sonora.
 login-device-code = Введите этот код на { $url }
 login-cookie-submit = Продолжить
 login-cookie-hint = Вставьте сюда заголовок запроса Cookie

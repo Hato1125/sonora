@@ -11,6 +11,7 @@ use gpui::{
 
 use crate::Artwork;
 use crate::metrics::snapped;
+use crate::motion::Rising as _;
 use crate::scrollbar::Scrollbar;
 use crate::separator::Separator;
 use crate::shield::Shield;
@@ -688,13 +689,14 @@ impl RenderOnce for Menu {
             arm(dismiss, cx);
         }
 
+        let rising = panel_looks.rising("menu-rise");
         let surface = match should_defer {
             true => anchored()
                 .anchor(corner)
                 .snap_to_window_with_margin(WINDOW_MARGIN)
-                .child(panel_looks)
+                .child(rising)
                 .into_any_element(),
-            false => panel_looks.into_any_element(),
+            false => rising.into_any_element(),
         };
 
         let mut menu = base

@@ -13,6 +13,7 @@ use crate::{
 };
 
 const PORTRAIT_LIMIT: usize = 24;
+const EPISODES: &str = "SE";
 
 pub struct YouTubeClient {
     api: Arc<YtMusic>,
@@ -179,6 +180,7 @@ impl MusicApi for YouTubeClient {
             .library_playlists()
             .await?
             .into_iter()
+            .filter(|playlist| playlist.id != EPISODES)
             .map(|playlist| {
                 let mut playlist = wire::playlist(playlist, false, false);
                 if playlist.owned && playlist.owner.is_empty() {

@@ -340,7 +340,6 @@ impl Render for SidebarLeft {
         let current = self.trail.read(cx).current();
         self.follow(&current);
         let authenticated = self.session.read(cx).authenticated();
-        let has_local = self.session.read(cx).local_client().is_some();
         self.adapt(window, cx);
 
         if !cx.has_active_drag() {
@@ -396,9 +395,6 @@ impl Render for SidebarLeft {
             }
 
             if matches!(destination, Destination::Local(_)) {
-                if !has_local {
-                    continue;
-                }
                 let inside = matches!(current, Destination::Local(_));
                 let text = if inside { foreground } else { muted };
 
@@ -515,10 +511,8 @@ impl Render for SidebarLeft {
                 let pin = dragged.pin.clone();
                 if let Some(slug) = this.session.read(cx).slug_for(&pin.id) {
                     let slugs = this.session.read(cx).active_slugs();
-                    let before = this.settings.read(cx).pins_before(&slugs, slug);
-                    let gap = gap.map(|gap| gap.saturating_sub(before));
                     this.settings
-                        .update(cx, |settings, cx| settings.pin(slug, pin, gap, cx));
+                        .update(cx, |settings, cx| settings.pin(slug, pin, gap, &slugs, cx));
                 }
                 cx.notify();
             }))
