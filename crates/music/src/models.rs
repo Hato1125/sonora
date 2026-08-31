@@ -167,6 +167,25 @@ pub struct GenreDetail {
     pub sections: Vec<GenreSection>,
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct TrackTags {
+    pub title: String,
+    pub artist: String,
+    pub album: String,
+    pub album_artist: String,
+    pub track_number: String,
+    pub track_total: String,
+    pub disc_number: String,
+    pub disc_total: String,
+    pub year: String,
+    pub genre: String,
+    pub composer: String,
+    pub publisher: String,
+    pub isrc: String,
+    pub comment: String,
+    pub lyrics: String,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PlaylistDetail {
     pub playlist: Playlist,

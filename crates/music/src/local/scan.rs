@@ -1,9 +1,11 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use crate::{Album, Track};
 
 use super::wire;
+
+const SEPARATORS: [char; 8] = ['-', '–', '—', '.', '_', '·', ':', ' '];
 
 const AUDIO_EXTENSIONS: &[&str] = &[
     "mp3", "flac", "m4a", "mp4", "aac", "ogg", "oga", "opus", "wav", "wv", "ape",
@@ -13,6 +15,7 @@ const AUDIO_EXTENSIONS: &[&str] = &[
 pub struct Scanned {
     pub tracks: Vec<Track>,
     pub albums: Vec<Album>,
+    pub portraits: HashMap<String, String>,
 }
 
 pub fn scan(root: &Path, cache_dir: &Path) -> Scanned {
@@ -74,6 +77,9 @@ fn walk_audio_files(dir: &Path, found: &mut Vec<PathBuf>) {
 
 fn scan_artist(dir: &Path, cache_dir: &Path, scanned: &mut Scanned) {
     let artist = folder_name(dir);
+    if let Some(portrait) = wire::artist_cover(dir) {
+        scanned.portraits.insert(artist.clone(), portrait);
+    }
 
     for entry in entries(dir) {
         if entry.is_file() {
@@ -93,7 +99,7 @@ fn scan_artist(dir: &Path, cache_dir: &Path, scanned: &mut Scanned) {
 }
 
 fn scan_album(dir: &Path, artist: &str, cache_dir: &Path, scanned: &mut Scanned) {
-    let name = folder_name(dir);
+    let (name, folder_year) = dated(&folder_name(dir));
 
     let mut tracks: Vec<Track> = entries(dir)
         .into_iter()
@@ -117,13 +123,68 @@ fn scan_album(dir: &Path, artist: &str, cache_dir: &Path, scanned: &mut Scanned)
         .filter(|album| !album.is_empty())
         .unwrap_or(name);
 
+    let year = tracks
+        .first()
+        .and_then(|track| track.id.as_deref())
+        .and_then(wire::path_from_track_id)
+        .and_then(wire::tag_year)
+        .or(folder_year)
+        .unwrap_or(0);
+
     scanned.albums.push(wire::album_from_tracks(
         &album_name,
         &album_artist,
         dir,
         &tracks,
+        year,
     ));
     scanned.tracks.extend(tracks);
+}
+
+fn dated(name: &str) -> (String, Option<i32>) {
+    let name = name.trim();
+    if let Some(dated) = leading_year(name) {
+        return dated;
+    }
+    if let Some(dated) = trailing_year(name) {
+        return dated;
+    }
+
+    (name.to_owned(), None)
+}
+
+fn plausible(year: i32) -> bool {
+    (1000..=2999).contains(&year)
+}
+
+fn leading_year(name: &str) -> Option<(String, Option<i32>)> {
+    let (open, rest) = match name.strip_prefix(['[', '(']) {
+        Some(rest) => (true, rest),
+        None => (false, name),
+    };
+    let (digits, rest) = rest.split_at_checked(4)?;
+    let year = digits.parse::<i32>().ok().filter(|year| plausible(*year))?;
+    let rest = match open {
+        true => rest.strip_prefix([']', ')'])?,
+        false => rest,
+    };
+    let rest = rest.trim_start_matches(SEPARATORS).trim();
+    match rest.is_empty() {
+        true => None,
+        false => Some((rest.to_owned(), Some(year))),
+    }
+}
+
+fn trailing_year(name: &str) -> Option<(String, Option<i32>)> {
+    let rest = name.strip_suffix([']', ')'])?;
+    let cut = rest.len().checked_sub(4)?;
+    let (rest, digits) = rest.split_at_checked(cut)?;
+    let year = digits.parse::<i32>().ok().filter(|year| plausible(*year))?;
+    let rest = rest.strip_suffix(['[', '('])?.trim();
+    match rest.is_empty() {
+        true => None,
+        false => Some((rest.to_owned(), Some(year))),
+    }
 }
 
 fn folder_name(dir: &Path) -> String {

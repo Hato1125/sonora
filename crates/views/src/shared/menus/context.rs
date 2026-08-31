@@ -7,6 +7,7 @@ use ui::{Menu, MenuItem, Pin, PinKind, Scrollbar, SubmenuState};
 
 use crate::shared::confirm::Confirm;
 use crate::shared::playlist_editor::{Edit, PlaylistEditor};
+use crate::shared::tag_editor::TagEditor;
 
 #[derive(Clone)]
 pub(crate) enum Item {
@@ -153,13 +154,21 @@ impl ItemMenu {
         let count = tracks.len();
         let many = count > 1;
         let library = Sonora::global(cx).library.clone();
-        let ids: Vec<String> = tracks
-            .iter()
-            .filter_map(|track| track.id.clone())
-            .filter(|id| !music::is_local_id(id))
-            .collect();
-        let local = ids.is_empty();
-        let playlists = match library.read(cx).state() {
+        let held: Vec<String> = tracks.iter().filter_map(|track| track.id.clone()).collect();
+        let imported = !held.is_empty() && held.iter().all(|id| music::is_local_id(id));
+        let ids: Vec<String> = match imported {
+            true => held,
+            false => held
+                .into_iter()
+                .filter(|id| !music::is_local_id(id))
+                .collect(),
+        };
+        let barren = ids.is_empty();
+        let shelf = match imported {
+            true => library.read(cx).local_state(),
+            false => library.read(cx).state(),
+        };
+        let playlists: Vec<Playlist> = match shelf {
             LibraryState::Ready { playlists, .. } => playlists
                 .iter()
                 .filter(|playlist| playlist.owned || playlist.collaborative)
@@ -171,7 +180,14 @@ impl ItemMenu {
         let new_playlist = MenuItem::new("new-playlist", t!("menu-new-playlist"))
             .icon("icons/plus.svg")
             .on_click(move |_, window, cx| {
-                PlaylistEditor::open(Edit::Create(created.clone()), window, cx);
+                PlaylistEditor::open(
+                    Edit::Create {
+                        tracks: created.clone(),
+                        local: imported,
+                    },
+                    window,
+                    cx,
+                );
             });
         let playlist_menu = if playlists.is_empty() {
             Menu::new("playlist-submenu")
@@ -390,7 +406,14 @@ impl ItemMenu {
             ),
         };
 
-        let add_to_playlist = (!local).then(|| {
+        let edit = (!many && imported).then(|| {
+            let track = track.clone();
+            MenuItem::new("edit-tags", t!("menu-edit-tags"))
+                .icon("icons/pencil.svg")
+                .on_click(move |_, window, cx| TagEditor::open(track.clone(), window, cx))
+        });
+
+        let add_to_playlist = (!barren).then(|| {
             MenuItem::new(
                 "add-to-playlist",
                 counted("menu-add-to-playlist", "menu-add-tracks-to-playlist", count),
@@ -413,7 +436,7 @@ impl ItemMenu {
                     .collect(),
                 [next, queue].into_iter().chain(radio).collect(),
                 album.into_iter().chain(artist).collect(),
-                details.into_iter().chain(copy).collect(),
+                details.into_iter().chain(edit).chain(copy).collect(),
                 trailing.into_iter().collect(),
             ],
         )
@@ -685,39 +708,45 @@ pub(crate) fn playlist_menu(
     let queueing = playback;
     let id = playlist.id.clone();
     let public = playlist.public;
+    let imported = music::is_local_id(&playlist.id);
+    let visibility = (!imported).then(|| {
+        MenuItem::new(
+            "playlist-visibility",
+            match public {
+                true => t!("menu-make-playlist-private"),
+                false => t!("menu-make-playlist-public"),
+            },
+        )
+        .icon("icons/user.svg")
+        .on_click({
+            let id = id.clone();
+            move |_, _, cx| {
+                let library = Sonora::global(cx).library.clone();
+                library.update(cx, |library, cx| {
+                    library.set_playlist_public(id.clone(), !public, cx)
+                });
+            }
+        })
+    });
     let actions = match playlist.owned {
-        true => vec![
-            MenuItem::new(
-                "playlist-visibility",
-                match public {
-                    true => t!("menu-make-playlist-private"),
-                    false => t!("menu-make-playlist-public"),
-                },
-            )
-            .icon("icons/user.svg")
-            .on_click({
-                let id = id.clone();
-                move |_, _, cx| {
-                    let library = Sonora::global(cx).library.clone();
-                    library.update(cx, |library, cx| {
-                        library.set_playlist_public(id.clone(), !public, cx)
-                    });
-                }
-            }),
-            MenuItem::new("rename-playlist", t!("menu-rename-playlist"))
-                .icon("icons/pencil.svg")
-                .on_click({
-                    let playlist = playlist.clone();
-                    move |_, window, cx| {
-                        PlaylistEditor::open(Edit::Rename(playlist.clone()), window, cx);
-                    }
-                }),
-            MenuItem::new("delete-playlist", t!("menu-delete-playlist"))
-                .icon("icons/trash-2.svg")
-                .on_click(move |_, window, cx| {
-                    PlaylistEditor::open(Edit::Delete(playlist.clone()), window, cx);
-                }),
-        ],
+        true => visibility
+            .into_iter()
+            .chain([
+                MenuItem::new("rename-playlist", t!("menu-rename-playlist"))
+                    .icon("icons/pencil.svg")
+                    .on_click({
+                        let playlist = playlist.clone();
+                        move |_, window, cx| {
+                            PlaylistEditor::open(Edit::Rename(playlist.clone()), window, cx);
+                        }
+                    }),
+                MenuItem::new("delete-playlist", t!("menu-delete-playlist"))
+                    .icon("icons/trash-2.svg")
+                    .on_click(move |_, window, cx| {
+                        PlaylistEditor::open(Edit::Delete(playlist.clone()), window, cx);
+                    }),
+            ])
+            .collect(),
         false => vec![playlist_library_item(playlist.clone(), cx)],
     };
 
@@ -754,11 +783,14 @@ pub(crate) fn playlist_menu(
                     }),
             ],
             actions,
-            vec![
-                MenuItem::new("copy-playlist-link", t!("menu-copy-link"))
-                    .icon("icons/link.svg")
-                    .on_click(move |_, _, cx| copy_link(MediaKind::Playlist, &copied, cx)),
-            ],
+            match imported {
+                true => Vec::new(),
+                false => vec![
+                    MenuItem::new("copy-playlist-link", t!("menu-copy-link"))
+                        .icon("icons/link.svg")
+                        .on_click(move |_, _, cx| copy_link(MediaKind::Playlist, &copied, cx)),
+                ],
+            },
         ],
     )
 }

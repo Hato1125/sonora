@@ -1,10 +1,10 @@
 use std::rc::Rc;
 
 use gpui::prelude::*;
-use gpui::{AnyElement, App, Entity, Pixels, Point, RenderOnce, SharedString, Window, div, px};
+use gpui::{AnyElement, App, Entity, Pixels, Point, RenderOnce, Window, div, px};
 use music::Album;
 use state::Playback;
-use ui::{ActiveTheme as _, Card, Text};
+use ui::Card;
 
 use crate::shared::cards;
 
@@ -80,7 +80,6 @@ pub(crate) struct AlbumGrid {
     albums: Vec<(usize, Album)>,
     playback: Entity<Playback>,
     on_context: Option<ContextMenu>,
-    years: bool,
 }
 
 impl AlbumGrid {
@@ -96,13 +95,7 @@ impl AlbumGrid {
             albums: albums.into_iter().collect(),
             playback,
             on_context: None,
-            years: false,
         }
-    }
-
-    pub(crate) fn years(mut self) -> Self {
-        self.years = true;
-        self
     }
 
     pub(crate) fn on_context(
@@ -122,10 +115,9 @@ impl RenderOnce for AlbumGrid {
             albums,
             playback,
             on_context,
-            years,
         } = self;
         let cards = albums.into_iter().map(|(index, album)| {
-            let card = album_card(id, index, &album, &playback, layout.card, years, cx);
+            let card = album_card(id, index, &album, &playback, layout.card, cx);
             let Some(listener) = on_context.clone() else {
                 return card.into_any_element();
             };
@@ -150,30 +142,11 @@ fn album_card(
     album: &Album,
     playback: &Entity<Playback>,
     width: Pixels,
-    years: bool,
     cx: &App,
 ) -> Card {
-    let theme = *cx.theme();
-    let card = cards::album_card((id, index), album, playback, cx)
+    cards::album_card((id, index), album, playback, cx)
         .tile(width)
-        .flat();
-
-    match years {
-        true => card.bare_meta(
-            div()
-                .text_size(theme.text(Text::Small))
-                .text_color(theme.muted_foreground)
-                .child(year(album.year)),
-        ),
-        false => card,
-    }
-}
-
-fn year(year: i32) -> SharedString {
-    match year {
-        0 => SharedString::default(),
-        year => SharedString::from(year.to_string()),
-    }
+        .flat()
 }
 
 #[cfg(test)]

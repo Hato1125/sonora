@@ -4240,6 +4240,7 @@ dependencies = [
  "reqwest",
  "rodio",
  "roxmltree 0.21.1",
+ "rusqlite",
  "serde",
  "serde_json",
  "serde_norway",

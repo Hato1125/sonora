@@ -49,6 +49,7 @@ pub struct AlbumHit {
     pub artists: String,
     pub artist_refs: Vec<ArtistRef>,
     pub cover: Option<String>,
+    pub year: i32,
 }
 
 #[derive(Clone)]
@@ -402,6 +403,7 @@ fn albums_of(albums: &[Album], library: &[Track], catalog: &Catalog, query: &Que
             &album.cover,
             None,
             0,
+            album.year,
         )
     });
     let total = catalog.albums.len();
@@ -414,6 +416,7 @@ fn albums_of(albums: &[Album], library: &[Track], catalog: &Catalog, query: &Que
             &album.cover,
             Some(placed(at, total)),
             0,
+            album.year,
         )
     });
     let derived = sources(library, &catalog.tracks).filter_map(|(track, rank)| {
@@ -426,12 +429,13 @@ fn albums_of(albums: &[Album], library: &[Track], catalog: &Catalog, query: &Que
             &track.cover,
             rank,
             track.popularity,
+            0,
         ))
     });
 
     let mut scored: Vec<Scored> = Vec::new();
     let mut seen: Vec<&String> = Vec::new();
-    for (id, name, artists, artist_refs, cover, rank, popularity) in
+    for (id, name, artists, artist_refs, cover, rank, popularity, year) in
         saved.chain(found).chain(derived)
     {
         let fields = [(TITLE, name.as_str()), (ARTIST, artists.as_str())];
@@ -452,6 +456,7 @@ fn albums_of(albums: &[Album], library: &[Track], catalog: &Catalog, query: &Que
                 artists: artists.clone(),
                 artist_refs: artist_refs.clone(),
                 cover: cover.clone(),
+                year,
             }),
         });
     }

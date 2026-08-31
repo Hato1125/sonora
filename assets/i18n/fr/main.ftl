@@ -25,10 +25,11 @@ nav-search = Recherche
 nav-library = Ma bibliothèque
 nav-settings = Paramètres
 nav-songs = Titres
+nav-favorites = Favoris
 nav-albums = Albums
 nav-playlists = Playlists
 nav-artists = Artistes
-nav-local = Importés
+nav-local = Musique locale
 nav-back = Retour
 nav-forward = Suivant
 nav-sidebar = Afficher ou masquer la barre latérale
@@ -36,14 +37,17 @@ nav-sidebar-right = Afficher ou masquer les paroles et la file d'attente
 nav-pinned = Épinglés
 nav-unpin = Détacher
 nav-pin-hint = Déposer ici pour épingler
-library-liked-songs = Titres likés
+library-liked-songs = Favoris
 library-play-liked-songs = Lire
-library-no-songs = Aucun titre liké pour l'instant
+library-no-songs = Aucun favori pour l’instant
 library-no-albums = Aucun album enregistré pour l'instant
 library-no-playlists = Aucune playlist pour l'instant
 library-no-artists = Aucun artiste suivi pour l'instant
 library-no-local-songs = Aucun titre importé trouvé
+library-no-local-favorites = Aucun favori local pour l’instant
 library-no-local-albums = Aucun album importé trouvé
+library-no-local-artists = Aucun artiste importé
+library-no-local-playlists = Aucune playlist locale
 library-no-matches = Aucun résultat
 library-not-loaded = Votre bibliothèque ne s’est pas chargée
 library-part-not-loaded = Cette partie de votre bibliothèque ne s’est pas chargée
@@ -72,9 +76,10 @@ column-tracks = Titres
 # track menu
 menu-add-to-playlist = Ajouter à une playlist
 menu-new-playlist = Nouvelle playlist
+menu-edit-tags = Modifier les tags
 menu-no-playlists = Aucune playlist
-menu-add-to-library = Ajouter à la bibliothèque
-menu-remove-from-library = Retirer de la bibliothèque
+menu-add-to-library = Ajouter aux favoris
+menu-remove-from-library = Retirer des favoris
 menu-remove-from-playlist = Retirer de la playlist
 menu-remove-from-history = Retirer de l’historique
 menu-play-next = Lire juste après
@@ -173,6 +178,7 @@ login-problem-premium = Sonora diffuse via Spotify Premium, et ce compte ne l'a 
 login-sign-in = Se connecter avec { $provider }
 login-connect-cookies = Coller les cookies manuellement
 login-import-browser = Importer depuis le navigateur*
+login-import-browser-plain = Importer depuis le navigateur
 login-browser-firefox = *Navigateurs basés sur Firefox uniquement
 login-browser-title = Choisir un navigateur
 login-browser-detail = Sonora lit votre session YouTube Music dans le navigateur choisi. La session reste sur cet appareil.
@@ -321,6 +327,11 @@ count-songs =
         [one] { $count } titre
        *[other] { $count } titres
     }
+count-tracks =
+    { $count ->
+        [one] { $count } titre
+       *[other] { $count } titres
+    }
 
 # dates
 date-just-now = À l'instant
@@ -368,6 +379,9 @@ settings-font-detail = Taille de base du texte, tout le reste s'y adapte
 settings-font-value = { $size } px
 settings-startup = Afficher au démarrage
 settings-startup-detail = L'écran sur lequel Sonora s'ouvre
+settings-entries = Entrées de la barre latérale
+settings-entries-detail = Les sections affichées dans la barre latérale
+settings-entries-pick = Choisir les entrées
 settings-language = Langue
 settings-language-detail = La langue utilisée par Sonora dans l'interface
 settings-language-system = Système
@@ -513,3 +527,23 @@ update-working = Téléchargement de la mise à jour…
 update-failed = La mise à jour n'a pas pu être installée. Réessayez depuis la page des versions.
 settings-check-updates = Rechercher des mises à jour
 settings-check-updates-detail = Demander une fois à GitHub au démarrage si une version plus récente existe. Sonora installe la mise à jour elle-même uniquement sous Windows ; ailleurs, elle vous montre ce qui a changé
+tags-edit-title = Modifier les tags
+tags-sheet-song = Titre
+tags-sheet-album = Album
+tags-sheet-details = Détails
+tags-title = Titre
+tags-artist = Artiste
+tags-track = Numéro de piste
+tags-track-total = Titres dans la sortie
+tags-disc = Numéro de disque
+tags-disc-total = Disques dans la sortie
+tags-album = Album
+tags-album-artist = Artiste de l’album
+tags-year = Année
+tags-genre = Genre
+tags-composer = Compositeur
+tags-publisher = Éditeur
+tags-isrc = ISRC
+tags-comment = Commentaire
+toast-tags-saved = Tags de { $name } enregistrés
+toast-tags-failed = Les tags n’ont pas pu être enregistrés

@@ -1,5 +1,4 @@
-use crate::shared::accounts::AccountPicker;
-use crate::shared::browsers::BrowserPicker;
+use crate::shared::popups::{AccountPicker, BrowserPicker};
 use gpui::prelude::*;
 use gpui::{
     AnyElement, ClipboardItem, Context, Entity, FontWeight, IntoElement, Pixels, Render,

@@ -14,6 +14,7 @@ use crate::chrome::{
 };
 use crate::shared::confirm::Confirm;
 use crate::shared::playlist_editor::PlaylistEditor;
+use crate::shared::tag_editor::TagEditor;
 use crate::shells::Shell;
 
 const VIEW_BLUR: gpui::Pixels = px(1.5);
@@ -48,6 +49,7 @@ pub(crate) struct Workspace {
     player_bar: Entity<PlayerBar>,
     sidebar_right: Entity<SidebarRight>,
     playlist_editor: Entity<PlaylistEditor>,
+    tag_editor: Entity<TagEditor>,
     confirm: Entity<Confirm>,
     toasts: Entity<ToastStack>,
     notice: Entity<UpdateNotice>,
@@ -72,6 +74,7 @@ impl Workspace {
             player_bar,
             sidebar_right,
             playlist_editor: PlaylistEditor::entity(cx),
+            tag_editor: TagEditor::entity(cx),
             confirm: Confirm::entity(cx),
             toasts: cx.new(ToastStack::new),
             notice: cx.new(UpdateNotice::new),
@@ -298,6 +301,7 @@ impl Render for Workspace {
                     .child(self.toasts.clone()),
             )
             .child(self.playlist_editor.clone())
+            .child(self.tag_editor.clone())
             .child(self.confirm.clone())
             .child(self.notice.clone())
     }

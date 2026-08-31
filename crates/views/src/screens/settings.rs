@@ -3,8 +3,9 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use crate::shared::accounts::AccountPicker;
-use crate::shared::browsers::BrowserPicker;
+use crate::shared::popups::{
+    AccountPicker, BrowserPicker, matches_query, searchable_menu, searchable_scroll_menu,
+};
 use gpui::{
     AnyElement, App, Context, Entity, FontWeight, PathPromptOptions, Pixels, Render, SharedString,
     TextRun, Window, div, font, px,
@@ -12,11 +13,11 @@ use gpui::{
 use gpui::{ScrollHandle, prelude::*, svg};
 use i18n::{Language, t};
 use music::{AccountChoice, SignIn, SignInPrompt, WritingSystem};
-use router::{Screen, SettingsTab};
+use router::{NavEntry, Screen, SettingsTab};
 use state::{AppSettings, Failure, Playback, SYSTEM_FONT, Session, SessionState, Sonora};
 use ui::{ActiveTheme as _, Scrollbar, Scroller, eyebrow};
 use ui::{
-    Avatar, Button, InfoCard, Initials, Input, Look, MAX_FONT, MAX_TRANSPARENCY, MIN_FONT, Menu,
+    Avatar, Button, InfoCard, Initials, Input, Look, MAX_FONT, MAX_TRANSPARENCY, MIN_FONT,
     MenuItem, Modal, Pace, Picker, Popovers, Rounding, Saver, Scrubber, ScrubberState, SelectNext,
     SelectPrevious, Separator, Skeleton, Stillness, Submit, Switch, Text, Theme, ThemeKind,
 };
@@ -37,6 +38,7 @@ const TYPEFACE_GUESS: usize = 24;
 // faces loaded per frame
 const TYPEFACE_BATCH: usize = 3;
 const STARTUP: &str = "startup";
+const ENTRIES: &str = "entries";
 const MOTION: &str = "motion";
 const PACE: &str = "pace";
 const SAVER: &str = "saver";
@@ -202,6 +204,7 @@ impl SettingsView {
         let rows: Vec<Row> = match self.tab {
             SettingsTab::General => vec![
                 Row::Item(self.startup_row(cx).into_any_element()),
+                Row::Item(self.entries_row(cx).into_any_element()),
                 Row::Item(self.language_row(cx).into_any_element()),
                 self.title("settings-group-accounts", cx),
                 Row::Item(self.accounts_row(cx).into_any_element()),
@@ -304,6 +307,36 @@ impl SettingsView {
         )
     }
 
+    fn entries_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+        let muted = theme.muted_foreground;
+        let small = theme.text(Text::Small);
+
+        let picker = Picker::new(ENTRIES, &self.popovers, t!("settings-entries-pick"))
+            .width(Picker::REGULAR)
+            .sticky()
+            .items(NavEntry::ALL.map(|entry| {
+                let shown = self.settings.read(cx).nav_shown(entry.id());
+
+                MenuItem::new(entry.id(), i18n::lookup(entry.key(), None))
+                    .selected(shown)
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.settings.update(cx, |settings, cx| {
+                            settings.set_nav_shown(entry.id(), !shown, cx)
+                        });
+                        cx.notify();
+                    }))
+            }));
+
+        self.row(
+            t!("settings-entries"),
+            t!("settings-entries-detail"),
+            muted,
+            small,
+            picker.into_any_element(),
+        )
+    }
+
     fn language_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
         let muted = theme.muted_foreground;
@@ -321,13 +354,17 @@ impl SettingsView {
                     .into_iter()
                     .map(|language| (language.id(), SharedString::from(language.label()))),
             )
-            .filter(|(id, label)| matches(id, label, &asked))
+            .filter(|(id, label)| matches_query(id, label, &asked))
             .collect::<Vec<_>>();
         let barren = entries.is_empty();
 
         let picker = Picker::new(LANGUAGES, &self.popovers, current)
             .width(Picker::WIDE)
-            .item(MenuItem::new("language-search", "").content(self.languages.clone()))
+            .menu(searchable_menu(
+                "languages-menu",
+                self.languages.clone(),
+                Picker::WIDE,
+            ))
             .items(entries.into_iter().map(|(id, label)| {
                 MenuItem::new(id, label)
                     .selected(chosen == id)
@@ -362,7 +399,7 @@ impl SettingsView {
                     true => t!("settings-typeface-system"),
                     false => name.clone(),
                 };
-                matches(name, &label, &asked)
+                matches_query(name, &label, &asked)
             })
             .take(TYPEFACE_LIMIT)
             .collect()
@@ -429,7 +466,7 @@ impl SettingsView {
             t!("settings-typeface-system"),
         ))
         .chain(installed.iter().map(|name| (name.clone(), name.clone())))
-        .filter(|(id, label)| matches(id, label, &asked))
+        .filter(|(id, label)| matches_query(id, label, &asked))
         .take(TYPEFACE_LIMIT)
         .collect::<Vec<_>>();
         let barren = entries.is_empty();
@@ -493,13 +530,13 @@ impl SettingsView {
 
         let picker = Picker::new(TYPEFACES, &self.popovers, current)
             .width(Picker::WIDE)
-            .menu(
-                Menu::new("typefaces-menu")
-                    .w(Picker::WIDE)
-                    .max_h(TYPEFACE_HEIGHT)
-                    .scrollbar(self.typeface_scroll.clone())
-                    .header(self.typefaces.clone()),
-            )
+            .menu(searchable_scroll_menu(
+                "typefaces-menu",
+                self.typefaces.clone(),
+                Picker::WIDE,
+                TYPEFACE_HEIGHT,
+                self.typeface_scroll.clone(),
+            ))
             .items(items)
             .when(barren, |picker| {
                 picker
@@ -1380,19 +1417,8 @@ impl SettingsView {
         pending: bool,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let browser = matches!(method, SignIn::Browser(_));
-        let button = self.method_button(slug, provider, method, pending, cx);
-        match browser {
-            true => div()
-                .flex()
-                .flex_col()
-                .items_start()
-                .gap_1()
-                .child(button)
-                .child(crate::shared::firefox_note(cx))
-                .into_any_element(),
-            false => button.into_any_element(),
-        }
+        self.method_button(slug, provider, method, pending, cx)
+            .into_any_element()
     }
 
     fn method_button(
@@ -1408,13 +1434,10 @@ impl SettingsView {
                 format!("connect-{slug}"),
                 t!("login-sign-in", provider = provider),
             ),
-            SignIn::Anonymous => (
-                format!("connect-{slug}-guest"),
-                t!("login-use", provider = provider),
-            ),
+            SignIn::Anonymous => (format!("connect-{slug}-guest"), t!("login-guest-use")),
             SignIn::Browser(_) => (
                 format!("connect-{slug}-browser"),
-                t!("login-import-browser"),
+                t!("login-import-browser-plain"),
             ),
             SignIn::Secret => (
                 format!("connect-{slug}-cookies"),
@@ -1791,8 +1814,4 @@ fn resolved(window: &Window, family: &str) -> Option<gpui::FontId> {
         .runs
         .first()
         .map(|run| run.font_id)
-}
-
-fn matches(id: &str, label: &str, asked: &str) -> bool {
-    asked.is_empty() || label.to_lowercase().contains(asked) || id.to_lowercase().contains(asked)
 }

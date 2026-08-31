@@ -427,7 +427,6 @@ impl ArtistView {
                             row.to_vec(),
                             self.playback.clone(),
                         )
-                        .years()
                         .on_context(move |album, position, cx| {
                             let Some(view) = opened.upgrade() else {
                                 return;

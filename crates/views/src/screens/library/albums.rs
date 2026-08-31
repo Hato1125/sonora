@@ -102,21 +102,15 @@ struct Spread {
 }
 
 impl AlbumSource {
-    pub(super) fn new(library: Entity<Library>, playback: Entity<Playback>) -> Self {
+    pub(super) fn shelved(
+        library: Entity<Library>,
+        playback: Entity<Playback>,
+        local: bool,
+    ) -> Self {
         Self {
             library,
             playback,
-            local: false,
-            span: None,
-            spread: RefCell::new(None),
-        }
-    }
-
-    pub(super) fn local(library: Entity<Library>, playback: Entity<Playback>) -> Self {
-        Self {
-            library,
-            playback,
-            local: true,
+            local,
             span: None,
             spread: RefCell::new(None),
         }

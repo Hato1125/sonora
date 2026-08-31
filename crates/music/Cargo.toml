@@ -26,6 +26,7 @@ protobuf.workspace = true
 reqwest.workspace = true
 roxmltree.workspace = true
 rodio = { workspace = true, features = ["symphonia-aac", "symphonia-alac", "symphonia-isomp4", "flac", "mp3", "vorbis", "wav"] }
+rusqlite.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_norway.workspace = true
