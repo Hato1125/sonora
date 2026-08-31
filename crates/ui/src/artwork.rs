@@ -19,6 +19,9 @@ pub(crate) const ROUNDED: Pixels = px(4.);
 const CACHE_BYTES: usize = 32 * 1024 * 1024;
 const CACHE_ITEMS: usize = 256;
 const HARD_BYTES: usize = 192 * 1024 * 1024;
+const SAMPLED_BYTES: usize = 64 * 1024 * 1024;
+const SAMPLED_ITEMS: usize = 256;
+const MAX_SAMPLE_EDGE: u32 = 1024;
 const GRACE: Duration = Duration::from_secs(5);
 const KEEP_ITEMS: usize = 96;
 const IDLE: Duration = Duration::from_secs(120);
@@ -35,11 +38,19 @@ struct Cached {
     used: Instant,
 }
 
+struct Sampled {
+    image: Arc<RenderImage>,
+    bytes: usize,
+    used: Instant,
+}
+
 struct ArtworkCache {
     items: HashMap<Resource, Cached>,
     pending: HashMap<Resource, Instant>,
-    soft: HashMap<Resource, Arc<RenderImage>>,
+    sampled: HashMap<(Resource, u32), Sampled>,
+    soft: HashMap<(Resource, u32), Arc<RenderImage>>,
     bytes: usize,
+    sampled_bytes: usize,
     _sweep: Task<()>,
 }
 
@@ -53,8 +64,10 @@ impl ArtworkCache {
             let cache = cx.new(|cx| Self {
                 items: HashMap::new(),
                 pending: HashMap::new(),
+                sampled: HashMap::new(),
                 soft: HashMap::new(),
                 bytes: 0,
+                sampled_bytes: 0,
                 _sweep: sweeper(cx),
             });
             cx.set_global(Installed(cache));
@@ -113,16 +126,95 @@ impl ArtworkCache {
         }
     }
 
-    fn soften(&mut self, resource: &Resource, image: Arc<RenderImage>) -> Arc<RenderImage> {
-        if let Some(found) = self.soft.get(resource) {
+    fn prepared(&mut self, resource: &Resource, edge: u32, soft: bool) -> Option<Arc<RenderImage>> {
+        let key = (resource.clone(), edge);
+        if soft {
+            return self.soft.get(&key).cloned();
+        }
+        let sampled = self.sampled.get_mut(&key)?;
+        sampled.used = Instant::now();
+        Some(sampled.image.clone())
+    }
+
+    fn prepare(
+        &mut self,
+        resource: &Resource,
+        edge: u32,
+        soft: bool,
+        image: Arc<RenderImage>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Arc<RenderImage> {
+        let image = match edge {
+            0 => image,
+            edge => self.sample(resource, edge, image, window, cx),
+        };
+        if !soft {
+            return image;
+        }
+
+        let key = (resource.clone(), edge);
+        if let Some(found) = self.soft.get(&key) {
             return found.clone();
         }
         if self.soft.len() >= SOFT_ITEMS {
-            self.soft.clear();
+            for image in self.soft.drain().map(|(_, image)| image) {
+                cx.drop_image(image, Some(&mut *window));
+            }
         }
-        let softened = blurred(&image).unwrap_or(image);
-        self.soft.insert(resource.clone(), softened.clone());
+        let Some(softened) = blurred(&image) else {
+            return image;
+        };
+        self.soft.insert(key, softened.clone());
         softened
+    }
+
+    fn sample(
+        &mut self,
+        resource: &Resource,
+        edge: u32,
+        image: Arc<RenderImage>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Arc<RenderImage> {
+        let key = (resource.clone(), edge);
+        if let Some(found) = self.sampled.get_mut(&key) {
+            found.used = Instant::now();
+            return found.image.clone();
+        }
+        let Some(image) = downsampled(&image, edge) else {
+            return image;
+        };
+        let bytes = image_bytes(&image);
+        self.sampled_bytes = self.sampled_bytes.saturating_add(bytes);
+        self.sampled.insert(
+            key.clone(),
+            Sampled {
+                image: image.clone(),
+                bytes,
+                used: Instant::now(),
+            },
+        );
+
+        while self.sampled.len() > 1
+            && (self.sampled.len() > SAMPLED_ITEMS || self.sampled_bytes > SAMPLED_BYTES)
+        {
+            let Some(oldest) = self
+                .sampled
+                .iter()
+                .min_by_key(|(_, sampled)| sampled.used)
+                .map(|(key, _)| key.clone())
+            else {
+                break;
+            };
+            let Some(sampled) = self.sampled.remove(&oldest) else {
+                break;
+            };
+            self.sampled_bytes = self.sampled_bytes.saturating_sub(sampled.bytes);
+            cx.drop_image(sampled.image, Some(&mut *window));
+        }
+
+        image
     }
 
     fn sweep(&mut self, cx: &mut App) {
@@ -174,9 +266,11 @@ impl ArtworkCache {
         let big = self.count(BIG_BYTES..);
 
         log::debug!(
-            "artwork: {} entries / {} KiB, dropped {}, idle {idle}, abandoned {}, waiting {}, sizes {tiny}/{small}/{big}",
+            "artwork: {} originals / {} KiB, {} sampled / {} KiB, dropped {}, idle {idle}, abandoned {}, waiting {}, sizes {tiny}/{small}/{big}",
             self.items.len(),
             self.bytes / 1024,
+            self.sampled.len(),
+            self.sampled_bytes / 1024,
             held - self.items.len(),
             abandoned.len(),
             self.pending.len()
@@ -250,6 +344,45 @@ fn blurred(image: &RenderImage) -> Option<Arc<RenderImage>> {
     Some(Arc::new(RenderImage::new(frames)))
 }
 
+fn sample_edge(size: Pixels, window: &Window) -> u32 {
+    let physical = ((size / px(1.)) * window.scale_factor()).ceil().max(1.) as u32;
+    physical
+        .checked_next_power_of_two()
+        .filter(|edge| *edge <= MAX_SAMPLE_EDGE)
+        .unwrap_or(0)
+}
+
+fn downsampled(image: &RenderImage, edge: u32) -> Option<Arc<RenderImage>> {
+    if edge == 0 || image.frame_count() == 0 {
+        return None;
+    }
+    let frames: Vec<Frame> = (0..image.frame_count())
+        .filter_map(|index| {
+            let size = image.size(index);
+            let width = size.width.0.max(0) as u32;
+            let height = size.height.0.max(0) as u32;
+            let side = width.min(height);
+            if side <= edge {
+                return None;
+            }
+            let bytes = image.as_bytes(index)?.to_vec();
+            let whole = RgbaImage::from_raw(width, height, bytes)?;
+            let square =
+                imageops::crop_imm(&whole, (width - side) / 2, (height - side) / 2, side, side);
+            let sampled = match side > edge.saturating_mul(2) {
+                true => imageops::thumbnail(&*square, edge, edge),
+                false => imageops::resize(&*square, edge, edge, imageops::FilterType::Triangle),
+            };
+
+            Some(Frame::from_parts(sampled, 0, 0, image.delay(index)))
+        })
+        .collect();
+    if frames.len() != image.frame_count() {
+        return None;
+    }
+    Some(Arc::new(RenderImage::new(frames)))
+}
+
 pub(crate) fn resource(url: impl Into<SharedString>) -> Resource {
     let url = url.into();
     match url.strip_prefix(FILE_PREFIX) {
@@ -261,7 +394,11 @@ pub(crate) fn resource(url: impl Into<SharedString>) -> Resource {
 pub fn artwork_usage(cx: &App) -> Option<(usize, usize)> {
     let installed = cx.try_global::<Installed>()?;
     let cache = installed.0.read(cx);
-    Some((cache.items.len(), cache.bytes))
+    let soft_bytes: usize = cache.soft.values().map(|image| image_bytes(image)).sum();
+    Some((
+        cache.items.len() + cache.sampled.len() + cache.soft.len(),
+        cache.bytes + cache.sampled_bytes + soft_bytes,
+    ))
 }
 
 fn image_bytes(image: &RenderImage) -> usize {
@@ -404,20 +541,25 @@ impl RenderOnce for Artwork {
             Some(url) => {
                 let cache = ArtworkCache::entity(cx);
                 let resource = resource(url);
-                let source = match soft {
-                    false => ImageSource::Resource(resource),
-                    true => {
-                        let cache = cache.clone();
-                        ImageSource::Custom(Arc::new(move |window, cx| {
-                            let loaded = cache
-                                .update(cx, |cache, cx| cache.load(&resource, window, cx))?
-                                .map(|image| {
-                                    cache.update(cx, |cache, _| cache.soften(&resource, image))
-                                });
-                            Some(loaded)
-                        }))
+                let edge = sample_edge(size, window);
+                let source = ImageSource::Custom(Arc::new({
+                    let cache = cache.clone();
+                    move |window, cx| {
+                        if let Some(prepared) =
+                            cache.update(cx, |cache, _| cache.prepared(&resource, edge, soft))
+                        {
+                            return Some(Ok(prepared));
+                        }
+                        let loaded = cache
+                            .update(cx, |cache, cx| cache.load(&resource, window, cx))?
+                            .map(|image| {
+                                cache.update(cx, |cache, cx| {
+                                    cache.prepare(&resource, edge, soft, image, window, cx)
+                                })
+                            });
+                        Some(loaded)
                     }
-                };
+                }));
                 refined(
                     img(source)
                         .image_cache(&cache)
@@ -458,4 +600,33 @@ fn blank(size: Pixels, rounded: Pixels, muted: Hsla, glyph: Hsla, fallback: Shar
         .items_center()
         .justify_center()
         .child(svg().path(fallback).size(size * 0.46).text_color(glyph))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use image::{Delay, Rgba};
+
+    fn rendered(width: u32, height: u32) -> RenderImage {
+        RenderImage::new(vec![Frame::from_parts(
+            RgbaImage::from_pixel(width, height, Rgba([20, 40, 60, 255])),
+            0,
+            0,
+            Delay::from_numer_denom_ms(80, 1),
+        )])
+    }
+
+    #[test]
+    fn downsampling_crops_to_the_square_artwork_surface() {
+        let sampled = downsampled(&rendered(240, 120), 64).unwrap();
+
+        assert_eq!(sampled.size(0).width.0, 64);
+        assert_eq!(sampled.size(0).height.0, 64);
+        assert_eq!(sampled.delay(0), Delay::from_numer_denom_ms(80, 1));
+    }
+
+    #[test]
+    fn downsampling_never_upscales_a_source() {
+        assert!(downsampled(&rendered(60, 100), 64).is_none());
+    }
 }
