@@ -55,7 +55,7 @@ impl QueuePlacement {
 use crate::queue::Queue;
 use serde::{Deserialize, Serialize};
 
-use crate::{AppSettings, Io, Outcome, Session, SessionEvent, Toasts, join};
+use crate::{AppSettings, Io, Outcome, Session, SessionEvent, Target, Toasts, join};
 
 const POSITION_INTERVAL: Duration = Duration::from_millis(500);
 const CLOCK_SETTLE: Duration = Duration::from_secs(1);
@@ -504,8 +504,9 @@ impl Playback {
             return;
         }
         let name = track.name.clone();
+        let target = song_target(&track);
         self.queue.update(cx, |queue, cx| queue.append(track, cx));
-        Toasts::about(Outcome::Done, "toast-queued-track", name, cx);
+        Toasts::linked(Outcome::Done, "toast-queued-track", name, target, cx);
     }
 
     pub fn play_next(&mut self, track: Track, cx: &mut Context<Self>) {
@@ -514,8 +515,9 @@ impl Playback {
             return;
         }
         let name = track.name.clone();
+        let target = song_target(&track);
         self.queue.update(cx, |queue, cx| queue.prepend(track, cx));
-        Toasts::about(Outcome::Done, "toast-next-track", name, cx);
+        Toasts::linked(Outcome::Done, "toast-next-track", name, target, cx);
     }
 
     pub fn enqueue_all(&mut self, tracks: Vec<Track>, cx: &mut Context<Self>) {
@@ -1440,6 +1442,7 @@ impl Playback {
             }
             BackendEvent::Unavailable => {
                 let failed = self.track.take();
+                let target = failed.as_ref().and_then(song_target);
                 let name = failed.map_or_else(|| "?".to_owned(), |track| track.name);
                 log::warn!(
                     "playback: {name} failed to load, backing off {}s",
@@ -1449,7 +1452,7 @@ impl Playback {
                 self.state = PlaybackState::Idle;
                 self.position = Duration::ZERO;
                 self.clock.reset(Duration::ZERO, false);
-                Toasts::about(Outcome::Failed, "toast-track-unplayable", name, cx);
+                Toasts::linked(Outcome::Failed, "toast-track-unplayable", name, target, cx);
                 cx.emit(PlaybackEvent::EndedPlayback);
             }
             BackendEvent::Refused => {
@@ -1544,6 +1547,13 @@ impl Playback {
         Toasts::show(Outcome::Failed, "toast-keys-refused", cx);
         cx.notify();
     }
+}
+
+fn song_target(track: &Track) -> Option<Target> {
+    track
+        .id
+        .as_deref()
+        .map(|id| Target::Song(SharedString::from(id.to_owned())))
 }
 
 #[cfg(test)]

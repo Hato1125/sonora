@@ -51,6 +51,7 @@ library-no-local-playlists = Локальних плейлистів ще нем
 library-no-matches = Нічого не знайдено
 library-not-loaded = Бібліотека не завантажилася
 library-part-not-loaded = Цей розділ бібліотеки не завантажився
+library-local-unconfigured = Налаштуйте локальну бібліотеку
 
 # app menu
 app-refresh-library = Оновити медіатеку

@@ -1,12 +1,13 @@
 use std::time::{Duration, Instant};
 
 use gpui::prelude::*;
-use gpui::{AnyView, App, Context, Entity, FocusHandle, Render, StyleRefinement, px};
+use gpui::{AnyView, App, Context, Entity, FocusHandle, Render, StyleRefinement};
 use gpui::{Window, div};
 use input::WORKSPACE_CONTEXT;
 use state::{Playback, Queue, SideTab};
 use ui::{
-    Activate, Deselect, Motion, Remove, SelectNext, SelectPrevious, ease_out_expo, shown_listing,
+    Activate, ActiveTheme as _, Deselect, Remove, SelectNext, SelectPrevious, ease_out_expo,
+    entrance_span, shown_listing, veiled,
 };
 
 use crate::chrome::{
@@ -17,14 +18,8 @@ use crate::shared::playlist_editor::PlaylistEditor;
 use crate::shared::tag_editor::TagEditor;
 use crate::shells::Shell;
 
-const VIEW_BLUR: gpui::Pixels = px(1.5);
-const VIEW_DURATION_EXTRA: Duration = Duration::from_millis(50);
-const VIEW_ZOOM: f32 = 0.01;
-
 #[derive(Clone, Copy)]
 struct ContentTransition {
-    from: f32,
-    to: f32,
     started: Instant,
     span: Duration,
 }
@@ -32,11 +27,11 @@ struct ContentTransition {
 impl ContentTransition {
     fn hidden(self) -> f32 {
         if self.span.is_zero() {
-            return self.to;
+            return 0.;
         }
         let elapsed = self.started.elapsed().as_secs_f32();
         let progress = (elapsed / self.span.as_secs_f32()).clamp(0., 1.);
-        self.from + (self.to - self.from) * ease_out_expo(progress)
+        1. - ease_out_expo(progress)
     }
 
     fn running(self) -> bool {
@@ -117,35 +112,19 @@ impl Workspace {
             return Duration::ZERO;
         }
 
-        let from = self
-            .transition
-            .filter(|transition| transition.running())
-            .map(ContentTransition::hidden)
-            .unwrap_or(1.);
-        self.transition_from(from, 0., cx)
+        let span = entrance_span();
+        self.transition = Some(ContentTransition {
+            started: Instant::now(),
+            span,
+        });
+        cx.notify();
+        span
     }
 
     pub fn finish_transition(&mut self, cx: &mut Context<Self>) {
         if self.transition.take().is_some() {
             cx.notify();
         }
-    }
-
-    fn transition_from(&mut self, from: f32, to: f32, cx: &mut Context<Self>) -> Duration {
-        let distance = (to - from).abs();
-        if distance <= f32::EPSILON {
-            return Duration::ZERO;
-        }
-
-        let span = (Motion::Base.span() + VIEW_DURATION_EXTRA).mul_f32(distance);
-        self.transition = Some(ContentTransition {
-            from,
-            to,
-            started: Instant::now(),
-            span,
-        });
-        cx.notify();
-        span
     }
 
     fn hidden(&mut self, window: &mut Window, cx: &Context<Self>) -> f32 {
@@ -207,7 +186,7 @@ impl Render for Workspace {
                 .into_any_element(),
         };
         let hidden = self.hidden(window, cx);
-        let scale = 1. - VIEW_ZOOM * hidden;
+        let backdrop = cx.theme().background;
 
         div()
             .relative()
@@ -274,18 +253,25 @@ impl Render for Workspace {
                                     .bottom_0()
                                     .flex()
                                     .flex_col()
-                                    .layer_scale(scale)
-                                    .opacity(1. - hidden)
-                                    .blur(VIEW_BLUR * hidden)
-                                    .child(match hidden > 0. {
-                                        true => self.content.clone().into_any_element(),
-                                        false => self
-                                            .content
+                                    .map(|this| veiled(this, hidden))
+                                    .child(
+                                        self.content
                                             .clone()
-                                            .cached(StyleRefinement::default().size_full())
-                                            .into_any_element(),
-                                    }),
-                            ),
+                                            .cached(StyleRefinement::default().size_full()),
+                                    ),
+                            )
+                            .when(hidden > 0., |this| {
+                                this.child(
+                                    div()
+                                        .absolute()
+                                        .left_0()
+                                        .right_0()
+                                        .top_0()
+                                        .bottom_0()
+                                        .bg(backdrop)
+                                        .opacity(hidden),
+                                )
+                            }),
                     )
                     .child(self.sidebar_right.clone())
                     .when(overlay, |this| this.child(self.sidebar.clone())),

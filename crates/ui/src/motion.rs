@@ -2,8 +2,8 @@ use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::Duration;
 
 use gpui::{
-    Animation, AnimationElement, AnimationExt as _, App, ElementId, Hsla, IntoElement, Rgba,
-    SharedString, ease_in_out, ease_out_quint,
+    Animation, AnimationElement, AnimationExt as _, App, ElementId, Hsla, IntoElement, Pixels,
+    Rgba, SharedString, Styled, ease_in_out, ease_out_quint, px,
 };
 use i18n::t;
 
@@ -11,6 +11,10 @@ const CONTROL: Duration = Duration::from_millis(110);
 const QUICK: Duration = Duration::from_millis(120);
 const BASE: Duration = Duration::from_millis(200);
 const SLOW: Duration = Duration::from_millis(320);
+
+const ENTRANCE_EXTRA: Duration = Duration::from_millis(50);
+const ENTRANCE_BLUR: Pixels = px(1.5);
+const ENTRANCE_ZOOM: f32 = 0.01;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Motion {
@@ -135,6 +139,38 @@ impl Saver {
             Self::Medium => Some(60),
             Self::Strong => Some(30),
         }
+    }
+}
+
+pub fn entrance_span() -> Duration {
+    Motion::Base.span() + ENTRANCE_EXTRA
+}
+
+fn entrance() -> Animation {
+    Animation::new(entrance_span()).with_easing(ease_out_expo)
+}
+
+pub fn veiled<E: Styled>(element: E, hidden: f32) -> E {
+    let hidden = hidden.clamp(0., 1.);
+
+    element
+        .layer_scale(1. - ENTRANCE_ZOOM * hidden)
+        .blur(ENTRANCE_BLUR * hidden)
+}
+
+fn entering<E: Styled>(element: E, hidden: f32) -> E {
+    veiled(element, hidden).opacity(1. - hidden.clamp(0., 1.))
+}
+
+pub trait Rising: Sized {
+    fn rising(self, id: impl Into<ElementId>) -> AnimationElement<Self>;
+}
+
+impl<E: Styled + IntoElement + 'static> Rising for E {
+    fn rising(self, id: impl Into<ElementId>) -> AnimationElement<Self> {
+        self.with_animation(id, entrance(), |element, delta| {
+            entering(element, 1. - delta)
+        })
     }
 }
 

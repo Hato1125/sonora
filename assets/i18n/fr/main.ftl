@@ -51,6 +51,7 @@ library-no-local-playlists = Aucune playlist locale
 library-no-matches = Aucun résultat
 library-not-loaded = Votre bibliothèque ne s’est pas chargée
 library-part-not-loaded = Cette partie de votre bibliothèque ne s’est pas chargée
+library-local-unconfigured = Configurez votre bibliothèque locale
 
 # app menu
 app-refresh-library = Actualiser la bibliothèque

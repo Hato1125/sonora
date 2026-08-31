@@ -189,7 +189,8 @@ impl Element for Text {
             cx,
         );
 
-        if let Some(selection) = painted.selection.take() {
+        let focused = focus.is_focused(window);
+        if focused && let Some(selection) = painted.selection.take() {
             window.paint_quad(selection);
         }
 
@@ -206,9 +207,7 @@ impl Element for Text {
         )
         .ok();
 
-        if focus.is_focused(window)
-            && let Some(caret) = painted.caret.take()
-        {
+        if focused && let Some(caret) = painted.caret.take() {
             window.paint_quad(caret);
         }
 
