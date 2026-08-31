@@ -3,9 +3,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use crate::shared::popups::{
-    AccountPicker, BrowserPicker, matches_query, searchable_menu, searchable_scroll_menu,
-};
+use crate::shared::popups::{AccountPicker, BrowserPicker, SearchPopup, matches_query};
 use gpui::{
     AnyElement, App, Context, Entity, FontWeight, PathPromptOptions, Pixels, Render, SharedString,
     TextRun, Window, div, font, px,
@@ -18,8 +16,8 @@ use state::{AppSettings, Failure, Playback, SYSTEM_FONT, Session, SessionState, 
 use ui::{ActiveTheme as _, Scrollbar, Scroller, eyebrow};
 use ui::{
     Avatar, Button, InfoCard, Initials, Input, Look, MAX_FONT, MAX_TRANSPARENCY, MIN_FONT,
-    MenuItem, Modal, Pace, Picker, Popovers, Rounding, Saver, Scrubber, ScrubberState, SelectNext,
-    SelectPrevious, Separator, Skeleton, Stillness, Submit, Switch, Text, Theme, ThemeKind,
+    MenuItem, Modal, Pace, Picker, Popovers, Rounding, Saver, Scrubber, ScrubberState, Separator,
+    Skeleton, Stillness, Switch, Text, Theme, ThemeKind,
 };
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -31,7 +29,6 @@ const CORNERS: &str = "corners";
 const LANGUAGES: &str = "languages";
 const TYPEFACES: &str = "typefaces";
 const TYPEFACE_LIMIT: usize = 200;
-const TYPEFACE_HEIGHT: Pixels = px(320.);
 const TYPEFACE_LEAD: usize = 2;
 // faces previewed before a measurement
 const TYPEFACE_GUESS: usize = 24;
@@ -129,15 +126,10 @@ pub struct SettingsView {
     popovers: Popovers,
     browsers: Option<(&'static str, Vec<SharedString>)>,
     secret: Entity<Input>,
-    languages: Entity<Input>,
-    typefaces: Entity<Input>,
-    typeface_scroll: Entity<Scrollbar>,
-    typeface_cursor: usize,
-    typeface_asked: String,
+    languages: SearchPopup,
+    typefaces: SearchPopup,
     typeface_faced: RefCell<HashSet<SharedString>>,
     installed: Option<Vec<SharedString>>,
-    picking: bool,
-    picking_typeface: bool,
 }
 
 impl SettingsView {
@@ -150,28 +142,19 @@ impl SettingsView {
         cx.observe(&session, |_, _, cx| cx.notify()).detach();
         cx.observe(&settings, |_, _, cx| cx.notify()).detach();
         cx.observe(&playback, |_, _, cx| cx.notify()).detach();
-        let languages = cx.new(|cx| {
-            Input::new("settings-language-search", cx)
-                .compact()
-                .tucked()
-        });
-        cx.observe(&languages, |_, _, cx| cx.notify()).detach();
-        let typefaces = cx.new(|cx| {
-            Input::new("settings-typeface-search", cx)
-                .compact()
-                .tucked()
-        });
-        cx.observe(&typefaces, |this, input, cx| {
-            let asked = input.read(cx).text().trim().to_lowercase();
-            if this.typeface_asked != asked {
-                this.typeface_asked = asked;
-                this.typeface_cursor = 0;
-                this.typeface_scroll.read(cx).scroll().scroll_to_item(0);
-            }
+        let me = cx.entity_id();
+        let languages = SearchPopup::new("settings-language-search", me, cx);
+        cx.observe(&languages.input(), |this, _, cx| {
+            this.languages.changed(cx);
             cx.notify();
         })
         .detach();
-        let me = cx.entity_id();
+        let typefaces = SearchPopup::new("settings-typeface-search", me, cx);
+        cx.observe(&typefaces.input(), |this, _, cx| {
+            this.typefaces.changed(cx);
+            cx.notify();
+        })
+        .detach();
         Self {
             session,
             playback,
@@ -184,13 +167,8 @@ impl SettingsView {
             secret: cx.new(|cx| Input::new("login-cookie-hint", cx)),
             languages,
             typefaces,
-            typeface_scroll: cx.new(|_| Scrollbar::inset().watching(me)),
-            typeface_cursor: 0,
-            typeface_asked: String::new(),
             typeface_faced: RefCell::new(HashSet::new()),
             installed: None,
-            picking: false,
-            picking_typeface: false,
         }
     }
 
@@ -347,7 +325,7 @@ impl SettingsView {
             None => t!("settings-language-system"),
         };
 
-        let asked = self.languages.read(cx).text().trim().to_lowercase();
+        let asked = self.languages.query();
         let entries = std::iter::once((i18n::AUTO, t!("settings-language-system")))
             .chain(
                 Language::ALL
@@ -357,17 +335,17 @@ impl SettingsView {
             .filter(|(id, label)| matches_query(id, label, &asked))
             .collect::<Vec<_>>();
         let barren = entries.is_empty();
+        let count = entries.len();
+        let cursor = self.languages.cursor(count);
+        let submitted = entries.clone();
 
         let picker = Picker::new(LANGUAGES, &self.popovers, current)
             .width(Picker::WIDE)
-            .menu(searchable_menu(
-                "languages-menu",
-                self.languages.clone(),
-                Picker::WIDE,
-            ))
-            .items(entries.into_iter().map(|(id, label)| {
+            .menu(self.languages.menu("languages-menu", Picker::WIDE))
+            .items(entries.into_iter().enumerate().map(|(place, (id, label))| {
                 MenuItem::new(id, label)
-                    .selected(chosen == id)
+                    .selected(place == cursor)
+                    .checked(chosen == id)
                     .on_click(cx.listener(move |this, _, _, cx| {
                         this.settings
                             .update(cx, |settings, cx| settings.set_language(id, cx));
@@ -378,6 +356,20 @@ impl SettingsView {
                 picker
                     .item(MenuItem::new("language-empty", t!("settings-language-none")).disabled())
             });
+        let picker = self.languages.controls(
+            picker,
+            count,
+            move |this, place, _, cx| {
+                let Some((id, _)) = submitted.get(place) else {
+                    return;
+                };
+                this.settings
+                    .update(cx, |settings, cx| settings.set_language(*id, cx));
+                this.popovers.close();
+                cx.notify();
+            },
+            cx,
+        );
 
         self.row(
             t!("settings-language"),
@@ -388,8 +380,8 @@ impl SettingsView {
         )
     }
 
-    fn typeface_entries(&self, cx: &App) -> Vec<SharedString> {
-        let asked = self.typefaces.read(cx).text().trim().to_lowercase();
+    fn typeface_entries(&self) -> Vec<SharedString> {
+        let asked = self.typefaces.query();
         let installed = self.installed.as_deref().unwrap_or_default();
 
         std::iter::once(SharedString::from(SYSTEM_FONT))
@@ -405,49 +397,6 @@ impl SettingsView {
             .collect()
     }
 
-    fn walk_typefaces(&mut self, step: isize, cx: &mut Context<Self>) {
-        let count = self.typeface_entries(cx).len();
-        if count == 0 {
-            return;
-        }
-        let place = self.typeface_cursor.min(count - 1) as isize + step;
-        self.typeface_cursor = place.rem_euclid(count as isize) as usize;
-        self.typeface_scroll
-            .read(cx)
-            .scroll()
-            .scroll_to_item(self.typeface_cursor);
-        cx.notify();
-    }
-
-    fn take_typeface(&mut self, cx: &mut Context<Self>) {
-        let entries = self.typeface_entries(cx);
-        let seat = self.typeface_cursor.min(entries.len().saturating_sub(1));
-        let Some(name) = entries.get(seat).cloned() else {
-            return;
-        };
-        self.settings
-            .update(cx, |settings, cx| settings.set_font(name.to_string(), cx));
-        self.popovers.close();
-        cx.notify();
-    }
-
-    fn reveal_typeface(&mut self, cx: &App) {
-        let chosen = self.settings.read(cx).font();
-        let Some(seat) = self
-            .typeface_entries(cx)
-            .iter()
-            .position(|name| name.as_ref() == chosen)
-        else {
-            return;
-        };
-
-        self.typeface_cursor = seat;
-        self.typeface_scroll
-            .read(cx)
-            .scroll()
-            .scroll_to_item(seat.saturating_sub(TYPEFACE_LEAD));
-    }
-
     fn typeface_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
         let muted = theme.muted_foreground;
@@ -459,7 +408,7 @@ impl SettingsView {
             false => SharedString::from(chosen.clone()),
         };
 
-        let asked = self.typefaces.read(cx).text().trim().to_lowercase();
+        let asked = self.typefaces.query();
         let installed = self.installed.as_deref().unwrap_or_default();
         let entries = std::iter::once((
             SharedString::from(SYSTEM_FONT),
@@ -470,9 +419,14 @@ impl SettingsView {
         .take(TYPEFACE_LIMIT)
         .collect::<Vec<_>>();
         let barren = entries.is_empty();
-        let cursor = self.typeface_cursor.min(entries.len().saturating_sub(1));
+        let count = entries.len();
+        let cursor = self.typefaces.cursor(count);
+        let submitted = entries
+            .iter()
+            .map(|(name, _)| name.clone())
+            .collect::<Vec<_>>();
         // a face costs a font load
-        let scroll = self.typeface_scroll.read(cx).scroll().clone();
+        let scroll = self.typefaces.scroll(cx);
         let row = scroll
             .bounds_for_item(0)
             .map(|item| item.size.height)
@@ -481,7 +435,7 @@ impl SettingsView {
             ((-scroll.offset().y) / row).floor().max(0.) as usize
         });
         let shown = row.map_or(TYPEFACE_GUESS, |row| {
-            (TYPEFACE_HEIGHT / row).ceil() as usize
+            (self.typefaces.height() / row).ceil() as usize
         });
         let previewed = first.saturating_sub(TYPEFACE_LEAD)..first + shown + TYPEFACE_LEAD;
         let picking = self.popovers.shows(TYPEFACES);
@@ -530,24 +484,27 @@ impl SettingsView {
 
         let picker = Picker::new(TYPEFACES, &self.popovers, current)
             .width(Picker::WIDE)
-            .menu(searchable_scroll_menu(
-                "typefaces-menu",
-                self.typefaces.clone(),
-                Picker::WIDE,
-                TYPEFACE_HEIGHT,
-                self.typeface_scroll.clone(),
-            ))
+            .menu(self.typefaces.menu("typefaces-menu", Picker::WIDE))
             .items(items)
             .when(barren, |picker| {
                 picker
                     .item(MenuItem::new("typeface-empty", t!("settings-typeface-none")).disabled())
             });
 
-        let keys = div()
-            .on_action(cx.listener(|this, _: &SelectNext, _, cx| this.walk_typefaces(1, cx)))
-            .on_action(cx.listener(|this, _: &SelectPrevious, _, cx| this.walk_typefaces(-1, cx)))
-            .on_action(cx.listener(|this, _: &Submit, _, cx| this.take_typeface(cx)))
-            .child(picker);
+        let keys = self.typefaces.controls(
+            picker,
+            count,
+            move |this, place, _, cx| {
+                let Some(name) = submitted.get(place) else {
+                    return;
+                };
+                this.settings
+                    .update(cx, |settings, cx| settings.set_font(name.to_string(), cx));
+                this.popovers.close();
+                cx.notify();
+            },
+            cx,
+        );
 
         self.row(
             t!("settings-typeface"),
@@ -1706,33 +1663,30 @@ impl Render for SettingsView {
             self.installed = Some(usable_fonts(window, cx));
         }
 
-        let picking = self.popovers.shows(LANGUAGES);
-        if picking != self.picking {
-            self.picking = picking;
-            match picking {
-                true => self
-                    .languages
-                    .update(cx, |input, cx| input.focus(window, cx)),
-                false => self
-                    .languages
-                    .update(cx, |input, cx| input.set_text("", cx)),
-            }
-        }
+        let chosen_language = self.settings.read(cx).language();
+        let language_selected = Language::ALL
+            .into_iter()
+            .position(|language| language.id() == chosen_language)
+            .map(|place| place + 1)
+            .or(Some(0));
+        self.languages.sync(
+            self.popovers.shows(LANGUAGES),
+            language_selected,
+            window,
+            cx,
+        );
 
-        let picking_typeface = self.popovers.shows(TYPEFACES);
-        if picking_typeface != self.picking_typeface {
-            self.picking_typeface = picking_typeface;
-            match picking_typeface {
-                true => {
-                    self.typefaces
-                        .update(cx, |input, cx| input.focus(window, cx));
-                    self.reveal_typeface(cx);
-                }
-                false => self
-                    .typefaces
-                    .update(cx, |input, cx| input.set_text("", cx)),
-            }
-        }
+        let chosen_typeface = self.settings.read(cx).font();
+        let typeface_selected = self
+            .typeface_entries()
+            .iter()
+            .position(|name| name.as_ref() == chosen_typeface);
+        self.typefaces.sync(
+            self.popovers.shows(TYPEFACES),
+            typeface_selected,
+            window,
+            cx,
+        );
 
         let browsers = self.browsers.clone();
         let accounts = match self.session.read(cx).state() {
