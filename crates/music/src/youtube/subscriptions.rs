@@ -15,21 +15,41 @@ pub async fn saved(api: &YtMusic, limit: u32) -> Result<Vec<SavedArtist>> {
             json!({ "browseId": LIBRARY_SUBSCRIPTIONS }),
         )
         .await?;
-    let mut artists = ytmusic::parse::find_renderers(&response, "musicTwoRowItemRenderer")
+    let renderers = ["musicTwoRowItemRenderer", "musicResponsiveListItemRenderer"]
         .into_iter()
-        .filter_map(saved_artist)
-        .collect::<Vec<_>>();
+        .flat_map(|kind| ytmusic::parse::find_renderers(&response, kind));
+    let mut artists = renderers.filter_map(saved_artist).collect::<Vec<_>>();
     artists.truncate(limit as usize);
     Ok(artists)
 }
 
 fn saved_artist(renderer: &serde_json::Value) -> Option<SavedArtist> {
     let id = renderer
-        .str_at(&["navigationEndpoint", "browseEndpoint", "browseId"])?
+        .str_at(&["navigationEndpoint", "browseEndpoint", "browseId"])
+        .or_else(|| {
+            renderer.str_at(&[
+                "flexColumns",
+                "0",
+                "musicResponsiveListItemFlexColumnRenderer",
+                "text",
+                "runs",
+                "0",
+                "navigationEndpoint",
+                "browseEndpoint",
+                "browseId",
+            ])
+        })?
         .to_string();
     id.starts_with("UC").then_some(SavedArtist {
         id,
-        name: renderer.run_text(&["title"])?,
+        name: renderer.run_text(&["title"]).or_else(|| {
+            renderer.run_text(&[
+                "flexColumns",
+                "0",
+                "musicResponsiveListItemFlexColumnRenderer",
+                "text",
+            ])
+        })?,
         cover: ytmusic::parse::thumbnails(renderer)
             .last()
             .map(|thumbnail| thumbnail.url.clone()),
