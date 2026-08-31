@@ -7,6 +7,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Pinned items keep a single order across providers, so a streaming pin and a local one can sit
+  next to each other in the sidebar.
+
 ### Fixed
 
 - A text field no longer keeps its selection highlight after it loses focus.

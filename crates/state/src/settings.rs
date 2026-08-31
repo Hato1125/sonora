@@ -134,7 +134,14 @@ const DEFAULT_STARTUP: &str = "home";
 
 pub const SYSTEM_FONT: &str = "auto";
 
-type Pins = HashMap<String, Vec<Pin>>;
+type Groups = HashMap<String, Vec<Pin>>;
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct Held {
+    slug: String,
+    #[serde(flatten)]
+    pin: Pin,
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
@@ -168,7 +175,10 @@ struct Values {
     tables: HashMap<String, Layout>,
     sorting: HashMap<String, Option<Sorting>>,
     views: HashMap<String, Mode>,
-    pins: Pins,
+    #[serde(skip_serializing_if = "HashMap::is_empty")]
+    pins: Groups,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pinned: Vec<Held>,
     #[serde(skip_serializing_if = "Option::is_none")]
     resume: Option<Resume>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -223,7 +233,8 @@ impl Default for Values {
             tables: HashMap::new(),
             sorting: HashMap::new(),
             views: HashMap::new(),
-            pins: Pins::new(),
+            pins: Groups::new(),
+            pinned: Vec::new(),
             resume: None,
             window: None,
             appearance: Appearance::default(),
@@ -238,6 +249,18 @@ impl Values {
                 hidden,
                 ..Layout::default()
             });
+        }
+
+        let mut slugs: Vec<String> = self.pins.keys().cloned().collect();
+        slugs.sort_by_key(|slug| (*slug != self.provider, slug.clone()));
+        for slug in slugs {
+            let Some(group) = self.pins.remove(&slug) else {
+                continue;
+            };
+            self.pinned.extend(group.into_iter().map(|pin| Held {
+                slug: slug.clone(),
+                pin,
+            }));
         }
     }
 }
@@ -538,7 +561,7 @@ impl AppSettings {
     }
 
     pub fn pinned(&self, slugs: &[&str]) -> Vec<Pin> {
-        gather(&self.values.pins, slugs)
+        gather(&self.values.pinned, slugs)
     }
 
     pub fn resume(&self) -> Option<&Resume> {
@@ -579,19 +602,22 @@ impl AppSettings {
         self.save_quietly(cx);
     }
 
-    pub fn pins_before(&self, slugs: &[&str], slug: &str) -> usize {
-        before(&self.values.pins, slugs, slug)
-    }
-
-    pub fn pin(&mut self, slug: &str, pin: Pin, gap: Option<usize>, cx: &mut Context<Self>) {
-        if !put(&mut self.values.pins, slug, pin, gap) {
+    pub fn pin(
+        &mut self,
+        slug: &str,
+        pin: Pin,
+        gap: Option<usize>,
+        slugs: &[&str],
+        cx: &mut Context<Self>,
+    ) {
+        if !place(&mut self.values.pinned, slug, pin, gap, slugs) {
             return;
         }
         self.schedule_save(cx);
     }
 
     pub fn unpin(&mut self, slug: &str, pin: &Pin, cx: &mut Context<Self>) {
-        if !take(&mut self.values.pins, slug, pin) {
+        if !take(&mut self.values.pinned, slug, pin) {
             return;
         }
         self.schedule_save(cx);
@@ -840,38 +866,30 @@ fn settings_path() -> PathBuf {
         .join("settings.json")
 }
 
-fn gather(pins: &Pins, slugs: &[&str]) -> Vec<Pin> {
-    slugs
-        .iter()
-        .filter_map(|slug| pins.get(*slug))
-        .flat_map(|group| group.iter().cloned())
+fn gather(pinned: &[Held], slugs: &[&str]) -> Vec<Pin> {
+    shown(pinned, slugs)
+        .map(|(_, held)| held.pin.clone())
         .collect()
 }
 
-fn before(pins: &Pins, slugs: &[&str], slug: &str) -> usize {
-    slugs
+fn shown<'a>(
+    pinned: &'a [Held],
+    slugs: &'a [&str],
+) -> impl Iterator<Item = (usize, &'a Held)> + 'a {
+    pinned
         .iter()
-        .take_while(|it| **it != slug)
-        .filter_map(|it| pins.get(*it))
-        .map(Vec::len)
-        .sum()
+        .enumerate()
+        .filter(move |(_, held)| slugs.contains(&held.slug.as_str()))
 }
 
-fn put(pins: &mut Pins, slug: &str, pin: Pin, gap: Option<usize>) -> bool {
-    place(pins.entry(slug.to_owned()).or_default(), pin, gap)
-}
-
-fn take(pins: &mut Pins, slug: &str, pin: &Pin) -> bool {
-    let Some(group) = pins.get_mut(slug) else {
+fn take(pinned: &mut Vec<Held>, slug: &str, pin: &Pin) -> bool {
+    let Some(index) = pinned
+        .iter()
+        .position(|held| held.slug == slug && held.pin.same(pin))
+    else {
         return false;
     };
-    let Some(index) = group.iter().position(|it| it.same(pin)) else {
-        return false;
-    };
-    group.remove(index);
-    if group.is_empty() {
-        pins.remove(slug);
-    }
+    pinned.remove(index);
     true
 }
 
@@ -885,14 +903,26 @@ fn carry(previous: Option<&Resume>, next: &mut Resume) {
     next.origin = same.and_then(|old| old.origin.clone());
 }
 
-fn place(pinned: &mut Vec<Pin>, pin: Pin, gap: Option<usize>) -> bool {
-    let gap = gap.unwrap_or(pinned.len()).min(pinned.len());
-    let Some(from) = pinned.iter().position(|it| it.same(&pin)) else {
-        pinned.insert(gap, pin);
+fn place(pinned: &mut Vec<Held>, slug: &str, pin: Pin, gap: Option<usize>, slugs: &[&str]) -> bool {
+    let visible: Vec<usize> = shown(pinned, slugs).map(|(index, _)| index).collect();
+    let gap = gap.unwrap_or(visible.len()).min(visible.len());
+    let target = match gap {
+        0 => visible.first().copied().unwrap_or(pinned.len()),
+        gap => visible[gap - 1] + 1,
+    };
+
+    let Some(from) = pinned.iter().position(|held| held.pin.same(&pin)) else {
+        pinned.insert(
+            target,
+            Held {
+                slug: slug.to_owned(),
+                pin,
+            },
+        );
         return true;
     };
 
-    let to = gap_target(from, gap, pinned.len());
+    let to = gap_target(from, target, pinned.len());
     if to == from {
         return false;
     }
@@ -996,68 +1026,95 @@ mod tests {
         assert_eq!(next.position, 0.);
     }
 
+    const SLUGS: [&str; 2] = ["spotify", "local"];
+
     fn pin(id: &str) -> Pin {
         Pin::new(PinKind::Album, id, id)
     }
 
-    fn ids(pinned: &[Pin]) -> Vec<&str> {
-        pinned.iter().map(|it| it.id.as_str()).collect()
+    fn held(slug: &str, id: &str) -> Held {
+        Held {
+            slug: slug.to_owned(),
+            pin: pin(id),
+        }
+    }
+
+    fn ids(pinned: &[Held]) -> Vec<&str> {
+        pinned.iter().map(|held| held.pin.id.as_str()).collect()
     }
 
     #[test]
     fn a_fresh_pin_lands_at_the_gap() {
-        let mut pinned = vec![pin("a"), pin("b")];
+        let mut pinned = vec![held("spotify", "a"), held("spotify", "b")];
 
-        assert!(place(&mut pinned, pin("c"), Some(1)));
+        assert!(place(&mut pinned, "spotify", pin("c"), Some(1), &SLUGS));
         assert_eq!(ids(&pinned), ["a", "c", "b"]);
     }
 
     #[test]
     fn no_gap_appends() {
-        let mut pinned = vec![pin("a")];
+        let mut pinned = vec![held("spotify", "a")];
 
-        assert!(place(&mut pinned, pin("b"), None));
+        assert!(place(&mut pinned, "spotify", pin("b"), None, &SLUGS));
         assert_eq!(ids(&pinned), ["a", "b"]);
     }
 
     #[test]
     fn a_gap_past_the_end_still_appends() {
-        let mut pinned = vec![pin("a")];
+        let mut pinned = vec![held("spotify", "a")];
 
-        assert!(place(&mut pinned, pin("b"), Some(9)));
+        assert!(place(&mut pinned, "spotify", pin("b"), Some(9), &SLUGS));
         assert_eq!(ids(&pinned), ["a", "b"]);
     }
 
     #[test]
     fn pinning_twice_moves_instead_of_duplicating() {
-        let mut pinned = vec![pin("a"), pin("b"), pin("c")];
+        let mut pinned = vec![
+            held("spotify", "a"),
+            held("spotify", "b"),
+            held("spotify", "c"),
+        ];
 
-        assert!(place(&mut pinned, pin("a"), Some(3)));
+        assert!(place(&mut pinned, "spotify", pin("a"), Some(3), &SLUGS));
         assert_eq!(ids(&pinned), ["b", "c", "a"]);
     }
 
     #[test]
     fn a_move_backwards_keeps_the_gap() {
-        let mut pinned = vec![pin("a"), pin("b"), pin("c")];
+        let mut pinned = vec![
+            held("spotify", "a"),
+            held("spotify", "b"),
+            held("spotify", "c"),
+        ];
 
-        assert!(place(&mut pinned, pin("c"), Some(0)));
+        assert!(place(&mut pinned, "spotify", pin("c"), Some(0), &SLUGS));
         assert_eq!(ids(&pinned), ["c", "a", "b"]);
     }
 
     #[test]
     fn the_gaps_around_an_item_are_no_ops() {
-        let mut pinned = vec![pin("a"), pin("b"), pin("c")];
+        let mut pinned = vec![
+            held("spotify", "a"),
+            held("spotify", "b"),
+            held("spotify", "c"),
+        ];
 
-        assert!(!place(&mut pinned, pin("b"), Some(1)));
-        assert!(!place(&mut pinned, pin("b"), Some(2)));
+        assert!(!place(&mut pinned, "spotify", pin("b"), Some(1), &SLUGS));
+        assert!(!place(&mut pinned, "spotify", pin("b"), Some(2), &SLUGS));
         assert_eq!(ids(&pinned), ["a", "b", "c"]);
     }
 
     #[test]
     fn kinds_with_the_same_id_stay_apart() {
-        let mut pinned = vec![Pin::new(PinKind::Album, "x", "x")];
+        let mut pinned = vec![held("spotify", "x")];
 
-        assert!(place(&mut pinned, Pin::new(PinKind::Song, "x", "x"), None));
+        assert!(place(
+            &mut pinned,
+            "spotify",
+            Pin::new(PinKind::Song, "x", "x"),
+            None,
+            &SLUGS
+        ));
         assert_eq!(pinned.len(), 2);
     }
 }

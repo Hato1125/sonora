@@ -515,10 +515,8 @@ impl Render for SidebarLeft {
                 let pin = dragged.pin.clone();
                 if let Some(slug) = this.session.read(cx).slug_for(&pin.id) {
                     let slugs = this.session.read(cx).active_slugs();
-                    let before = this.settings.read(cx).pins_before(&slugs, slug);
-                    let gap = gap.map(|gap| gap.saturating_sub(before));
                     this.settings
-                        .update(cx, |settings, cx| settings.pin(slug, pin, gap, cx));
+                        .update(cx, |settings, cx| settings.pin(slug, pin, gap, &slugs, cx));
                 }
                 cx.notify();
             }))
