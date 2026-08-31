@@ -802,7 +802,12 @@ impl Aside {
         )
     }
 
-    fn header(&self, sections: Sections, cx: &mut Context<Self>) -> impl IntoElement {
+    fn header(
+        &self,
+        sections: Sections,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         let theme = *cx.theme();
 
         div()
@@ -811,7 +816,7 @@ impl Aside {
             .items_center()
             .justify_between()
             .gap_2()
-            .h(theme.metrics.header)
+            .h(snapped(theme.metrics.header, window))
             .px_2()
             .when(self.titled, |this| {
                 this.border_b_1().border_color(theme.border).child(eyebrow(
@@ -1698,7 +1703,7 @@ impl Render for Aside {
                     cx.notify();
                 }
             }))
-            .child(self.header(sections, cx))
+            .child(self.header(sections, window, cx))
             .child(
                 div()
                     .id("queue-drop")
