@@ -12,6 +12,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Local Music stays in the sidebar before a folder is picked, and every one of its pages offers a
   Choose folder button so the library can be set up without opening Settings.
 - A toast that names an album, artist, playlist or song turns that name into a link to its page.
+- The sign-in screen carries a one-off checkbox that helps count how many people use Sonora. It is
+  ticked by default and sends a single anonymous ping with your next action on that screen; untick
+  it to send nothing. The checkbox never returns once you have signed in or answered it.
 
 ### Changed
 

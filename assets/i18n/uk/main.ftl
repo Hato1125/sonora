@@ -187,6 +187,7 @@ login-use = Відкрити { $provider }
 login-guest-title = Гостьовий режим
 login-guest-use = Відкрити гостьовий режим
 login-guest-detail = Слухайте без акаунта. Медіатека, вподобання та плейлисти будуть недоступні.
+login-usage-consent = Допоможіть нам оцінити, скільки людей користується Sonora.
 login-device-code = Введіть цей код на { $url }
 login-cookie-submit = Продовжити
 login-cookie-hint = Вставте сюди заголовок запиту Cookie

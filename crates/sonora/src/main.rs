@@ -120,6 +120,7 @@ fn main() {
             queue,
             settings: _,
             updates: _,
+            usage: _,
         } = Sonora::global(cx);
         let (session, library, playback, queue) = (
             session.clone(),

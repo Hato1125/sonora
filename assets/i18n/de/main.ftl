@@ -187,6 +187,7 @@ login-use = { $provider } verwenden
 login-guest-title = Gastmodus
 login-guest-use = Gastmodus verwenden
 login-guest-detail = Stöbern und abspielen ohne Konto. Bibliothek, Favoriten und Playlists bleiben außen vor.
+login-usage-consent = Hilf uns zu schätzen, wie viele Menschen Sonora nutzen.
 login-device-code = Gib diesen Code auf { $url } ein
 login-cookie-submit = Weiter
 login-cookie-hint = Füge hier den Cookie-Request-Header ein

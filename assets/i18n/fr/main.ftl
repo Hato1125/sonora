@@ -187,6 +187,7 @@ login-use = Utiliser { $provider }
 login-guest-title = Mode invité
 login-guest-use = Utiliser le mode invité
 login-guest-detail = Parcourez et écoutez sans compte. Votre bibliothèque, vos likes et vos playlists restent hors de portée.
+login-usage-consent = Aidez-nous à estimer combien de personnes utilisent Sonora.
 login-device-code = Saisissez ce code sur { $url }
 login-cookie-submit = Continuer
 login-cookie-hint = Collez ici l'en-tête de requête Cookie

@@ -20,6 +20,7 @@ mod song;
 mod tags;
 mod toast;
 mod updates;
+mod usage;
 
 pub use artist::ArtistDetail;
 pub use cover::Cover;
@@ -42,6 +43,7 @@ pub use song::SongDetail;
 pub use tags::{TagState, Tags};
 pub use toast::{Outcome, Target, Toast, Toasts};
 pub use updates::{Release, UpdateState, Updates};
+pub use usage::Usage;
 
 use std::future::Future;
 use std::sync::Arc;
@@ -93,6 +95,7 @@ pub struct Sonora {
     pub queue: Entity<Queue>,
     pub settings: Entity<AppSettings>,
     pub updates: Entity<Updates>,
+    pub usage: Entity<Usage>,
 }
 
 impl Global for Sonora {}
@@ -130,7 +133,8 @@ pub fn init(
         )
     });
     let cover = cx.new(|cx| Cover::new(session.clone(), playback.clone(), io.clone(), cx));
-    let updates = cx.new(|cx| Updates::new(settings.clone(), io, cx));
+    let updates = cx.new(|cx| Updates::new(settings.clone(), io.clone(), cx));
+    let usage = cx.new(|cx| Usage::new(session.clone(), io, cx));
 
     cx.set_global(Sonora {
         session,
@@ -142,5 +146,6 @@ pub fn init(
         queue,
         settings,
         updates,
+        usage,
     });
 }
