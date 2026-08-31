@@ -72,11 +72,20 @@ pub(super) const COLUMNS: &[ColumnSpec<PlaylistField>] =
 pub(super) struct PlaylistSource {
     library: Entity<Library>,
     playback: Entity<Playback>,
+    local: bool,
 }
 
 impl PlaylistSource {
-    pub(super) fn new(library: Entity<Library>, playback: Entity<Playback>) -> Self {
-        Self { library, playback }
+    pub(super) fn shelved(
+        library: Entity<Library>,
+        playback: Entity<Playback>,
+        local: bool,
+    ) -> Self {
+        Self {
+            library,
+            playback,
+            local,
+        }
     }
 
     fn index_cell(&self, cell: &Cell<PlaylistField>, playlist: &Playlist, cx: &App) -> AnyElement {
@@ -95,7 +104,12 @@ impl PlaylistSource {
     }
 
     fn playlists<'a>(&self, cx: &'a App) -> &'a [Playlist] {
-        match self.library.read(cx).state() {
+        let library = self.library.read(cx);
+        let state = match self.local {
+            true => library.local_state(),
+            false => library.state(),
+        };
+        match state {
             LibraryState::Ready { playlists, .. } => playlists.as_slice(),
             _ => &[],
         }
@@ -127,7 +141,10 @@ impl TableSource for PlaylistSource {
     }
 
     fn is_loading(&self, cx: &App) -> bool {
-        self.library.read(cx).is_loading()
+        match self.local {
+            true => self.library.read(cx).local_is_loading(),
+            false => self.library.read(cx).is_loading(),
+        }
     }
 
     fn pin(&self, row: usize, cx: &App) -> Option<Pin> {

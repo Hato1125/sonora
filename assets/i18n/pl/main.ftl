@@ -25,10 +25,11 @@ nav-search = Szukaj
 nav-library = Twoja biblioteka
 nav-settings = Ustawienia
 nav-songs = Utwory
+nav-favorites = Ulubione
 nav-albums = Albumy
 nav-playlists = Playlisty
 nav-artists = Wykonawcy
-nav-local = Zaimportowane
+nav-local = Muzyka lokalna
 nav-back = Wstecz
 nav-forward = Dalej
 nav-sidebar = Pokaż lub ukryj panel boczny
@@ -36,14 +37,17 @@ nav-sidebar-right = Pokaż lub ukryj tekst i kolejkę
 nav-pinned = Przypięte
 nav-unpin = Odepnij
 nav-pin-hint = Upuść tutaj, aby przypiąć
-library-liked-songs = Polubione utwory
+library-liked-songs = Ulubione
 library-play-liked-songs = Odtwórz
-library-no-songs = Brak polubionych utworów
+library-no-songs = Brak ulubionych
 library-no-albums = Brak zapisanych albumów
 library-no-playlists = Brak playlist
 library-no-artists = Brak obserwowanych wykonawców
 library-no-local-songs = Nie znaleziono zaimportowanych utworów
+library-no-local-favorites = Brak lokalnych ulubionych
 library-no-local-albums = Nie znaleziono zaimportowanych albumów
+library-no-local-artists = Nie znaleziono zaimportowanych wykonawców
+library-no-local-playlists = Nie ma jeszcze lokalnych playlist
 library-no-matches = Brak wyników
 library-not-loaded = Biblioteka się nie wczytała
 library-part-not-loaded = Ta część biblioteki się nie wczytała
@@ -72,9 +76,10 @@ column-tracks = Utwory
 # track menu
 menu-add-to-playlist = Dodaj do playlisty
 menu-new-playlist = Nowa playlista
+menu-edit-tags = Edytuj tagi
 menu-no-playlists = Brak playlist
-menu-add-to-library = Dodaj do biblioteki
-menu-remove-from-library = Usuń z biblioteki
+menu-add-to-library = Dodaj do ulubionych
+menu-remove-from-library = Usuń z ulubionych
 menu-remove-from-playlist = Usuń z playlisty
 menu-remove-from-history = Usuń z historii
 menu-play-next = Odtwórz jako następny
@@ -173,6 +178,7 @@ login-problem-premium = Sonora odtwarza muzykę przez Spotify Premium, a to kont
 login-sign-in = Zaloguj się przez { $provider }
 login-connect-cookies = Wklej pliki cookie ręcznie
 login-import-browser = Importuj z przeglądarki*
+login-import-browser-plain = Importuj z przeglądarki
 login-browser-firefox = *Tylko przeglądarki oparte na Firefoksie
 login-browser-title = Wybierz przeglądarkę
 login-browser-detail = Sonora odczyta sesję YouTube Music z wybranej przeglądarki. Sesja pozostanie na tym urządzeniu.
@@ -326,6 +332,12 @@ count-songs =
         [few] { $count } utwory
        *[other] { $count } utworów
     }
+count-tracks =
+    { $count ->
+        [one] { $count } utwór
+        [few] { $count } utwory
+       *[other] { $count } utworów
+    }
 
 # dates
 date-just-now = Przed chwilą
@@ -378,6 +390,9 @@ settings-font-detail = Bazowy rozmiar tekstu, reszta skaluje się razem z nim
 settings-font-value = { $size } px
 settings-startup = Pokaż przy uruchomieniu
 settings-startup-detail = Ekran otwierany przez Sonorę po uruchomieniu
+settings-entries = Sekcje paska bocznego
+settings-entries-detail = Sekcje widoczne na pasku bocznym
+settings-entries-pick = Wybierz sekcje
 settings-language = Język
 settings-language-detail = Język interfejsu Sonora
 settings-language-system = Systemowy
@@ -523,3 +538,23 @@ update-working = Pobieranie aktualizacji…
 update-failed = Nie udało się zainstalować aktualizacji. Spróbuj ze strony wydań.
 settings-check-updates = Sprawdzaj aktualizacje
 settings-check-updates-detail = Zapytaj GitHuba przy starcie, czy jest nowsza wersja. Sonora instaluje aktualizację sama tylko w systemie Windows, w pozostałych pokazuje, co się zmieniło
+tags-edit-title = Edycja tagów
+tags-sheet-song = Utwór
+tags-sheet-album = Album
+tags-sheet-details = Szczegóły
+tags-title = Tytuł
+tags-artist = Wykonawca
+tags-track = Numer utworu
+tags-track-total = Utworów w wydaniu
+tags-disc = Numer płyty
+tags-disc-total = Płyt w wydaniu
+tags-album = Album
+tags-album-artist = Wykonawca albumu
+tags-year = Rok
+tags-genre = Gatunek
+tags-composer = Kompozytor
+tags-publisher = Wydawca
+tags-isrc = ISRC
+tags-comment = Komentarz
+toast-tags-saved = Zapisano tagi „{ $name }”
+toast-tags-failed = Nie udało się zapisać tagów

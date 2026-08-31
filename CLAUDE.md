@@ -519,13 +519,37 @@ whenever the route enters one (`expanded(&Destination)` in `sidebar_left.rs`), b
 a group except the chevron — leaving through a card, back/forward or an external `spotify:` link
 keeps it open. Don't reintroduce route-driven collapsing.
 
-**The Your Library and Settings rows navigate nowhere.** They are expanders: a click toggles the
-group and nothing else, so a route change only ever comes from a tab underneath. That is also why an
-overlaid `SidebarLeft` survives opening a group — it dismisses on navigation, and there is none.
+**The Your Library, Local Music and Settings rows navigate nowhere.** They are expanders: a click
+toggles the group and nothing else, so a route change only ever comes from a tab underneath. That is
+also why an overlaid `SidebarLeft` survives opening a group — it dismisses on navigation, and there
+is none.
 
-**`LibraryTab::Local` is labelled "Imported".** The enum variant, the `local-songs`/`local-albums`
-settings keys and the `nav-local` i18n key all keep the old name so stored layouts survive; only the
-translations say Imported. Rename the value, not the key.
+**Local Music is a top-level route that reuses `LibraryView`.** `Destination::Local(LocalTab)` owns
+the imported library, and `Root` builds a second `LibraryView` with `Shelf::Local`; the shelf picks
+the state (`Library::local_state`, `local_favorites`) and the settings keys, and every
+`TableSource` takes it through a `shelved(.., local)` constructor. Local Music adds a Songs section
+holding every scanned track, with a heart on each row, beside the Favorites section the streaming
+shelf also has. Its `local-*` settings keys and the `nav-local` i18n key keep the old names so
+stored layouts survive; `Screen::Imported` keeps the stored id `imported` for the same reason.
+Rename the value, not the key.
+
+**Local files carry their own metadata.** `music::local::wire` resolves artwork by convention:
+embedded picture, then `cover`/`folder` beside the track, then the same beside the album folder;
+an artist folder answers to `artist` first, then `folder`, then `cover`, in jpg, jpeg, png or webp.
+`music::local::tags` reads and writes the embedded tags through lofty, reaching the UI as
+`MusicApi::{track_tags, set_track_tags}` — both default to an error, so only the local provider
+answers. `state::Tags` owns the read and the write and rescans the folder afterwards;
+`views::shared::tag_editor` is the dialog.
+
+**Saved tracks are called Favorites.** `LibraryTab::Songs`, `Section::Favorites`, the `songs`
+settings key and `library-liked-songs` all keep their old names; only the wording changed. Local
+favorites live in the local SQLite store and reach the same `MusicApi::set_track_saved` path, so
+`Library::saved`/`toggle` route by `music::is_local_id`. `MusicApi::all_tracks` is the odd one out:
+it defaults to `saved_tracks` and only the local provider gives it a different answer.
+
+**Which entries the sidebar shows is a setting.** `NavEntry::ALL` (router) is the list; a hidden one
+is stored by id in `hidden_nav` and read through `AppSettings::nav_shown`. Your Library still needs
+an authenticated provider and Local Music still needs a scanned folder — the setting only hides.
 
 **Shells.** `crates/views/src/shells/` holds the two top-level layouts, `Workspace` and
 `FullscreenView`; `Root` swaps between them. A shell owns its own chrome — `Workspace` builds both
@@ -539,9 +563,10 @@ add a sidebar entry in `views/src/chrome/sidebar_left.rs` if it's top-level.
 
 **New library section checklist:** `LibraryView` keeps one `TableState` per `Section`, and the
 fixed-size arrays (`views`, `sliders`, `Section::ALL`, `tables()`) are all indexed by
-`Section::slot()` — a new section means bumping every one of them, plus a `LibraryTab` variant, a
-`key()` for settings persistence, a `vacancy()` i18n key, a card renderer, a `deck` arm and a
-`LIBRARY_TABS` entry. `library/artists.rs` is the smallest complete example.
+`Section::slot()` — a new section means bumping every one of them, plus a `LibraryTab` or
+`LocalTab` variant, a `key(shelf)` for settings persistence, a `vacancy(shelf)` i18n key, a card
+renderer, a `deck` arm and a `LIBRARY_TABS` or `LOCAL_TABS` entry. `library/artists.rs` is the
+smallest complete example.
 
 **Tables.** Implement `TableSource` (`columns`, `rows`, `cell`, and optionally `compare`, `matches`,
 `playing`, `is_loading`), define a `&'static [ColumnSpec<Field>]`, hold a

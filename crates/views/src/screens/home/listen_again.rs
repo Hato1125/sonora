@@ -7,7 +7,7 @@ use state::Playback;
 use ui::{Button, heading};
 
 use crate::shared::album_grid::CardGrid;
-use crate::shared::track_card::{ContextHandler, TrackCard};
+use crate::shared::track_card::{ContextHandler, StartHandler, TrackCard};
 
 type ClickHandler = Rc<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 
@@ -38,6 +38,7 @@ pub(super) struct ListenAgain {
     on_previous: Option<ClickHandler>,
     on_next: Option<ClickHandler>,
     on_context_menu: Option<ContextHandler>,
+    on_start: Option<StartHandler>,
 }
 
 impl ListenAgain {
@@ -57,6 +58,7 @@ impl ListenAgain {
             on_previous: None,
             on_next: None,
             on_context_menu: None,
+            on_start: None,
         }
     }
 
@@ -83,6 +85,11 @@ impl ListenAgain {
         self.on_context_menu = Some(Rc::new(handler));
         self
     }
+
+    pub(super) fn on_start(mut self, handler: impl Fn(usize, &mut App) + 'static) -> Self {
+        self.on_start = Some(Rc::new(handler));
+        self
+    }
 }
 
 impl RenderOnce for ListenAgain {
@@ -106,6 +113,7 @@ impl RenderOnce for ListenAgain {
                     self.active.as_deref(),
                 )
                 .context(self.on_context_menu.clone())
+                .start(self.on_start.clone())
                 .render(cx)
                 .tile(layout.card)
                 .flat()

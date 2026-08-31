@@ -25,10 +25,11 @@ nav-search = Поиск
 nav-library = Моя медиатека
 nav-settings = Настройки
 nav-songs = Треки
+nav-favorites = Избранное
 nav-albums = Альбомы
 nav-playlists = Плейлисты
 nav-artists = Исполнители
-nav-local = Импортированное
+nav-local = Локальная музыка
 nav-back = Назад
 nav-forward = Вперёд
 nav-sidebar = Показать или скрыть боковую панель
@@ -36,14 +37,17 @@ nav-sidebar-right = Показать или скрыть текст и очер�
 nav-pinned = Закреплённое
 nav-unpin = Открепить
 nav-pin-hint = Перетащите сюда, чтобы закрепить
-library-liked-songs = Любимые треки
+library-liked-songs = Избранное
 library-play-liked-songs = Слушать
-library-no-songs = Пока нет любимых треков
+library-no-songs = Пока нет избранного
 library-no-albums = Пока нет сохранённых альбомов
 library-no-playlists = Пока нет плейлистов
 library-no-artists = Пока нет отслеживаемых исполнителей
 library-no-local-songs = Импортированные треки не найдены
+library-no-local-favorites = Пока нет локального избранного
 library-no-local-albums = Импортированные альбомы не найдены
+library-no-local-artists = Импортированные исполнители не найдены
+library-no-local-playlists = Локальных плейлистов пока нет
 library-no-matches = Ничего не найдено
 library-not-loaded = Библиотека не загрузилась
 library-part-not-loaded = Этот раздел библиотеки не загрузился
@@ -72,9 +76,10 @@ column-tracks = Треки
 # track menu
 menu-add-to-playlist = Добавить в плейлист
 menu-new-playlist = Новый плейлист
+menu-edit-tags = Изменить теги
 menu-no-playlists = Нет плейлистов
-menu-add-to-library = Добавить в медиатеку
-menu-remove-from-library = Удалить из медиатеки
+menu-add-to-library = В избранное
+menu-remove-from-library = Убрать из избранного
 menu-remove-from-playlist = Удалить из плейлиста
 menu-remove-from-history = Удалить из истории
 menu-play-next = Воспроизвести следующим
@@ -173,6 +178,7 @@ login-problem-premium = Sonora воспроизводит музыку чере�
 login-sign-in = Войти через { $provider }
 login-connect-cookies = Вставить cookie вручную
 login-import-browser = Импорт из браузера*
+login-import-browser-plain = Импортировать из браузера
 login-browser-firefox = *Только браузеры на основе Firefox
 login-browser-title = Выберите браузер
 login-browser-detail = Sonora прочитает сессию YouTube Music из выбранного браузера. Сессия останется на этом устройстве.
@@ -326,6 +332,12 @@ count-songs =
         [few] { $count } трека
        *[other] { $count } треков
     }
+count-tracks =
+    { $count ->
+        [one] { $count } трек
+        [few] { $count } трека
+       *[other] { $count } треков
+    }
 
 # dates
 date-just-now = Только что
@@ -378,6 +390,9 @@ settings-font-detail = Базовый размер текста, остальн�
 settings-font-value = { $size } px
 settings-startup = Показывать при запуске
 settings-startup-detail = Экран, который Sonora открывает при старте
+settings-entries = Разделы боковой панели
+settings-entries-detail = Разделы, которые видны в боковой панели
+settings-entries-pick = Выбрать разделы
 settings-language = Язык
 settings-language-detail = Язык интерфейса Sonora
 settings-language-system = Системный
@@ -523,3 +538,23 @@ update-working = Загружаем обновление…
 update-failed = Не удалось установить обновление. Попробуйте со страницы релизов.
 settings-check-updates = Проверять обновления
 settings-check-updates-detail = Один раз при запуске спрашивать GitHub, вышла ли новая версия. Sonora устанавливает обновление сама только в Windows, в остальных системах показывает, что изменилось
+tags-edit-title = Изменение тегов
+tags-sheet-song = Трек
+tags-sheet-album = Альбом
+tags-sheet-details = Детали
+tags-title = Название
+tags-artist = Исполнитель
+tags-track = Номер трека
+tags-track-total = Треков в релизе
+tags-disc = Номер диска
+tags-disc-total = Дисков в релизе
+tags-album = Альбом
+tags-album-artist = Исполнитель альбома
+tags-year = Год
+tags-genre = Жанр
+tags-composer = Композитор
+tags-publisher = Издатель
+tags-isrc = ISRC
+tags-comment = Комментарий
+toast-tags-saved = Теги «{ $name }» сохранены
+toast-tags-failed = Не удалось сохранить теги

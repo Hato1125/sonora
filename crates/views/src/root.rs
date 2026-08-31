@@ -5,7 +5,7 @@ use input::{
     NavigateBack, NavigateForward, OpenFilter, OpenSearch, OpenSettings, ToggleFullscreen,
     ToggleLyrics, ToggleQueue,
 };
-use router::{Destination, LibraryTab, NavigationEvent, SettingsTab, back, forward, navigate};
+use router::{Destination, NavigationEvent, SettingsTab, back, forward, navigate};
 use state::{
     ArtistDetail, Detail, GenreDetails, Genres, Home, Io, Library, Playback, Profile, Queue,
     SYSTEM_FONT, Search, Session, SessionState, SideTab, SongDetail, Sonora,
@@ -19,14 +19,14 @@ use crate::shells::Shell;
 use crate::shells::workspace::Workspace;
 use crate::{
     Adaptive, ArtistView, DetailView, FullscreenView, GenreView, HistoryView, HomeView,
-    LibraryView, LocalView, LoginView, SettingsView, SongView, UserView,
+    LibraryView, LoginView, SettingsView, Shelf, SongView, UserView,
 };
 
 struct Screens {
     home: Entity<HomeView>,
     history: Entity<HistoryView>,
     library: Entity<LibraryView>,
-    local: Entity<LocalView>,
+    local: Entity<LibraryView>,
     artist: Option<Entity<ArtistView>>,
     artist_detail: Option<Entity<ArtistDetail>>,
     album: Option<Entity<DetailView>>,
@@ -112,9 +112,12 @@ impl Root {
         })
         .detach();
 
-        let library_view =
-            cx.new(|cx| LibraryView::new(library.clone(), playback.clone(), window, cx));
-        let local_view = cx.new(|cx| LocalView::new(library.clone(), playback.clone(), window, cx));
+        let library_view = cx.new(|cx| {
+            LibraryView::new(Shelf::Saved, library.clone(), playback.clone(), window, cx)
+        });
+        let local_view = cx.new(|cx| {
+            LibraryView::new(Shelf::Local, library.clone(), playback.clone(), window, cx)
+        });
 
         let io = Io::global(cx);
         let home_state = cx.new(|cx| Home::new(library.clone(), session.clone(), io.clone(), cx));
@@ -410,8 +413,9 @@ impl Root {
                 toolbar = Some(history.read(cx).toolbar());
                 history.into()
             }
-            Destination::Library(LibraryTab::Local) => {
+            Destination::Local(tab) => {
                 let local = self.screens.local.clone();
+                local.update(cx, |local, cx| local.select(tab.into(), cx));
                 toolbar = Some(local.read(cx).toolbar());
                 local.into()
             }

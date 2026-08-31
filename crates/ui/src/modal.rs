@@ -1,12 +1,14 @@
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use gpui::prelude::*;
 use gpui::{
-    AnyElement, App, Div, ElementId, FontWeight, MouseButton, SharedString, StyleRefinement,
-    Window, div,
+    AnyElement, App, Div, ElementId, Entity, FontWeight, Global, MouseButton, Point,
+    ScrollWheelEvent, SharedString, StyleRefinement, Window, div,
 };
 
 use crate::metrics::Text;
+use crate::scrollbar::Scrollbar;
 use crate::shield::Shield;
 use crate::theme::ActiveTheme as _;
 
@@ -14,6 +16,22 @@ const BACKDROP: f32 = 0.8;
 const WIDTH: f32 = 2.4;
 
 type Dismiss = Rc<dyn Fn(&(), &mut Window, &mut App)>;
+
+#[derive(Default)]
+struct Bars(HashMap<ElementId, Entity<Scrollbar>>);
+
+impl Global for Bars {}
+
+fn bar(id: &ElementId, cx: &mut App) -> Entity<Scrollbar> {
+    if let Some(known) = cx.try_global::<Bars>().and_then(|bars| bars.0.get(id)) {
+        return known.clone();
+    }
+    let bar = cx.new(|_| Scrollbar::inset());
+    cx.default_global::<Bars>()
+        .0
+        .insert(id.clone(), bar.clone());
+    bar
+}
 
 #[derive(IntoElement)]
 pub struct Modal {
@@ -59,6 +77,18 @@ impl Modal {
         self.dismiss = Some(Rc::new(handler));
         self
     }
+
+    /// Sends the body of an open modal back to the top, for a caller that swapped its content.
+    pub fn rewind(id: impl Into<ElementId>, cx: &mut App) {
+        let id = id.into();
+        let Some(bar) = cx
+            .try_global::<Bars>()
+            .and_then(|bars| bars.0.get(&id).cloned())
+        else {
+            return;
+        };
+        bar.read(cx).scroll().set_offset(Point::default());
+    }
 }
 
 impl Styled for Modal {
@@ -83,6 +113,9 @@ impl RenderOnce for Modal {
         } = self;
         let outside = dismiss.clone();
         let overrides = std::mem::take(base.style());
+        let scroller = bar(&id, cx);
+        scroller.read(cx).sync();
+        let body_id = SharedString::from(format!("modal-body-{id:?}"));
 
         div()
             .absolute()
@@ -122,6 +155,7 @@ impl RenderOnce for Modal {
                     .child(
                         div()
                             .flex()
+                            .flex_none()
                             .flex_col()
                             .gap_1()
                             .px(room)
@@ -145,21 +179,47 @@ impl RenderOnce for Modal {
                     .when(!body.is_empty(), |this| {
                         this.child(
                             div()
+                                .relative()
                                 .flex()
-                                .flex_col()
-                                .gap(pad)
+                                .flex_1()
+                                .w_full()
                                 .min_h_0()
-                                .px(room)
-                                .py(pad)
+                                .overflow_hidden()
                                 .border_t_1()
                                 .border_color(theme.border)
-                                .children(body),
+                                .child(
+                                    div()
+                                        .id(body_id.clone())
+                                        .flex()
+                                        .flex_col()
+                                        .flex_1()
+                                        .w_full()
+                                        .min_w_0()
+                                        .min_h_0()
+                                        .gap(pad)
+                                        .px(room)
+                                        .py(pad)
+                                        .overflow_y_scroll()
+                                        .track_scroll(scroller.read(cx).scroll())
+                                        .on_scroll_wheel({
+                                            let gliding = scroller.clone();
+                                            move |event: &ScrollWheelEvent, window, cx| {
+                                                if event.delta.precise() {
+                                                    return;
+                                                }
+                                                gliding.update(cx, |bar, _| bar.nudge(window));
+                                            }
+                                        })
+                                        .children(body),
+                                )
+                                .child(scroller.clone()),
                         )
                     })
                     .when(!actions.is_empty(), |this| {
                         this.child(
                             div()
                                 .flex()
+                                .flex_none()
                                 .justify_end()
                                 .gap_2()
                                 .px(room)

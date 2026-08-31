@@ -25,10 +25,11 @@ nav-search = Пошук
 nav-library = Моя медіатека
 nav-settings = Налаштування
 nav-songs = Треки
+nav-favorites = Улюблене
 nav-albums = Альбоми
 nav-playlists = Плейлисти
 nav-artists = Виконавці
-nav-local = Імпортоване
+nav-local = Локальна музика
 nav-back = Назад
 nav-forward = Вперед
 nav-sidebar = Показати або сховати бічну панель
@@ -36,14 +37,17 @@ nav-sidebar-right = Показати або сховати текст і чер�
 nav-pinned = Закріплене
 nav-unpin = Відкріпити
 nav-pin-hint = Перетягніть сюди, щоб закріпити
-library-liked-songs = Вподобані пісні
+library-liked-songs = Улюблене
 library-play-liked-songs = Слухати
-library-no-songs = Поки немає вподобаних треків
+library-no-songs = Улюбленого ще немає
 library-no-albums = Поки немає збережених альбомів
 library-no-playlists = Поки немає плейлистів
 library-no-artists = Поки немає відстежуваних виконавців
 library-no-local-songs = Імпортовані треки не знайдено
+library-no-local-favorites = Локального улюбленого ще немає
 library-no-local-albums = Імпортовані альбоми не знайдено
+library-no-local-artists = Імпортованих виконавців не знайдено
+library-no-local-playlists = Локальних плейлистів ще немає
 library-no-matches = Нічого не знайдено
 library-not-loaded = Бібліотека не завантажилася
 library-part-not-loaded = Цей розділ бібліотеки не завантажився
@@ -72,9 +76,10 @@ column-tracks = Треки
 # track menu
 menu-add-to-playlist = Додати до плейлиста
 menu-new-playlist = Новий плейлист
+menu-edit-tags = Змінити теги
 menu-no-playlists = Немає плейлистів
-menu-add-to-library = Додати до медіатеки
-menu-remove-from-library = Вилучити з медіатеки
+menu-add-to-library = До улюбленого
+menu-remove-from-library = Прибрати з улюбленого
 menu-remove-from-playlist = Вилучити з плейлиста
 menu-remove-from-history = Вилучити з історії
 menu-play-next = Відтворити наступним
@@ -173,6 +178,7 @@ login-problem-premium = Sonora відтворює музику через Spotif
 login-sign-in = Увійти через { $provider }
 login-connect-cookies = Вставити cookie вручну
 login-import-browser = Імпорт із браузера*
+login-import-browser-plain = Імпортувати з браузера
 login-browser-firefox = *Лише браузери на основі Firefox
 login-browser-title = Виберіть браузер
 login-browser-detail = Sonora прочитає сесію YouTube Music з обраного браузера. Сесія залишиться на цьому пристрої.
@@ -326,6 +332,12 @@ count-songs =
         [few] { $count } треки
        *[other] { $count } треків
     }
+count-tracks =
+    { $count ->
+        [one] { $count } трек
+        [few] { $count } треки
+       *[other] { $count } треків
+    }
 
 # dates
 date-just-now = Щойно
@@ -378,6 +390,9 @@ settings-font-detail = Базовий розмір тексту, решта ма
 settings-font-value = { $size } px
 settings-startup = Показувати під час запуску
 settings-startup-detail = Екран, який Sonora відкриває на старті
+settings-entries = Розділи бічної панелі
+settings-entries-detail = Розділи, які видно на бічній панелі
+settings-entries-pick = Обрати розділи
 settings-language = Мова
 settings-language-detail = Мова інтерфейсу Sonora
 settings-language-system = Системна
@@ -523,3 +538,23 @@ update-working = Завантажуємо оновлення…
 update-failed = Не вдалося встановити оновлення. Спробуйте зі сторінки релізів.
 settings-check-updates = Перевіряти оновлення
 settings-check-updates-detail = Один раз під час запуску питати GitHub, чи вийшла новіша версія. Sonora встановлює оновлення сама лише у Windows, в інших системах показує, що змінилося
+tags-edit-title = Змінення тегів
+tags-sheet-song = Трек
+tags-sheet-album = Альбом
+tags-sheet-details = Деталі
+tags-title = Назва
+tags-artist = Виконавець
+tags-track = Номер треку
+tags-track-total = Треків у релізі
+tags-disc = Номер диска
+tags-disc-total = Дисків у релізі
+tags-album = Альбом
+tags-album-artist = Виконавець альбому
+tags-year = Рік
+tags-genre = Жанр
+tags-composer = Композитор
+tags-publisher = Видавець
+tags-isrc = ISRC
+tags-comment = Коментар
+toast-tags-saved = Теги «{ $name }» збережено
+toast-tags-failed = Не вдалося зберегти теги

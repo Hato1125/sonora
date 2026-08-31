@@ -49,11 +49,20 @@ pub(super) const COLUMNS: &[ColumnSpec<ArtistField>] = &[INDEX, COVER, NAME, ADD
 pub(super) struct ArtistSource {
     library: Entity<Library>,
     playback: Entity<Playback>,
+    local: bool,
 }
 
 impl ArtistSource {
-    pub(super) fn new(library: Entity<Library>, playback: Entity<Playback>) -> Self {
-        Self { library, playback }
+    pub(super) fn shelved(
+        library: Entity<Library>,
+        playback: Entity<Playback>,
+        local: bool,
+    ) -> Self {
+        Self {
+            library,
+            playback,
+            local,
+        }
     }
 
     fn index_cell(&self, cell: &Cell<ArtistField>, artist: &SavedArtist, cx: &App) -> AnyElement {
@@ -72,7 +81,12 @@ impl ArtistSource {
     }
 
     fn artists<'a>(&self, cx: &'a App) -> &'a [SavedArtist] {
-        match self.library.read(cx).state() {
+        let library = self.library.read(cx);
+        let state = match self.local {
+            true => library.local_state(),
+            false => library.state(),
+        };
+        match state {
             LibraryState::Ready { artists, .. } => artists.as_slice(),
             _ => &[],
         }
@@ -103,7 +117,10 @@ impl TableSource for ArtistSource {
     }
 
     fn is_loading(&self, cx: &App) -> bool {
-        self.library.read(cx).is_loading()
+        match self.local {
+            true => self.library.read(cx).local_is_loading(),
+            false => self.library.read(cx).is_loading(),
+        }
     }
 
     fn pin(&self, row: usize, cx: &App) -> Option<Pin> {

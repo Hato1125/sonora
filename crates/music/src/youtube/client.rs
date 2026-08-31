@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use anyhow::{Context as _, Result, bail};
+use anyhow::{Context as _, Result};
 use async_trait::async_trait;
 use tokio::task::JoinSet;
 use ytmusic::YtMusic;
 
-use crate::youtube::{genres, wire};
+use crate::youtube::{genres, subscriptions, wire};
 use crate::{
     Album, AlbumDetail, Artist, ArtistProfile, Genre, GenreDetail, HomeFeed, MediaKind, MusicApi,
     Playlist, PlaylistDetail, SavedArtist, Track, UserProfile,
@@ -265,12 +265,12 @@ impl MusicApi for YouTubeClient {
             .with_context(|| format!("cannot rate the album {album_id} as {playlist_id}"))
     }
 
-    async fn saved_artists(&self, _limit: u32) -> Result<Vec<SavedArtist>> {
-        Ok(Vec::new())
+    async fn saved_artists(&self, limit: u32) -> Result<Vec<SavedArtist>> {
+        subscriptions::saved(&self.api, limit).await
     }
 
-    async fn set_artist_saved(&self, _artist_id: &str, _saved: bool) -> Result<()> {
-        bail!("YouTube Music does not support following artists yet")
+    async fn set_artist_saved(&self, artist_id: &str, saved: bool) -> Result<()> {
+        subscriptions::set_saved(&self.api, artist_id, saved).await
     }
 
     async fn album(&self, album_id: &str) -> Result<AlbumDetail> {

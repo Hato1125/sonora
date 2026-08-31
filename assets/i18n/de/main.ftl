@@ -25,10 +25,11 @@ nav-search = Suche
 nav-library = Deine Bibliothek
 nav-settings = Einstellungen
 nav-songs = Songs
+nav-favorites = Favoriten
 nav-albums = Alben
 nav-playlists = Playlists
 nav-artists = Künstler
-nav-local = Importiert
+nav-local = Lokale Musik
 nav-back = Zurück
 nav-forward = Vorwärts
 nav-sidebar = Seitenleiste umschalten
@@ -36,14 +37,17 @@ nav-sidebar-right = Songtext und Warteschlange ein- oder ausblenden
 nav-pinned = Angeheftet
 nav-unpin = Lösen
 nav-pin-hint = Zum Anheften hier ablegen
-library-liked-songs = Lieblingssongs
+library-liked-songs = Favoriten
 library-play-liked-songs = Abspielen
-library-no-songs = Noch keine Lieblingssongs
+library-no-songs = Noch keine Favoriten
 library-no-albums = Noch keine gespeicherten Alben
 library-no-playlists = Noch keine Playlists
 library-no-artists = Noch keine gefolgten Künstler
 library-no-local-songs = Keine importierten Songs gefunden
+library-no-local-favorites = Noch keine lokalen Favoriten
 library-no-local-albums = Keine importierten Alben gefunden
+library-no-local-artists = Keine importierten Künstler gefunden
+library-no-local-playlists = Noch keine lokalen Playlists
 library-no-matches = Keine Treffer
 library-not-loaded = Deine Bibliothek wurde nicht geladen
 library-part-not-loaded = Dieser Teil deiner Bibliothek wurde nicht geladen
@@ -72,9 +76,10 @@ column-tracks = Titel
 # track menu
 menu-add-to-playlist = Zur Playlist hinzufügen
 menu-new-playlist = Neue Playlist
+menu-edit-tags = Tags bearbeiten
 menu-no-playlists = Keine Playlists
-menu-add-to-library = Zur Bibliothek hinzufügen
-menu-remove-from-library = Aus der Bibliothek entfernen
+menu-add-to-library = Zu Favoriten hinzufügen
+menu-remove-from-library = Aus Favoriten entfernen
 menu-remove-from-playlist = Aus der Playlist entfernen
 menu-remove-from-history = Aus dem Verlauf entfernen
 menu-play-next = Als Nächstes spielen
@@ -173,6 +178,7 @@ login-problem-premium = Sonora streamt über Spotify Premium, und dieses Konto h
 login-sign-in = Mit { $provider } anmelden
 login-connect-cookies = Cookies manuell einfügen
 login-import-browser = Aus dem Browser importieren*
+login-import-browser-plain = Aus Browser importieren
 login-browser-firefox = *Nur Firefox-basierte Browser
 login-browser-title = Browser auswählen
 login-browser-detail = Sonora liest deine YouTube-Music-Sitzung aus dem gewählten Browser. Die Sitzung bleibt auf diesem Gerät.
@@ -320,6 +326,11 @@ count-songs =
         [one] { $count } Song
        *[other] { $count } Songs
     }
+count-tracks =
+    { $count ->
+        [one] { $count } Titel
+       *[other] { $count } Titel
+    }
 
 # dates
 date-just-now = Gerade eben
@@ -367,6 +378,9 @@ settings-font-detail = Basisgröße des Textes, alles andere skaliert mit
 settings-font-value = { $size } px
 settings-startup = Beim Start anzeigen
 settings-startup-detail = Der Bildschirm, mit dem Sonora startet
+settings-entries = Einträge der Seitenleiste
+settings-entries-detail = Die Bereiche, die in der Seitenleiste erscheinen
+settings-entries-pick = Einträge wählen
 settings-language = Sprache
 settings-language-detail = Die Sprache, die Sonora in der Oberfläche verwendet
 settings-language-system = System
@@ -512,3 +526,23 @@ update-working = Update wird geladen…
 update-failed = Das Update konnte nicht installiert werden. Versuch es über die Releases-Seite.
 settings-check-updates = Nach Updates suchen
 settings-check-updates-detail = Beim Start einmal bei GitHub nachfragen, ob eine neuere Version da ist. Sonora installiert das Update nur unter Windows selbst, sonst zeigt es dir, was sich geändert hat
+tags-edit-title = Tags bearbeiten
+tags-sheet-song = Titel
+tags-sheet-album = Album
+tags-sheet-details = Details
+tags-title = Titel
+tags-artist = Künstler
+tags-track = Titelnummer
+tags-track-total = Titel auf dem Release
+tags-disc = CD-Nummer
+tags-disc-total = CDs im Release
+tags-album = Album
+tags-album-artist = Album-Künstler
+tags-year = Jahr
+tags-genre = Genre
+tags-composer = Komponist
+tags-publisher = Label
+tags-isrc = ISRC
+tags-comment = Kommentar
+toast-tags-saved = Tags für { $name } gespeichert
+toast-tags-failed = Die Tags konnten nicht gespeichert werden

@@ -7,6 +7,43 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-08-31
+
+### Added
+
+- Local Music is its own sidebar entry that expands into Songs, Favorites, Albums, Artists and
+  Playlists, and it reuses the Your Library screen.
+- Imported songs can be hearted. Local favorites are their own section and are kept on this
+  machine.
+- Local playlists can be created, renamed, deleted and filled with imported songs; they are kept
+  in a database beside the rest of the local library.
+- Imported songs can be retagged from a dialog with Song, Album and Details tabs. Sonora writes
+  the file and rescans the folder.
+- An imported album picks up a cover.jpg sitting in the album folder, and an artist folder can
+  carry a portrait: artist.jpg wins, then folder.jpg, then cover.jpg, in jpg, jpeg, png or webp.
+- Imported albums can be shown as a list as well as a grid.
+- Sorting an imported grid groups its cards under headings, the way the library grid does.
+- Settings picks which entries the sidebar shows: Home, Search, Your Library, Local Music and
+  History.
+
+### Changed
+
+- Imported music is called Local Music.
+- Saved songs are called Favorites: the library tab, the page title and the Add to Favorites and
+  Remove from Favorites menu items.
+- An album card names the release year before the artist, on the artist page, in the library, in
+  search and on Home. An imported album takes that year from the track tags or from a year at the
+  start of the album folder name.
+- A local playlist card counts its tracks where a streamed one names its owner.
+- The YouTube Music guest button in Settings reads Use Guest mode, and the browser import button
+  there drops the Firefox footnote that only applies on the sign-in screen.
+
+### Fixed
+
+- A dialog taller than the window scrolls instead of running off the edge.
+- Pointing at the artist under a card no longer underlines the title above it. A title underlines
+  when you point at the title itself.
+
 ## [0.25.0] - 2026-08-30
 
 ### Added
@@ -32,6 +69,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Following and unfollowing an artist now updates the subscription in YouTube Music.
 - YouTube Music Quick Picks paginate when the window cannot fit all three columns and never reuse
   recommendations from a previously connected Spotify account.
 - Saving or removing a song, album or artist that the service refuses now says so instead of
@@ -1133,7 +1171,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Initial release: a native Spotify client with playback, an interactive queue, the saved library,
 search, album, playlist, artist and song pages, context menus and adaptive theming.
 
-[unreleased]: https://github.com/nolight132/sonora/compare/v0.25.0...HEAD
+[unreleased]: https://github.com/nolight132/sonora/compare/v0.26.0...HEAD
+[0.26.0]: https://github.com/nolight132/sonora/compare/v0.25.0...v0.26.0
 [0.25.0]: https://github.com/nolight132/sonora/compare/v0.24.1...v0.25.0
 [0.24.1]: https://github.com/nolight132/sonora/compare/v0.24.0...v0.24.1
 [0.24.0]: https://github.com/nolight132/sonora/compare/v0.23.0...v0.24.0

@@ -1,6 +1,8 @@
 mod client;
 mod playback;
 mod scan;
+mod store;
+mod tags;
 mod wire;
 
 use std::path::PathBuf;
@@ -55,7 +57,7 @@ impl LocalProvider {
             .await
             .context("local scan task panicked")?;
 
-        let api: Arc<dyn MusicApi> = Arc::new(client::LocalClient::new(scanned));
+        let api: Arc<dyn MusicApi> = Arc::new(client::LocalClient::new(scanned, &self.state_dir));
         let playback: Arc<dyn PlaybackFactory> = Arc::new(playback::Factory);
 
         Ok(ProviderSession {

@@ -25,10 +25,11 @@ nav-search = Search
 nav-library = Your Library
 nav-settings = Settings
 nav-songs = Songs
+nav-favorites = Favorites
 nav-albums = Albums
 nav-playlists = Playlists
 nav-artists = Artists
-nav-local = Imported
+nav-local = Local Music
 nav-back = Back
 nav-forward = Forward
 nav-sidebar = Toggle sidebar
@@ -36,14 +37,17 @@ nav-sidebar-right = Show or hide lyrics and queue
 nav-pinned = Pinned
 nav-unpin = Unpin
 nav-pin-hint = Drop here to pin
-library-liked-songs = Liked Songs
+library-liked-songs = Favorites
 library-play-liked-songs = Play
-library-no-songs = No liked songs yet
+library-no-songs = No favorites yet
 library-no-albums = No saved albums yet
 library-no-playlists = No playlists yet
 library-no-artists = No followed artists yet
 library-no-local-songs = No imported songs found
+library-no-local-favorites = No local favorites yet
 library-no-local-albums = No imported albums found
+library-no-local-artists = No imported artists found
+library-no-local-playlists = No local playlists yet
 library-no-matches = No matches
 library-not-loaded = Your library did not load
 library-part-not-loaded = This part of your library did not load
@@ -76,16 +80,17 @@ menu-add-tracks-to-playlist = { $count ->
    *[other] Add { $count } tracks to playlist
 }
 menu-new-playlist = New playlist
+menu-edit-tags = Edit tags
 menu-no-playlists = No playlists
-menu-add-to-library = Add to Library
+menu-add-to-library = Add to Favorites
 menu-add-tracks-to-library = { $count ->
-    [one] Add { $count } track to Library
-   *[other] Add { $count } tracks to Library
+    [one] Add { $count } track to Favorites
+   *[other] Add { $count } tracks to Favorites
 }
-menu-remove-from-library = Remove from Library
+menu-remove-from-library = Remove from Favorites
 menu-remove-tracks-from-library = { $count ->
-    [one] Remove { $count } track from Library
-   *[other] Remove { $count } tracks from Library
+    [one] Remove { $count } track from Favorites
+   *[other] Remove { $count } tracks from Favorites
 }
 menu-remove-from-playlist = Remove from playlist
 menu-remove-tracks-from-playlist = { $count ->
@@ -235,6 +240,7 @@ login-problem-premium = Sonora streams through Spotify Premium, and this account
 login-sign-in = Sign in with { $provider }
 login-connect-cookies = Paste cookies manually
 login-import-browser = Import from browser*
+login-import-browser-plain = Import from browser
 login-browser-firefox = *Firefox-based browsers only
 login-browser-title = Choose a browser
 login-browser-detail = Sonora reads your YouTube Music session from the browser you pick. The session stays on this device.
@@ -382,6 +388,11 @@ count-songs =
         [one] { $count } song
        *[other] { $count } songs
     }
+count-tracks =
+    { $count ->
+        [one] { $count } track
+       *[other] { $count } tracks
+    }
 
 # dates
 date-just-now = Just now
@@ -429,6 +440,9 @@ settings-font-detail = Base text size, everything else scales with it
 settings-font-value = { $size } px
 settings-startup = Show on startup
 settings-startup-detail = The screen Sonora opens on launch
+settings-entries = Sidebar entries
+settings-entries-detail = The sections listed in the sidebar
+settings-entries-pick = Choose entries
 settings-language = Language
 settings-language-detail = The language Sonora uses across the interface
 settings-language-system = System
@@ -574,3 +588,25 @@ update-working = Downloading the update…
 update-failed = The update could not be installed. Try again from the releases page.
 settings-check-updates = Check for updates
 settings-check-updates-detail = Ask GitHub once at startup whether a newer version is out. Sonora installs the update itself on Windows only; elsewhere it points you at what changed
+
+# tags
+tags-edit-title = Edit tags
+tags-sheet-song = Song
+tags-sheet-album = Album
+tags-sheet-details = Details
+tags-title = Title
+tags-artist = Artist
+tags-track = Track number
+tags-track-total = Tracks on release
+tags-disc = Disc number
+tags-disc-total = Discs in release
+tags-album = Album
+tags-album-artist = Album artist
+tags-year = Year
+tags-genre = Genre
+tags-composer = Composer
+tags-publisher = Publisher
+tags-isrc = ISRC
+tags-comment = Comment
+toast-tags-saved = Saved the tags for { $name }
+toast-tags-failed = The tags could not be saved

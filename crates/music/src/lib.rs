@@ -1,3 +1,5 @@
+#[cfg(test)]
+mod album_tests;
 mod audio;
 pub mod binimum;
 pub mod kugou;
@@ -22,17 +24,19 @@ pub use models::{
     Album, AlbumDetail, Artist, ArtistProfile, ArtistRef, Contributor, Credit, Genre, GenreDetail,
     GenreItem, GenreSection, HomeFeed, Lyrics, LyricsHit, LyricsLane, LyricsLine, LyricsQuery,
     LyricsWord, Playlist, PlaylistDetail, ReleaseType, RomanizedText, SavedArtist, Track, TrackKey,
-    UserDetail, UserProfile, Voice, WritingSystem,
+    TrackTags, UserDetail, UserProfile, Voice, WritingSystem,
 };
 
 pub const LOCAL_TRACK_PREFIX: &str = "local:";
 pub const LOCAL_ALBUM_PREFIX: &str = "local-album:";
 pub const LOCAL_ARTIST_PREFIX: &str = "local-artist:";
+pub const LOCAL_PLAYLIST_PREFIX: &str = "local-playlist:";
 
 pub fn is_local_id(id: &str) -> bool {
     id.starts_with(LOCAL_TRACK_PREFIX)
         || id.starts_with(LOCAL_ALBUM_PREFIX)
         || id.starts_with(LOCAL_ARTIST_PREFIX)
+        || id.starts_with(LOCAL_PLAYLIST_PREFIX)
 }
 
 pub fn distinct_covers(tracks: &[Track], wanted: usize) -> Vec<String> {
@@ -74,7 +78,21 @@ pub trait MusicApi: Send + Sync {
     async fn artist_profile(&self, artist_id: &str) -> Result<ArtistProfile>;
     async fn artist_images(&self, ids: Vec<String>) -> Result<HashMap<String, String>>;
     async fn saved_tracks(&self, limit: u32) -> Result<Vec<Track>>;
+
+    async fn all_tracks(&self, limit: u32) -> Result<Vec<Track>> {
+        self.saved_tracks(limit).await
+    }
+
     async fn set_track_saved(&self, track_id: &str, saved: bool) -> Result<()>;
+
+    /// Reads what the file itself says, for a provider whose tracks are files.
+    async fn track_tags(&self, _track_id: &str) -> Result<TrackTags> {
+        anyhow::bail!("this provider cannot edit tags")
+    }
+
+    async fn set_track_tags(&self, _track_id: &str, _tags: TrackTags) -> Result<()> {
+        anyhow::bail!("this provider cannot edit tags")
+    }
     async fn track(&self, track_id: &str) -> Result<Track>;
     async fn track_playcount(&self, track_id: &str) -> Result<Option<u64>>;
     async fn track_lyrics(&self, _track_id: &str) -> Result<Option<Lyrics>> {

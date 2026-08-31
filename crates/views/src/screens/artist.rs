@@ -4,7 +4,7 @@ use std::rc::Rc;
 use gpui::prelude::*;
 use gpui::{
     AnyElement, App, Context, Entity, FontWeight, Pixels, Point, Render, ScrollHandle,
-    SharedString, WeakEntity, Window, div,
+    ScrollWheelEvent, SharedString, WeakEntity, Window, div,
 };
 
 use crate::chrome::Chrome;
@@ -16,7 +16,7 @@ use ui::ActiveTheme as _;
 use ui::Listing as _;
 use ui::{
     Button, Card, MIN_CONTENT, Mode, Picker, Pin, PinKind, Popovers, Popup, Scrollbar, Scroller,
-    Skeleton, TableDelegate, TableEvent, TableState, Text, snapped, table,
+    Skeleton, TableDelegate, TableEvent, TableState, Text, scrolled, snapped, table,
 };
 
 use crate::chrome::tools;
@@ -35,7 +35,7 @@ const RELEASE_ROWS: usize = 2;
 const LISTED: usize = 5;
 const LISTED_MAX: usize = 10;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ReleaseFilter {
     All,
     Albums,
@@ -98,6 +98,8 @@ pub(crate) struct ArtistView {
     artist_id: Option<String>,
     release_filter: ReleaseFilter,
     releases_expanded: bool,
+    release_padding: Pixels,
+    release_padding_offset: Pixels,
     width: Pixels,
     scrollbar: Entity<Scrollbar>,
     about_bar: Entity<Scrollbar>,
@@ -168,6 +170,8 @@ impl ArtistView {
                 this.artist_id = artist_id;
                 this.release_filter = ReleaseFilter::All;
                 this.releases_expanded = false;
+                this.release_padding = Pixels::ZERO;
+                this.release_padding_offset = Pixels::ZERO;
                 this.about_open = false;
                 this.shown.set(LISTED);
                 this.scrollbar.update(cx, |bar, cx| {
@@ -227,6 +231,8 @@ impl ArtistView {
             artist_id,
             release_filter: ReleaseFilter::All,
             releases_expanded: false,
+            release_padding: Pixels::ZERO,
+            release_padding_offset: Pixels::ZERO,
             width,
             scrollbar,
             about_bar: cx.new(|_| Scrollbar::new(ScrollHandle::new()).watching(id)),
@@ -373,6 +379,83 @@ impl ArtistView {
         )
     }
 
+    fn release_height(
+        &self,
+        filter: ReleaseFilter,
+        expanded: bool,
+        columns: usize,
+        window: &Window,
+        cx: &App,
+    ) -> Pixels {
+        let count = self
+            .detail
+            .read(cx)
+            .albums()
+            .iter()
+            .filter(|album| filter.matches(album.release_type))
+            .count();
+        let visible = match expanded {
+            true => count,
+            false => count.min(columns * RELEASE_ROWS),
+        };
+        let rows = visible.div_ceil(columns.max(1));
+        if rows == 0 {
+            return Pixels::ZERO;
+        }
+
+        let grid = CardGrid::layout(self.width);
+        let card = Card::tile_height(grid.card, window, cx);
+        card * rows as f32 + release_gap(window) * rows.saturating_sub(1) as f32
+    }
+
+    fn set_release_view(
+        &mut self,
+        filter: ReleaseFilter,
+        expanded: bool,
+        columns: usize,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) {
+        let old = self.release_height(
+            self.release_filter,
+            self.releases_expanded,
+            columns,
+            window,
+            cx,
+        );
+        let new = self.release_height(filter, expanded, columns, window, cx);
+        let offset = scrolled(self.scrollbar.read(cx).scroll());
+        self.release_padding = match old > new {
+            true => self.release_padding + (old - new).min(offset),
+            false => (self.release_padding - (new - old)).max(Pixels::ZERO),
+        };
+        self.release_padding_offset = offset;
+        self.release_filter = filter;
+        self.releases_expanded = expanded;
+        cx.notify();
+    }
+
+    fn settle_release_padding(&mut self, offset: Pixels) {
+        if offset < self.release_padding_offset {
+            self.release_padding =
+                (self.release_padding - (self.release_padding_offset - offset)).max(Pixels::ZERO);
+        }
+        self.release_padding_offset = offset;
+    }
+
+    fn release_scroll(
+        &mut self,
+        event: &ScrollWheelEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let upward = event.delta.pixel_delta(window.line_height()).y;
+        if upward <= Pixels::ZERO || self.release_padding <= Pixels::ZERO {
+            return;
+        }
+        cx.notify();
+    }
+
     fn releases(&self, window: &Window, cx: &mut Context<Self>) -> Option<AnyElement> {
         let theme = *cx.theme();
         let detail = self.detail.read(cx);
@@ -381,6 +464,11 @@ impl ArtistView {
         if albums.is_empty() && !loading {
             return None;
         }
+        let local = detail.id().is_some_and(music::is_local_id);
+        let filters = match loading {
+            true => Vec::new(),
+            false => release_filters(local, albums.iter().map(|album| album.release_type)),
+        };
 
         let grid = CardGrid::layout(self.width);
         let gap = release_gap(window);
@@ -427,7 +515,6 @@ impl ArtistView {
                             row.to_vec(),
                             self.playback.clone(),
                         )
-                        .years()
                         .on_context(move |album, position, cx| {
                             let Some(view) = opened.upgrade() else {
                                 return;
@@ -455,26 +542,32 @@ impl ArtistView {
                         .font_weight(FontWeight::BOLD)
                         .child(t!("artist-releases")),
                 )
-                .child(
-                    div()
-                        .flex()
-                        .gap_1()
-                        .children(ReleaseFilter::ALL.map(|filter| {
-                            Button::new(filter.id())
-                                .label(filter.label())
-                                .small()
-                                .outline()
-                                .selected(self.release_filter == filter)
-                                .on_click(cx.listener(move |this, _, _, cx| {
-                                    if this.release_filter == filter {
-                                        return;
-                                    }
-                                    this.release_filter = filter;
-                                    this.releases_expanded = false;
-                                    cx.notify();
-                                }))
-                        })),
-                )
+                .when(!filters.is_empty(), |this| {
+                    this.child(
+                        div()
+                            .flex()
+                            .gap_1()
+                            .children(filters.into_iter().map(|filter| {
+                                Button::new(filter.id())
+                                    .label(filter.label())
+                                    .small()
+                                    .outline()
+                                    .selected(self.release_filter == filter)
+                                    .on_click(cx.listener(move |this, _, window, cx| {
+                                        if this.release_filter == filter {
+                                            return;
+                                        }
+                                        this.set_release_view(
+                                            filter,
+                                            false,
+                                            grid.columns,
+                                            window,
+                                            cx,
+                                        );
+                                    }))
+                            })),
+                    )
+                })
                 .child(releases)
                 .children(self.release_toggle(grid.columns, cx))
                 .into_any_element(),
@@ -503,9 +596,8 @@ impl ArtistView {
                 .trailing(chevron(expanded))
                 .small()
                 .ghost()
-                .on_click(cx.listener(move |this, _, _, cx| {
-                    this.releases_expanded = !expanded;
-                    cx.notify();
+                .on_click(cx.listener(move |this, _, window, cx| {
+                    this.set_release_view(this.release_filter, !expanded, columns, window, cx);
                 })),
         )
     }
@@ -714,6 +806,7 @@ impl Render for ArtistView {
         page::resize(&self.table, &mut self.width, inset, window, cx);
 
         let scroll = self.scrollbar.read(cx).scroll().clone();
+        self.settle_release_padding(scrolled(&scroll));
         if self.width != previous {
             self.scrollbar
                 .update(cx, |bar, cx| bar.set_max_offset(None, cx));
@@ -753,10 +846,12 @@ impl Render for ArtistView {
         });
 
         let listed = self.mode == Mode::List;
+        let release_padding = self.release_padding;
         let page = Scroller::new("artist-page", &self.scrollbar)
             .px(inset)
             .pt(inset)
             .pb(inset)
+            .on_scroll_wheel(cx.listener(Self::release_scroll))
             .child(
                 div()
                     .child(self.header(cx))
@@ -776,7 +871,10 @@ impl Render for ArtistView {
                 Mode::List => self.listed(cx),
             })
             .children(self.releases(window, cx))
-            .children(self.about(cx));
+            .children(self.about(cx))
+            .when(release_padding > Pixels::ZERO, |this| {
+                this.child(div().h(release_padding).flex_none())
+            });
 
         div()
             .relative()
@@ -796,5 +894,43 @@ fn chevron(expanded: bool) -> &'static str {
     match expanded {
         true => "icons/chevron-up.svg",
         false => "icons/chevron-down.svg",
+    }
+}
+
+fn release_filters(
+    local: bool,
+    releases: impl IntoIterator<Item = ReleaseType>,
+) -> Vec<ReleaseFilter> {
+    if local {
+        return Vec::new();
+    }
+    let releases = releases.into_iter().collect::<Vec<_>>();
+    ReleaseFilter::ALL
+        .into_iter()
+        .filter(|filter| {
+            *filter == ReleaseFilter::All || releases.iter().any(|release| filter.matches(*release))
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn local_artists_have_no_release_filters() {
+        assert!(release_filters(true, [ReleaseType::Album]).is_empty());
+    }
+
+    #[test]
+    fn streamed_artists_only_show_populated_release_filters() {
+        assert_eq!(
+            release_filters(false, [ReleaseType::Album, ReleaseType::Single]),
+            [
+                ReleaseFilter::All,
+                ReleaseFilter::Singles,
+                ReleaseFilter::Albums,
+            ]
+        );
     }
 }
