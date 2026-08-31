@@ -1,11 +1,9 @@
-use std::time::Instant;
-
 use gpui::prelude::*;
 use gpui::{
     App, ClickEvent, Div, ElementId, Interactivity, Stateful, StyleRefinement, Window, div, px,
 };
 
-use crate::motion::{Motion, Motioned as _};
+use crate::motion::{Motion, Motioned as _, Movement};
 use crate::theme::ActiveTheme as _;
 
 const SCALE: f32 = 0.85;
@@ -166,29 +164,5 @@ impl RenderOnce for Switch {
                 })
                 .into_any_element(),
         }
-    }
-}
-
-struct Movement {
-    drawn: bool,
-    turned: Option<Instant>,
-}
-
-impl Movement {
-    fn new(checked: bool) -> Self {
-        Self {
-            drawn: checked,
-            turned: None,
-        }
-    }
-
-    fn turning(&mut self, checked: bool) -> bool {
-        if self.drawn != checked {
-            self.drawn = checked;
-            self.turned = Some(Instant::now());
-        }
-
-        self.turned
-            .is_some_and(|turned| turned.elapsed() < Motion::Control.span())
     }
 }

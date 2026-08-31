@@ -1,6 +1,7 @@
 mod artwork;
 mod button;
 mod card;
+mod checkbox;
 mod controls;
 mod deck;
 mod drag;
@@ -44,6 +45,7 @@ pub use artwork::{Artwork, Avatar, artwork_usage};
 pub use button::Button;
 pub use card::CARD_GROUP;
 pub use card::Card;
+pub use checkbox::Checkbox;
 pub use controls::WindowControls;
 pub use deck::Deck;
 pub use drag::{Edge, drop_gap, drop_marker};

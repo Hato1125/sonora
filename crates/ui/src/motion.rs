@@ -1,5 +1,5 @@
 use std::sync::atomic::{AtomicU8, Ordering};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use gpui::{
     Animation, AnimationElement, AnimationExt as _, App, ElementId, Hsla, IntoElement, Pixels,
@@ -321,6 +321,30 @@ pub fn apply(stillness: Stillness, pace: Pace, cx: &mut App) {
 
 pub fn animates(cx: &App) -> bool {
     !cx.reduce_motion()
+}
+
+pub(crate) struct Movement {
+    drawn: bool,
+    turned: Option<Instant>,
+}
+
+impl Movement {
+    pub(crate) fn new(checked: bool) -> Self {
+        Self {
+            drawn: checked,
+            turned: None,
+        }
+    }
+
+    pub(crate) fn turning(&mut self, checked: bool) -> bool {
+        if self.drawn != checked {
+            self.drawn = checked;
+            self.turned = Some(Instant::now());
+        }
+
+        self.turned
+            .is_some_and(|turned| turned.elapsed() < Motion::Control.span())
+    }
 }
 
 fn system_still() -> bool {
