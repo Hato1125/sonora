@@ -66,7 +66,14 @@ xattr -dr com.apple.quarantine /Applications/Sonora.app
 
 Install from the AUR with your AUR helper of choice:
 
+```sh
+yay -S sonora-bin
 ```
+
+`sonora-bin` installs the prebuilt release binary. `sonora` builds the same version from source
+instead, which takes a while on a Rust and GPUI tree but links against your own system libraries:
+
+```sh
 yay -S sonora
 ```
 
@@ -102,14 +109,14 @@ partial translation is welcome — pick a language below and fill in what it lac
 
 <!-- i18n:start -->
 
-| Language | Translated | Coverage |
-| --- | --- | --- |
-| English (`en-US`) | 496/496 | 100% |
-| Deutsch (`de`) | 475/496 | 96% |
-| Français (`fr`) | 475/496 | 96% |
-| Русский (`ru`) | 475/496 | 96% |
-| Українська (`uk`) | 475/496 | 96% |
-| Polski (`pl`) | 475/496 | 96% |
+| Language          | Translated | Coverage |
+| ----------------- | ---------- | -------- |
+| English (`en-US`) | 496/496    | 100%     |
+| Deutsch (`de`)    | 475/496    | 96%      |
+| Français (`fr`)   | 475/496    | 96%      |
+| Русский (`ru`)    | 475/496    | 96%      |
+| Українська (`uk`) | 475/496    | 96%      |
+| Polski (`pl`)     | 475/496    | 96%      |
 
 <!-- i18n:end -->
 
