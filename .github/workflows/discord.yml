@@ -1,0 +1,53 @@
+name: Announce release on Discord
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  announce:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Send release announcement
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
+          RELEASE_NAME: ${{ github.event.release.name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_URL: ${{ github.event.release.html_url }}
+          RELEASE_BODY: ${{ github.event.release.body }}
+        run: |
+          jq -n \
+            --arg username "Sonora Releases" \
+            --arg title "${RELEASE_NAME:-$RELEASE_TAG}" \
+            --arg url "$RELEASE_URL" \
+            --arg description "${RELEASE_BODY:0:4000}" \
+            --arg version "$RELEASE_TAG" \
+            '{
+              username: $username,
+              embeds: [{
+                title: $title,
+                url: $url,
+                description: (
+                  if $description == "" then
+                    "A new Sonora release is available."
+                  else
+                    $description
+                  end
+                ),
+                color: 5793266,
+                fields: [{
+                  name: "Version",
+                  value: $version,
+                  inline: true
+                }]
+              }]
+            }' |
+          curl --fail-with-body \
+            --request POST \
+            --header "Content-Type: application/json" \
+            --data @- \
+            "$DISCORD_WEBHOOK_URL"

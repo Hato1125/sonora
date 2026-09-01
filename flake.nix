@@ -45,6 +45,7 @@
             freetype
             alsa-lib
             dbus
+            sqlite
           ];
 
           asset = release.assets.${pkgs.stdenv.hostPlatform.system};
@@ -130,6 +131,7 @@
             freetype
             alsa-lib
             dbus
+            sqlite
           ];
         in
         {
