@@ -124,7 +124,7 @@ impl RenderOnce for WindowControls {
                     })
                     .child(
                         svg()
-                            .path(control.icon())
+                            .path(icons::path(control.icon()))
                             .id("glyph")
                             .size(GLYPH)
                             .flex_none()

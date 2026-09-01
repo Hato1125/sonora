@@ -48,7 +48,7 @@ struct Glyph {
 impl RenderOnce for Glyph {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
         svg()
-            .path(self.icon)
+            .path(icons::path(self.icon))
             .size(glyph(cx.theme()))
             .text_color(self.color)
     }
@@ -93,7 +93,7 @@ pub(crate) fn index<F>(
 
     let dimmed = |icon, color| {
         svg()
-            .path(icon)
+            .path(icons::path(icon))
             .id(("index-glyph", cell.row))
             .size(glyph(&theme))
             .flex_none()

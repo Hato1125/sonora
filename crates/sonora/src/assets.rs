@@ -3,121 +3,7 @@ use std::borrow::Cow;
 use anyhow::Result;
 use gpui::{App, AssetSource, SharedString};
 
-macro_rules! icons {
-    ($($name:literal),* $(,)?) => {
-        &[
-            $(
-                (
-                    concat!("icons/", $name, ".svg"),
-                    include_bytes!(
-                        concat!("../../../assets/icons/", $name, ".svg")
-                    ).as_slice(),
-                ),
-            )*
-        ]
-    };
-}
-
-macro_rules! fonts {
-    ($($file:literal),* $(,)?) => {
-        &[
-            $(
-                (
-                    concat!("fonts/", $file),
-                    include_bytes!(
-                        concat!("../../../assets/fonts/", $file)
-                    ).as_slice(),
-                ),
-            )*
-        ]
-    };
-}
-
-const FONTS: &[(&str, &[u8])] = fonts![
-    "Inter-Regular.ttf",
-    "Inter-Medium.ttf",
-    "Inter-SemiBold.ttf",
-    "Inter-Bold.ttf",
-    "Inter-Italic.ttf",
-];
-
-const ICONS: &[(&str, &[u8])] = icons![
-    "chevron-down",
-    "columns-3",
-    "disc-3",
-    "ellipsis",
-    "file-music",
-    "firefoxbrowser",
-    "folder-plus",
-    "funnel",
-    "chevron-left",
-    "chevron-right",
-    "chevrons-up-down",
-    "arrow-up-down",
-    "chevron-up",
-    "circle-alert",
-    "check",
-    "circle-check",
-    "clipboard-paste",
-    "copy",
-    "guitar",
-    "heart",
-    "heart-filled",
-    "heart-off",
-    "house",
-    "info",
-    "layout-grid",
-    "library-big",
-    "link",
-    "list",
-    "list-end",
-    "list-music",
-    "list-plus",
-    "log-out",
-    "maximize",
-    "mic-off",
-    "mic-vocal",
-    "music",
-    "music-2",
-    "pause",
-    "pause-filled",
-    "pencil",
-    "panel-left-close",
-    "panel-left-open",
-    "panel-right-close",
-    "panel-right-open",
-    "play",
-    "play-filled",
-    "play-off",
-    "plus",
-    "radio",
-    "refresh-cw",
-    "search",
-    "scissors",
-    "user",
-    "user-round",
-    "repeat",
-    "repeat-one",
-    "rotate-ccw-clock",
-    "settings",
-    "shuffle",
-    "skip-back",
-    "skip-forward",
-    "spotify",
-    "text-select",
-    "trash-2",
-    "undo-2",
-    "volume",
-    "volume-1",
-    "volume-2",
-    "volume-x",
-    "window-close",
-    "window-maximize",
-    "window-minimize",
-    "window-restore",
-    "youtubemusic",
-    "x",
-];
+include!(concat!(env!("OUT_DIR"), "/fonts.rs"));
 
 pub struct Assets;
 
@@ -134,9 +20,10 @@ impl Assets {
 
 impl AssetSource for Assets {
     fn load(&self, path: &str) -> Result<Option<Cow<'static, [u8]>>> {
-        let registered = ICONS.iter().chain(FONTS.iter());
-
-        if let Some((_, bytes)) = registered.clone().find(|(name, _)| *name == path) {
+        if let Some(bytes) = icons::asset(path) {
+            return Ok(Some(Cow::Borrowed(bytes)));
+        }
+        if let Some((_, bytes)) = FONTS.iter().find(|(name, _)| *name == path) {
             return Ok(Some(Cow::Borrowed(bytes)));
         }
         log::warn!("assets: {path} is not registered");
@@ -144,11 +31,13 @@ impl AssetSource for Assets {
     }
 
     fn list(&self, path: &str) -> Result<Vec<SharedString>> {
-        Ok(ICONS
-            .iter()
-            .chain(FONTS.iter())
-            .filter(|(name, _)| name.starts_with(path))
-            .map(|(name, _)| SharedString::from(*name))
-            .collect())
+        let mut listed = icons::Assets.list(path)?;
+        listed.extend(
+            FONTS
+                .iter()
+                .filter(|(name, _)| name.starts_with(path))
+                .map(|(name, _)| SharedString::new_static(name)),
+        );
+        Ok(listed)
     }
 }

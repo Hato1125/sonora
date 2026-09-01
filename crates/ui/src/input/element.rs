@@ -334,7 +334,7 @@ impl Render for Input {
             .when_some(self.icon.clone(), |this, path| {
                 this.child(
                     svg()
-                        .path(path)
+                        .path(icons::path(path))
                         .size_4()
                         .flex_none()
                         .text_color(theme.muted_foreground),

@@ -2656,7 +2656,7 @@ fn instrumental_row(progress: f32, past: bool, verse: Pixels, theme: &ui::Theme)
                 .justify_center()
                 .child(
                     svg()
-                        .path("icons/music-2.svg")
+                        .path(icons::path("icons/music-2.svg"))
                         .size(note_size)
                         .text_color(tint),
                 )

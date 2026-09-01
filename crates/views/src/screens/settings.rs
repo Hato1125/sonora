@@ -26,6 +26,7 @@ const LICENSE_URL: &str = "https://www.gnu.org/licenses/gpl-3.0.html";
 const SOURCE_URL: &str = "https://github.com/nolight132/sonora";
 
 const THEMES: &str = "themes";
+const PACKS: &str = "packs";
 const CORNERS: &str = "corners";
 const LANGUAGES: &str = "languages";
 const TYPEFACES: &str = "typefaces";
@@ -193,6 +194,7 @@ impl SettingsView {
             SettingsTab::Appearance => vec![
                 Row::Item(self.theme_row(cx).into_any_element()),
                 Row::Item(self.adaptive_row(cx).into_any_element()),
+                Row::Item(self.icons_row(cx).into_any_element()),
                 Row::Item(self.opacity_row(cx).into_any_element()),
                 Row::Item(self.corners_row(cx).into_any_element()),
                 self.title("settings-group-text", cx),
@@ -740,6 +742,35 @@ impl SettingsView {
         )
     }
 
+    fn icons_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+        let muted = theme.muted_foreground;
+        let small = theme.text(Text::Small);
+        let chosen = self.settings.read(cx).icons().to_owned();
+        let current = icons::pack(&chosen).unwrap_or_else(icons::active);
+
+        let picker = Picker::new(PACKS, &self.popovers, current.title())
+            .width(Picker::REGULAR)
+            .items(icons::packs().map(|pack| {
+                MenuItem::new(pack.id, pack.title())
+                    .selected(pack.id == current.id)
+                    .detail(samples(pack, muted))
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.settings
+                            .update(cx, |settings, cx| settings.set_icons(pack.id, cx));
+                        cx.notify();
+                    }))
+            }));
+
+        self.row(
+            t!("settings-icons"),
+            t!("settings-icons-detail"),
+            muted,
+            small,
+            picker.into_any_element(),
+        )
+    }
+
     fn opacity_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
         let muted = theme.muted_foreground;
@@ -1230,7 +1261,7 @@ impl SettingsView {
                     .pl_2()
                     .child(
                         svg()
-                            .path(crate::shared::provider_logo(slug))
+                            .path(icons::path(crate::shared::provider_logo(slug)))
                             .size(theme.metrics.control_small)
                             .flex_none()
                             .text_color(theme.foreground),
@@ -1614,6 +1645,20 @@ fn romanization_script_copy(writing_system: WritingSystem) -> (&'static str, &'s
         WritingSystem::Arabic => ("romanization-arabic", "settings-romanization-arabic"),
         WritingSystem::Other => ("romanization-other", "settings-romanization-other"),
     }
+}
+
+fn samples(pack: &'static icons::Pack, tint: gpui::Hsla) -> impl IntoElement {
+    div()
+        .flex()
+        .items_center()
+        .gap_2()
+        .children(icons::SAMPLES.iter().map(|name| {
+            svg()
+                .path(icons::shown(pack, name))
+                .size(px(14.))
+                .flex_none()
+                .text_color(tint)
+        }))
 }
 
 fn decorated() -> bool {

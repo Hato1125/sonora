@@ -5,9 +5,9 @@
 [![Build](https://img.shields.io/github/actions/workflow/status/nolight132/sonora/release.yml)](https://github.com/nolight132/sonora/actions/workflows/release.yml)
 [![License](https://img.shields.io/github/license/nolight132/sonora)](./COPYING)
 
-### A native music streaming client, built with Rust and GPUI.
+### A native music streaming client, built with Rust and GPUI
 
-Stream Spotify, YouTube Music, and local files all in one **native** app.
+Stream Spotify, YouTube Music, and local files all in one **native** app
 </div>
 
 <div align="center">
@@ -35,20 +35,20 @@ Stream Spotify, YouTube Music, and local files all in one **native** app.
 
 ## Features
 
-- **Spotify**, **YouTube**, and local playback.
-- Library management within supported providers.
-- Gapless playback.
-- Audio normalization.
-- Synced/karaoke lyrics.
-- Romanization.
-- Cross-platform support.
-- Custom themes.
+- **Spotify**, **YouTube**, and local playback
+- Library management within supported providers
+- Gapless playback
+- Audio normalization
+- Synced/karaoke lyrics
+- Romanization
+- Cross-platform support
+- Custom themes
 
 ## Install
 
 ### macOS
 
-Install with [Brew](https://brew.sh/).
+Install with [Brew](https://brew.sh/):
 
 ```sh
 brew install --cask nolight132/tap/sonora
@@ -64,7 +64,7 @@ xattr -dr com.apple.quarantine /Applications/Sonora.app
 
 #### Arch
 
-Install from the AUR with your AUR helper of choice.
+Install from the AUR with your AUR helper of choice:
 
 ```
 yay -S sonora
@@ -76,7 +76,7 @@ Flatpak coming soon.
 
 ### Nix
 
-Just use the flake in the project root.
+Just use the flake in the project root:
 
 ```sh
 inputs.sonora.packages.${system}.default
@@ -104,12 +104,12 @@ partial translation is welcome — pick a language below and fill in what it lac
 
 | Language | Translated | Coverage |
 | --- | --- | --- |
-| English (`en-US`) | 494/494 | 100% |
-| Deutsch (`de`) | 473/494 | 96% |
-| Français (`fr`) | 473/494 | 96% |
-| Русский (`ru`) | 473/494 | 96% |
-| Українська (`uk`) | 473/494 | 96% |
-| Polski (`pl`) | 473/494 | 96% |
+| English (`en-US`) | 496/496 | 100% |
+| Deutsch (`de`) | 475/496 | 96% |
+| Français (`fr`) | 475/496 | 96% |
+| Русский (`ru`) | 475/496 | 96% |
+| Українська (`uk`) | 475/496 | 96% |
+| Polski (`pl`) | 475/496 | 96% |
 
 <!-- i18n:end -->
 
@@ -152,5 +152,9 @@ Sonora is an unofficial client and is not affiliated with, endorsed by, or
 sponsored by Spotify AB.
 
 The binary also embeds the [Inter](https://github.com/rsms/inter) typeface (SIL
-Open Font License 1.1) and the [Lucide](https://lucide.dev) icon set (ISC
-License). `THIRD-PARTY.md` lists every bundled dependency.
+Open Font License 1.1) and four interchangeable icon sets:
+[Lucide](https://lucide.dev) (ISC), [Iconoir](https://iconoir.com) (MIT),
+[Remix Icon](https://remixicon.com) 4.8.0 (Apache 2.0) and the
+[Solar](https://www.figma.com/community/file/1166831539721848736) Linear set
+(CC BY 4.0, by 480 Design). Each pack keeps its licence beside its files in
+`assets/icons`. `THIRD-PARTY.md` lists every bundled dependency.

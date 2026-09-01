@@ -7,6 +7,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-09-01
+
+### Added
+
+- Settings > Appearance can swap the interface icons between four sets: Lucide, Iconoir, Remix and
+  Solar. Each entry in the picker previews a few of its own glyphs, and an icon a set does not
+  carry falls back to Lucide.
+
 ## [0.27.0] - 2026-09-01
 
 ### Added
@@ -1202,7 +1210,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Initial release: a native Spotify client with playback, an interactive queue, the saved library,
 search, album, playlist, artist and song pages, context menus and adaptive theming.
 
-[unreleased]: https://github.com/nolight132/sonora/compare/v0.27.0...HEAD
+[unreleased]: https://github.com/nolight132/sonora/compare/v0.28.0...HEAD
+[0.28.0]: https://github.com/nolight132/sonora/compare/v0.27.0...v0.28.0
 [0.27.0]: https://github.com/nolight132/sonora/compare/v0.26.0...v0.27.0
 [0.26.0]: https://github.com/nolight132/sonora/compare/v0.25.0...v0.26.0
 [0.25.0]: https://github.com/nolight132/sonora/compare/v0.24.1...v0.25.0

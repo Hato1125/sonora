@@ -124,7 +124,13 @@ impl RenderOnce for Toast {
                     .items_center()
                     .gap_2()
                     .min_w_0()
-                    .child(svg().path(icon).size(ICON).flex_none().text_color(tint))
+                    .child(
+                        svg()
+                            .path(icons::path(icon))
+                            .size(ICON)
+                            .flex_none()
+                            .text_color(tint),
+                    )
                     .child(with_name_emphasised(&id, message, strong, open)),
             )
             .children(dismiss.map(|dismiss| {

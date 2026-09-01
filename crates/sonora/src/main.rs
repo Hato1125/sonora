@@ -80,18 +80,20 @@ fn main() {
                 .destination()
         });
         router::init(start, cx);
-        let (look, overrides, language, stillness, pace, remembered) = {
+        let (look, overrides, language, pack, stillness, pace, remembered) = {
             let settings = Sonora::global(cx).settings.read(cx);
             (
                 settings.look(),
                 settings.theme_overrides().clone(),
                 settings.language().to_owned(),
+                settings.icons().to_owned(),
                 settings.stillness(),
                 settings.pace(),
                 settings.system_theme(),
             )
         };
         i18n::set(i18n::resolve(&language));
+        icons::set(&pack);
         ui::motion::apply(stillness, pace, cx);
         // linux answers late
         let reported = match cfg!(any(target_os = "linux", target_os = "freebsd")) {
