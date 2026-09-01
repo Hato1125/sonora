@@ -51,6 +51,7 @@ impl RenderOnce for Equalizer {
                 div()
                     .id(("equalizer-bar", index))
                     .flex_1()
+                    // .rounded_t(theme.radius)
                     .bg(theme.primary.opacity(OPACITY))
                     .h(max * level.clamp(FLOOR, 1.))
             }));
