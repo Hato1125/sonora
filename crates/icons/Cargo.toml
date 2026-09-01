@@ -1,14 +1,13 @@
 [package]
-name = "ui"
+name = "icons"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
+anyhow.workspace = true
 gpui.workspace = true
-i18n.workspace = true
-icons.workspace = true
-image.workspace = true
 log.workspace = true
-serde.workspace = true
-unicode-segmentation.workspace = true
+
+[build-dependencies]
+embed.workspace = true

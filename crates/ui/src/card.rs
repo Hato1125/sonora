@@ -406,7 +406,7 @@ impl RenderOnce for Card {
                                     .tooltip(Tooltip::build(hint, Perch::Pointer))
                                     .child(
                                         svg()
-                                            .path(glyph)
+                                            .path(icons::path(glyph))
                                             .size(size)
                                             .flex_none()
                                             .text_color(theme.overlay_foreground),

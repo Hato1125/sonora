@@ -3210,6 +3210,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "icons"
+version = "0.27.0"
+dependencies = [
+ "anyhow",
+ "embed",
+ "gpui",
+ "log",
+]
+
+[[package]]
 name = "icu_collections"
 version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6808,10 +6818,12 @@ version = "0.27.0"
 dependencies = [
  "anyhow",
  "dirs",
+ "embed",
  "env_logger",
  "gpui",
  "gpui_platform",
  "i18n",
+ "icons",
  "input",
  "interprocess",
  "libc",
@@ -6943,6 +6955,7 @@ dependencies = [
  "futures",
  "gpui",
  "i18n",
+ "icons",
  "image",
  "log",
  "moka",
@@ -7960,6 +7973,7 @@ version = "0.27.0"
 dependencies = [
  "gpui",
  "i18n",
+ "icons",
  "image",
  "log",
  "serde",
@@ -8286,6 +8300,7 @@ version = "0.27.0"
 dependencies = [
  "gpui",
  "i18n",
+ "icons",
  "input",
  "jiff",
  "music",

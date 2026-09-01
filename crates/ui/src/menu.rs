@@ -484,13 +484,17 @@ impl RenderOnce for Menu {
                             this.child(Artwork::new(artwork).size(px(20.)).flex_none())
                         })
                         .when_some(icon.filter(|_| !has_artwork), |this, icon| {
-                            this.child(svg().path(icon).size(px(14.)).flex_none().text_color(
-                                if disabled {
-                                    theme.muted_foreground
-                                } else {
-                                    theme.popover_foreground
-                                },
-                            ))
+                            this.child(
+                                svg()
+                                    .path(icons::path(icon))
+                                    .size(px(14.))
+                                    .flex_none()
+                                    .text_color(if disabled {
+                                        theme.muted_foreground
+                                    } else {
+                                        theme.popover_foreground
+                                    }),
+                            )
                         })
                         .child(
                             div()

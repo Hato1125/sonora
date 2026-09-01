@@ -1230,7 +1230,7 @@ impl SettingsView {
                     .pl_2()
                     .child(
                         svg()
-                            .path(crate::shared::provider_logo(slug))
+                            .path(icons::path(crate::shared::provider_logo(slug)))
                             .size(theme.metrics.control_small)
                             .flex_none()
                             .text_color(theme.foreground),

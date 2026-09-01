@@ -13,7 +13,9 @@ A native music streaming client, built with Rust and [GPUI](https://github.com/z
    See [Theme and metrics](#theme-and-metrics).
 4. **Network work runs on the tokio runtime (`Io`), never on GPUI's executor.**
    See [Async: two runtimes](#async-two-runtimes).
-5. **New assets must be registered in `crates/sonora/src/assets.rs`** or they silently fail to load.
+5. **Assets are picked up from their folder, never from a list.** Drop an SVG into an
+   `assets/icons/<pack>/` folder or a face into `assets/fonts/`; the build scripts walk the
+   directory. See [Icons](#icons).
 6. **Never push changes without the user's explicit confirmation.** Committing does not imply permission
    to run `git push`; ask immediately before every push.
 
@@ -29,6 +31,8 @@ crates/
   router/     Destination enum, navigation history, Link trait
   input/      text input element + global actions and keybindings
   i18n/       Fluent localization: the `t!` macro, locale selection, embedded .ftl
+  icons/      the icon packs: registry, active pack, path resolution, AssetSource
+  embed/      build-script helper that walks a folder and writes include_bytes! literals
 ```
 
 Dependency direction is strict; do not create a back edge:
@@ -36,7 +40,7 @@ Dependency direction is strict; do not create a back edge:
 ```
 sonora → views → state → music
          all ui-side crates → ui, router, input → ui → gpui
-         every ui-side crate → i18n → gpui
+         every ui-side crate → i18n, icons → gpui
 ```
 
 - `music` holds the provider abstraction (`MusicApi`, `MusicProvider`, `Player`, `PlaybackFactory`)
@@ -50,6 +54,10 @@ sonora → views → state → music
 - Widgets that need app state (player bar, sidebar) live in `views/src/chrome/`, not `ui`.
 - `i18n` is a leaf: it depends on `fluent-bundle`, `unic-langid`, `sys-locale` and `gpui` (for
   `SharedString`) and on nothing else in the workspace.
+- `icons` is a leaf too: `gpui`, `anyhow`, `log`, plus `embed` at build time. It never depends on
+  `ui`, so `ui` and `views` can both reach it.
+- `embed` is a build-support crate. Nothing links it at runtime; it is a `[build-dependencies]`
+  entry of `icons` and `sonora` only.
 
 ## Building
 
@@ -609,10 +617,9 @@ field in the title bar. Don't build a second search box.
 `.on_action(cx.listener(…))` (scoped). Key contexts: `Workspace`, `Input`, `Table`. Both `cmd-` and
 `ctrl-` bindings are registered for every shortcut.
 
-**Assets.** SVGs live in `assets/icons/`, are embedded with `include_bytes!`, and are referenced as
-`"icons/<name>.svg"`. Adding a file is not enough — add the stem to the `ICONS` list in
-`crates/sonora/src/assets.rs`, otherwise loading logs `assets: … is not registered` and renders
-nothing. Icons are Lucide (`assets/icons/LICENSE`); the UI font is Inter.
+**Assets.** `crates/sonora/src/assets.rs` answers GPUI for both icons and fonts: icons come from
+the `icons` crate, fonts from a `FONTS` table its build script writes by walking `assets/fonts`.
+Neither is a hand-kept list any more — see [Icons](#icons). The UI font is Inter.
 
 **App icons are generated, never hand-edited.** `assets/icon.svg` is the master; `scripts/generate-icons.py`
 derives every platform artefact from it — a circle for `assets/linux/` (scalable SVG plus the hicolor
