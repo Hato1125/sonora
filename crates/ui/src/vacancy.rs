@@ -64,8 +64,9 @@ impl RenderOnce for Vacancy {
             .when_some(icon, |this, icon| {
                 this.child(
                     svg()
-                        .path(icon)
+                        .path(icons::path(icon))
                         .size(glyph)
+                        .mt(theme.metrics.inset)
                         .flex_none()
                         .text_color(theme.muted_foreground.opacity(GLYPH)),
                 )

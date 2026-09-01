@@ -12,6 +12,7 @@ fastrand.workspace = true
 futures.workspace = true
 gpui.workspace = true
 i18n.workspace = true
+icons.workspace = true
 image.workspace = true
 log.workspace = true
 moka.workspace = true

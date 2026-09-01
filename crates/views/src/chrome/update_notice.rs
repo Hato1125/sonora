@@ -70,7 +70,7 @@ impl Render for UpdateNotice {
                             .min_w_0()
                             .child(
                                 svg()
-                                    .path("icons/refresh-cw.svg")
+                                    .path(icons::path("icons/refresh-cw.svg"))
                                     .size(ICON)
                                     .flex_none()
                                     .text_color(theme.primary),

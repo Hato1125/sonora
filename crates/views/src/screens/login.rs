@@ -203,7 +203,7 @@ impl LoginView {
             .w(COLUMN)
             .child(
                 svg()
-                    .path(crate::shared::provider_logo(slug))
+                    .path(icons::path(crate::shared::provider_logo(slug)))
                     .size(LOGO)
                     .flex_none()
                     .text_color(theme.foreground),

@@ -13,7 +13,9 @@ A native music streaming client, built with Rust and [GPUI](https://github.com/z
    See [Theme and metrics](#theme-and-metrics).
 4. **Network work runs on the tokio runtime (`Io`), never on GPUI's executor.**
    See [Async: two runtimes](#async-two-runtimes).
-5. **New assets must be registered in `crates/sonora/src/assets.rs`** or they silently fail to load.
+5. **Assets are picked up from their folder, never from a list.** Drop an SVG into an
+   `assets/icons/<pack>/` folder or a face into `assets/fonts/`; the build scripts walk the
+   directory. See [Icons](#icons).
 6. **Never push changes without the user's explicit confirmation.** Committing does not imply permission
    to run `git push`; ask immediately before every push.
 
@@ -29,6 +31,8 @@ crates/
   router/     Destination enum, navigation history, Link trait
   input/      text input element + global actions and keybindings
   i18n/       Fluent localization: the `t!` macro, locale selection, embedded .ftl
+  icons/      the icon packs: registry, active pack, path resolution, AssetSource
+  embed/      build-script helper that walks a folder and writes include_bytes! literals
 ```
 
 Dependency direction is strict; do not create a back edge:
@@ -36,7 +40,7 @@ Dependency direction is strict; do not create a back edge:
 ```
 sonora → views → state → music
          all ui-side crates → ui, router, input → ui → gpui
-         every ui-side crate → i18n → gpui
+         every ui-side crate → i18n, icons → gpui
 ```
 
 - `music` holds the provider abstraction (`MusicApi`, `MusicProvider`, `Player`, `PlaybackFactory`)
@@ -50,6 +54,10 @@ sonora → views → state → music
 - Widgets that need app state (player bar, sidebar) live in `views/src/chrome/`, not `ui`.
 - `i18n` is a leaf: it depends on `fluent-bundle`, `unic-langid`, `sys-locale` and `gpui` (for
   `SharedString`) and on nothing else in the workspace.
+- `icons` is a leaf too: `gpui`, `anyhow`, `log`, plus `embed` at build time. It never depends on
+  `ui`, so `ui` and `views` can both reach it.
+- `embed` is a build-support crate. Nothing links it at runtime; it is a `[build-dependencies]`
+  entry of `icons` and `sonora` only.
 
 ## Building
 
@@ -273,6 +281,48 @@ theme.metrics.row / .header / .pad / .inset / .control / .field
 - Eight themes exist (`ThemeKind::ALL`). `ocean`/`rose`/`lavender`/`amber` are derived by mutating
   `midnight()`/`dark()`; follow that pattern rather than writing a full palette.
 - Users can override any token via `settings.json`; `Theme::set` re-renders all windows.
+
+## Icons
+
+Icons live in `assets/icons/<pack>/`, one folder per interchangeable set:
+
+```
+assets/icons/
+  common/    never follows the pack: window controls and brand marks
+  lucide/    the base pack, and the fallback for every other one
+  iconoir/   solar/   remix/   the alternatives
+```
+
+Every pack names its files the same way, so `heart.svg` means the same thing in all of them. A pack
+is allowed to lag, the way a locale is: `icons::path` looks in the active pack, then `common`, then
+`lucide`, so a set with no `guitar` quietly borrows Lucide's.
+
+- **A screen still writes `"icons/heart.svg"`.** The pack is never part of the string a call site
+  spells; `icons::path` turns it into `icons/<active pack>/heart.svg`. Resolve in the one place a
+  path meets `svg()` — `svg().path(icons::path(icon))` — never in a constructor. `Button::icon`,
+  `MenuItem::icon` and friends store the bare name and resolve at render, for the same reason `t!`
+  is banned in constructors: the value has to follow a setting change.
+- **Never register an icon by hand.** `crates/icons/build.rs` walks every folder with `embed::tree`
+  and writes the registry, so dropping in a file is the whole job. `crates/embed` is the reusable
+  half of that: `embed::folder(dir, kind)` and `embed::tree(dir, kind)` return the files, sorted,
+  and `embed::embedded` renders the `include_bytes!` table. Sonora's own build script uses it for
+  `assets/fonts`.
+- `icons::packs()` is what the settings picker lists — `common` is not among them — and
+  `Pack::title` is the folder id capitalised, so a new pack needs no Rust edit at all.
+  `icons::SAMPLES` names the glyphs each entry previews with.
+- The active pack is a process global, like `i18n`'s: `main.rs` sets it from `settings.json`
+  (`appearance.icons`) at boot, and `AppSettings::set_icons` changes it and repaints every window.
+  Because each pack has its own paths, GPUI's svg cache cannot serve a stale glyph.
+- `scripts/fetch-icons.py` rebuilds `iconoir`, `solar` and `remix` from the Iconify API. It carries
+  the canonical name → upstream name map and asks only for the icons in it; `lucide` and `common`
+  are hand-kept. A name it has no equivalent for is left out on purpose — that is a fallback, not a
+  bug. `panel-right-close` and `panel-right-open` are the exception: no set draws them, so the
+  script mirrors each pack's own left variant through `MIRROR` rather than leaving two Lucide
+  glyphs among a pack's. `SLASH` fills a missing `mic-off` the same way: it masks a band out of the
+  pack's own `mic-vocal` and strokes the diagonal across the gap. Each pack keeps its licence beside its files, and `flake.nix`, the release workflow and
+  `THIRD-PARTY.md` all ship the whole set.
+- `cargo run -p ui --example icons` opens a gallery: every icon as a row, every pack as a column,
+  with borrowed glyphs faded.
 
 ## Localization
 
@@ -609,10 +659,9 @@ field in the title bar. Don't build a second search box.
 `.on_action(cx.listener(…))` (scoped). Key contexts: `Workspace`, `Input`, `Table`. Both `cmd-` and
 `ctrl-` bindings are registered for every shortcut.
 
-**Assets.** SVGs live in `assets/icons/`, are embedded with `include_bytes!`, and are referenced as
-`"icons/<name>.svg"`. Adding a file is not enough — add the stem to the `ICONS` list in
-`crates/sonora/src/assets.rs`, otherwise loading logs `assets: … is not registered` and renders
-nothing. Icons are Lucide (`assets/icons/LICENSE`); the UI font is Inter.
+**Assets.** `crates/sonora/src/assets.rs` answers GPUI for both icons and fonts: icons come from
+the `icons` crate, fonts from a `FONTS` table its build script writes by walking `assets/fonts`.
+Neither is a hand-kept list any more — see [Icons](#icons). The UI font is Inter.
 
 **App icons are generated, never hand-edited.** `assets/icon.svg` is the master; `scripts/generate-icons.py`
 derives every platform artefact from it — a circle for `assets/linux/` (scalable SVG plus the hicolor

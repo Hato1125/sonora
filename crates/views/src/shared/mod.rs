@@ -42,7 +42,7 @@ pub(crate) fn firefox_note(cx: &App) -> Div {
         .text_color(theme.muted_foreground)
         .child(
             svg()
-                .path("icons/firefoxbrowser.svg")
+                .path(icons::path("icons/firefoxbrowser.svg"))
                 .size(NOTE)
                 .flex_none()
                 .text_color(theme.muted_foreground),

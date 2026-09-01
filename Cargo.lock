@@ -1778,6 +1778,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9e5e8f6c15a24b9a3ee5efec809ccd006d3b30e8b3bb63c39af737c7f87daa1d"
 
 [[package]]
+name = "embed"
+version = "0.27.0"
+
+[[package]]
 name = "embed-resource"
 version = "3.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3203,6 +3207,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f31827a206f56af32e590ba56d5d2d085f558508192593743f16b2306495269f"
 dependencies = [
  "cc",
+]
+
+[[package]]
+name = "icons"
+version = "0.27.0"
+dependencies = [
+ "anyhow",
+ "embed",
+ "gpui",
+ "log",
 ]
 
 [[package]]
@@ -6804,10 +6818,12 @@ version = "0.27.0"
 dependencies = [
  "anyhow",
  "dirs",
+ "embed",
  "env_logger",
  "gpui",
  "gpui_platform",
  "i18n",
+ "icons",
  "input",
  "interprocess",
  "libc",
@@ -6939,6 +6955,7 @@ dependencies = [
  "futures",
  "gpui",
  "i18n",
+ "icons",
  "image",
  "log",
  "moka",
@@ -7955,7 +7972,9 @@ name = "ui"
 version = "0.27.0"
 dependencies = [
  "gpui",
+ "gpui_platform",
  "i18n",
+ "icons",
  "image",
  "log",
  "serde",
@@ -8282,6 +8301,7 @@ version = "0.27.0"
 dependencies = [
  "gpui",
  "i18n",
+ "icons",
  "input",
  "jiff",
  "music",

@@ -289,7 +289,7 @@ impl RenderOnce for Button {
             .when_some(icon, |this, path| {
                 this.child(
                     svg()
-                        .path(path)
+                        .path(icons::path(path))
                         .size(px(16.))
                         .flex_none()
                         .text_color(foreground),
@@ -307,7 +307,7 @@ impl RenderOnce for Button {
             .when_some(trailing, |this, path| {
                 this.child(
                     svg()
-                        .path(path)
+                        .path(icons::path(path))
                         .size(px(16.))
                         .flex_none()
                         .text_color(foreground),

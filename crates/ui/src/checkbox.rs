@@ -101,7 +101,7 @@ impl RenderOnce for Checkbox {
         let movement = window.use_keyed_state((id, "movement"), cx, |_, _| Movement::new(checked));
         let animates = movement.update(cx, |movement, _| movement.turning(checked));
         let mark = svg()
-            .path("icons/check.svg")
+            .path(icons::path("icons/check.svg"))
             .size(px((side / px(1.) * MARK).round()))
             .flex_none();
         let mark = match animates {

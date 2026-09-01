@@ -599,7 +599,12 @@ fn blank(size: Pixels, rounded: Pixels, muted: Hsla, glyph: Hsla, fallback: Shar
         .flex()
         .items_center()
         .justify_center()
-        .child(svg().path(fallback).size(size * 0.46).text_color(glyph))
+        .child(
+            svg()
+                .path(icons::path(fallback))
+                .size(size * 0.46)
+                .text_color(glyph),
+        )
 }
 
 #[cfg(test)]

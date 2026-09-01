@@ -7,6 +7,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Settings > Appearance can swap the interface icons between four sets: Lucide, Iconoir, Remix and
+  Solar. Each entry in the picker previews a few of its own glyphs, and an icon a set does not
+  carry falls back to Lucide.
+
 ## [0.27.0] - 2026-09-01
 
 ### Added

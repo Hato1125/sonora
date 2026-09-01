@@ -902,7 +902,7 @@ impl<S: TableSource> TableState<S> {
                         .when(sortable, |this| {
                             this.child(
                                 svg()
-                                    .path(sort_icon(direction))
+                                    .path(icons::path(sort_icon(direction)))
                                     .size(px(12.))
                                     .flex_none()
                                     .text_color(match direction {

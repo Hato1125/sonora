@@ -82,7 +82,13 @@ impl RenderOnce for Notice {
             .flex()
             .items_center()
             .gap_2()
-            .child(svg().path(icon).size(ICON).flex_none().text_color(tint))
+            .child(
+                svg()
+                    .path(icons::path(icon))
+                    .size(ICON)
+                    .flex_none()
+                    .text_color(tint),
+            )
             .child(
                 div()
                     .text_size(theme.text(Text::Body))
