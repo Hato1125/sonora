@@ -194,9 +194,12 @@ jobs:
             assets/fonts/LICENSE.txt \
             Sonora.app/Contents/Resources/LICENSE.Inter
 
-          cp \
-            assets/icons/LICENSE \
-            Sonora.app/Contents/Resources/LICENSE.Lucide
+          mkdir -p Sonora.app/Contents/Resources/icons
+          cp assets/icons/LICENSE Sonora.app/Contents/Resources/icons/LICENSE
+          for licence in assets/icons/*/LICENSE; do
+            pack="$(basename "$(dirname "$licence")")"
+            cp "$licence" "Sonora.app/Contents/Resources/icons/LICENSE.$pack"
+          done
 
           sed \
             "s/@VERSION@/$NUMBER/g" \
@@ -269,7 +272,12 @@ jobs:
           cp COPYING licenses/LICENSE
           cp THIRD-PARTY.md licenses/THIRD-PARTY.md
           cp assets/fonts/LICENSE.txt licenses/LICENSE.Inter
-          cp assets/icons/LICENSE licenses/LICENSE.Lucide
+          mkdir -p licenses/icons
+          cp assets/icons/LICENSE licenses/icons/LICENSE
+          for licence in assets/icons/*/LICENSE; do
+            pack="$(basename "$(dirname "$licence")")"
+            cp "$licence" "licenses/icons/LICENSE.$pack"
+          done
           tar -czf "dist/sonora-$VERSION-licenses.tar.gz" -C licenses .
 
       - name: checksums

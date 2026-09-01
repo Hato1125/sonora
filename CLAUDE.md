@@ -282,6 +282,48 @@ theme.metrics.row / .header / .pad / .inset / .control / .field
   `midnight()`/`dark()`; follow that pattern rather than writing a full palette.
 - Users can override any token via `settings.json`; `Theme::set` re-renders all windows.
 
+## Icons
+
+Icons live in `assets/icons/<pack>/`, one folder per interchangeable set:
+
+```
+assets/icons/
+  common/    never follows the pack: window controls and brand marks
+  lucide/    the base pack, and the fallback for every other one
+  iconoir/   solar/   remix/   the alternatives
+```
+
+Every pack names its files the same way, so `heart.svg` means the same thing in all of them. A pack
+is allowed to lag, the way a locale is: `icons::path` looks in the active pack, then `common`, then
+`lucide`, so a set with no `guitar` quietly borrows Lucide's.
+
+- **A screen still writes `"icons/heart.svg"`.** The pack is never part of the string a call site
+  spells; `icons::path` turns it into `icons/<active pack>/heart.svg`. Resolve in the one place a
+  path meets `svg()` — `svg().path(icons::path(icon))` — never in a constructor. `Button::icon`,
+  `MenuItem::icon` and friends store the bare name and resolve at render, for the same reason `t!`
+  is banned in constructors: the value has to follow a setting change.
+- **Never register an icon by hand.** `crates/icons/build.rs` walks every folder with `embed::tree`
+  and writes the registry, so dropping in a file is the whole job. `crates/embed` is the reusable
+  half of that: `embed::folder(dir, kind)` and `embed::tree(dir, kind)` return the files, sorted,
+  and `embed::embedded` renders the `include_bytes!` table. Sonora's own build script uses it for
+  `assets/fonts`.
+- `icons::packs()` is what the settings picker lists — `common` is not among them — and
+  `Pack::title` is the folder id capitalised, so a new pack needs no Rust edit at all.
+  `icons::SAMPLES` names the glyphs each entry previews with.
+- The active pack is a process global, like `i18n`'s: `main.rs` sets it from `settings.json`
+  (`appearance.icons`) at boot, and `AppSettings::set_icons` changes it and repaints every window.
+  Because each pack has its own paths, GPUI's svg cache cannot serve a stale glyph.
+- `scripts/fetch-icons.py` rebuilds `iconoir`, `solar` and `remix` from the Iconify API. It carries
+  the canonical name → upstream name map and asks only for the icons in it; `lucide` and `common`
+  are hand-kept. A name it has no equivalent for is left out on purpose — that is a fallback, not a
+  bug. `panel-right-close` and `panel-right-open` are the exception: no set draws them, so the
+  script mirrors each pack's own left variant through `MIRROR` rather than leaving two Lucide
+  glyphs among a pack's. `SLASH` fills a missing `mic-off` the same way: it masks a band out of the
+  pack's own `mic-vocal` and strokes the diagonal across the gap. Each pack keeps its licence beside its files, and `flake.nix`, the release workflow and
+  `THIRD-PARTY.md` all ship the whole set.
+- `cargo run -p ui --example icons` opens a gallery: every icon as a row, every pack as a column,
+  with borrowed glyphs faded.
+
 ## Localization
 
 Every user-facing string comes from Fluent. **Never render a bare English literal**; add a key to

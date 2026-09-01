@@ -77,8 +77,13 @@
               install -Dm444 ${./THIRD-PARTY.md} "$out/share/licenses/sonora/THIRD-PARTY.md"
               install -Dm444 ${./assets/fonts/LICENSE.txt} \
                 "$out/share/licenses/sonora/LICENSE.Inter"
+              for licence in ${./assets/icons}/*/LICENSE; do
+                pack="$(basename "$(dirname "$licence")")"
+                install -Dm444 "$licence" \
+                  "$out/share/licenses/sonora/icons/LICENSE.$pack"
+              done
               install -Dm444 ${./assets/icons/LICENSE} \
-                "$out/share/licenses/sonora/LICENSE.Lucide"
+                "$out/share/licenses/sonora/icons/LICENSE"
               runHook postInstall
             '';
 

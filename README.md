@@ -152,5 +152,9 @@ Sonora is an unofficial client and is not affiliated with, endorsed by, or
 sponsored by Spotify AB.
 
 The binary also embeds the [Inter](https://github.com/rsms/inter) typeface (SIL
-Open Font License 1.1) and the [Lucide](https://lucide.dev) icon set (ISC
-License). `THIRD-PARTY.md` lists every bundled dependency.
+Open Font License 1.1) and four interchangeable icon sets:
+[Lucide](https://lucide.dev) (ISC), [Iconoir](https://iconoir.com) (MIT),
+[Remix Icon](https://remixicon.com) 4.8.0 (Apache 2.0) and the
+[Solar](https://www.figma.com/community/file/1166831539721848736) Linear set
+(CC BY 4.0, by 480 Design). Each pack keeps its licence beside its files in
+`assets/icons`. `THIRD-PARTY.md` lists every bundled dependency.
