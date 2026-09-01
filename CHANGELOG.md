@@ -7,6 +7,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.28.1] - 2026-09-02
+
+### Changed
+
+- Sonora now uses the SQLite library your system provides instead of compiling in its own copy, so
+  SQLite fixes reach it through a normal system update. Windows still carries its own.
+
 ## [0.28.0] - 2026-09-01
 
 ### Added
@@ -1210,7 +1217,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Initial release: a native Spotify client with playback, an interactive queue, the saved library,
 search, album, playlist, artist and song pages, context menus and adaptive theming.
 
-[unreleased]: https://github.com/nolight132/sonora/compare/v0.28.0...HEAD
+[unreleased]: https://github.com/nolight132/sonora/compare/v0.28.1...HEAD
+[0.28.1]: https://github.com/nolight132/sonora/compare/v0.28.0...v0.28.1
 [0.28.0]: https://github.com/nolight132/sonora/compare/v0.27.0...v0.28.0
 [0.27.0]: https://github.com/nolight132/sonora/compare/v0.26.0...v0.27.0
 [0.26.0]: https://github.com/nolight132/sonora/compare/v0.25.0...v0.26.0
