@@ -12,3 +12,6 @@ image.workspace = true
 log.workspace = true
 serde.workspace = true
 unicode-segmentation.workspace = true
+
+[dev-dependencies]
+gpui_platform.workspace = true
