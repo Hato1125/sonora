@@ -5,9 +5,9 @@
 [![Build](https://img.shields.io/github/actions/workflow/status/nolight132/sonora/release.yml)](https://github.com/nolight132/sonora/actions/workflows/release.yml)
 [![License](https://img.shields.io/github/license/nolight132/sonora)](./COPYING)
 
-### A native music streaming client, built with Rust and GPUI.
+### A native music streaming client, built with Rust and GPUI
 
-Stream Spotify, YouTube Music, and local files all in one **native** app.
+Stream Spotify, YouTube Music, and local files all in one **native** app
 </div>
 
 <div align="center">
@@ -35,20 +35,20 @@ Stream Spotify, YouTube Music, and local files all in one **native** app.
 
 ## Features
 
-- **Spotify**, **YouTube**, and local playback.
-- Library management within supported providers.
-- Gapless playback.
-- Audio normalization.
-- Synced/karaoke lyrics.
-- Romanization.
-- Cross-platform support.
-- Custom themes.
+- **Spotify**, **YouTube**, and local playback
+- Library management within supported providers
+- Gapless playback
+- Audio normalization
+- Synced/karaoke lyrics
+- Romanization
+- Cross-platform support
+- Custom themes
 
 ## Install
 
 ### macOS
 
-Install with [Brew](https://brew.sh/).
+Install with [Brew](https://brew.sh/):
 
 ```sh
 brew install --cask nolight132/tap/sonora
@@ -64,7 +64,7 @@ xattr -dr com.apple.quarantine /Applications/Sonora.app
 
 #### Arch
 
-Install from the AUR with your AUR helper of choice.
+Install from the AUR with your AUR helper of choice:
 
 ```
 yay -S sonora
@@ -76,7 +76,7 @@ Flatpak coming soon.
 
 ### Nix
 
-Just use the flake in the project root.
+Just use the flake in the project root:
 
 ```sh
 inputs.sonora.packages.${system}.default
