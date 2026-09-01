@@ -184,6 +184,7 @@ struct Submenu {
 pub struct MenuItem {
     id: ElementId,
     label: SharedString,
+    detail: Option<AnyElement>,
     selected: bool,
     checked: bool,
     disabled: bool,
@@ -203,6 +204,7 @@ impl MenuItem {
         Self {
             id: id.into(),
             label: label.into(),
+            detail: None,
             selected: false,
             checked: false,
             face: None,
@@ -230,6 +232,7 @@ impl MenuItem {
         Self {
             id: id.into(),
             label: SharedString::default(),
+            detail: None,
             selected: false,
             checked: false,
             disabled: true,
@@ -241,6 +244,11 @@ impl MenuItem {
             press: None,
             submenu: None,
         }
+    }
+
+    pub fn detail(mut self, detail: impl IntoElement) -> Self {
+        self.detail = Some(detail.into_any_element());
+        self
     }
 
     pub fn content(mut self, content: impl IntoElement) -> Self {
@@ -421,6 +429,7 @@ impl RenderOnce for Menu {
             let MenuItem {
                 id,
                 label,
+                detail,
                 selected,
                 checked,
                 disabled,
@@ -453,6 +462,7 @@ impl RenderOnce for Menu {
             let press_action = action.clone();
             let submenu_state = submenu.as_ref().map(|submenu| submenu.state.clone());
             let has_artwork = artwork.is_some();
+            let detailed = detail.is_some();
 
             div()
                 .id(id)
@@ -463,7 +473,7 @@ impl RenderOnce for Menu {
                 .items_center()
                 .justify_between()
                 .px_3()
-                .py_1()
+                .when_else(detailed, |this| this.py_2(), |this| this.py_1())
                 .rounded(tucked)
                 .when_else(
                     disabled,
@@ -498,9 +508,19 @@ impl RenderOnce for Menu {
                         })
                         .child(
                             div()
-                                .truncate()
-                                .when_some(face, |this, family| this.font(gpui::font(family)))
-                                .child(label),
+                                .flex()
+                                .flex_col()
+                                .min_w_0()
+                                .gap_1()
+                                .child(
+                                    div()
+                                        .truncate()
+                                        .when_some(face, |this, family| {
+                                            this.font(gpui::font(family))
+                                        })
+                                        .child(label),
+                                )
+                                .when_some(detail, |this, detail| this.child(detail)),
                         ),
                 )
                 .when(selected || checked, |this| this.child("✓"))

@@ -104,12 +104,12 @@ partial translation is welcome — pick a language below and fill in what it lac
 
 | Language | Translated | Coverage |
 | --- | --- | --- |
-| English (`en-US`) | 494/494 | 100% |
-| Deutsch (`de`) | 473/494 | 96% |
-| Français (`fr`) | 473/494 | 96% |
-| Русский (`ru`) | 473/494 | 96% |
-| Українська (`uk`) | 473/494 | 96% |
-| Polski (`pl`) | 473/494 | 96% |
+| English (`en-US`) | 496/496 | 100% |
+| Deutsch (`de`) | 475/496 | 96% |
+| Français (`fr`) | 475/496 | 96% |
+| Русский (`ru`) | 475/496 | 96% |
+| Українська (`uk`) | 475/496 | 96% |
+| Polski (`pl`) | 475/496 | 96% |
 
 <!-- i18n:end -->
 
