@@ -34,6 +34,7 @@ jobs:
             os: macos-15-intel
           - target: x86_64-pc-windows-msvc
             os: windows-latest
+            features: --features bundled-sqlite
     steps:
       - uses: actions/checkout@v5
 
@@ -53,7 +54,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential pkg-config mold \
-            libasound2-dev libfontconfig1-dev libfreetype-dev \
+            libasound2-dev libfontconfig1-dev libfreetype-dev libsqlite3-dev \
             libx11-dev libxcb1-dev libxcursor-dev libxi-dev \
             libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev \
             libvulkan-dev libdbus-1-dev
@@ -69,7 +70,7 @@ jobs:
           cache-targets: false
           cache-on-failure: true
       - name: build
-        run: cargo build --release --locked --package sonora --target ${{ matrix.target }}
+        run: cargo build --release --locked --package sonora --target ${{ matrix.target }} ${{ matrix.features }}
 
       - name: sccache stats
         if: always()

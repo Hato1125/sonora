@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/*"]
 
 [workspace.package]
-version = "0.28.0"
+version = "0.28.1"
 edition = "2024"
 license = "GPL-3.0-or-later"
 repository = "https://github.com/nolight132/sonora"
@@ -58,7 +58,7 @@ reqwest = { version = "0.12", default-features = false, features = [
 raw-window-handle = "0.6"
 roxmltree = "0.21"
 rodio = { version = "0.21", default-features = false, features = ["playback"] }
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.32" }
 serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json = "1.0"
 serde_norway = "0.9"
@@ -67,7 +67,7 @@ souvlaki = "0.8"
 sys-locale = "0.3"
 unic-langid = { version = "0.9", features = ["macros"] }
 unicode-segmentation = "1.12"
-ytmusic = { git = "https://github.com/nolight132/ytmusic-rs", rev = "aae034085dddce4b5e085e966491a222c1180948" }
+ytmusic = { git = "https://github.com/nolight132/ytmusic-rs", rev = "0b2b13a32c16e4245b6c9001f8088a75c83a638c" }
 
 librespot-core = { version = "0.8.0", default-features = false, features = [
   "rustls-tls-native-roots",
