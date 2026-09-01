@@ -65,7 +65,7 @@ sonora → views → state → music
 
 The GPUI renderer is Vulkan-based, so a Vulkan ICD is a **runtime** requirement, not just a build
 one. Link-time deps: `vulkan-loader`, `wayland`, `libxkbcommon`, `libxcb`, `libx11`, `libxcursor`,
-`libxi`, `fontconfig`, `freetype`, `alsa-lib`, `dbus`, plus `pkg-config`.
+`libxi`, `fontconfig`, `freetype`, `alsa-lib`, `dbus`, `sqlite`, plus `pkg-config`.
 
 `.cargo/config.toml` passes `-fuse-ld=mold` for `x86_64-unknown-linux-gnu`, so **mold must be on
 PATH** for that target. If it isn't, either install mold or build with
@@ -95,7 +95,7 @@ per-target `hash` values follow the release assets instead, and only move when a
 ### Arch / CachyOS
 
 ```sh
-sudo pacman -S --needed base-devel rust pkgconf alsa-lib dbus fontconfig freetype2 \
+sudo pacman -S --needed base-devel rust pkgconf alsa-lib dbus fontconfig freetype2 sqlite \
   libx11 libxcb libxcursor libxi libxkbcommon libxkbcommon-x11 wayland \
   vulkan-icd-loader mold
 # plus a Vulkan driver: vulkan-radeon | vulkan-intel | nvidia-utils
@@ -111,13 +111,13 @@ Not exercised in this repo; package sets translated from the dependency list abo
 ```sh
 # Debian/Ubuntu
 sudo apt install build-essential pkg-config mold libasound2-dev libfontconfig1-dev \
-  libfreetype-dev libx11-dev libxcb1-dev libxcursor-dev libxi-dev \
+  libfreetype-dev libsqlite3-dev libx11-dev libxcb1-dev libxcursor-dev libxi-dev \
   libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libvulkan-dev libdbus-1-dev \
   mesa-vulkan-drivers
 
 # Fedora
 sudo dnf install @development-tools pkgconf-pkg-config mold alsa-lib-devel fontconfig-devel \
-  freetype-devel libX11-devel libxcb-devel libXcursor-devel libXi-devel \
+  freetype-devel sqlite-devel libX11-devel libxcb-devel libXcursor-devel libXi-devel \
   libxkbcommon-devel libxkbcommon-x11-devel wayland-devel vulkan-loader-devel dbus-devel \
   mesa-vulkan-drivers
 ```
@@ -136,7 +136,9 @@ binary runnable on Apple Silicon — it does not satisfy Gatekeeper, so an unnot
 needs `xattr -dr com.apple.quarantine` on first launch. Do not add `--deep`; Apple deprecates it for
 signing and the bundle has no nested code.
 
-Windows embeds `assets/windows/sonora.ico` through `crates/sonora/build.rs` and `winresource`.
+Windows embeds `assets/windows/sonora.ico` through `crates/sonora/build.rs` and `winresource`. It is
+also the one target that compiles SQLite instead of linking the system one: `crates/music/Cargo.toml`
+turns on rusqlite's `bundled` under `cfg(windows)`, because MSVC has no `libsqlite3` to find.
 
 ### Checks
 

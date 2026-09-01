@@ -22,7 +22,7 @@ Arch and derivatives:
 
 ```sh
 sudo pacman -S --needed base-devel pkgconf mold \
-  alsa-lib dbus fontconfig freetype2 \
+  alsa-lib dbus fontconfig freetype2 sqlite \
   libx11 libxcb libxcursor libxi libxkbcommon libxkbcommon-x11 wayland \
   vulkan-icd-loader
 ```
@@ -31,7 +31,7 @@ Debian and Ubuntu:
 
 ```sh
 sudo apt install build-essential pkg-config mold \
-  libasound2-dev libdbus-1-dev libfontconfig-dev libfreetype-dev \
+  libasound2-dev libdbus-1-dev libfontconfig-dev libfreetype-dev libsqlite3-dev \
   libx11-dev libxcb1-dev libxcursor-dev libxi-dev \
   libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev \
   libvulkan-dev mesa-vulkan-drivers
@@ -41,7 +41,7 @@ Fedora:
 
 ```sh
 sudo dnf install @development-tools pkgconf-pkg-config mold \
-  alsa-lib-devel dbus-devel fontconfig-devel freetype-devel \
+  alsa-lib-devel dbus-devel fontconfig-devel freetype-devel sqlite-devel \
   libX11-devel libxcb-devel libXcursor-devel libXi-devel \
   libxkbcommon-devel libxkbcommon-x11-devel wayland-devel \
   vulkan-loader-devel mesa-vulkan-drivers

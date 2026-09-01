@@ -32,3 +32,6 @@ serde_json.workspace = true
 serde_norway.workspace = true
 tokio.workspace = true
 ytmusic.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+rusqlite = { workspace = true, features = ["bundled"] }
