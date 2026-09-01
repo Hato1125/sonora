@@ -9,6 +9,7 @@ license = "GPL-3.0-or-later"
 repository = "https://github.com/nolight132/sonora"
 
 [workspace.dependencies]
+embed = { path = "crates/embed" }
 i18n = { path = "crates/i18n" }
 music = { path = "crates/music" }
 state = { path = "crates/state" }
