@@ -1,22 +1,25 @@
+use std::cell::Cell;
+use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use gpui::prelude::*;
 use gpui::{
-    AnyView, App, Context, Entity, FocusHandle, FontWeight, KeyDownEvent, MouseButton,
+    AnyView, App, Bounds, Context, Entity, FocusHandle, FontWeight, KeyDownEvent, MouseButton,
     MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, Point, Render, ScrollWheelEvent,
     SharedString, Task, ease_in_out,
 };
-use gpui::{Window, div, px, relative};
+use gpui::{Window, canvas, div, px, relative};
 use i18n::t;
 use input::{ToggleFullscreen, WORKSPACE_CONTEXT};
 use router::{Destination, navigate};
-use state::{Cover, Playback, Queue, SideTab, Sonora};
+use state::{AppSettings, Cover, Playback, Queue, SideTab, Sonora};
 use ui::{
-    ActiveTheme as _, Artwork, Button, ExplicitBadge, InlineLink, InlineLinks, Motion,
+    ActiveTheme as _, Artwork, Button, Equalizer, ExplicitBadge, InlineLink, InlineLinks, Motion,
     Motioned as _, Popup, Room, Scrollbar, Scrubber, ScrubberState, Text, clock, snapped,
 };
 
 use crate::chrome::{Aside, TitleBarOptions};
+use crate::shared::equalizer::EqualizerDrive;
 use crate::shared::menus::ItemMenu;
 use crate::shared::transport::{NOTCH, like, moved, percent, transport, volume_icon};
 use crate::shells::Shell;
@@ -42,6 +45,7 @@ const VOLUME_RISE: f32 = 132.;
 const VOLUME_ZONE: f32 = 14.;
 const CLOCK_SHORT: f32 = 3.4;
 const CLOCK_LONG: f32 = 5.4;
+const EQUALIZER_MIN: f32 = 160.;
 const REST: Duration = Duration::from_millis(1500);
 const WAKE_DEBOUNCE: Duration = Duration::from_millis(400);
 
@@ -49,6 +53,7 @@ pub struct FullscreenView {
     playback: Entity<Playback>,
     queue: Entity<Queue>,
     cover: Entity<Cover>,
+    settings: Entity<AppSettings>,
     aside: Entity<Aside>,
     panel: Option<SideTab>,
     seek: ScrubberState,
@@ -71,6 +76,9 @@ pub struct FullscreenView {
     turned: Instant,
     rest: Option<Task<()>>,
     focus: FocusHandle,
+    equalizer: EqualizerDrive,
+    root_bounds: Rc<Cell<Bounds<Pixels>>>,
+    artwork_bounds: Rc<Cell<Bounds<Pixels>>>,
 }
 
 impl FullscreenView {
@@ -80,6 +88,8 @@ impl FullscreenView {
         cx.observe(&cover, |_, _, cx| cx.notify()).detach();
         let library = Sonora::global(cx).library.clone();
         cx.observe(&library, |_, _, cx| cx.notify()).detach();
+        let settings = Sonora::global(cx).settings.clone();
+        cx.observe(&settings, |_, _, cx| cx.notify()).detach();
         let aside = cx.new(|cx| Aside::new(queue.clone(), playback.clone(), SideTab::Lyrics, cx));
         aside.update(cx, |aside, _| aside.strip());
         let me = cx.entity_id();
@@ -89,6 +99,7 @@ impl FullscreenView {
             playback,
             queue,
             cover,
+            settings,
             aside,
             panel: Some(SideTab::Lyrics),
             seek: ScrubberState::new("fullscreen-seek"),
@@ -111,6 +122,9 @@ impl FullscreenView {
             turned: Instant::now(),
             rest: None,
             focus: cx.focus_handle(),
+            equalizer: EqualizerDrive::default(),
+            root_bounds: Rc::new(Cell::new(Bounds::default())),
+            artwork_bounds: Rc::new(Cell::new(Bounds::default())),
         };
         this.stir(cx);
         this
@@ -262,6 +276,7 @@ impl FullscreenView {
         }
         let revision = self.revision;
         let waiting = large.is_none();
+        let artwork_bounds = self.artwork_bounds.clone();
 
         div()
             .id("fullscreen-artwork")
@@ -272,6 +287,14 @@ impl FullscreenView {
                 this.cursor_pointer()
                     .on_click(move |_, _, cx| open_album(&album, cx))
             })
+            .child(
+                canvas(
+                    move |bounds, _, _| artwork_bounds.set(bounds),
+                    |_, _, _, _| {},
+                )
+                .absolute()
+                .size_full(),
+            )
             .child(
                 Artwork::new(small)
                     .size(side)
@@ -859,6 +882,19 @@ impl Render for FullscreenView {
         let side = snapped(near + (far - near) * hide, window);
         let staged = self.panel.is_none() || split;
 
+        let equalizer_on = self.panel.is_none() && self.settings.read(cx).equalizer();
+        match equalizer_on
+            .then(|| self.playback.read(cx).spectrum())
+            .flatten()
+        {
+            Some(spectrum) => self.equalizer.show(cx.entity_id(), spectrum, window),
+            None => self.equalizer.hide(),
+        }
+        let bottom = |bounds: Bounds<Pixels>| bounds.origin.y + bounds.size.height;
+        let equalizer_max = (bottom(self.root_bounds.get()) - bottom(self.artwork_bounds.get()))
+            .max(px(EQUALIZER_MIN));
+        let root_bounds = self.root_bounds.clone();
+
         div()
             .id("fullscreen")
             .key_context(WORKSPACE_CONTEXT)
@@ -877,6 +913,20 @@ impl Render for FullscreenView {
             .on_any_mouse_down(cx.listener(|this, _: &MouseDownEvent, _, cx| this.poke(cx)))
             .on_scroll_wheel(cx.listener(|this, _: &ScrollWheelEvent, _, cx| this.poke(cx)))
             .on_key_down(cx.listener(|this, _: &KeyDownEvent, _, cx| this.poke(cx)))
+            .child(
+                canvas(move |bounds, _, _| root_bounds.set(bounds), |_, _, _, _| {})
+                    .absolute()
+                    .size_full(),
+            )
+            .when(equalizer_on, |this| {
+                this.child(
+                    Equalizer::new(self.equalizer.levels(), equalizer_max)
+                        .absolute()
+                        .left_0()
+                        .right_0()
+                        .bottom_0(),
+                )
+            })
             .child(
                 div()
                     .relative()

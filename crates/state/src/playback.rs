@@ -6,7 +6,7 @@ use anyhow::Result;
 use gpui::{App, Context, Entity, EventEmitter, SharedString, Task};
 use music::{
     MusicApi, PlaybackConfig, PlaybackEvent as BackendEvent, PlaybackEvents, PlaybackFactory,
-    Player, Track,
+    Player, Spectrum, Track,
 };
 use ui::{Pin, PinKind};
 
@@ -372,6 +372,10 @@ impl Playback {
     fn active_engine(&self) -> Option<&dyn Player> {
         let id = self.track.as_ref()?.id.as_deref()?;
         self.engine_for(id)
+    }
+
+    pub fn spectrum(&self) -> Option<Spectrum> {
+        self.active_engine()?.spectrum()
     }
 
     fn silence_other(&self, id: &str) {

@@ -7,6 +7,8 @@ use cpal::traits::{DeviceTrait, HostTrait};
 use rodio::source::SeekError;
 use rodio::{OutputStream, OutputStreamBuilder, Source};
 
+use crate::spectrum::{Spectrum, Tap};
+
 pub const RAMP: Duration = Duration::from_millis(25);
 
 #[derive(Clone)]
@@ -33,7 +35,7 @@ pub struct Output {
 }
 
 impl Output {
-    pub fn open(volume: Volume) -> Result<Self> {
+    pub fn open(volume: Volume, spectrum: Spectrum) -> Result<Self> {
         let host = cpal::default_host();
         let device = host
             .default_output_device()
@@ -62,10 +64,11 @@ impl Output {
         stream.log_on_drop(false);
 
         let applied = volume.get();
+        let tap = spectrum.attach(default.sample_rate().0, default.channels());
         let (sink, source) = rodio::Sink::new();
         stream
             .mixer()
-            .add(SmoothGain::new(source, volume.clone(), applied, RAMP));
+            .add(SmoothGain::new(source, volume.clone(), applied, RAMP).with_tap(tap));
 
         Ok(Self {
             sink: Arc::new(sink),
@@ -86,6 +89,7 @@ impl Output {
 pub struct SmoothGain<I> {
     input: I,
     volume: Volume,
+    tap: Option<Tap>,
 
     current: f32,
     target: f32,
@@ -105,6 +109,7 @@ impl<I: Source> SmoothGain<I> {
         Self {
             input,
             volume,
+            tap: None,
             current: initial,
             target: initial,
             step: 0.0,
@@ -115,6 +120,11 @@ impl<I: Source> SmoothGain<I> {
             channels: 0,
             rate: 0,
         }
+    }
+
+    pub fn with_tap(mut self, tap: Tap) -> Self {
+        self.tap = Some(tap);
+        self
     }
 
     fn resync(&mut self) {
@@ -158,6 +168,9 @@ impl<I: Source> Iterator for SmoothGain<I> {
         }
 
         let output = sample * self.current;
+        if let Some(tap) = self.tap.as_mut() {
+            tap.push(output);
+        }
 
         self.channel += 1;
         if self.channel >= self.channels {

@@ -8,6 +8,7 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use ytmusic::YtMusic;
 
 use crate::audio::{Output, RAMP, SmoothGain, Trimmed, Volume};
+use crate::spectrum::Spectrum;
 use crate::youtube::trim;
 use crate::{PlaybackConfig, PlaybackEvent, PlaybackEvents, PlaybackFactory, Player};
 
@@ -38,18 +39,24 @@ impl PlaybackFactory for Factory {
         let (commands, command_rx) = unbounded_channel();
         let (events, event_rx) = unbounded_channel();
         let api = self.api.clone();
+        let spectrum = Spectrum::new();
+        let engine_spectrum = spectrum.clone();
         let spawned = std::thread::Builder::new()
             .name("yt-playback".to_string())
-            .spawn(move || run(api, config, command_rx, events));
+            .spawn(move || run(api, config, command_rx, events, engine_spectrum));
         if let Err(error) = spawned {
             log::error!("playback: cannot spawn engine thread: {error}");
         }
-        (Box::new(Engine { commands }), Box::new(Events(event_rx)))
+        (
+            Box::new(Engine { commands, spectrum }),
+            Box::new(Events(event_rx)),
+        )
     }
 }
 
 struct Engine {
     commands: UnboundedSender<Command>,
+    spectrum: Spectrum,
 }
 
 impl Player for Engine {
@@ -93,6 +100,10 @@ impl Player for Engine {
 
     fn set_gain(&self, gain: f32) {
         self.commands.send(Command::Gain(gain)).ok();
+    }
+
+    fn spectrum(&self) -> Option<Spectrum> {
+        Some(self.spectrum.clone())
     }
 }
 
@@ -146,6 +157,7 @@ fn run(
     config: PlaybackConfig,
     commands: UnboundedReceiver<Command>,
     events: UnboundedSender<PlaybackEvent>,
+    spectrum: Spectrum,
 ) {
     let runtime = match tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -157,7 +169,7 @@ fn run(
             return;
         }
     };
-    runtime.block_on(engine_loop(api, config, commands, events));
+    runtime.block_on(engine_loop(api, config, commands, events, spectrum));
 }
 
 async fn engine_loop(
@@ -165,8 +177,9 @@ async fn engine_loop(
     config: PlaybackConfig,
     mut commands: UnboundedReceiver<Command>,
     events: UnboundedSender<PlaybackEvent>,
+    spectrum: Spectrum,
 ) {
-    let output = match Output::open(Volume::new(config.gain)) {
+    let output = match Output::open(Volume::new(config.gain), spectrum) {
         Ok(output) => output,
         Err(error) => {
             log::error!("playback: cannot open audio output: {error:#}");

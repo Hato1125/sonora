@@ -191,6 +191,7 @@ struct Values {
 struct Appearance {
     theme: String,
     adaptive_theme: bool,
+    equalizer: bool,
     icons: String,
     rounding: String,
     font_size: f32,
@@ -271,6 +272,7 @@ impl Default for Appearance {
         Self {
             theme: "dark".to_owned(),
             adaptive_theme: true,
+            equalizer: false,
             icons: icons::BASE.to_owned(),
             rounding: Rounding::Rounded.id().to_owned(),
             font_size: DEFAULT_FONT_SIZE,
@@ -409,6 +411,10 @@ impl AppSettings {
 
     pub fn adaptive_theme(&self) -> bool {
         self.values.appearance.adaptive_theme
+    }
+
+    pub fn equalizer(&self) -> bool {
+        self.values.appearance.equalizer
     }
 
     pub fn icons(&self) -> &str {
@@ -725,6 +731,11 @@ impl AppSettings {
 
     pub fn set_adaptive_theme(&mut self, adaptive: bool, cx: &mut Context<Self>) {
         self.values.appearance.adaptive_theme = adaptive;
+        self.schedule_save(cx);
+    }
+
+    pub fn set_equalizer(&mut self, equalizer: bool, cx: &mut Context<Self>) {
+        self.values.appearance.equalizer = equalizer;
         self.schedule_save(cx);
     }
 
