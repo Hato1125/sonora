@@ -15,6 +15,7 @@ use crate::spotify::{collection2, wire};
 use crate::{ArtistRef, Credit, Track};
 
 const TRACK_PREFIX: &str = "spotify:track:";
+const METADATA_BATCH: usize = 2_800;
 const UNKNOWN: &str = "Unknown";
 
 pub async fn saved_tracks(session: &Session, limit: u32) -> Result<Vec<Track>> {
@@ -50,35 +51,38 @@ pub async fn track(session: &Session, track_id: &str) -> Result<Track> {
 }
 
 pub(crate) async fn metadata(session: &Session, uris: &[String]) -> Result<HashMap<String, Track>> {
-    let request = BatchedEntityRequest {
-        entity_request: uris
-            .iter()
-            .map(|uri| EntityRequest {
-                entity_uri: uri.clone(),
-                query: vec![ExtensionQuery {
-                    extension_kind: EnumOrUnknown::new(ExtensionKind::TRACK_V4),
-                    ..Default::default()
-                }],
-                ..Default::default()
-            })
-            .collect(),
-        ..Default::default()
-    };
-
-    let response = session
-        .spclient()
-        .get_extended_metadata(request)
-        .await
-        .context("cannot read track metadata")?;
-
     let mut tracks = HashMap::new();
-    for array in response.extended_metadata {
-        for entity in array.extension_data {
-            let Ok(message) = TrackMessage::parse_from_bytes(&entity.extension_data.value) else {
-                continue;
-            };
-            let track = track_from(&entity.entity_uri, &message);
-            tracks.insert(entity.entity_uri, track);
+    for batch in uris.chunks(METADATA_BATCH) {
+        let request = BatchedEntityRequest {
+            entity_request: batch
+                .iter()
+                .map(|uri| EntityRequest {
+                    entity_uri: uri.clone(),
+                    query: vec![ExtensionQuery {
+                        extension_kind: EnumOrUnknown::new(ExtensionKind::TRACK_V4),
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                })
+                .collect(),
+            ..Default::default()
+        };
+
+        let response = session
+            .spclient()
+            .get_extended_metadata(request)
+            .await
+            .context("cannot read track metadata")?;
+
+        for array in response.extended_metadata {
+            for entity in array.extension_data {
+                let Ok(message) = TrackMessage::parse_from_bytes(&entity.extension_data.value)
+                else {
+                    continue;
+                };
+                let track = track_from(&entity.entity_uri, &message);
+                tracks.insert(entity.entity_uri, track);
+            }
         }
     }
     Ok(tracks)
