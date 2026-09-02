@@ -7,6 +7,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Closing the window no longer stops the music: Sonora stays in the system tray with play/pause,
+  previous, next, show and quit at hand, and the Dock icon steps aside on macOS until the window
+  is back. Turn it off under Settings → General → Window if you would rather it quit.
+
 ### Fixed
 
 - Content no longer shows through an overlaid sidebar when window transparency is enabled.
