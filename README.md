@@ -5,6 +5,9 @@
 [![Build](https://img.shields.io/github/actions/workflow/status/nolight132/sonora/release.yml)](https://github.com/nolight132/sonora/actions/workflows/release.yml)
 [![License](https://img.shields.io/github/license/nolight132/sonora)](./COPYING)
 ![Installs](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fsonora-stats.nolight.dev%2Fcount&query=%24.count&label=Installs&color=blue)
+\
+[![Discord](https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/a8N8Tx23rV)
+[![Matrix](https://img.shields.io/badge/Matrix-000000?style=for-the-badge&logo=matrix&logoColor=white)](https://matrix.to/#/#sonora:nolight.dev)
 
 ### A native music streaming client, built with Rust and GPUI
 
@@ -109,27 +112,9 @@ Download and run the [installer](https://github.com/nolight132/sonora/releases/l
 
 Download the latest `windows-msvc.exe` for your architecture from [Releases](https://github.com/nolight132/sonora/releases/latest).
 
-## Translations
-
-Sonora ships these locales. Anything a locale is missing falls back to English at runtime, so a
-partial translation is welcome — pick a language below and fill in what it lacks. Strings live in
-`assets/i18n/<locale>/main.ftl`; `en-US` is the source of truth.
-
-<!-- i18n:start -->
-
-| Language          | Translated | Coverage |
-| ----------------- | ---------- | -------- |
-| English (`en-US`) | 496/496    | 100%     |
-| Deutsch (`de`)    | 475/496    | 96%      |
-| Français (`fr`)   | 475/496    | 96%      |
-| Русский (`ru`)    | 475/496    | 96%      |
-| Українська (`uk`) | 475/496    | 96%      |
-| Polski (`pl`)     | 475/496    | 96%      |
-
-<!-- i18n:end -->
-
-To add a language, create `assets/i18n/<locale>/main.ftl` and register it in
-`crates/i18n/src/language.rs`. Regenerate the table with `scripts/i18n-coverage.py`.
+## Community
+Feel free to join our [Discord](https://discord.gg/a8N8Tx23rV) server and [Matrix](https://matrix.to/#/#sonora:nolight.dev) space.
+Discord is the primary one, but we do have a Matrix bridge.
 
 ## AI policy
 
@@ -147,6 +132,31 @@ and does not need to be disclosed explicitly, but the reasoning and motivation
 behind a change must come from the contributor and reflect their own understanding.
 
 AI-assisted proofreading and translation of human-written text are permitted.
+
+## Translations
+
+<!-- i18n:start -->
+
+| Language          | Translated | Coverage |
+| ----------------- | ---------- | -------- |
+| English (`en-US`) | 496/496    | 100%     |
+| Deutsch (`de`)    | 475/496    | 96%      |
+| Français (`fr`)   | 475/496    | 96%      |
+| Русский (`ru`)    | 475/496    | 96%      |
+| Українська (`uk`) | 475/496    | 96%      |
+| Polski (`pl`)     | 475/496    | 96%      |
+
+<!-- i18n:end -->
+
+## Star History
+
+<a href="https://www.star-history.com/?repos=nolight132%2Fsonora&type=date&legend=top-left">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=nolight132/sonora&type=date&theme=dark&legend=top-left&sealed_token=sKtwC7g5T3J-eTji4XSzjR4r9w8t_BgIlXM2-fD5yXkV_KsNB-ESSvKSr4ofwrKLLXfNR77vlM4cATffoz3kTnAEPcjrQ-BprKQSiv0oriZSvSa-yBUsKfNo2AXAuXytEo5jBqlhhJJaotggp9S0CN-lNuWAw-45pP2YrsNKALFn7P1AX-eCi5da2baK" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=nolight132/sonora&type=date&legend=top-left&sealed_token=sKtwC7g5T3J-eTji4XSzjR4r9w8t_BgIlXM2-fD5yXkV_KsNB-ESSvKSr4ofwrKLLXfNR77vlM4cATffoz3kTnAEPcjrQ-BprKQSiv0oriZSvSa-yBUsKfNo2AXAuXytEo5jBqlhhJJaotggp9S0CN-lNuWAw-45pP2YrsNKALFn7P1AX-eCi5da2baK" />
+    <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=nolight132/sonora&type=date&legend=top-left&sealed_token=sKtwC7g5T3J-eTji4XSzjR4r9w8t_BgIlXM2-fD5yXkV_KsNB-ESSvKSr4ofwrKLLXfNR77vlM4cATffoz3kTnAEPcjrQ-BprKQSiv0oriZSvSa-yBUsKfNo2AXAuXytEo5jBqlhhJJaotggp9S0CN-lNuWAw-45pP2YrsNKALFn7P1AX-eCi5da2baK" />
+  </picture>
+</a>
 
 ## Credits
 

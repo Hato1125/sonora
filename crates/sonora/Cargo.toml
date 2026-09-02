@@ -34,6 +34,7 @@ libc.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 raw-window-handle.workspace = true
+state = { workspace = true, features = ["bundled-sqlite"] }
 
 [build-dependencies]
 embed.workspace = true

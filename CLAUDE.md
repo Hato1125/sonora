@@ -149,8 +149,8 @@ needs `xattr -dr com.apple.quarantine` on first launch. Do not add `--deep`; App
 signing and the bundle has no nested code.
 
 Windows embeds `assets/windows/sonora.ico` through `crates/sonora/build.rs` and `winresource`. It is
-also the one target that compiles SQLite instead of linking the system one: `crates/music/Cargo.toml`
-turns on rusqlite's `bundled` under `cfg(windows)`, because MSVC has no `libsqlite3` to find.
+also the one target that compiles SQLite instead of linking the system one: `crates/sonora/Cargo.toml`
+turns on `state/bundled-sqlite` under `cfg(windows)`, because MSVC has no `libsqlite3` to find.
 
 ### Checks
 
