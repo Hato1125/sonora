@@ -299,7 +299,7 @@ jobs:
           bundle: sonora-${{ steps.meta.outputs.version }}-${{ matrix.variant.arch }}.flatpak
           arch: ${{ matrix.variant.arch }}
           upload-artifact: true
-          cache-key: flatpak-builder-${{ github.sha }}
+          artifact-name: release-flatpak-${{ matrix.variant.arch }}
 
   release:
     needs: [build, bundle, flatpak]
