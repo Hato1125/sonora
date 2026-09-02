@@ -169,10 +169,10 @@ Open Font License 1.1) and four interchangeable icon sets:
 
 ## Star History
 
-<a href="https://www.star-history.com/?repos=nolight132%2Fsonora&type=date&logscale=&legend=top-left">
+<a href="https://www.star-history.com/?repos=nolight132%2Fsonora&type=date&legend=top-left">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=nolight132/sonora&type=date&theme=dark&logscale&legend=top-left&sealed_token=sKtwC7g5T3J-eTji4XSzjR4r9w8t_BgIlXM2-fD5yXkV_KsNB-ESSvKSr4ofwrKLLXfNR77vlM4cATffoz3kTnAEPcjrQ-BprKQSiv0oriZSvSa-yBUsKfNo2AXAuXytEo5jBqlhhJJaotggp9S0CN-lNuWAw-45pP2YrsNKALFn7P1AX-eCi5da2baK" />
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=nolight132/sonora&type=date&logscale&legend=top-left&sealed_token=sKtwC7g5T3J-eTji4XSzjR4r9w8t_BgIlXM2-fD5yXkV_KsNB-ESSvKSr4ofwrKLLXfNR77vlM4cATffoz3kTnAEPcjrQ-BprKQSiv0oriZSvSa-yBUsKfNo2AXAuXytEo5jBqlhhJJaotggp9S0CN-lNuWAw-45pP2YrsNKALFn7P1AX-eCi5da2baK" />
-    <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=nolight132/sonora&type=date&logscale&legend=top-left&sealed_token=sKtwC7g5T3J-eTji4XSzjR4r9w8t_BgIlXM2-fD5yXkV_KsNB-ESSvKSr4ofwrKLLXfNR77vlM4cATffoz3kTnAEPcjrQ-BprKQSiv0oriZSvSa-yBUsKfNo2AXAuXytEo5jBqlhhJJaotggp9S0CN-lNuWAw-45pP2YrsNKALFn7P1AX-eCi5da2baK" />
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=nolight132/sonora&type=date&theme=dark&legend=top-left&sealed_token=sKtwC7g5T3J-eTji4XSzjR4r9w8t_BgIlXM2-fD5yXkV_KsNB-ESSvKSr4ofwrKLLXfNR77vlM4cATffoz3kTnAEPcjrQ-BprKQSiv0oriZSvSa-yBUsKfNo2AXAuXytEo5jBqlhhJJaotggp9S0CN-lNuWAw-45pP2YrsNKALFn7P1AX-eCi5da2baK" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=nolight132/sonora&type=date&legend=top-left&sealed_token=sKtwC7g5T3J-eTji4XSzjR4r9w8t_BgIlXM2-fD5yXkV_KsNB-ESSvKSr4ofwrKLLXfNR77vlM4cATffoz3kTnAEPcjrQ-BprKQSiv0oriZSvSa-yBUsKfNo2AXAuXytEo5jBqlhhJJaotggp9S0CN-lNuWAw-45pP2YrsNKALFn7P1AX-eCi5da2baK" />
+    <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=nolight132/sonora&type=date&legend=top-left&sealed_token=sKtwC7g5T3J-eTji4XSzjR4r9w8t_BgIlXM2-fD5yXkV_KsNB-ESSvKSr4ofwrKLLXfNR77vlM4cATffoz3kTnAEPcjrQ-BprKQSiv0oriZSvSa-yBUsKfNo2AXAuXytEo5jBqlhhJJaotggp9S0CN-lNuWAw-45pP2YrsNKALFn7P1AX-eCi5da2baK" />
   </picture>
 </a>
