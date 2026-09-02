@@ -872,7 +872,6 @@ impl Render for FullscreenView {
             .gap_5()
             .px_8()
             .pb_6()
-            .bg(theme.background)
             .on_mouse_move(cx.listener(Self::hover))
             .on_any_mouse_down(cx.listener(|this, _: &MouseDownEvent, _, cx| this.poke(cx)))
             .on_scroll_wheel(cx.listener(|this, _: &ScrollWheelEvent, _, cx| this.poke(cx)))
