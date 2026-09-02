@@ -550,6 +550,31 @@ impl SearchView {
             .gap_4()
             .p_3()
             .bg(theme.secondary)
+            .when_some(
+                match hit {
+                    Hit::Song(track) => {
+                        let current = track.id.is_some() && track.id == self.playback_status.0;
+                        let playing = current
+                            && matches!(self.playback_status.1, state::PlaybackState::Playing);
+                        let track = track.clone();
+                        let me = me.clone();
+                        Some((
+                            playing,
+                            move |_: &gpui::ClickEvent, _: &mut Window, cx: &mut App| {
+                                me.update(cx, |this, cx| {
+                                    this.playback.update(cx, |playback, cx| match current {
+                                        true => playback.toggle_play(cx),
+                                        false => playback.play_radio(&track, cx),
+                                    });
+                                })
+                                .ok();
+                            },
+                        ))
+                    }
+                    _ => None,
+                },
+                |card, (playing, play)| card.play(playing, play),
+            )
             .when_some(hit.pin(), Pinnable::pin)
             .when_some(target, |card, target| card.press(pressed(target, &me)))
             .when_some(HitMenu::of(hit), |card, target| {
