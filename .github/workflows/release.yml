@@ -290,3 +290,11 @@ jobs:
           generate_release_notes: true
           prerelease: ${{ contains(github.ref_name, '-') }}
           fail_on_unmatched_files: true
+
+  announce:
+    needs: release
+    if: startsWith(github.ref, 'refs/tags/')
+    uses: ./.github/workflows/announce.yml
+    secrets: inherit
+    with:
+      tag: ${{ github.ref_name }}
