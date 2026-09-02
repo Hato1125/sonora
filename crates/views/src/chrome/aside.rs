@@ -192,6 +192,7 @@ struct Sung {
     karaoke: bool,
     scripts: Option<RomanizationScripts>,
     theme: ui::Theme,
+    karaoke_tint: gpui::Hsla,
     lift: f32,
     from: gpui::Point<f32>,
 }
@@ -934,6 +935,7 @@ impl Aside {
             karaoke: karaoke_effects,
             scripts: romanization_scripts,
             theme,
+            karaoke_tint: theme.foreground,
             lift: 1.,
             from: gpui::point(0., 0.5),
         };
@@ -1015,7 +1017,10 @@ impl Aside {
                 let active_line = sung_line(lines, position);
                 if singing
                     && karaoke_effects
-                    && active_line.is_some_and(|index| lines[index].worded())
+                    && lines.iter().enumerate().any(|(index, line)| {
+                        line.worded()
+                            && primary_karaoke_visible(line, Some(index) == active_line, position)
+                    })
                 {
                     self.sweep_karaoke(window, cx);
                 }
@@ -1143,7 +1148,9 @@ impl Aside {
                     let translation = presentation + drift;
                     let active = Some(index) == active_line;
                     let departing = Some(index) == self.departing_line;
-                    let karaoke = Some(index) == active_line && line.worded() && karaoke_effects;
+                    let karaoke = karaoke_effects
+                        && line.worded()
+                        && primary_karaoke_visible(line, active, position);
                     let primary_karaoke = karaoke && line.words.is_some();
                     if let std::collections::hash_map::Entry::Vacant(slot) =
                         self.lyrics_wraps.entry(index)
@@ -1186,6 +1193,11 @@ impl Aside {
                         _ => tint,
                     };
                     let sung = Sung {
+                        karaoke_tint: mix(
+                            theme.foreground,
+                            tint,
+                            primary_karaoke_fade(line, active, position),
+                        ),
                         lift,
                         from: match line.voice.lead() {
                             true => gpui::point(0., 0.5),
@@ -1825,7 +1837,6 @@ fn karaoke_lane(
     voice: Voice,
     sung: Sung,
 ) -> Div {
-    let theme = &sung.theme;
     let edge_fade = verse * REVEAL;
     let Wrapped {
         fragments,
@@ -1844,6 +1855,23 @@ fn karaoke_lane(
         (Some(&(start, end, tail)), _) => swept(start, end, position, tail),
         (None, _) => 0.,
     };
+    let overlay = |text: SharedString, reveal: Reveal, tint: gpui::Hsla| {
+        div()
+            .absolute()
+            .left_0()
+            .top_0()
+            .bottom_0()
+            .map(|this| match reveal.width {
+                Some(width) => this.w(width),
+                None => this.w(relative(reveal.share)),
+            })
+            .overflow_hidden()
+            .text_color(tint)
+            .when(reveal.landing > 0., |this| {
+                this.fade_sides(px(0.), edge_fade * reveal.landing)
+            })
+            .child(div().whitespace_nowrap().child(text))
+    };
     let lit = |text: SharedString, reveal: Reveal| {
         div()
             .relative()
@@ -1851,23 +1879,7 @@ fn karaoke_lane(
             .whitespace_nowrap()
             .child(text.clone())
             .when(reveal.shown, |this| {
-                this.child(
-                    div()
-                        .absolute()
-                        .left_0()
-                        .top_0()
-                        .bottom_0()
-                        .map(|this| match reveal.width {
-                            Some(width) => this.w(width),
-                            None => this.w(relative(reveal.share)),
-                        })
-                        .overflow_hidden()
-                        .text_color(theme.foreground)
-                        .when(reveal.landing > 0., |this| {
-                            this.fade_sides(px(0.), edge_fade * reveal.landing)
-                        })
-                        .child(div().whitespace_nowrap().child(text)),
-                )
+                this.child(overlay(text, reveal, sung.karaoke_tint))
             })
     };
 
@@ -2632,6 +2644,31 @@ fn line_has_passed(line: &music::LyricsLine, position: std::time::Duration) -> b
     line.sung_end().is_some_and(|end| position >= end)
 }
 
+fn primary_karaoke_visible(
+    line: &music::LyricsLine,
+    line_active: bool,
+    position: std::time::Duration,
+) -> bool {
+    line_active
+        || (position >= line.start
+            && line
+                .sung_end()
+                .is_some_and(|end| position < end + Motion::Base.span()))
+}
+
+fn primary_karaoke_fade(
+    line: &music::LyricsLine,
+    line_active: bool,
+    position: std::time::Duration,
+) -> f32 {
+    if line_active {
+        return 0.;
+    }
+    line.sung_end().map_or(0., |end| {
+        progress_between(end, end + Motion::Base.span(), position)
+    })
+}
+
 fn instrumental_row(progress: f32, past: bool, verse: Pixels, theme: &ui::Theme) -> Div {
     let note_size = verse * 1.;
     div()
@@ -2679,9 +2716,11 @@ mod tests {
     use super::{
         QueuePosition, Sections, Slot, active_lyrics_row, anchored_lyrics_offset,
         karaoke_fragments, karaoke_window, lag_spring, line_has_passed, line_row, lyric_row_count,
-        plain_lyrics_fragments, secondary_karaoke_visible, wrap_fragment_widths,
+        plain_lyrics_fragments, primary_karaoke_fade, primary_karaoke_visible,
+        secondary_karaoke_visible, wrap_fragment_widths,
     };
     use gpui::px;
+    use ui::Motion;
 
     fn slots(sections: Sections) -> Vec<Slot> {
         (0..sections.len()).map(|i| sections.slot(i)).collect()
@@ -2985,6 +3024,98 @@ mod tests {
             false,
             Duration::from_secs(4)
         ));
+    }
+
+    #[test]
+    fn an_overlapped_primary_line_keeps_singing_in_the_background() {
+        let line = LyricsLine {
+            start: Duration::from_secs(2),
+            end: Some(Duration::from_secs(8)),
+            text: "Wake me up inside".to_owned(),
+            romanized: None,
+            words: Some(vec![LyricsWord {
+                start: Duration::from_secs(2),
+                end: Duration::from_secs(8),
+                text: "Wake me up inside".to_owned(),
+            }]),
+            secondary: Vec::new(),
+            voice: Voice::Lead,
+        };
+
+        assert!(!primary_karaoke_visible(
+            &line,
+            false,
+            Duration::from_millis(1999)
+        ));
+        assert!(primary_karaoke_visible(
+            &line,
+            false,
+            Duration::from_secs(5)
+        ));
+        assert!(primary_karaoke_visible(
+            &line,
+            false,
+            Duration::from_secs(8)
+        ));
+        assert!(!primary_karaoke_visible(
+            &line,
+            false,
+            Duration::from_secs(8) + Motion::Base.span()
+        ));
+    }
+
+    #[test]
+    fn the_active_primary_line_keeps_its_completed_sweep_until_departure() {
+        let line = LyricsLine {
+            start: Duration::from_secs(2),
+            end: Some(Duration::from_secs(5)),
+            text: "line".to_owned(),
+            romanized: None,
+            words: Some(vec![LyricsWord {
+                start: Duration::from_secs(2),
+                end: Duration::from_secs(5),
+                text: "line".to_owned(),
+            }]),
+            secondary: Vec::new(),
+            voice: Voice::Lead,
+        };
+
+        assert!(primary_karaoke_visible(&line, true, Duration::from_secs(8)));
+    }
+
+    #[test]
+    fn a_finished_background_line_fades_from_white_to_gray() {
+        let line = LyricsLine {
+            start: Duration::from_secs(2),
+            end: Some(Duration::from_secs(8)),
+            text: "Wake me up inside".to_owned(),
+            romanized: None,
+            words: Some(vec![LyricsWord {
+                start: Duration::from_secs(2),
+                end: Duration::from_secs(8),
+                text: "Wake me up inside".to_owned(),
+            }]),
+            secondary: Vec::new(),
+            voice: Voice::Lead,
+        };
+        let fade = Motion::Base.span();
+
+        assert_eq!(
+            primary_karaoke_fade(&line, false, Duration::from_millis(7999)),
+            0.
+        );
+        assert_eq!(
+            primary_karaoke_fade(&line, false, Duration::from_secs(8) + fade / 2),
+            0.5
+        );
+        assert_eq!(
+            primary_karaoke_fade(&line, false, Duration::from_secs(8) + fade),
+            1.
+        );
+        assert_eq!(
+            primary_karaoke_fade(&line, true, Duration::from_secs(8) + fade),
+            0.
+        );
     }
 
     #[test]
