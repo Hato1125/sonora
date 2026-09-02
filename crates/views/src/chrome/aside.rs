@@ -17,8 +17,8 @@ use state::{
 };
 use ui::{
     ActiveTheme as _, Button, Card, DraggedPin, Edge, Motion, Motioned as _, Pin, Pinnable as _,
-    Popup, Scrollbar, Scroller, Spot, Text, Vacancy, drop_gap, drop_marker, ease_out_cubic,
-    ease_out_expo, eyebrow, faint, mix, snapped, vacant,
+    Popup, Scrollbar, Scroller, Spot, Springs, Text, Vacancy, drop_gap, drop_marker,
+    ease_out_cubic, ease_out_expo, eyebrow, faint, mix, snapped, vacant,
 };
 
 use crate::chrome::{Chrome, section_label};
@@ -35,7 +35,6 @@ const BLUR: f32 = 0.13;
 const VEIL: f32 = 0.3;
 const HAZE: f32 = 0.45;
 const VERSE_FADE: f32 = 1.25;
-const VERSE_SPRING: SpringConfig = SpringConfig::new(170., 23., 1.);
 const PAST: f32 = 0.4;
 const AHEAD: f32 = 0.6;
 const REVEAL: f32 = 0.6;
@@ -52,7 +51,6 @@ const LAG_SHARE: f32 = 0.28;
 const LAG_TRAIL: f32 = 0.9;
 // The first row's physical spring. Rows farther along the viewport keep the same damping ratio but
 // use a lower natural frequency, producing the cascading iMessage-like settle.
-const LAG_SPRING: SpringConfig = SpringConfig::new(210., 22., 1.);
 const LAG_STAGGER: f32 = 0.35;
 const LAG_LEAST: Pixels = px(0.05);
 const LAG_STALL: f32 = 0.064;
@@ -322,7 +320,7 @@ impl Aside {
         cx.observe(&settings, |_, _, cx| cx.notify()).detach();
         let verse_bar = cx.new(|_| {
             Scrollbar::new(ScrollHandle::new())
-                .spring(VERSE_SPRING)
+                .spring(Springs::LYRICS_SCROLL)
                 .watching(me)
         });
 
@@ -2610,10 +2608,11 @@ struct Drag {
 
 fn lag_spring(along: f32) -> SpringConfig {
     let frequency = 1. - LAG_STAGGER * along.clamp(0., 1.);
+    let spring = Springs::LYRICS_ROW;
     SpringConfig::new(
-        LAG_SPRING.stiffness * frequency * frequency,
-        LAG_SPRING.damping * frequency,
-        LAG_SPRING.mass,
+        spring.stiffness * frequency * frequency,
+        spring.damping * frequency,
+        spring.mass,
     )
 }
 
@@ -2675,6 +2674,7 @@ mod tests {
     use std::time::Duration;
 
     use music::{LyricsLane, LyricsLine, LyricsWord, Voice};
+    use ui::Springs;
 
     use super::{
         QueuePosition, Sections, Slot, active_lyrics_row, anchored_lyrics_offset,
@@ -2928,6 +2928,16 @@ mod tests {
             first_ratio < 1.,
             "the lyrics settle should have a subtle overshoot"
         );
+    }
+
+    #[test]
+    fn lyrics_keep_their_tuned_spring_presets() {
+        assert_eq!(Springs::LYRICS_SCROLL.stiffness, 170.);
+        assert_eq!(Springs::LYRICS_SCROLL.damping, 23.);
+        assert_eq!(Springs::LYRICS_SCROLL.mass, 1.);
+        assert_eq!(Springs::LYRICS_ROW.stiffness, 210.);
+        assert_eq!(Springs::LYRICS_ROW.damping, 22.);
+        assert_eq!(Springs::LYRICS_ROW.mass, 1.);
     }
 
     #[test]
