@@ -99,6 +99,7 @@ sudo pacman -S --needed base-devel rust pkgconf alsa-lib dbus fontconfig freetyp
   libx11 libxcb libxcursor libxi libxkbcommon libxkbcommon-x11 wayland \
   vulkan-icd-loader mold
 # plus a Vulkan driver: vulkan-radeon | vulkan-intel | nvidia-utils
+# plus the ALSA bridge for your sound server: pipewire-alsa | pulseaudio-alsa
 
 cargo run --locked --package sonora
 cargo build --release --locked --package sonora && ./target/release/sonora
