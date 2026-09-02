@@ -423,6 +423,7 @@ settings-romanization-greek = Griechische Schrift
 settings-romanization-arabic = Arabische Schrift
 settings-romanization-other = Andere Schriftsysteme
 settings-advanced = Erweitert
+settings-group-window = Fenster
 settings-group-accounts = Konten
 settings-group-library = Bibliothek
 settings-group-text = Text

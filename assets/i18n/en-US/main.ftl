@@ -485,6 +485,7 @@ settings-romanization-greek = Greek
 settings-romanization-arabic = Arabic
 settings-romanization-other = Other writing systems
 settings-advanced = Advanced
+settings-group-window = Window
 settings-group-accounts = Accounts
 settings-group-library = Library
 settings-group-text = Text
