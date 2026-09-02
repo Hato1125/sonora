@@ -123,7 +123,13 @@
             libGL
             wayland
             wayland-protocols
+            alsa-plugins
+            alsa-lib
+            pipewire
+            libpulseaudio
+
             libxkbcommon
+
             libxcb
             libx11
             libxcursor
@@ -148,8 +154,14 @@
             ];
 
             buildInputs = runtimeLibraries;
-
             LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath runtimeLibraries;
+            ALSA_PLUGIN_DIR = "${pkgs.symlinkJoin {
+              name = "alsa-plugins-combined";
+              paths = [
+                "${pkgs.alsa-plugins}/lib/alsa-lib"
+                "${pkgs.pipewire}/lib/alsa-lib"
+              ];
+            }}";
 
           };
         }
