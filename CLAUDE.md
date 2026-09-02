@@ -122,6 +122,18 @@ sudo dnf install @development-tools pkgconf-pkg-config mold alsa-lib-devel fontc
   mesa-vulkan-drivers
 ```
 
+### Flatpak
+
+`flatpak/flatpak-builder.yaml` builds against the freedesktop 25.08 runtime with the `rust-stable`
+extension, which also supplies the mold that `.cargo/config.toml` asks for. `flatpak/generate-sources.sh`
+turns `Cargo.lock` into `cargo-sources.json` (generated, never committed) and `flatpak/build-flatpak.sh`
+runs the build locally. The release workflow builds both arches in Flathub's builder image, attaches
+the `.flatpak` bundles to the release, then imports them into the signed OSTree repo on the
+`flatpak-repo` branch, which GitHub Pages serves at `https://nolight132.github.io/sonora`.
+`flatpak/pages/` holds the `.flatpakref` and `.flatpakrepo` that point there, with the public half
+of the `FLATPAK_GPG_KEY` secret embedded — a new key means regenerating both. Flathub is not an
+option: its requirements forbid AI-assisted code.
+
 ### macOS / Windows
 
 Released, but not developed against here. `.github/workflows/release.yml` builds both Apple targets

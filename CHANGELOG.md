@@ -7,6 +7,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Sonora ships as a Flatpak. Every release attaches a bundle for x86_64 and aarch64, and adding
+  the Sonora repository once (`flatpak install --user https://nolight132.github.io/sonora/sonora.flatpakref`)
+  keeps it current through `flatpak update`.
+
 ### Fixed
 
 - Content no longer shows through an overlaid sidebar when window transparency is enabled.
