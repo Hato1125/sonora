@@ -58,6 +58,11 @@ app-refresh-library = Bibliothek aktualisieren
 app-sign-out = Abmelden
 app-quit = Beenden
 
+# tray menu
+tray-show = Sonora anzeigen
+tray-play = Wiedergabe
+tray-pause = Pause
+
 # table columns
 column-played-at = Abgespielt
 column-index = #
@@ -399,6 +404,8 @@ settings-window-controls = Fenstersteuerung
 settings-window-controls-detail = Minimieren, Maximieren und Schließen in der Titelleiste zeichnen
 settings-controls-side = Seite der Steuerung
 settings-controls-side-detail = An welchem Ende der Titelleiste die Bedienelemente sitzen
+settings-close-to-tray = Beim Schließen weiterspielen
+settings-close-to-tray-detail = Beim Schließen des Fensters bleibt Sonora im System-Tray und die Musik läuft weiter; von dort holst du es zurück
 settings-normalisation = Lautstärke angleichen
 settings-normalisation-detail = Hält Titel auf einer gleichmäßigen Lautstärke
 settings-gapless = Lückenlose Wiedergabe
