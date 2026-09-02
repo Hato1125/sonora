@@ -16,6 +16,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 
 - Windows uses Sonora's window controls without the native system control strip.
+- The best match on the search page carries a play button whatever it is, so an album, artist or
+  playlist starts from there just like a song. In the single-column layout it scrolls with the
+  results instead of staying pinned above them.
 
 ### Fixed
 
