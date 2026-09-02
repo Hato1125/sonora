@@ -91,9 +91,7 @@
             postFixup = ''
               patchelf \
                 --set-interpreter "${pkgs.stdenv.cc.bintools.dynamicLinker}" \
-                --add-rpath "${
-                  pkgs.lib.makeLibraryPath (runtimeLibraries ++ [ pkgs.stdenv.cc.cc.lib ])
-                }" \
+                --add-rpath "${pkgs.lib.makeLibraryPath (runtimeLibraries ++ [ pkgs.stdenv.cc.cc.lib ])}" \
                 "$out/bin/sonora"
             '';
 
@@ -121,12 +119,16 @@
         let
           runtimeLibraries = with pkgs; [
             vulkan-loader
+            mesa
+            libGL
             wayland
+            wayland-protocols
             libxkbcommon
             libxcb
             libx11
             libxcursor
             libxi
+            libxrandr
             fontconfig
             freetype
             alsa-lib
@@ -148,6 +150,7 @@
             buildInputs = runtimeLibraries;
 
             LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath runtimeLibraries;
+
           };
         }
       );
