@@ -10,9 +10,7 @@ pub fn show(shown: bool) {
         true => NSApplicationActivationPolicy::Regular,
         false => NSApplicationActivationPolicy::Accessory,
     };
-    if !NSApplication::sharedApplication(mtm).setActivationPolicy(policy) {
-        log::warn!("dock: cannot change the activation policy");
-    }
+    NSApplication::sharedApplication(mtm).setActivationPolicy(policy);
 }
 
 #[cfg(not(target_os = "macos"))]

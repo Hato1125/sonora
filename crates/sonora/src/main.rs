@@ -145,13 +145,15 @@ fn show_window(cx: &mut App) {
                 .update(cx, |_, window, _| window.activate_window())
                 .ok();
         }
-        None => open_window(cx),
+        None => {
+            dock::show(true);
+            open_window(cx);
+        }
     }
     cx.activate(true);
 }
 
 fn open_window(cx: &mut App) {
-    dock::show(true);
     let Sonora {
         session,
         cover: _,
