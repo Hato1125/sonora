@@ -102,28 +102,6 @@ Download and run the [installer](https://github.com/nolight132/sonora/releases/l
 
 Download the latest `windows-msvc.exe` for your architecture from [Releases](https://github.com/nolight132/sonora/releases/latest).
 
-## Translations
-
-Sonora ships these locales. Anything a locale is missing falls back to English at runtime, so a
-partial translation is welcome — pick a language below and fill in what it lacks. Strings live in
-`assets/i18n/<locale>/main.ftl`; `en-US` is the source of truth.
-
-<!-- i18n:start -->
-
-| Language          | Translated | Coverage |
-| ----------------- | ---------- | -------- |
-| English (`en-US`) | 496/496    | 100%     |
-| Deutsch (`de`)    | 475/496    | 96%      |
-| Français (`fr`)   | 475/496    | 96%      |
-| Русский (`ru`)    | 475/496    | 96%      |
-| Українська (`uk`) | 475/496    | 96%      |
-| Polski (`pl`)     | 475/496    | 96%      |
-
-<!-- i18n:end -->
-
-To add a language, create `assets/i18n/<locale>/main.ftl` and register it in
-`crates/i18n/src/language.rs`. Regenerate the table with `scripts/i18n-coverage.py`.
-
 ## AI policy
 
 We have nothing against the usage of LLMs in the project — in fact, we use them ourselves.
@@ -166,6 +144,21 @@ Open Font License 1.1) and four interchangeable icon sets:
 [Solar](https://www.figma.com/community/file/1166831539721848736) Linear set
 (CC BY 4.0, by 480 Design). Each pack keeps its licence beside its files in
 `assets/icons`. `THIRD-PARTY.md` lists every bundled dependency.
+
+## Translations
+
+<!-- i18n:start -->
+
+| Language          | Translated | Coverage |
+| ----------------- | ---------- | -------- |
+| English (`en-US`) | 496/496    | 100%     |
+| Deutsch (`de`)    | 475/496    | 96%      |
+| Français (`fr`)   | 475/496    | 96%      |
+| Русский (`ru`)    | 475/496    | 96%      |
+| Українська (`uk`) | 475/496    | 96%      |
+| Polski (`pl`)     | 475/496    | 96%      |
+
+<!-- i18n:end -->
 
 ## Star History
 
