@@ -210,8 +210,3 @@ fn platform_handle(window: &gpui::Window) -> Option<*mut std::ffi::c_void> {
     }
     Some(handle)
 }
-
-#[cfg(not(target_os = "windows"))]
-fn platform_handle(_window: &gpui::Window) -> Option<*mut std::ffi::c_void> {
-    None
-}
