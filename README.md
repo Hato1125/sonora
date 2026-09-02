@@ -78,9 +78,16 @@ instead, which takes a while on a Rust and GPUI tree but links against your own 
 yay -S sonora
 ```
 
-#### Other
+#### Flatpak
 
-Flatpak coming soon.
+Add the Sonora repository once; it pulls the runtime from Flathub and updates with `flatpak update`:
+
+```sh
+flatpak install --user https://nolight132.github.io/sonora/sonora.flatpakref
+```
+
+Every release also attaches a standalone `.flatpak` bundle for x86_64 and aarch64 on
+[Releases](https://github.com/nolight132/sonora/releases/latest), for installing without a remote.
 
 ### Nix
 
