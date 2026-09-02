@@ -32,6 +32,7 @@ const FADE: f32 = 96.;
 const REST: f32 = FADE * 0.75;
 const TAIL_ROWS: usize = 2;
 const BLUR: f32 = 0.13;
+const BACKGROUND_SINGING_BLUR: Pixels = px(0.75);
 const VEIL: f32 = 0.3;
 const HAZE: f32 = 0.45;
 const VERSE_FADE: f32 = 1.25;
@@ -1296,6 +1297,10 @@ impl Aside {
                         true => haze(viewport_haze(&scroll, row, view, blur, translation)),
                         false => 0.,
                     };
+                    let row_blur = match background_line_singing(line, active, position) {
+                        true => BACKGROUND_SINGING_BLUR,
+                        false => blur,
+                    };
                     let traded = index
                         .checked_sub(1)
                         .is_some_and(|previous| lines[previous].voice != line.voice);
@@ -1343,7 +1348,7 @@ impl Aside {
 
                     let verse_line = verse_line
                         .when(softness > 0., |this| this.opacity(1. - VEIL * softness))
-                        .map(|this| match blur * softness {
+                        .map(|this| match row_blur * softness {
                             soft if soft > HAZE_LEAST => this.blur(soft),
                             _ => this,
                         });
@@ -2653,7 +2658,7 @@ fn primary_karaoke_visible(
         || (position >= line.start
             && line
                 .sung_end()
-                .is_some_and(|end| position < end + Motion::Base.span()))
+                .is_some_and(|end| position < end + Motion::Control.span()))
 }
 
 fn primary_karaoke_fade(
@@ -2665,8 +2670,16 @@ fn primary_karaoke_fade(
         return 0.;
     }
     line.sung_end().map_or(0., |end| {
-        progress_between(end, end + Motion::Base.span(), position)
+        progress_between(end, end + Motion::Control.span(), position)
     })
+}
+
+fn background_line_singing(
+    line: &music::LyricsLine,
+    line_active: bool,
+    position: std::time::Duration,
+) -> bool {
+    !line_active && position >= line.start && line.sung_end().is_some_and(|end| position < end)
 }
 
 fn instrumental_row(progress: f32, past: bool, verse: Pixels, theme: &ui::Theme) -> Div {
@@ -2715,9 +2728,9 @@ mod tests {
 
     use super::{
         QueuePosition, Sections, Slot, active_lyrics_row, anchored_lyrics_offset,
-        karaoke_fragments, karaoke_window, lag_spring, line_has_passed, line_row, lyric_row_count,
-        plain_lyrics_fragments, primary_karaoke_fade, primary_karaoke_visible,
-        secondary_karaoke_visible, wrap_fragment_widths,
+        background_line_singing, karaoke_fragments, karaoke_window, lag_spring, line_has_passed,
+        line_row, lyric_row_count, plain_lyrics_fragments, primary_karaoke_fade,
+        primary_karaoke_visible, secondary_karaoke_visible, wrap_fragment_widths,
     };
     use gpui::px;
     use ui::Motion;
@@ -3098,7 +3111,7 @@ mod tests {
             secondary: Vec::new(),
             voice: Voice::Lead,
         };
-        let fade = Motion::Base.span();
+        let fade = Motion::Control.span();
 
         assert_eq!(
             primary_karaoke_fade(&line, false, Duration::from_millis(7999)),
@@ -3116,6 +3129,44 @@ mod tests {
             primary_karaoke_fade(&line, true, Duration::from_secs(8) + fade),
             0.
         );
+    }
+
+    #[test]
+    fn only_a_currently_singing_background_line_gets_the_reduced_blur() {
+        let line = LyricsLine {
+            start: Duration::from_secs(2),
+            end: Some(Duration::from_secs(8)),
+            text: "Wake me up inside".to_owned(),
+            romanized: None,
+            words: Some(vec![LyricsWord {
+                start: Duration::from_secs(2),
+                end: Duration::from_secs(8),
+                text: "Wake me up inside".to_owned(),
+            }]),
+            secondary: Vec::new(),
+            voice: Voice::Lead,
+        };
+
+        assert!(!background_line_singing(
+            &line,
+            false,
+            Duration::from_millis(1999)
+        ));
+        assert!(background_line_singing(
+            &line,
+            false,
+            Duration::from_secs(5)
+        ));
+        assert!(!background_line_singing(
+            &line,
+            false,
+            Duration::from_secs(8)
+        ));
+        assert!(!background_line_singing(
+            &line,
+            true,
+            Duration::from_secs(5)
+        ));
     }
 
     #[test]
