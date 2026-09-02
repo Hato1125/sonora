@@ -7,6 +7,7 @@ pub const AUTO: &str = "auto";
 pub enum Language {
     English,
     German,
+    Spanish,
     French,
     Italian,
     Russian,
@@ -16,9 +17,10 @@ pub enum Language {
 }
 
 impl Language {
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 9] = [
         Self::English,
         Self::German,
+        Self::Spanish,
         Self::French,
         Self::Italian,
         Self::Russian,
@@ -31,6 +33,7 @@ impl Language {
         match self {
             Self::English => "en-US",
             Self::German => "de",
+            Self::Spanish => "es",
             Self::French => "fr",
             Self::Italian => "it",
             Self::Russian => "ru",
@@ -44,6 +47,7 @@ impl Language {
         match self {
             Self::English => "English",
             Self::German => "Deutsch",
+            Self::Spanish => "Español",
             Self::French => "Français",
             Self::Italian => "Italiano",
             Self::Russian => "Русский",
@@ -73,6 +77,7 @@ impl Language {
         match self {
             Self::English => langid!("en-US"),
             Self::German => langid!("de"),
+            Self::Spanish => langid!("es"),
             Self::French => langid!("fr"),
             Self::Italian => langid!("it"),
             Self::Russian => langid!("ru"),
@@ -86,6 +91,7 @@ impl Language {
         match self {
             Self::English => include_str!("../../../assets/i18n/en-US/main.ftl"),
             Self::German => include_str!("../../../assets/i18n/de/main.ftl"),
+            Self::Spanish => include_str!("../../../assets/i18n/es/main.ftl"),
             Self::French => include_str!("../../../assets/i18n/fr/main.ftl"),
             Self::Italian => include_str!("../../../assets/i18n/it/main.ftl"),
             Self::Russian => include_str!("../../../assets/i18n/ru/main.ftl"),
