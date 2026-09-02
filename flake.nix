@@ -124,7 +124,6 @@
             wayland
             wayland-protocols
             alsa-plugins
-            alsa-lib
             pipewire
             libpulseaudio
 
