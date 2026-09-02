@@ -7,6 +7,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- A sign-in failure in Settings now appears on the card of the service you were signing in to.
+
 ## [0.28.1] - 2026-09-02
 
 ### Changed
