@@ -157,7 +157,8 @@
 
             shellHook = ''
               if [ ! -d /run/opengl-driver ]; then
-                export XDG_DATA_DIRS="${pkgs.mesa}/share''${XDG_DATA_DIRS:+:$XDG_DATA_DIRS}"
+                export VK_DRIVER_FILES="${pkgs.mesa}/share/vulkan/icd.d"
+                export VK_IMPLICIT_LAYER_PATH="${pkgs.mesa}/share/vulkan/implicit_layer.d"
               fi
             '';
           };
