@@ -8,16 +8,18 @@ pub enum Language {
     English,
     German,
     French,
+    Italian,
     Russian,
     Ukrainian,
     Polish,
 }
 
 impl Language {
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::English,
         Self::German,
         Self::French,
+        Self::Italian,
         Self::Russian,
         Self::Ukrainian,
         Self::Polish,
@@ -28,6 +30,7 @@ impl Language {
             Self::English => "en-US",
             Self::German => "de",
             Self::French => "fr",
+            Self::Italian => "it",
             Self::Russian => "ru",
             Self::Ukrainian => "uk",
             Self::Polish => "pl",
@@ -39,6 +42,7 @@ impl Language {
             Self::English => "English",
             Self::German => "Deutsch",
             Self::French => "Français",
+            Self::Italian => "Italiano",
             Self::Russian => "Русский",
             Self::Ukrainian => "Українська",
             Self::Polish => "Polski",
@@ -66,6 +70,7 @@ impl Language {
             Self::English => langid!("en-US"),
             Self::German => langid!("de"),
             Self::French => langid!("fr"),
+            Self::Italian => langid!("it"),
             Self::Russian => langid!("ru"),
             Self::Ukrainian => langid!("uk"),
             Self::Polish => langid!("pl"),
@@ -77,6 +82,7 @@ impl Language {
             Self::English => include_str!("../../../assets/i18n/en-US/main.ftl"),
             Self::German => include_str!("../../../assets/i18n/de/main.ftl"),
             Self::French => include_str!("../../../assets/i18n/fr/main.ftl"),
+            Self::Italian => include_str!("../../../assets/i18n/it/main.ftl"),
             Self::Russian => include_str!("../../../assets/i18n/ru/main.ftl"),
             Self::Ukrainian => include_str!("../../../assets/i18n/uk/main.ftl"),
             Self::Polish => include_str!("../../../assets/i18n/pl/main.ftl"),
