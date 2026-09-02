@@ -81,6 +81,8 @@ instead, which takes a while on a Rust and GPUI tree but links against your own 
 yay -S sonora
 ```
 
+Either `pipewire-alsa` or `pulseaudio-alsa` is required, matching your sound server.
+
 #### Flatpak
 
 Add the Sonora repository once; it pulls the runtime from Flathub and updates with `flatpak update`:
