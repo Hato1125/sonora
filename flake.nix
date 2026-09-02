@@ -119,21 +119,12 @@
         let
           runtimeLibraries = with pkgs; [
             vulkan-loader
-            mesa
-            libGL
             wayland
-            wayland-protocols
-            alsa-plugins
-            pipewire
-            libpulseaudio
-
             libxkbcommon
-
             libxcb
             libx11
             libxcursor
             libxi
-            libxrandr
             fontconfig
             freetype
             alsa-lib
@@ -153,7 +144,9 @@
             ];
 
             buildInputs = runtimeLibraries;
+
             LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath runtimeLibraries;
+
             ALSA_PLUGIN_DIR = "${pkgs.symlinkJoin {
               name = "alsa-plugins-combined";
               paths = [
@@ -162,6 +155,11 @@
               ];
             }}";
 
+            shellHook = ''
+              if [ ! -d /run/opengl-driver ]; then
+                export XDG_DATA_DIRS="${pkgs.mesa}/share''${XDG_DATA_DIRS:+:$XDG_DATA_DIRS}"
+              fi
+            '';
           };
         }
       );
