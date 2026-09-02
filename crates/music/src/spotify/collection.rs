@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use anyhow::{Context as _, Result};
 use librespot_core::Session;
+use librespot_protocol::entity_extension_data::EntityExtensionData;
 use librespot_protocol::extended_metadata::{BatchedEntityRequest, EntityRequest, ExtensionQuery};
 use librespot_protocol::extension_kind::ExtensionKind;
 use librespot_protocol::metadata::image::Size as ImageSize;
@@ -15,8 +16,8 @@ use crate::spotify::{collection2, wire};
 use crate::{ArtistRef, Credit, Track};
 
 const TRACK_PREFIX: &str = "spotify:track:";
-const METADATA_BATCH: usize = 2_800;
 const UNKNOWN: &str = "Unknown";
+const BATCH: usize = 500;
 
 pub async fn saved_tracks(session: &Session, limit: u32) -> Result<Vec<Track>> {
     let items = collection2::saved_items(
@@ -51,15 +52,35 @@ pub async fn track(session: &Session, track_id: &str) -> Result<Track> {
 }
 
 pub(crate) async fn metadata(session: &Session, uris: &[String]) -> Result<HashMap<String, Track>> {
+    let entities = extended(session, uris, ExtensionKind::TRACK_V4)
+        .await
+        .context("cannot read track metadata")?;
+
     let mut tracks = HashMap::new();
-    for batch in uris.chunks(METADATA_BATCH) {
+    for entity in entities {
+        let Ok(message) = TrackMessage::parse_from_bytes(&entity.extension_data.value) else {
+            continue;
+        };
+        let track = track_from(&entity.entity_uri, &message);
+        tracks.insert(entity.entity_uri, track);
+    }
+    Ok(tracks)
+}
+
+pub(crate) async fn extended(
+    session: &Session,
+    uris: &[String],
+    kind: ExtensionKind,
+) -> Result<Vec<EntityExtensionData>> {
+    let mut entities = Vec::with_capacity(uris.len());
+    for batch in uris.chunks(BATCH) {
         let request = BatchedEntityRequest {
             entity_request: batch
                 .iter()
                 .map(|uri| EntityRequest {
                     entity_uri: uri.clone(),
                     query: vec![ExtensionQuery {
-                        extension_kind: EnumOrUnknown::new(ExtensionKind::TRACK_V4),
+                        extension_kind: EnumOrUnknown::new(kind),
                         ..Default::default()
                     }],
                     ..Default::default()
@@ -67,25 +88,15 @@ pub(crate) async fn metadata(session: &Session, uris: &[String]) -> Result<HashM
                 .collect(),
             ..Default::default()
         };
-
-        let response = session
-            .spclient()
-            .get_extended_metadata(request)
-            .await
-            .context("cannot read track metadata")?;
-
-        for array in response.extended_metadata {
-            for entity in array.extension_data {
-                let Ok(message) = TrackMessage::parse_from_bytes(&entity.extension_data.value)
-                else {
-                    continue;
-                };
-                let track = track_from(&entity.entity_uri, &message);
-                tracks.insert(entity.entity_uri, track);
-            }
-        }
+        let response = session.spclient().get_extended_metadata(request).await?;
+        entities.extend(
+            response
+                .extended_metadata
+                .into_iter()
+                .flat_map(|array| array.extension_data),
+        );
     }
-    Ok(tracks)
+    Ok(entities)
 }
 
 fn track_from(uri: &str, track: &TrackMessage) -> Track {
