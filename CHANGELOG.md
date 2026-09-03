@@ -19,6 +19,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Playback now skips deleted or unavailable playlist songs when moving forward or backward.
 - Installing the standalone `.flatpak` bundle now registers the Sonora repository, so `flatpak update`
   keeps it current, and it can replace an install made from the repository.
 
