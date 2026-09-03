@@ -272,7 +272,7 @@ impl Default for Appearance {
         Self {
             theme: "dark".to_owned(),
             adaptive_theme: true,
-            visualizer: false,
+            visualizer: true,
             icons: icons::BASE.to_owned(),
             rounding: Rounding::Rounded.id().to_owned(),
             font_size: DEFAULT_FONT_SIZE,
