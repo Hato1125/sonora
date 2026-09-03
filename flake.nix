@@ -157,6 +157,7 @@
             nativeBuildInputs = with pkgs; [
               mold
               pkg-config
+              cmake
               rustToolchain
               sccache
             ];
