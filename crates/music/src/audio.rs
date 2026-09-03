@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::time::Duration;
 
 use anyhow::{Context as _, Result};
@@ -31,6 +31,8 @@ impl Volume {
 pub struct Output {
     sink: Arc<rodio::Sink>,
     volume: Volume,
+    device: String,
+    failed: Arc<AtomicBool>,
     _stream: OutputStream,
 }
 
@@ -45,19 +47,26 @@ impl Output {
             .default_output_config()
             .map_err(|error| anyhow::anyhow!("cannot read the output config: {error}"))?;
 
+        let device_name = device.name().unwrap_or_else(|_| "unknown".to_owned());
         log::info!(
             "sink: using {} at {} Hz, {} channels, {}",
-            device.name().unwrap_or_else(|_| "unknown".to_owned()),
+            device_name,
             default.sample_rate().0,
             default.channels(),
             default.sample_format()
         );
 
         let format = default.sample_format();
+        let failed = Arc::new(AtomicBool::new(false));
+        let stream_failed = failed.clone();
         let builder = OutputStreamBuilder::default()
             .with_device(device)
             .with_config(&default.config())
-            .with_sample_format(format);
+            .with_sample_format(format)
+            .with_error_callback(move |error| {
+                log::warn!("sink: audio output failed: {error}");
+                stream_failed.store(true, Ordering::Release);
+            });
         let mut stream = builder
             .open_stream()
             .map_err(|error| anyhow::anyhow!("cannot open the audio output: {error}"))?;
@@ -73,6 +82,8 @@ impl Output {
         Ok(Self {
             sink: Arc::new(sink),
             volume,
+            device: device_name,
+            failed,
             _stream: stream,
         })
     }
@@ -83,6 +94,17 @@ impl Output {
 
     pub fn set_volume(&self, gain: f32) {
         self.volume.set(gain);
+    }
+
+    pub fn failed(&self) -> bool {
+        self.failed.load(Ordering::Acquire)
+    }
+
+    pub fn changed(&self) -> bool {
+        cpal::default_host()
+            .default_output_device()
+            .and_then(|device| device.name().ok())
+            .is_none_or(|device| device != self.device)
     }
 }
 

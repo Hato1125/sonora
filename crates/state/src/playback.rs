@@ -1331,6 +1331,40 @@ impl Playback {
         }
     }
 
+    fn restart_output(&mut self, cx: &mut Context<Self>) {
+        let Some(track) = self.track.clone() else {
+            return;
+        };
+        let Some(id) = track.id.as_deref() else {
+            return;
+        };
+        let at = self.live_position();
+        let local = music::is_local_id(id);
+        let playback = match local {
+            true => self.session.read(cx).local_playback(),
+            false => self.session.read(cx).playback(),
+        };
+        let Some(playback) = playback else {
+            return;
+        };
+
+        log::info!("playback: restarting after the audio output changed");
+        match local {
+            true => {
+                self.local_task = None;
+                self.local_engine = None;
+                self.start_local_engine(playback, cx);
+            }
+            false => {
+                self.task = None;
+                self.engine = None;
+                self.start_engine(playback, cx);
+            }
+        }
+        self.load_after(&track, Start::Pick, cx);
+        self.seek_on_play = Some(at);
+    }
+
     fn ask_for_reconnect(&mut self, cx: &mut Context<Self>) -> bool {
         if self.track.is_none() {
             return false;
@@ -1415,6 +1449,7 @@ impl Playback {
             return;
         }
         match event {
+            BackendEvent::OutputChanged => self.restart_output(cx),
             BackendEvent::Unavailable | BackendEvent::Refused if self.resume_ready => {
                 self.resume_ready = false;
                 self.state = PlaybackState::Paused;
