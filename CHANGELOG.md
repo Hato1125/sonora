@@ -33,6 +33,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Emoji in playlist, track, and artist names now render instead of falling back to missing-glyph
   boxes when the UI font has no emoji glyphs.
 - Cookie onboarding for YTMusic is now easier to read
+- Reduced memory usage while loading images.
 
 ## [0.29.0] - 2026-09-03
 
