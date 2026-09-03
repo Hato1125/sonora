@@ -14,6 +14,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Sonora speaks Japanese. Pick 日本語 under Settings > General > Language, or leave the language on
   System and it follows a Japanese desktop on its own.
 
+### Changed
+
+- The fullscreen title and artist names stay on screen while the player is idle. Only the heart
+  beside the title fades, the way it already did in the narrow lyrics view.
+
 ### Fixed
 
 - Installing the standalone `.flatpak` bundle now registers the Sonora repository, so `flatpak update`

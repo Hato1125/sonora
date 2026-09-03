@@ -357,9 +357,8 @@ impl FullscreenView {
         cx.notify();
     }
 
-    fn meta(&self, hide: f32, cx: &mut Context<Self>) -> impl IntoElement {
+    fn meta(&self, hide: f32, lift: Pixels, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
-        let shown = 1. - hide;
         let track = self.playback.read(cx).track().cloned();
         let title = match &track {
             Some(track) => SharedString::from(track.name.clone()),
@@ -378,12 +377,7 @@ impl FullscreenView {
             .gap_1()
             .w_full()
             .min_w_0()
-            .when(hide > 0., |this| {
-                this.max_h(theme.metrics.player_bar * shown)
-                    .overflow_hidden()
-                    .opacity(shown)
-                    .top(px(SINK) * hide)
-            })
+            .top(lift)
             .child(
                 div()
                     .flex()
@@ -422,7 +416,13 @@ impl FullscreenView {
                     .when(explicit, |this| {
                         this.child(div().flex_none().child(ExplicitBadge::new()))
                     })
-                    .child(div().flex().flex_none().child(like(track.clone(), cx))),
+                    .child(
+                        div()
+                            .flex()
+                            .flex_none()
+                            .opacity(1. - hide)
+                            .child(like(track.clone(), cx)),
+                    ),
             )
             .when_some(track, |this, track| {
                 this.child(
@@ -920,6 +920,7 @@ impl Render for FullscreenView {
         let side = snapped(near, window);
         let raster_side = snapped(far, window);
         let cover_scale = presentation_scale(presented_side, raster_side);
+        let lift = (presented_side - side) / 2.;
         let staged = self.panel.is_none() || split;
 
         let visualizer_on = self.panel.is_none() && self.settings.read(cx).visualizer();
@@ -991,7 +992,7 @@ impl Render for FullscreenView {
                                     |this| this.w_full(),
                                 )
                                 .child(self.artwork(side, raster_side, cover_scale, cx))
-                                .child(self.meta(hide, cx))
+                                .child(self.meta(hide, lift, cx))
                                 .when(split, |this| {
                                     this.child(self.dock(theme.metrics.player_bar * DOCK, hide, cx))
                                 }),
