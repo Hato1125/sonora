@@ -128,9 +128,12 @@ sudo dnf install @development-tools pkgconf-pkg-config mold alsa-lib-devel fontc
 `flatpak/flatpak-builder.yaml` builds against the freedesktop 25.08 runtime with the `rust-stable`
 extension, which also supplies the mold that `.cargo/config.toml` asks for. `flatpak/generate-sources.sh`
 turns `Cargo.lock` into `cargo-sources.json` (generated, never committed) and `flatpak/build-flatpak.sh`
-runs the build locally. The release workflow builds both arches in Flathub's builder image, attaches
-the `.flatpak` bundles to the release, then imports them into the signed OSTree repo on the
-`flatpak-repo` branch, which GitHub Pages serves at `https://nolight132.github.io/sonora`.
+runs the build locally. The release workflow builds both arches in Flathub's builder image, imports them
+into the signed OSTree repo on the `flatpak-repo` branch, which GitHub Pages serves at
+`https://nolight132.github.io/sonora`, and only then attaches `.flatpak` bundles to the release:
+`flatpak/export-bundles.sh` re-exports them from that repo so each carries the commit signature, the
+repo URL and the public key, and `flatpak update` follows the repo afterwards. `flatpak-bundles.yml`
+reruns that export for an existing release and swaps its bundles and checksum lines.
 `flatpak/pages/` holds the `.flatpakref` and `.flatpakrepo` that point there, with the public half
 of the `FLATPAK_GPG_KEY` secret embedded — a new key means regenerating both. Flathub is not an
 option: its requirements forbid AI-assisted code.

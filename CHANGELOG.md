@@ -12,6 +12,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Sonora speaks Spanish. Pick Español under Settings > General > Language, or leave the language on
   System and it follows a Spanish desktop on its own.
 
+### Fixed
+
+- Installing the standalone `.flatpak` bundle now registers the Sonora repository, so `flatpak update`
+  keeps it current, and it can replace an install made from the repository.
+
 ## [0.29.0] - 2026-09-03
 
 ### Added
