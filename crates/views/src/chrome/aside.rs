@@ -17,8 +17,8 @@ use state::{
 };
 use ui::{
     ActiveTheme as _, Button, Card, DraggedPin, Edge, Motion, Motioned as _, Pin, Pinnable as _,
-    Popup, Scrollbar, Scroller, Spot, Text, Vacancy, drop_gap, drop_marker, ease_out_cubic,
-    ease_out_expo, eyebrow, faint, mix, snapped, vacant,
+    Popup, Scrollbar, Scroller, Spot, Springs, Text, Vacancy, drop_gap, drop_marker,
+    ease_out_cubic, ease_out_expo, eyebrow, faint, mix, snapped, vacant,
 };
 
 use crate::chrome::{Chrome, section_label};
@@ -32,10 +32,10 @@ const FADE: f32 = 96.;
 const REST: f32 = FADE * 0.75;
 const TAIL_ROWS: usize = 2;
 const BLUR: f32 = 0.13;
+const BACKGROUND_SINGING_BLUR: Pixels = px(0.75);
 const VEIL: f32 = 0.3;
 const HAZE: f32 = 0.45;
 const VERSE_FADE: f32 = 1.25;
-const VERSE_SPRING: SpringConfig = SpringConfig::new(170., 23., 1.);
 const PAST: f32 = 0.4;
 const AHEAD: f32 = 0.6;
 const REVEAL: f32 = 0.6;
@@ -52,7 +52,6 @@ const LAG_SHARE: f32 = 0.28;
 const LAG_TRAIL: f32 = 0.9;
 // The first row's physical spring. Rows farther along the viewport keep the same damping ratio but
 // use a lower natural frequency, producing the cascading iMessage-like settle.
-const LAG_SPRING: SpringConfig = SpringConfig::new(210., 22., 1.);
 const LAG_STAGGER: f32 = 0.35;
 const LAG_LEAST: Pixels = px(0.05);
 const LAG_STALL: f32 = 0.064;
@@ -192,6 +191,7 @@ struct Sung {
     karaoke: bool,
     scripts: Option<RomanizationScripts>,
     theme: ui::Theme,
+    karaoke_tint: gpui::Hsla,
     lift: f32,
     from: gpui::Point<f32>,
 }
@@ -322,7 +322,7 @@ impl Aside {
         cx.observe(&settings, |_, _, cx| cx.notify()).detach();
         let verse_bar = cx.new(|_| {
             Scrollbar::new(ScrollHandle::new())
-                .spring(VERSE_SPRING)
+                .spring(Springs::LYRICS_SCROLL)
                 .watching(me)
         });
 
@@ -934,6 +934,7 @@ impl Aside {
             karaoke: karaoke_effects,
             scripts: romanization_scripts,
             theme,
+            karaoke_tint: theme.foreground,
             lift: 1.,
             from: gpui::point(0., 0.5),
         };
@@ -1015,7 +1016,10 @@ impl Aside {
                 let active_line = sung_line(lines, position);
                 if singing
                     && karaoke_effects
-                    && active_line.is_some_and(|index| lines[index].worded())
+                    && lines.iter().enumerate().any(|(index, line)| {
+                        line.worded()
+                            && primary_karaoke_visible(line, Some(index) == active_line, position)
+                    })
                 {
                     self.sweep_karaoke(window, cx);
                 }
@@ -1143,7 +1147,9 @@ impl Aside {
                     let translation = presentation + drift;
                     let active = Some(index) == active_line;
                     let departing = Some(index) == self.departing_line;
-                    let karaoke = Some(index) == active_line && line.worded() && karaoke_effects;
+                    let karaoke = karaoke_effects
+                        && line.worded()
+                        && primary_karaoke_visible(line, active, position);
                     let primary_karaoke = karaoke && line.words.is_some();
                     if let std::collections::hash_map::Entry::Vacant(slot) =
                         self.lyrics_wraps.entry(index)
@@ -1186,6 +1192,11 @@ impl Aside {
                         _ => tint,
                     };
                     let sung = Sung {
+                        karaoke_tint: mix(
+                            theme.foreground,
+                            tint,
+                            primary_karaoke_fade(line, active, position),
+                        ),
                         lift,
                         from: match line.voice.lead() {
                             true => gpui::point(0., 0.5),
@@ -1284,6 +1295,10 @@ impl Aside {
                         true => haze(viewport_haze(&scroll, row, view, blur, translation)),
                         false => 0.,
                     };
+                    let row_blur = match background_line_singing(line, active, position) {
+                        true => BACKGROUND_SINGING_BLUR,
+                        false => blur,
+                    };
                     let traded = index
                         .checked_sub(1)
                         .is_some_and(|previous| lines[previous].voice != line.voice);
@@ -1331,7 +1346,7 @@ impl Aside {
 
                     let verse_line = verse_line
                         .when(softness > 0., |this| this.opacity(1. - VEIL * softness))
-                        .map(|this| match blur * softness {
+                        .map(|this| match row_blur * softness {
                             soft if soft > HAZE_LEAST => this.blur(soft),
                             _ => this,
                         });
@@ -1825,7 +1840,6 @@ fn karaoke_lane(
     voice: Voice,
     sung: Sung,
 ) -> Div {
-    let theme = &sung.theme;
     let edge_fade = verse * REVEAL;
     let Wrapped {
         fragments,
@@ -1844,6 +1858,23 @@ fn karaoke_lane(
         (Some(&(start, end, tail)), _) => swept(start, end, position, tail),
         (None, _) => 0.,
     };
+    let overlay = |text: SharedString, reveal: Reveal, tint: gpui::Hsla| {
+        div()
+            .absolute()
+            .left_0()
+            .top_0()
+            .bottom_0()
+            .map(|this| match reveal.width {
+                Some(width) => this.w(width),
+                None => this.w(relative(reveal.share)),
+            })
+            .overflow_hidden()
+            .text_color(tint)
+            .when(reveal.landing > 0., |this| {
+                this.fade_sides(px(0.), edge_fade * reveal.landing)
+            })
+            .child(div().whitespace_nowrap().child(text))
+    };
     let lit = |text: SharedString, reveal: Reveal| {
         div()
             .relative()
@@ -1851,23 +1882,7 @@ fn karaoke_lane(
             .whitespace_nowrap()
             .child(text.clone())
             .when(reveal.shown, |this| {
-                this.child(
-                    div()
-                        .absolute()
-                        .left_0()
-                        .top_0()
-                        .bottom_0()
-                        .map(|this| match reveal.width {
-                            Some(width) => this.w(width),
-                            None => this.w(relative(reveal.share)),
-                        })
-                        .overflow_hidden()
-                        .text_color(theme.foreground)
-                        .when(reveal.landing > 0., |this| {
-                            this.fade_sides(px(0.), edge_fade * reveal.landing)
-                        })
-                        .child(div().whitespace_nowrap().child(text)),
-                )
+                this.child(overlay(text, reveal, sung.karaoke_tint))
             })
     };
 
@@ -2610,10 +2625,11 @@ struct Drag {
 
 fn lag_spring(along: f32) -> SpringConfig {
     let frequency = 1. - LAG_STAGGER * along.clamp(0., 1.);
+    let spring = Springs::LYRICS_ROW;
     SpringConfig::new(
-        LAG_SPRING.stiffness * frequency * frequency,
-        LAG_SPRING.damping * frequency,
-        LAG_SPRING.mass,
+        spring.stiffness * frequency * frequency,
+        spring.damping * frequency,
+        spring.mass,
     )
 }
 
@@ -2630,6 +2646,39 @@ fn viewport_along(scroll: &ScrollHandle, row: usize, view: Bounds<Pixels>, downw
 
 fn line_has_passed(line: &music::LyricsLine, position: std::time::Duration) -> bool {
     line.sung_end().is_some_and(|end| position >= end)
+}
+
+fn primary_karaoke_visible(
+    line: &music::LyricsLine,
+    line_active: bool,
+    position: std::time::Duration,
+) -> bool {
+    line_active
+        || (position >= line.start
+            && line
+                .sung_end()
+                .is_some_and(|end| position < end + Motion::Control.span()))
+}
+
+fn primary_karaoke_fade(
+    line: &music::LyricsLine,
+    line_active: bool,
+    position: std::time::Duration,
+) -> f32 {
+    if line_active {
+        return 0.;
+    }
+    line.sung_end().map_or(0., |end| {
+        progress_between(end, end + Motion::Control.span(), position)
+    })
+}
+
+fn background_line_singing(
+    line: &music::LyricsLine,
+    line_active: bool,
+    position: std::time::Duration,
+) -> bool {
+    !line_active && position >= line.start && line.sung_end().is_some_and(|end| position < end)
 }
 
 fn instrumental_row(progress: f32, past: bool, verse: Pixels, theme: &ui::Theme) -> Div {
@@ -2675,13 +2724,16 @@ mod tests {
     use std::time::Duration;
 
     use music::{LyricsLane, LyricsLine, LyricsWord, Voice};
+    use ui::Springs;
 
     use super::{
         QueuePosition, Sections, Slot, active_lyrics_row, anchored_lyrics_offset,
-        karaoke_fragments, karaoke_window, lag_spring, line_has_passed, line_row, lyric_row_count,
-        plain_lyrics_fragments, secondary_karaoke_visible, wrap_fragment_widths,
+        background_line_singing, karaoke_fragments, karaoke_window, lag_spring, line_has_passed,
+        line_row, lyric_row_count, plain_lyrics_fragments, primary_karaoke_fade,
+        primary_karaoke_visible, secondary_karaoke_visible, wrap_fragment_widths,
     };
     use gpui::px;
+    use ui::Motion;
 
     fn slots(sections: Sections) -> Vec<Slot> {
         (0..sections.len()).map(|i| sections.slot(i)).collect()
@@ -2931,6 +2983,16 @@ mod tests {
     }
 
     #[test]
+    fn lyrics_keep_their_tuned_spring_presets() {
+        assert_eq!(Springs::LYRICS_SCROLL.stiffness, 170.);
+        assert_eq!(Springs::LYRICS_SCROLL.damping, 23.);
+        assert_eq!(Springs::LYRICS_SCROLL.mass, 1.);
+        assert_eq!(Springs::LYRICS_ROW.stiffness, 210.);
+        assert_eq!(Springs::LYRICS_ROW.damping, 22.);
+        assert_eq!(Springs::LYRICS_ROW.mass, 1.);
+    }
+
+    #[test]
     fn a_late_first_word_uses_the_whole_lead_in() {
         let words = vec![
             LyricsWord {
@@ -2984,6 +3046,136 @@ mod tests {
             &lane,
             false,
             Duration::from_secs(4)
+        ));
+    }
+
+    #[test]
+    fn an_overlapped_primary_line_keeps_singing_in_the_background() {
+        let line = LyricsLine {
+            start: Duration::from_secs(2),
+            end: Some(Duration::from_secs(8)),
+            text: "Wake me up inside".to_owned(),
+            romanized: None,
+            words: Some(vec![LyricsWord {
+                start: Duration::from_secs(2),
+                end: Duration::from_secs(8),
+                text: "Wake me up inside".to_owned(),
+            }]),
+            secondary: Vec::new(),
+            voice: Voice::Lead,
+        };
+
+        assert!(!primary_karaoke_visible(
+            &line,
+            false,
+            Duration::from_millis(1999)
+        ));
+        assert!(primary_karaoke_visible(
+            &line,
+            false,
+            Duration::from_secs(5)
+        ));
+        assert!(primary_karaoke_visible(
+            &line,
+            false,
+            Duration::from_secs(8)
+        ));
+        assert!(!primary_karaoke_visible(
+            &line,
+            false,
+            Duration::from_secs(8) + Motion::Base.span()
+        ));
+    }
+
+    #[test]
+    fn the_active_primary_line_keeps_its_completed_sweep_until_departure() {
+        let line = LyricsLine {
+            start: Duration::from_secs(2),
+            end: Some(Duration::from_secs(5)),
+            text: "line".to_owned(),
+            romanized: None,
+            words: Some(vec![LyricsWord {
+                start: Duration::from_secs(2),
+                end: Duration::from_secs(5),
+                text: "line".to_owned(),
+            }]),
+            secondary: Vec::new(),
+            voice: Voice::Lead,
+        };
+
+        assert!(primary_karaoke_visible(&line, true, Duration::from_secs(8)));
+    }
+
+    #[test]
+    fn a_finished_background_line_fades_from_white_to_gray() {
+        let line = LyricsLine {
+            start: Duration::from_secs(2),
+            end: Some(Duration::from_secs(8)),
+            text: "Wake me up inside".to_owned(),
+            romanized: None,
+            words: Some(vec![LyricsWord {
+                start: Duration::from_secs(2),
+                end: Duration::from_secs(8),
+                text: "Wake me up inside".to_owned(),
+            }]),
+            secondary: Vec::new(),
+            voice: Voice::Lead,
+        };
+        let fade = Motion::Control.span();
+
+        assert_eq!(
+            primary_karaoke_fade(&line, false, Duration::from_millis(7999)),
+            0.
+        );
+        assert_eq!(
+            primary_karaoke_fade(&line, false, Duration::from_secs(8) + fade / 2),
+            0.5
+        );
+        assert_eq!(
+            primary_karaoke_fade(&line, false, Duration::from_secs(8) + fade),
+            1.
+        );
+        assert_eq!(
+            primary_karaoke_fade(&line, true, Duration::from_secs(8) + fade),
+            0.
+        );
+    }
+
+    #[test]
+    fn only_a_currently_singing_background_line_gets_the_reduced_blur() {
+        let line = LyricsLine {
+            start: Duration::from_secs(2),
+            end: Some(Duration::from_secs(8)),
+            text: "Wake me up inside".to_owned(),
+            romanized: None,
+            words: Some(vec![LyricsWord {
+                start: Duration::from_secs(2),
+                end: Duration::from_secs(8),
+                text: "Wake me up inside".to_owned(),
+            }]),
+            secondary: Vec::new(),
+            voice: Voice::Lead,
+        };
+
+        assert!(!background_line_singing(
+            &line,
+            false,
+            Duration::from_millis(1999)
+        ));
+        assert!(background_line_singing(
+            &line,
+            false,
+            Duration::from_secs(5)
+        ));
+        assert!(!background_line_singing(
+            &line,
+            false,
+            Duration::from_secs(8)
+        ));
+        assert!(!background_line_singing(
+            &line,
+            true,
+            Duration::from_secs(5)
         ));
     }
 
