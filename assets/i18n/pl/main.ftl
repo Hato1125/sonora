@@ -154,6 +154,7 @@ filter-duration = Czas trwania
 filter-year = Rok
 filter-explicit = Tylko z wulgaryzmami
 filter-playable = Tylko dostępne
+filter-owned = Moje
 
 # view
 view-list = Lista

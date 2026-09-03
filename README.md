@@ -115,6 +115,7 @@ Download and run the [installer](https://github.com/nolight132/sonora/releases/l
 Download the latest `windows-msvc.exe` for your architecture from [Releases](https://github.com/nolight132/sonora/releases/latest).
 
 ## Community
+
 Feel free to join our [Discord](https://discord.gg/a8N8Tx23rV) server and [Matrix](https://matrix.to/#/#sonora:nolight.dev) space.
 Discord is the primary one, but we do have a Matrix bridge.
 
@@ -141,15 +142,15 @@ AI-assisted proofreading and translation of human-written text are permitted.
 
 | Language                     | Translated | Coverage |
 | ---------------------------- | ---------- | -------- |
-| English (`en-US`)            | 496/496    | 100%     |
-| Deutsch (`de`)               | 475/496    | 96%      |
-| Español (`es`)               | 496/496    | 100%     |
-| Français (`fr`)              | 475/496    | 96%      |
-| Italiano (`it`)              | 475/496    | 96%      |
-| Русский (`ru`)               | 475/496    | 96%      |
-| Українська (`uk`)            | 475/496    | 96%      |
-| Polski (`pl`)                | 475/496    | 96%      |
-| Português (Brasil) (`pt-BR`) | 496/496    | 100%     |
+| English (`en-US`)            | 497/497    | 100%     |
+| Deutsch (`de`)               | 475/497    | 96%      |
+| Español (`es`)               | 496/497    | 100%     |
+| Français (`fr`)              | 475/497    | 96%      |
+| Italiano (`it`)              | 475/497    | 96%      |
+| Русский (`ru`)               | 475/497    | 96%      |
+| Українська (`uk`)            | 475/497    | 96%      |
+| Polski (`pl`)                | 476/497    | 96%      |
+| Português (Brasil) (`pt-BR`) | 496/497    | 100%     |
 
 <!-- i18n:end -->
 
