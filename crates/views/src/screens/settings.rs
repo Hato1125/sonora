@@ -218,7 +218,8 @@ impl SettingsView {
                 Row::Item(self.playback_row(cx).into_any_element()),
                 Row::Item(self.gapless_row(cx).into_any_element()),
                 self.title("settings-group-lyrics", cx),
-                Row::Item(self.lyrics_size_row(cx).into_any_element()),
+                Row::Item(self.panel_lyrics_size_row(cx).into_any_element()),
+                Row::Item(self.fullscreen_lyrics_size_row(cx).into_any_element()),
                 Row::Item(self.karaoke_lyrics_row(cx).into_any_element()),
                 Row::Item(self.romanized_lyrics_row(cx).into_any_element()),
             ],
@@ -1030,23 +1031,56 @@ impl SettingsView {
         )
     }
 
-    fn lyrics_size_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn panel_lyrics_size_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let scale = self.settings.read(cx).panel_lyrics_scale();
+
+        self.lyrics_size_row(
+            "panel-lyrics-size",
+            "settings-panel-lyrics-size",
+            "settings-panel-lyrics-size-detail",
+            scale,
+            |settings, scale, cx| settings.set_panel_lyrics_scale(scale, cx),
+            cx,
+        )
+    }
+
+    fn fullscreen_lyrics_size_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let scale = self.settings.read(cx).fullscreen_lyrics_scale();
+
+        self.lyrics_size_row(
+            "fullscreen-lyrics-size",
+            "settings-fullscreen-lyrics-size",
+            "settings-fullscreen-lyrics-size-detail",
+            scale,
+            |settings, scale, cx| settings.set_fullscreen_lyrics_scale(scale, cx),
+            cx,
+        )
+    }
+
+    fn lyrics_size_row(
+        &self,
+        id: &'static str,
+        title: &'static str,
+        detail: &'static str,
+        scale: f32,
+        apply: fn(&mut AppSettings, f32, &mut Context<AppSettings>),
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         let theme = *cx.theme();
         let muted = theme.muted_foreground;
         let small = theme.text(Text::Small);
-        let scale = self.settings.read(cx).lyrics_scale();
 
-        let step = move |id: &'static str, label: &'static str, delta: f32| {
+        let step = move |suffix: &'static str, label: &'static str, delta: f32| {
             let wanted = (scale + delta).clamp(MIN_LYRICS_SCALE, MAX_LYRICS_SCALE);
 
-            Button::new(id)
+            Button::new(SharedString::from(format!("{id}-{suffix}")))
                 .label(label)
                 .small()
                 .outline()
                 .disabled(wanted == scale)
                 .on_click(cx.listener(move |this, _, _, cx| {
                     this.settings
-                        .update(cx, |settings, cx| settings.set_lyrics_scale(wanted, cx));
+                        .update(cx, |settings, cx| apply(settings, wanted, cx));
                     cx.notify();
                 }))
         };
@@ -1055,16 +1089,16 @@ impl SettingsView {
             .flex()
             .items_center()
             .gap_2()
-            .child(step("lyrics-size-smaller", "\u{2212}", -0.1))
+            .child(step("smaller", "\u{2212}", -0.1))
             .child(div().child(t!(
                 "settings-lyrics-size-value",
                 size = (scale * 100.).round() as i64
             )))
-            .child(step("lyrics-size-larger", "+", 0.1));
+            .child(step("larger", "+", 0.1));
 
         self.row(
-            t!("settings-lyrics-size"),
-            t!("settings-lyrics-size-detail"),
+            i18n::lookup(title, None),
+            i18n::lookup(detail, None),
             muted,
             small,
             actions.into_any_element(),

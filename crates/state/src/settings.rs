@@ -153,7 +153,8 @@ struct Values {
     gapless: bool,
     karaoke_lyrics: bool,
     romanized_lyrics: bool,
-    lyrics_scale: f32,
+    panel_lyrics_scale: f32,
+    fullscreen_lyrics_scale: f32,
     romanization_scripts: RomanizationScripts,
     adaptive_menu: bool,
     check_updates: bool,
@@ -216,7 +217,8 @@ impl Default for Values {
             gapless: true,
             karaoke_lyrics: true,
             romanized_lyrics: true,
-            lyrics_scale: DEFAULT_LYRICS_SCALE,
+            panel_lyrics_scale: DEFAULT_LYRICS_SCALE,
+            fullscreen_lyrics_scale: DEFAULT_LYRICS_SCALE,
             romanization_scripts: RomanizationScripts::default(),
             adaptive_menu: false,
             check_updates: cfg!(target_os = "windows"),
@@ -346,9 +348,15 @@ impl AppSettings {
         self.values.romanized_lyrics
     }
 
-    pub fn lyrics_scale(&self) -> f32 {
+    pub fn panel_lyrics_scale(&self) -> f32 {
         self.values
-            .lyrics_scale
+            .panel_lyrics_scale
+            .clamp(ui::MIN_LYRICS_SCALE, ui::MAX_LYRICS_SCALE)
+    }
+
+    pub fn fullscreen_lyrics_scale(&self) -> f32 {
+        self.values
+            .fullscreen_lyrics_scale
             .clamp(ui::MIN_LYRICS_SCALE, ui::MAX_LYRICS_SCALE)
     }
 
@@ -517,8 +525,14 @@ impl AppSettings {
         self.schedule_save(cx);
     }
 
-    pub fn set_lyrics_scale(&mut self, scale: f32, cx: &mut Context<Self>) {
-        self.values.lyrics_scale = scale.clamp(ui::MIN_LYRICS_SCALE, ui::MAX_LYRICS_SCALE);
+    pub fn set_panel_lyrics_scale(&mut self, scale: f32, cx: &mut Context<Self>) {
+        self.values.panel_lyrics_scale = scale.clamp(ui::MIN_LYRICS_SCALE, ui::MAX_LYRICS_SCALE);
+        self.schedule_save(cx);
+    }
+
+    pub fn set_fullscreen_lyrics_scale(&mut self, scale: f32, cx: &mut Context<Self>) {
+        self.values.fullscreen_lyrics_scale =
+            scale.clamp(ui::MIN_LYRICS_SCALE, ui::MAX_LYRICS_SCALE);
         self.schedule_save(cx);
     }
 

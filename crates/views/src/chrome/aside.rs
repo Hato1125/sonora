@@ -931,7 +931,10 @@ impl Aside {
             )
         };
         let karaoke_effects = karaoke_lyrics && effects();
-        let scale = self.settings.read(cx).lyrics_scale();
+        let scale = match self.titled {
+            true => self.settings.read(cx).panel_lyrics_scale(),
+            false => self.settings.read(cx).fullscreen_lyrics_scale(),
+        };
         let lane_size = theme.text(Text::Body) * scale;
         let sung = Sung {
             karaoke: karaoke_effects,
