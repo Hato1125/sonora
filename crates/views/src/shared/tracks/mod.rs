@@ -440,9 +440,8 @@ impl TableSource for TrackSource {
         })
     }
 
-    fn filter_axes(&self, cx: &App) -> Vec<FilterAxis> {
-        // TODO(michalwa): No nice way to get `table.delegate().query()`
-        let Some(bounds) = self.extent("", cx) else {
+    fn filter_axes(&self, query: &str, cx: &App) -> Vec<FilterAxis> {
+        let Some(bounds) = self.extent(query, cx) else {
             return Vec::new();
         };
         let value = self.sieve.duration.unwrap_or(bounds);

@@ -191,9 +191,8 @@ impl TableSource for AlbumSource {
         })
     }
 
-    fn filter_axes(&self, cx: &App) -> Vec<FilterAxis> {
-        // TODO(michalwa): No nice way to get `table.delegate().query()`
-        let years = self.years("", cx);
+    fn filter_axes(&self, query: &str, cx: &App) -> Vec<FilterAxis> {
+        let years = self.years(query, cx);
         let (Some(first), Some(last)) = (years.first(), years.last()) else {
             return Vec::new();
         };

@@ -103,7 +103,7 @@ pub trait TableSource: 'static {
         true
     }
 
-    fn filter_axes(&self, _cx: &App) -> Vec<FilterAxis> {
+    fn filter_axes(&self, _query: &str, _cx: &App) -> Vec<FilterAxis> {
         vec![]
     }
 
@@ -1290,7 +1290,8 @@ impl<S: TableSource> Listing for Entity<TableState<S>> {
     }
 
     fn filter_axes(&self, cx: &App) -> Vec<FilterAxis> {
-        self.read(cx).delegate().source().filter_axes(cx)
+        let delegate = self.read(cx).delegate();
+        delegate.source().filter_axes(delegate.query(), cx)
     }
 
     fn filter(&self, change: FilterChange, cx: &mut App) {

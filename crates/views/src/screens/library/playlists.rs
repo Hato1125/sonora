@@ -137,7 +137,7 @@ impl TableSource for PlaylistSource {
         })
     }
 
-    fn filter_axes(&self, _cx: &App) -> Vec<FilterAxis> {
+    fn filter_axes(&self, _query: &str, _cx: &App) -> Vec<FilterAxis> {
         vec![FilterAxis::Flag(FlagAxis {
             key: "filter-owned",
             label: t!("filter-owned"),
