@@ -934,7 +934,7 @@ impl Playback {
             Repeat::All if !self.queue.read(cx).has_next() => {
                 self.fetch = None;
                 if let Some(track) = self.queue.update(cx, |queue, cx| queue.rewind(cx)) {
-                    self.load_after(&track, Start::Segue, cx);
+                    self.follow_after(track, Start::Segue, cx);
                 }
             }
             _ if self.radio && !self.queue.read(cx).has_next() => {
@@ -991,6 +991,16 @@ impl Playback {
         let Some(track) = self.queue.update(cx, |queue, cx| queue.next(cx)) else {
             return;
         };
+        self.follow_after(track, start, cx);
+    }
+
+    fn follow_after(&mut self, mut track: Track, start: Start, cx: &mut Context<Self>) {
+        while !track.playable {
+            let Some(next) = self.queue.update(cx, |queue, cx| queue.next(cx)) else {
+                return;
+            };
+            track = next;
+        }
         self.load_after(&track, start, cx);
     }
 
