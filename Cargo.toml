@@ -24,7 +24,7 @@ async-trait = "0.1"
 base64 = "0.22"
 bytes = "1"
 flate2 = "1"
-cpal = "0.16"
+cpal = "0.17"
 dirs = "6.0"
 deunicode = "1.6"
 env_logger = "0.11"
@@ -58,7 +58,7 @@ reqwest = { version = "0.12", default-features = false, features = [
 ] }
 raw-window-handle = "0.6"
 roxmltree = "0.21"
-rodio = { version = "0.21", default-features = false, features = ["playback"] }
+rodio = { version = "0.22", default-features = false, features = ["playback"] }
 rusqlite = { version = "0.32" }
 serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json = "1.0"

@@ -129,14 +129,14 @@ async fn engine_loop(
     mut commands: UnboundedReceiver<Command>,
     events: UnboundedSender<PlaybackEvent>,
 ) {
-    let stream = match rodio::OutputStreamBuilder::open_default_stream() {
+    let stream = match rodio::DeviceSinkBuilder::open_default_sink() {
         Ok(stream) => stream,
         Err(error) => {
             log::error!("playback: cannot open audio output: {error}");
             return;
         }
     };
-    let sink = rodio::Sink::connect_new(stream.mixer());
+    let sink = rodio::Player::connect_new(stream.mixer());
     sink.pause();
     sink.set_volume(config.gain);
 
@@ -261,7 +261,7 @@ async fn engine_loop(
     }
 }
 
-fn place(sink: &rodio::Sink, id: &str, at: Option<Duration>) {
+fn place(sink: &rodio::Player, id: &str, at: Option<Duration>) {
     let Some(at) = at else {
         return;
     };
@@ -270,7 +270,7 @@ fn place(sink: &rodio::Sink, id: &str, at: Option<Duration>) {
     }
 }
 
-fn load(sink: &rodio::Sink, id: &str) -> Result<Slot> {
+fn load(sink: &rodio::Player, id: &str) -> Result<Slot> {
     let path =
         wire::path_from_track_id(id).ok_or_else(|| anyhow!("{id} is not a local track id"))?;
     let file =

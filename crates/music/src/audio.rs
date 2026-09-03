@@ -1,3 +1,4 @@
+use std::num::NonZero;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
@@ -5,7 +6,7 @@ use std::time::Duration;
 use anyhow::{Context as _, Result};
 use cpal::traits::{DeviceTrait, HostTrait};
 use rodio::source::SeekError;
-use rodio::{OutputStream, OutputStreamBuilder, Source};
+use rodio::{DeviceSinkBuilder, MixerDeviceSink, Source};
 
 pub const RAMP: Duration = Duration::from_millis(25);
 
@@ -27,9 +28,9 @@ impl Volume {
 }
 
 pub struct Output {
-    sink: Arc<rodio::Sink>,
+    sink: Arc<rodio::Player>,
     volume: Volume,
-    _stream: OutputStream,
+    _stream: MixerDeviceSink,
 }
 
 impl Output {
@@ -45,14 +46,18 @@ impl Output {
 
         log::info!(
             "sink: using {} at {} Hz, {} channels, {}",
-            device.name().unwrap_or_else(|_| "unknown".to_owned()),
-            default.sample_rate().0,
+            device
+                .id()
+                .map(|id| id.to_string())
+                .as_deref()
+                .unwrap_or("unknown"),
+            default.sample_rate(),
             default.channels(),
             default.sample_format()
         );
 
         let format = default.sample_format();
-        let builder = OutputStreamBuilder::default()
+        let builder = DeviceSinkBuilder::default()
             .with_device(device)
             .with_config(&default.config())
             .with_sample_format(format);
@@ -62,7 +67,7 @@ impl Output {
         stream.log_on_drop(false);
 
         let applied = volume.get();
-        let (sink, source) = rodio::Sink::new();
+        let (sink, source) = rodio::Player::new();
         stream
             .mixer()
             .add(SmoothGain::new(source, volume.clone(), applied, RAMP));
@@ -74,7 +79,7 @@ impl Output {
         })
     }
 
-    pub fn sink(&self) -> &Arc<rodio::Sink> {
+    pub fn sink(&self) -> &Arc<rodio::Player> {
         &self.sink
     }
 
@@ -118,8 +123,8 @@ impl<I: Source> SmoothGain<I> {
     }
 
     fn resync(&mut self) {
-        let channels = self.input.channels().max(1);
-        let rate = self.input.sample_rate().max(1);
+        let channels = self.input.channels().get();
+        let rate = self.input.sample_rate().get();
         if channels == self.channels && rate == self.rate {
             return;
         }
@@ -173,11 +178,11 @@ impl<I: Source> Source for SmoothGain<I> {
         self.input.current_span_len()
     }
 
-    fn channels(&self) -> u16 {
+    fn channels(&self) -> NonZero<u16> {
         self.input.channels()
     }
 
-    fn sample_rate(&self) -> u32 {
+    fn sample_rate(&self) -> NonZero<u32> {
         self.input.sample_rate()
     }
 
@@ -201,7 +206,7 @@ pub struct Trimmed<I> {
 
 impl<I: Source> Trimmed<I> {
     pub fn new(input: I, skip: Duration, take: Option<Duration>) -> Self {
-        let lane = (input.sample_rate() as u64) * (input.channels().max(1) as u64);
+        let lane = (input.sample_rate().get() as u64) * (input.channels().get() as u64);
         let samples = |span: Duration| (span.as_secs_f64() * lane as f64).round() as u64;
 
         Self {
@@ -244,11 +249,11 @@ impl<I: Source> Source for Trimmed<I> {
         self.input.current_span_len()
     }
 
-    fn channels(&self) -> u16 {
+    fn channels(&self) -> NonZero<u16> {
         self.input.channels()
     }
 
-    fn sample_rate(&self) -> u32 {
+    fn sample_rate(&self) -> NonZero<u32> {
         self.input.sample_rate()
     }
 
