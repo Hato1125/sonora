@@ -13,8 +13,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   System and it follows a Spanish desktop on its own.
 - Sonora speaks Japanese. Pick 日本語 under Settings > General > Language, or leave the language on
   System and it follows a Japanese desktop on its own.
-- Lyrics have their own size, set separately for each surface. Settings > Playback > Lyrics size in
-  the panel and Lyrics size in fullscreen scale the lyrics text from 60% to 200% on top of the base
+- Lyrics have their own size, set separately for each surface. Settings > Playback > Lyrics size
+  (panel) and Lyrics size (fullscreen) scale the lyrics text from 60% to 200% on top of the base
   font size.
 
 ### Fixed
