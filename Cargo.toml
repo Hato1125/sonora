@@ -62,7 +62,9 @@ reqwest = { version = "0.12", default-features = false, features = [
 raw-window-handle = "0.6"
 roxmltree = "0.21"
 rodio = { version = "0.21", default-features = false, features = ["playback"] }
+rtrb = "0.3"
 rusqlite = { version = "0.32" }
+rustfft = "6.4"
 serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json = "1.0"
 serde_norway = "0.9"

@@ -40,6 +40,7 @@ mod toast;
 mod tooltip;
 mod vacancy;
 mod view;
+mod visualizer;
 
 pub use artwork::{Artwork, Avatar, artwork_usage};
 pub use button::Button;
@@ -97,3 +98,4 @@ pub use toast::Toast;
 pub use tooltip::{Perch, Tooltip};
 pub use vacancy::Vacancy;
 pub use view::Mode;
+pub use visualizer::Visualizer;

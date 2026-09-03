@@ -196,6 +196,7 @@ impl SettingsView {
             SettingsTab::Appearance => vec![
                 Row::Item(self.theme_row(cx).into_any_element()),
                 Row::Item(self.adaptive_row(cx).into_any_element()),
+                Row::Item(self.visualizer_row(cx).into_any_element()),
                 Row::Item(self.icons_row(cx).into_any_element()),
                 Row::Item(self.opacity_row(cx).into_any_element()),
                 Row::Item(self.corners_row(cx).into_any_element()),
@@ -864,6 +865,26 @@ impl SettingsView {
                     if kind != look.kind {
                         Theme::fade(Look { kind, ..look }, &overrides, cx);
                     }
+                }))
+                .into_any_element(),
+        )
+    }
+
+    fn visualizer_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+        let muted = theme.muted_foreground;
+        let small = theme.text(Text::Small);
+        let on = self.settings.read(cx).visualizer();
+
+        self.row(
+            t!("settings-visualizer"),
+            t!("settings-visualizer-detail"),
+            muted,
+            small,
+            Switch::new("visualizer", on)
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.settings
+                        .update(cx, |settings, cx| settings.set_visualizer(!on, cx));
                 }))
                 .into_any_element(),
         )

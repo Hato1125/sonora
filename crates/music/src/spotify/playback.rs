@@ -10,6 +10,7 @@ use librespot_playback::player::{Player, PlayerEvent};
 use tokio::sync::mpsc::UnboundedReceiver;
 
 use crate::audio::Volume;
+use crate::spectrum::Spectrum;
 use crate::spotify::sink::{BlazingSink, Flush};
 use crate::{
     PlaybackConfig, PlaybackEvent, PlaybackEvents, PlaybackFactory, Player as MusicPlayer,
@@ -49,6 +50,7 @@ pub struct Engine {
     player: Arc<Player>,
     volume: Volume,
     flush: Flush,
+    spectrum: Spectrum,
     gapless: bool,
 }
 
@@ -56,6 +58,7 @@ impl Engine {
     fn start(session: Session, config: PlaybackConfig) -> (Self, Events) {
         let volume = Volume::new(config.gain);
         let flush = Flush::default();
+        let spectrum = Spectrum::new();
 
         let player_config = PlayerConfig {
             bitrate: Bitrate::Bitrate320,
@@ -67,8 +70,9 @@ impl Engine {
 
         let sink_volume = volume.clone();
         let sink_flush = flush.clone();
+        let sink_spectrum = spectrum.clone();
         let player = Player::new(player_config, session, Box::new(NoOpVolume), move || {
-            BlazingSink::boxed(sink_flush, sink_volume)
+            BlazingSink::boxed(sink_flush, sink_volume, sink_spectrum)
         });
 
         let events = Events(player.get_player_event_channel());
@@ -76,6 +80,7 @@ impl Engine {
             player,
             volume,
             flush,
+            spectrum,
             gapless: config.gapless,
         };
         (engine, events)
@@ -120,6 +125,10 @@ impl Engine {
     fn set_gain(&self, gain: f32) {
         self.volume.set(gain);
     }
+
+    fn spectrum(&self) -> Spectrum {
+        self.spectrum.clone()
+    }
 }
 
 impl MusicPlayer for Engine {
@@ -149,6 +158,10 @@ impl MusicPlayer for Engine {
 
     fn set_gain(&self, gain: f32) {
         self.set_gain(gain);
+    }
+
+    fn spectrum(&self) -> Option<Spectrum> {
+        Some(self.spectrum())
     }
 }
 
