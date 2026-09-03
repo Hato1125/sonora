@@ -137,6 +137,7 @@
             nativeBuildInputs = with pkgs; [
               mold
               pkg-config
+              cmake
               rustc
               rust-analyzer
               rustfmt
