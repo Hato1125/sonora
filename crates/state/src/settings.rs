@@ -155,6 +155,7 @@ struct Values {
     romanization_scripts: RomanizationScripts,
     adaptive_menu: bool,
     check_updates: bool,
+    close_to_tray: bool,
     sidebar_width: f32,
     sidebar_open: bool,
     sidebar_right_width: f32,
@@ -217,6 +218,7 @@ impl Default for Values {
             romanization_scripts: RomanizationScripts::default(),
             adaptive_menu: false,
             check_updates: cfg!(target_os = "windows"),
+            close_to_tray: true,
             sidebar_width: DEFAULT_SIDEBAR_WIDTH,
             sidebar_open: true,
             sidebar_right_width: DEFAULT_SIDEBAR_RIGHT_WIDTH,
@@ -353,6 +355,10 @@ impl AppSettings {
 
     pub fn check_updates(&self) -> bool {
         self.values.check_updates
+    }
+
+    pub fn close_to_tray(&self) -> bool {
+        self.values.close_to_tray
     }
 
     pub fn sidebar_width(&self) -> f32 {
@@ -527,6 +533,11 @@ impl AppSettings {
 
     pub fn set_check_updates(&mut self, check_updates: bool, cx: &mut Context<Self>) {
         self.values.check_updates = check_updates;
+        self.schedule_save(cx);
+    }
+
+    pub fn set_close_to_tray(&mut self, close_to_tray: bool, cx: &mut Context<Self>) {
+        self.values.close_to_tray = close_to_tray;
         self.schedule_save(cx);
     }
 

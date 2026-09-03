@@ -9,6 +9,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Closing the window no longer stops the music: Sonora stays in the system tray with play/pause,
+  previous, next, show and quit at hand, and the Dock icon steps aside on macOS until the window
+  is back. Turn it off under Settings → General → Window if you would rather it quit.
 - Sonora speaks Spanish. Pick Español under Settings > General > Language, or leave the language on
   System and it follows a Spanish desktop on its own.
 - Sonora speaks Japanese. Pick 日本語 under Settings > General > Language, or leave the language on
