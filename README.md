@@ -81,9 +81,18 @@ instead, which takes a while on a Rust and GPUI tree but links against your own 
 yay -S sonora
 ```
 
-#### Other
+Either `pipewire-alsa` or `pulseaudio-alsa` is required, matching your sound server.
 
-Flatpak coming soon.
+#### Flatpak
+
+Add the Sonora repository once; it pulls the runtime from Flathub and updates with `flatpak update`:
+
+```sh
+flatpak install --user https://nolight132.github.io/sonora/sonora.flatpakref
+```
+
+Every release also attaches a standalone `.flatpak` bundle for x86_64 and aarch64 on
+[Releases](https://github.com/nolight132/sonora/releases/latest), for installing without a remote.
 
 ### Nix
 
@@ -130,14 +139,18 @@ AI-assisted proofreading and translation of human-written text are permitted.
 
 <!-- i18n:start -->
 
-| Language          | Translated | Coverage |
-| ----------------- | ---------- | -------- |
-| English (`en-US`) | 496/496    | 100%     |
-| Deutsch (`de`)    | 475/496    | 96%      |
-| Français (`fr`)   | 475/496    | 96%      |
-| Русский (`ru`)    | 475/496    | 96%      |
-| Українська (`uk`) | 475/496    | 96%      |
-| Polski (`pl`)     | 475/496    | 96%      |
+| Language | Translated | Coverage |
+| --- | --- | --- |
+| English (`en-US`) | 496/496 | 100% |
+| Deutsch (`de`) | 475/496 | 96% |
+| Español (`es`) | 496/496 | 100% |
+| Français (`fr`) | 475/496 | 96% |
+| Italiano (`it`) | 475/496 | 96% |
+| 日本語 (`ja`) | 496/496 | 100% |
+| Русский (`ru`) | 475/496 | 96% |
+| Українська (`uk`) | 475/496 | 96% |
+| Polski (`pl`) | 475/496 | 96% |
+| Português (Brasil) (`pt-BR`) | 496/496 | 100% |
 
 <!-- i18n:end -->
 

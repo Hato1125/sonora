@@ -16,15 +16,15 @@
       forEachSystem = fn: nixpkgs.lib.genAttrs systems (system: fn nixpkgs.legacyPackages.${system});
 
       release = {
-        version = "0.28.1";
+        version = "0.29.0";
         assets = {
           x86_64-linux = {
             target = "x86_64-unknown-linux-gnu";
-            hash = "sha256-4ViaRCAKFx9fzA5zkQXiUfgGvxHqXF7bMq4+g6UcCqU=";
+            hash = "sha256-FUKrUrfBKKOMMzaqAJHxKMjHK/nBcjLa3qqe8IZPWA4=";
           };
           aarch64-linux = {
             target = "aarch64-unknown-linux-gnu";
-            hash = "sha256-7u+QfX23zMWxTZTlxkEsrCKthHMt97ueqIYa0xg20zk=";
+            hash = "sha256-XRfVINLgVp4pcGpYqHilBN9F2+z5b3afU5iJXh7dAtw=";
           };
         };
       };
@@ -91,9 +91,7 @@
             postFixup = ''
               patchelf \
                 --set-interpreter "${pkgs.stdenv.cc.bintools.dynamicLinker}" \
-                --add-rpath "${
-                  pkgs.lib.makeLibraryPath (runtimeLibraries ++ [ pkgs.stdenv.cc.cc.lib ])
-                }" \
+                --add-rpath "${pkgs.lib.makeLibraryPath (runtimeLibraries ++ [ pkgs.stdenv.cc.cc.lib ])}" \
                 "$out/bin/sonora"
             '';
 
@@ -148,6 +146,21 @@
             buildInputs = runtimeLibraries;
 
             LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath runtimeLibraries;
+
+            ALSA_PLUGIN_DIR = "${pkgs.symlinkJoin {
+              name = "alsa-plugins-combined";
+              paths = [
+                "${pkgs.alsa-plugins}/lib/alsa-lib"
+                "${pkgs.pipewire}/lib/alsa-lib"
+              ];
+            }}";
+
+            shellHook = ''
+              if [ ! -d /run/opengl-driver ]; then
+                export VK_DRIVER_FILES="${pkgs.mesa}/share/vulkan/icd.d"
+                export VK_IMPLICIT_LAYER_PATH="${pkgs.mesa}/share/vulkan/implicit_layer.d"
+              fi
+            '';
           };
         }
       );
