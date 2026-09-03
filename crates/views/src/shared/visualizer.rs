@@ -14,11 +14,11 @@ struct State {
 }
 
 #[derive(Clone, Default)]
-pub struct EqualizerDrive {
+pub struct VisualizerDrive {
     state: Rc<RefCell<State>>,
 }
 
-impl EqualizerDrive {
+impl VisualizerDrive {
     pub fn levels(&self) -> Vec<f32> {
         self.state.borrow().shown.clone()
     }

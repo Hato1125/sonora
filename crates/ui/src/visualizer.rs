@@ -8,13 +8,13 @@ const OPACITY: f32 = 0.32;
 const FLOOR: f32 = 0.03;
 
 #[derive(IntoElement)]
-pub struct Equalizer {
+pub struct Visualizer {
     base: Div,
     levels: Vec<f32>,
     max: Pixels,
 }
 
-impl Equalizer {
+impl Visualizer {
     #[track_caller]
     pub fn new(levels: Vec<f32>, max: Pixels) -> Self {
         Self {
@@ -25,13 +25,13 @@ impl Equalizer {
     }
 }
 
-impl Styled for Equalizer {
+impl Styled for Visualizer {
     fn style(&mut self) -> &mut StyleRefinement {
         self.base.style()
     }
 }
 
-impl RenderOnce for Equalizer {
+impl RenderOnce for Visualizer {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let Self {
             mut base,
@@ -41,7 +41,7 @@ impl RenderOnce for Equalizer {
         let theme = *cx.theme();
         let overrides = std::mem::take(base.style());
 
-        let mut equalizer = base
+        let mut visualizer = base
             .h(max)
             .flex()
             .items_end()
@@ -49,13 +49,13 @@ impl RenderOnce for Equalizer {
             .gap(px(GAP))
             .children(levels.into_iter().enumerate().map(|(index, level)| {
                 div()
-                    .id(("equalizer-bar", index))
+                    .id(("visualizer-bar", index))
                     .flex_1()
                     // .rounded_t(theme.radius) -> for inherit radius from theme
                     .bg(theme.primary.opacity(OPACITY))
                     .h(max * level.clamp(FLOOR, 1.))
             }));
-        equalizer.style().refine(&overrides);
-        equalizer
+        visualizer.style().refine(&overrides);
+        visualizer
     }
 }

@@ -4,7 +4,6 @@ pub(crate) mod album_grid;
 pub(crate) mod cards;
 pub(crate) mod cells;
 pub(crate) mod confirm;
-pub(crate) mod equalizer;
 pub(crate) mod hero;
 pub(crate) mod local;
 pub(crate) mod menus;
@@ -20,6 +19,7 @@ pub(crate) mod track_card;
 pub(crate) mod tracks;
 pub(crate) mod transport;
 pub(crate) mod trouble;
+pub(crate) mod visualizer;
 
 use gpui::prelude::*;
 use gpui::{App, Div, Pixels, div, px, svg};

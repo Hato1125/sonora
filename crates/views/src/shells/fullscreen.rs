@@ -14,14 +14,15 @@ use input::{ToggleFullscreen, WORKSPACE_CONTEXT};
 use router::{Destination, navigate};
 use state::{AppSettings, Cover, Playback, Queue, SideTab, Sonora};
 use ui::{
-    ActiveTheme as _, Artwork, Button, Equalizer, ExplicitBadge, InlineLink, InlineLinks, Motion,
-    Motioned as _, Popup, Room, Scrollbar, Scrubber, ScrubberState, Springs, Text, clock, snapped,
+    ActiveTheme as _, Artwork, Button, ExplicitBadge, InlineLink, InlineLinks, Motion,
+    Motioned as _, Popup, Room, Scrollbar, Scrubber, ScrubberState, Springs, Text, Visualizer,
+    clock, snapped,
 };
 
 use crate::chrome::{Aside, TitleBarOptions};
-use crate::shared::equalizer::EqualizerDrive;
 use crate::shared::menus::ItemMenu;
 use crate::shared::transport::{NOTCH, like, moved, percent, transport, volume_icon};
+use crate::shared::visualizer::VisualizerDrive;
 use crate::shells::Shell;
 
 const COVER_TALL: f32 = 0.46;
@@ -46,7 +47,7 @@ const VOLUME_RISE: f32 = 132.;
 const VOLUME_ZONE: f32 = 14.;
 const CLOCK_SHORT: f32 = 3.4;
 const CLOCK_LONG: f32 = 5.4;
-const EQUALIZER_MIN: f32 = 160.;
+const VISUALIZER_MIN: f32 = 160.;
 const REST: Duration = Duration::from_millis(1500);
 const WAKE_DEBOUNCE: Duration = Duration::from_millis(400);
 const SPRING_REST: f32 = 0.001;
@@ -79,7 +80,7 @@ pub struct FullscreenView {
     spring_beat: Instant,
     rest: Option<Task<()>>,
     focus: FocusHandle,
-    equalizer: EqualizerDrive,
+    visualizer: VisualizerDrive,
     root_bounds: Rc<Cell<Bounds<Pixels>>>,
     artwork_bounds: Rc<Cell<Bounds<Pixels>>>,
 }
@@ -128,7 +129,7 @@ impl FullscreenView {
             spring_beat: Instant::now(),
             rest: None,
             focus: cx.focus_handle(),
-            equalizer: EqualizerDrive::default(),
+            visualizer: VisualizerDrive::default(),
             root_bounds: Rc::new(Cell::new(Bounds::default())),
             artwork_bounds: Rc::new(Cell::new(Bounds::default())),
         };
@@ -921,17 +922,17 @@ impl Render for FullscreenView {
         let cover_scale = presentation_scale(presented_side, raster_side);
         let staged = self.panel.is_none() || split;
 
-        let equalizer_on = self.panel.is_none() && self.settings.read(cx).equalizer();
-        match equalizer_on
+        let visualizer_on = self.panel.is_none() && self.settings.read(cx).visualizer();
+        match visualizer_on
             .then(|| self.playback.read(cx).spectrum())
             .flatten()
         {
-            Some(spectrum) => self.equalizer.show(cx.entity_id(), spectrum, window),
-            None => self.equalizer.hide(),
+            Some(spectrum) => self.visualizer.show(cx.entity_id(), spectrum, window),
+            None => self.visualizer.hide(),
         }
         let bottom = |bounds: Bounds<Pixels>| bounds.origin.y + bounds.size.height;
-        let equalizer_max = (bottom(self.root_bounds.get()) - bottom(self.artwork_bounds.get()))
-            .max(px(EQUALIZER_MIN));
+        let visualizer_max = (bottom(self.root_bounds.get()) - bottom(self.artwork_bounds.get()))
+            .max(px(VISUALIZER_MIN));
         let root_bounds = self.root_bounds.clone();
 
         div()
@@ -956,9 +957,9 @@ impl Render for FullscreenView {
                     .absolute()
                     .size_full(),
             )
-            .when(equalizer_on, |this| {
+            .when(visualizer_on, |this| {
                 this.child(
-                    Equalizer::new(self.equalizer.levels(), equalizer_max)
+                    Visualizer::new(self.visualizer.levels(), visualizer_max)
                         .absolute()
                         .left_0()
                         .right_0()

@@ -194,7 +194,7 @@ impl SettingsView {
             SettingsTab::Appearance => vec![
                 Row::Item(self.theme_row(cx).into_any_element()),
                 Row::Item(self.adaptive_row(cx).into_any_element()),
-                Row::Item(self.equalizer_row(cx).into_any_element()),
+                Row::Item(self.visualizer_row(cx).into_any_element()),
                 Row::Item(self.icons_row(cx).into_any_element()),
                 Row::Item(self.opacity_row(cx).into_any_element()),
                 Row::Item(self.corners_row(cx).into_any_element()),
@@ -868,21 +868,21 @@ impl SettingsView {
         )
     }
 
-    fn equalizer_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn visualizer_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *cx.theme();
         let muted = theme.muted_foreground;
         let small = theme.text(Text::Small);
-        let on = self.settings.read(cx).equalizer();
+        let on = self.settings.read(cx).visualizer();
 
         self.row(
-            t!("settings-equalizer"),
-            t!("settings-equalizer-detail"),
+            t!("settings-visualizer"),
+            t!("settings-visualizer-detail"),
             muted,
             small,
-            Switch::new("equalizer", on)
+            Switch::new("visualizer", on)
                 .on_click(cx.listener(move |this, _, _, cx| {
                     this.settings
-                        .update(cx, |settings, cx| settings.set_equalizer(!on, cx));
+                        .update(cx, |settings, cx| settings.set_visualizer(!on, cx));
                 }))
                 .into_any_element(),
         )
