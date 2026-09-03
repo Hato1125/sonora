@@ -143,6 +143,7 @@ AI-assisted proofreading and translation of human-written text are permitted.
 | ---------------------------- | ---------- | -------- |
 | English (`en-US`)            | 496/496    | 100%     |
 | Deutsch (`de`)               | 475/496    | 96%      |
+| Español (`es`)               | 496/496    | 100%     |
 | Français (`fr`)              | 475/496    | 96%      |
 | Italiano (`it`)              | 475/496    | 96%      |
 | Русский (`ru`)               | 475/496    | 96%      |
