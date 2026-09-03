@@ -130,6 +130,7 @@ const DEFAULT_VOLUME: f32 = 0.7;
 const DEFAULT_SIDEBAR_WIDTH: f32 = 195.;
 const DEFAULT_SIDEBAR_RIGHT_WIDTH: f32 = 254.;
 const DEFAULT_FONT_SIZE: f32 = 14.;
+const DEFAULT_LYRICS_SCALE: f32 = 1.;
 const DEFAULT_STARTUP: &str = "home";
 
 pub const SYSTEM_FONT: &str = "auto";
@@ -152,6 +153,8 @@ struct Values {
     gapless: bool,
     karaoke_lyrics: bool,
     romanized_lyrics: bool,
+    panel_lyrics_scale: f32,
+    fullscreen_lyrics_scale: f32,
     romanization_scripts: RomanizationScripts,
     adaptive_menu: bool,
     check_updates: bool,
@@ -216,6 +219,8 @@ impl Default for Values {
             gapless: true,
             karaoke_lyrics: true,
             romanized_lyrics: true,
+            panel_lyrics_scale: DEFAULT_LYRICS_SCALE,
+            fullscreen_lyrics_scale: DEFAULT_LYRICS_SCALE,
             romanization_scripts: RomanizationScripts::default(),
             adaptive_menu: false,
             check_updates: cfg!(target_os = "windows"),
@@ -345,6 +350,18 @@ impl AppSettings {
 
     pub fn romanized_lyrics(&self) -> bool {
         self.values.romanized_lyrics
+    }
+
+    pub fn panel_lyrics_scale(&self) -> f32 {
+        self.values
+            .panel_lyrics_scale
+            .clamp(ui::MIN_LYRICS_SCALE, ui::MAX_LYRICS_SCALE)
+    }
+
+    pub fn fullscreen_lyrics_scale(&self) -> f32 {
+        self.values
+            .fullscreen_lyrics_scale
+            .clamp(ui::MIN_LYRICS_SCALE, ui::MAX_LYRICS_SCALE)
     }
 
     pub fn romanization_scripts(&self) -> RomanizationScripts {
@@ -517,6 +534,17 @@ impl AppSettings {
 
     pub fn set_romanized_lyrics(&mut self, romanized: bool, cx: &mut Context<Self>) {
         self.values.romanized_lyrics = romanized;
+        self.schedule_save(cx);
+    }
+
+    pub fn set_panel_lyrics_scale(&mut self, scale: f32, cx: &mut Context<Self>) {
+        self.values.panel_lyrics_scale = scale.clamp(ui::MIN_LYRICS_SCALE, ui::MAX_LYRICS_SCALE);
+        self.schedule_save(cx);
+    }
+
+    pub fn set_fullscreen_lyrics_scale(&mut self, scale: f32, cx: &mut Context<Self>) {
+        self.values.fullscreen_lyrics_scale =
+            scale.clamp(ui::MIN_LYRICS_SCALE, ui::MAX_LYRICS_SCALE);
         self.schedule_save(cx);
     }
 
