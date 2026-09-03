@@ -51,7 +51,7 @@ pub use deck::Deck;
 pub use drag::{Edge, drop_gap, drop_marker};
 pub use explicit::ExplicitBadge;
 pub use filters::{
-    FilterAxis, FilterChange, FlagAxis, RangeAxis, RangeScrubber, RangeState, SortAxis, Unit,
+    Filter, FilterChange, FlagAxis, RangeAxis, RangeScrubber, RangeState, SortAxis, Unit,
 };
 pub use form::{FORM_CONTEXT, Submit};
 pub use glide::Glide;

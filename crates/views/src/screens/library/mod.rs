@@ -1249,7 +1249,7 @@ impl Tooled for LibraryView {
             tools.push(tools::filters(
                 &self.popovers,
                 &self.sliders[self.section.slot()],
-                self.table(self.section).filter_axes(cx),
+                self.table(self.section).filters(cx),
                 move |change, cx| {
                     filtered.update(cx, |view, cx| view.filter(change, cx)).ok();
                 },

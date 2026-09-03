@@ -6,7 +6,7 @@ use i18n::t;
 use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::rc::Rc;
-use ui::{ActiveTheme as _, FilterAxis, FilterChange, FlagAxis, RangeAxis, Unit};
+use ui::{ActiveTheme as _, Filter, FilterChange, FlagAxis, RangeAxis, Unit};
 
 use crate::shared::menus::{ItemMenu, TrackColumns};
 use gpui::prelude::FluentBuilder as _;
@@ -440,14 +440,14 @@ impl TableSource for TrackSource {
         })
     }
 
-    fn filter_axes(&self, query: &str, cx: &App) -> Vec<FilterAxis> {
+    fn filter_axes(&self, query: &str, cx: &App) -> Vec<Filter> {
         let Some(bounds) = self.extent(query, cx) else {
             return Vec::new();
         };
         let value = self.sieve.duration.unwrap_or(bounds);
 
         vec![
-            FilterAxis::Range(
+            Filter::Range(
                 RangeAxis {
                     key: "filter-duration",
                     label: t!("filter-duration"),
@@ -458,12 +458,12 @@ impl TableSource for TrackSource {
                 }
                 .clamped(),
             ),
-            FilterAxis::Flag(FlagAxis {
+            Filter::Flag(FlagAxis {
                 key: "filter-explicit",
                 label: t!("filter-explicit"),
                 on: self.sieve.explicit,
             }),
-            FilterAxis::Flag(FlagAxis {
+            Filter::Flag(FlagAxis {
                 key: "filter-playable",
                 label: t!("filter-playable"),
                 on: self.sieve.playable,

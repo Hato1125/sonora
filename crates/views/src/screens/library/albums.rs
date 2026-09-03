@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 use std::cmp::Ordering;
-use ui::{ActiveTheme as _, FilterAxis, FilterChange, RangeAxis, Unit};
+use ui::{ActiveTheme as _, Filter, FilterChange, RangeAxis, Unit};
 
 use gpui::{AnyElement, App, Entity, SharedString, TextAlign};
 use i18n::t;
@@ -191,7 +191,7 @@ impl TableSource for AlbumSource {
         })
     }
 
-    fn filter_axes(&self, query: &str, cx: &App) -> Vec<FilterAxis> {
+    fn filter_axes(&self, query: &str, cx: &App) -> Vec<Filter> {
         let years = self.years(query, cx);
         let (Some(first), Some(last)) = (years.first(), years.last()) else {
             return Vec::new();
@@ -199,7 +199,7 @@ impl TableSource for AlbumSource {
         let bounds = (*first, *last);
         let value = self.year_span.unwrap_or(bounds);
 
-        vec![FilterAxis::Range(
+        vec![Filter::Range(
             RangeAxis {
                 key: "filter-year",
                 label: t!("filter-year"),

@@ -18,7 +18,7 @@ use crate::metrics::{snapped, text_width};
 use crate::pin::{Pin, Pinnable};
 use crate::popup::Popup;
 use crate::theme::ActiveTheme as _;
-use crate::{FilterAxis, SortAxis};
+use crate::{Filter, SortAxis};
 
 pub use layout::{ColumnSpec, Layout, Sort, Sorting, Width, rank};
 use layout::{PADDING, Resolved, SORT_ROOM, TRAIL, reordered, resolve, shifted, stretch};
@@ -103,7 +103,7 @@ pub trait TableSource: 'static {
         true
     }
 
-    fn filter_axes(&self, _query: &str, _cx: &App) -> Vec<FilterAxis> {
+    fn filter_axes(&self, _query: &str, _cx: &App) -> Vec<Filter> {
         vec![]
     }
 
@@ -1224,7 +1224,7 @@ pub trait Listing {
     fn sortables(&self, cx: &App) -> Vec<SortAxis>;
     fn cycle_sort(&self, column: &str, cx: &mut App);
     fn row_count(&self, cx: &App) -> usize;
-    fn filter_axes(&self, cx: &App) -> Vec<FilterAxis>;
+    fn filters(&self, cx: &App) -> Vec<Filter>;
     fn filter(&self, change: FilterChange, cx: &mut App);
     fn filtering(&self, cx: &App) -> bool;
     fn toggles(&self, cx: &App) -> Vec<Toggle>;
@@ -1289,7 +1289,7 @@ impl<S: TableSource> Listing for Entity<TableState<S>> {
         self.read(cx).delegate().row_count()
     }
 
-    fn filter_axes(&self, cx: &App) -> Vec<FilterAxis> {
+    fn filters(&self, cx: &App) -> Vec<Filter> {
         let delegate = self.read(cx).delegate();
         delegate.source().filter_axes(delegate.query(), cx)
     }

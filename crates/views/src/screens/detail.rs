@@ -545,7 +545,7 @@ impl Tooled for DetailView {
             tools::filters(
                 &self.popovers,
                 &self.sliders,
-                self.table.filter_axes(cx),
+                self.table.filters(cx),
                 move |change, cx| {
                     sifted
                         .update(cx, |view, cx| view.table.filter(change, cx))

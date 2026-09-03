@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use ui::{ActiveTheme as _, FilterAxis, FilterChange, FlagAxis};
+use ui::{ActiveTheme as _, Filter, FilterChange, FlagAxis};
 
 use gpui::{AnyElement, App, Entity, TextAlign};
 use i18n::t;
@@ -137,8 +137,8 @@ impl TableSource for PlaylistSource {
         })
     }
 
-    fn filter_axes(&self, _query: &str, _cx: &App) -> Vec<FilterAxis> {
-        vec![FilterAxis::Flag(FlagAxis {
+    fn filter_axes(&self, _query: &str, _cx: &App) -> Vec<Filter> {
+        vec![Filter::Flag(FlagAxis {
             key: "filter-owned",
             label: t!("filter-owned"),
             on: self.owned,

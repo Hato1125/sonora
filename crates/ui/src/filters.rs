@@ -15,12 +15,6 @@ const TRACK: f32 = 0.5;
 const THUMB: f32 = 1.5;
 const HIT: f32 = 2.;
 
-pub enum FilterChange {
-    Range(&'static str, (f32, f32)),
-    Flag(&'static str, bool),
-    Reset,
-}
-
 type ChangeFn = Box<dyn Fn(&(f32, f32), &mut Window, &mut App) + 'static>;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -39,18 +33,24 @@ impl Unit {
 }
 
 #[derive(Clone)]
-pub enum FilterAxis {
+pub enum Filter {
     Range(RangeAxis),
     Flag(FlagAxis),
 }
 
-impl FilterAxis {
+impl Filter {
     pub fn narrowed(&self) -> bool {
         match self {
             Self::Range(axis) => !axis.whole(),
             Self::Flag(axis) => axis.on,
         }
     }
+}
+
+pub enum FilterChange {
+    Range(&'static str, (f32, f32)),
+    Flag(&'static str, bool),
+    Reset,
 }
 
 #[derive(Clone)]

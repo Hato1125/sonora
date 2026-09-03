@@ -4,7 +4,7 @@ use std::rc::Rc;
 use gpui::prelude::*;
 use gpui::{AnyElement, App, div};
 use ui::{
-    ActiveTheme as _, Button, FilterAxis, FilterChange, MenuItem, Mode, Picker, Popovers,
+    ActiveTheme as _, Button, Filter, FilterChange, MenuItem, Mode, Picker, Popovers,
     RangeScrubber, RangeState, Sort, SortAxis, Text, Toggle, eyebrow,
 };
 
@@ -85,7 +85,7 @@ pub(crate) fn sorts(
 pub(crate) fn filters(
     group: &Popovers,
     sliders: &Sliders,
-    axes: Vec<FilterAxis>,
+    axes: Vec<Filter>,
     filter_fn: impl Fn(FilterChange, &mut App) + 'static,
     cx: &App,
 ) -> AnyElement {
@@ -94,7 +94,7 @@ pub(crate) fn filters(
     let filter_fn = Rc::new(filter_fn);
 
     let items = axes.iter().map(|axis| match axis {
-        FilterAxis::Range(axis) => {
+        Filter::Range(axis) => {
             let key = axis.key;
             let unit = axis.unit;
             let copy = axis.clone();
@@ -135,7 +135,7 @@ pub(crate) fn filters(
                     ),
             )
         }
-        FilterAxis::Flag(axis) => {
+        Filter::Flag(axis) => {
             let key = axis.key;
             let on = axis.on;
             let filter_fn = filter_fn.clone();
