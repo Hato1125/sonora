@@ -216,6 +216,7 @@ filter-duration = Duration
 filter-year = Year
 filter-explicit = Explicit only
 filter-playable = Playable only
+filter-owned = By you
 
 # view
 view-list = List
