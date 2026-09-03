@@ -62,7 +62,8 @@ impl RenderOnce for CookiePrompt {
                 t!("login-cookie-step-4"),
             ]))
             .child(
-                div().child(t!("login-cookie-step-note"))
+                div()
+                    .child(t!("login-cookie-step-note"))
                     .flex_1()
                     .min_w_0()
                     .text_size(theme.text(Text::Small))
