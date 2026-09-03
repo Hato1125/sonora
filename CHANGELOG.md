@@ -11,6 +11,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Sonora speaks Spanish. Pick Español under Settings > General > Language, or leave the language on
   System and it follows a Spanish desktop on its own.
+- Sonora speaks Japanese. Pick 日本語 under Settings > General > Language, or leave the language on
+  System and it follows a Japanese desktop on its own.
 
 ### Fixed
 
