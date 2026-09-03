@@ -30,6 +30,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Playback now skips deleted or unavailable playlist songs when moving forward or backward.
 - Installing the standalone `.flatpak` bundle now registers the Sonora repository, so `flatpak update`
   keeps it current, and it can replace an install made from the repository.
+- Emoji in playlist, track, and artist names now render instead of falling back to missing-glyph
+  boxes when the UI font has no emoji glyphs.
 
 ## [0.29.0] - 2026-09-03
 
