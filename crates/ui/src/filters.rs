@@ -15,7 +15,13 @@ const TRACK: f32 = 0.5;
 const THUMB: f32 = 1.5;
 const HIT: f32 = 2.;
 
-type Change = Box<dyn Fn(&(f32, f32), &mut Window, &mut App) + 'static>;
+pub enum FilterChange {
+    Range(&'static str, (f32, f32)),
+    Flag(&'static str, bool),
+    Reset,
+}
+
+type ChangeFn = Box<dyn Fn(&(f32, f32), &mut Window, &mut App) + 'static>;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Unit {
@@ -28,6 +34,21 @@ impl Unit {
         match self {
             Unit::Clock => clock(std::time::Duration::from_secs_f32(value.max(0.))),
             Unit::Plain => SharedString::from(format!("{}", value.round() as i64)),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub enum FilterAxis {
+    Range(RangeAxis),
+    Flag(FlagAxis),
+}
+
+impl FilterAxis {
+    pub fn narrowed(&self) -> bool {
+        match self {
+            Self::Range(axis) => !axis.whole(),
+            Self::Flag(axis) => axis.on,
         }
     }
 }
@@ -175,7 +196,7 @@ pub struct RangeScrubber {
     filled: Hsla,
     empty: Hsla,
     thumb: Hsla,
-    on_change: Option<Change>,
+    on_change: Option<ChangeFn>,
 }
 
 impl RangeScrubber {
