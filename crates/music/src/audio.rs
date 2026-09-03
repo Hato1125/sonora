@@ -1,12 +1,14 @@
 use std::num::NonZero;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::time::Duration;
 
 use anyhow::{Context as _, Result};
 use cpal::traits::{DeviceTrait, HostTrait};
 use rodio::source::SeekError;
 use rodio::{DeviceSinkBuilder, MixerDeviceSink, Source};
+
+use crate::spectrum::{Spectrum, Tap};
 
 pub const RAMP: Duration = Duration::from_millis(25);
 
@@ -30,11 +32,13 @@ impl Volume {
 pub struct Output {
     sink: Arc<rodio::Player>,
     volume: Volume,
+    device: String,
+    failed: Arc<AtomicBool>,
     _stream: MixerDeviceSink,
 }
 
 impl Output {
-    pub fn open(volume: Volume) -> Result<Self> {
+    pub fn open(volume: Volume, spectrum: Spectrum) -> Result<Self> {
         let host = cpal::default_host();
         let device = host
             .default_output_device()
@@ -44,37 +48,43 @@ impl Output {
             .default_output_config()
             .map_err(|error| anyhow::anyhow!("cannot read the output config: {error}"))?;
 
+        let device_name = ident(&device);
         log::info!(
             "sink: using {} at {} Hz, {} channels, {}",
-            device
-                .id()
-                .map(|id| id.to_string())
-                .as_deref()
-                .unwrap_or("unknown"),
+            device_name,
             default.sample_rate(),
             default.channels(),
             default.sample_format()
         );
 
         let format = default.sample_format();
+        let failed = Arc::new(AtomicBool::new(false));
+        let stream_failed = failed.clone();
         let builder = DeviceSinkBuilder::default()
             .with_device(device)
             .with_config(&default.config())
-            .with_sample_format(format);
+            .with_sample_format(format)
+            .with_error_callback(move |error| {
+                log::warn!("sink: audio output failed: {error}");
+                stream_failed.store(true, Ordering::Release);
+            });
         let mut stream = builder
             .open_stream()
             .map_err(|error| anyhow::anyhow!("cannot open the audio output: {error}"))?;
         stream.log_on_drop(false);
 
         let applied = volume.get();
+        let tap = spectrum.attach(default.sample_rate(), default.channels());
         let (sink, source) = rodio::Player::new();
         stream
             .mixer()
-            .add(SmoothGain::new(source, volume.clone(), applied, RAMP));
+            .add(SmoothGain::new(source, volume.clone(), applied, RAMP).with_tap(tap));
 
         Ok(Self {
             sink: Arc::new(sink),
             volume,
+            device: device_name,
+            failed,
             _stream: stream,
         })
     }
@@ -86,11 +96,23 @@ impl Output {
     pub fn set_volume(&self, gain: f32) {
         self.volume.set(gain);
     }
+
+    pub fn failed(&self) -> bool {
+        self.failed.load(Ordering::Acquire)
+    }
+
+    pub fn changed(&self) -> bool {
+        cpal::default_host()
+            .default_output_device()
+            .map(|device| ident(&device))
+            .is_none_or(|device| device != self.device)
+    }
 }
 
 pub struct SmoothGain<I> {
     input: I,
     volume: Volume,
+    tap: Option<Tap>,
 
     current: f32,
     target: f32,
@@ -110,6 +132,7 @@ impl<I: Source> SmoothGain<I> {
         Self {
             input,
             volume,
+            tap: None,
             current: initial,
             target: initial,
             step: 0.0,
@@ -120,6 +143,11 @@ impl<I: Source> SmoothGain<I> {
             channels: 0,
             rate: 0,
         }
+    }
+
+    pub fn with_tap(mut self, tap: Tap) -> Self {
+        self.tap = Some(tap);
+        self
     }
 
     fn resync(&mut self) {
@@ -163,6 +191,9 @@ impl<I: Source> Iterator for SmoothGain<I> {
         }
 
         let output = sample * self.current;
+        if let Some(tap) = self.tap.as_mut() {
+            tap.push(output);
+        }
 
         self.channel += 1;
         if self.channel >= self.channels {
@@ -273,4 +304,11 @@ impl<I: Source> Source for Trimmed<I> {
         self.emitted = (position.as_secs_f64() * self.lane as f64).round() as u64;
         Ok(())
     }
+}
+
+fn ident(device: &cpal::Device) -> String {
+    device
+        .id()
+        .map(|id| id.to_string())
+        .unwrap_or_else(|_| "unknown".to_owned())
 }
