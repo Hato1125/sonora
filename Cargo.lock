@@ -6123,8 +6123,7 @@ dependencies = [
 [[package]]
 name = "rodio"
 version = "0.22.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0a536bb79db59098ef71a4dd4246c02eb87b316deceb1b68e0cde7167ec01eb"
+source = "git+https://github.com/RustAudio/rodio?rev=4aa22e85e5ad5565c45dfdda95051158eb6b56c3#4aa22e85e5ad5565c45dfdda95051158eb6b56c3"
 dependencies = [
  "cpal 0.17.1",
  "dasp_sample",
