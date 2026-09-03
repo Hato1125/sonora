@@ -16,9 +16,9 @@ use router::{NavEntry, Screen, SettingsTab};
 use state::{AppSettings, Failure, Playback, SYSTEM_FONT, Session, SessionState, Sonora};
 use ui::{ActiveTheme as _, Scrollbar, Scroller, eyebrow};
 use ui::{
-    Avatar, Button, InfoCard, Initials, Input, Look, MAX_FONT, MAX_TRANSPARENCY, MIN_FONT,
-    MenuItem, Modal, Pace, Picker, Popovers, Rounding, Saver, Scrubber, ScrubberState, Separator,
-    Skeleton, Stillness, Switch, Text, Theme, ThemeKind,
+    Avatar, Button, InfoCard, Initials, Input, Look, MAX_FONT, MAX_LYRICS_SCALE, MAX_TRANSPARENCY,
+    MIN_FONT, MIN_LYRICS_SCALE, MenuItem, Modal, Pace, Picker, Popovers, Rounding, Saver, Scrubber,
+    ScrubberState, Separator, Skeleton, Stillness, Switch, Text, Theme, ThemeKind,
 };
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -218,6 +218,7 @@ impl SettingsView {
                 Row::Item(self.playback_row(cx).into_any_element()),
                 Row::Item(self.gapless_row(cx).into_any_element()),
                 self.title("settings-group-lyrics", cx),
+                Row::Item(self.lyrics_size_row(cx).into_any_element()),
                 Row::Item(self.karaoke_lyrics_row(cx).into_any_element()),
                 Row::Item(self.romanized_lyrics_row(cx).into_any_element()),
             ],
@@ -1026,6 +1027,47 @@ impl SettingsView {
                         .update(cx, |settings, cx| settings.set_check_updates(!on, cx));
                 }))
                 .into_any_element(),
+        )
+    }
+
+    fn lyrics_size_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+        let muted = theme.muted_foreground;
+        let small = theme.text(Text::Small);
+        let scale = self.settings.read(cx).lyrics_scale();
+
+        let step = move |id: &'static str, label: &'static str, delta: f32| {
+            let wanted = (scale + delta).clamp(MIN_LYRICS_SCALE, MAX_LYRICS_SCALE);
+
+            Button::new(id)
+                .label(label)
+                .small()
+                .outline()
+                .disabled(wanted == scale)
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.settings
+                        .update(cx, |settings, cx| settings.set_lyrics_scale(wanted, cx));
+                    cx.notify();
+                }))
+        };
+
+        let actions = div()
+            .flex()
+            .items_center()
+            .gap_2()
+            .child(step("lyrics-size-smaller", "\u{2212}", -0.1))
+            .child(div().child(t!(
+                "settings-lyrics-size-value",
+                size = (scale * 100.).round() as i64
+            )))
+            .child(step("lyrics-size-larger", "+", 0.1));
+
+        self.row(
+            t!("settings-lyrics-size"),
+            t!("settings-lyrics-size-detail"),
+            muted,
+            small,
+            actions.into_any_element(),
         )
     }
 
