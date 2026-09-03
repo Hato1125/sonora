@@ -12,8 +12,8 @@ mod tray;
 use std::sync::Arc;
 
 use gpui::{
-    App, AppContext as _, Bounds, Pixels, Size, TitlebarOptions, WindowBackgroundAppearance,
-    WindowBounds, WindowOptions, point, px, size,
+    App, AppContext as _, Bounds, Pixels, QuitMode, Size, TitlebarOptions,
+    WindowBackgroundAppearance, WindowBounds, WindowOptions, point, px, size,
 };
 use music::LyricsProvider;
 use router::Screen;
@@ -113,6 +113,9 @@ fn main() {
         ui::Theme::init(look, &overrides, cx);
 
         let lingers = tray::install(show_window, cx);
+        if lingers {
+            cx.set_quit_mode(QuitMode::Explicit);
+        }
         actions::register(lingers, cx);
         memory::watch(cx);
 
