@@ -157,6 +157,7 @@ async fn engine_loop(
     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let report_every = (config.position_interval.as_millis() / POLL.as_millis()).max(1) as u32;
     let mut ticks = 0u32;
+    let mut output_ticks = 0u32;
 
     let mut playing = false;
     let mut current: Option<Slot> = None;
@@ -227,6 +228,10 @@ async fn engine_loop(
                         }
                     }
                     Command::Play => {
+                        if output.failed() || output.changed() {
+                            events.send(PlaybackEvent::OutputChanged).ok();
+                            return;
+                        }
                         if current.is_some() {
                             sink.play();
                             playing = true;
@@ -251,6 +256,14 @@ async fn engine_loop(
                 }
             }
             _ = ticker.tick() => {
+                output_ticks += 1;
+                if playing && (output.failed() || output_ticks >= report_every && output.changed()) {
+                    events.send(PlaybackEvent::OutputChanged).ok();
+                    return;
+                }
+                if output_ticks >= report_every {
+                    output_ticks = 0;
+                }
                 let len = sink.len();
                 ticks += 1;
                 if current.is_some() && playing && len < prev_len {
