@@ -58,6 +58,11 @@ app-refresh-library = Refresh Library
 app-sign-out = Sign Out
 app-quit = Quit
 
+# tray menu
+tray-show = Show Sonora
+tray-play = Play
+tray-pause = Pause
+
 # table columns
 column-played-at = Played
 column-index = #
@@ -463,6 +468,8 @@ settings-window-controls = Window controls
 settings-window-controls-detail = Draw minimise, maximise and close in the title bar
 settings-controls-side = Controls side
 settings-controls-side-detail = Which end of the title bar the controls sit on
+settings-close-to-tray = Keep playing when closed
+settings-close-to-tray-detail = Keep Sonora in the system tray and continue playing after its window closes
 settings-normalisation = Normalize loudness
 settings-normalisation-detail = Keeps tracks at a consistent volume
 settings-gapless = Gapless playback
@@ -480,6 +487,7 @@ settings-romanization-greek = Greek
 settings-romanization-arabic = Arabic
 settings-romanization-other = Other writing systems
 settings-advanced = Advanced
+settings-group-window = Window
 settings-group-accounts = Accounts
 settings-group-library = Library
 settings-group-text = Text

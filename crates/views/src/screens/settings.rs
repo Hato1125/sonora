@@ -186,6 +186,8 @@ impl SettingsView {
                 Row::Item(self.startup_row(cx).into_any_element()),
                 Row::Item(self.entries_row(cx).into_any_element()),
                 Row::Item(self.language_row(cx).into_any_element()),
+                self.title("settings-group-window", cx),
+                Row::Item(self.tray_row(cx).into_any_element()),
                 self.title("settings-group-accounts", cx),
                 Row::Item(self.accounts_row(cx).into_any_element()),
                 self.title("settings-group-library", cx),
@@ -1005,6 +1007,26 @@ impl SettingsView {
                 .on_click(cx.listener(move |this, _, _, cx| {
                     this.settings
                         .update(cx, |settings, cx| settings.set_adaptive_menu(!on, cx));
+                }))
+                .into_any_element(),
+        )
+    }
+
+    fn tray_row(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *cx.theme();
+        let muted = theme.muted_foreground;
+        let small = theme.text(Text::Small);
+        let on = self.settings.read(cx).close_to_tray();
+
+        self.row(
+            t!("settings-close-to-tray"),
+            t!("settings-close-to-tray-detail"),
+            muted,
+            small,
+            Switch::new("close-to-tray", on)
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.settings
+                        .update(cx, |settings, cx| settings.set_close_to_tray(!on, cx));
                 }))
                 .into_any_element(),
         )
